@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+{% block title %}Árvore Genealógica · UrbanLex{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
+{% endblock %}
+
+{% block extra_style %}
+#cy { width: 100%; height: calc(100vh - 220px); min-height: 500px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.arvore-shell { display: grid; grid-template-columns: 1fr 320px; gap: 16px; align-items: start; }
+.painel-lateral { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 80px; }
+.leg-info-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.leg-info-label { font-family: var(--font-mono); font-size: 9px; color: var(--muted); letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 3px; }
+.leg-info-val { font-size: 13px; color: var(--text); }
+.legenda { display: flex; flex-wrap: wrap; gap: 10px; padding: 10px 0; }
+.legenda-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+.legenda-dot { width: 10px; height: 10px; border-radius: 50%; }
+{% endblock %}
+
+{% block topbar %}
+<a href="/legislacoes" style="color:var(--muted);font-size:12px;text-decoration:none">← Biblioteca</a>
+<span class="topbar-sep"></span>
+<span class="topbar-title">🌳 Árvore Genealógica</span>
+<span class="topbar-sep"></span>
+<span class="topbar-sub" id="arvore-titulo">carregando...</span>
+<div class="topbar-right">
+    <button class="btn btn-ghost btn-sm" onclick="cy && cy.fit()">⊞ Ajustar Tela</button>
+    <button class="btn btn-ghost btn-sm" onclick="exportarPNG()">📸 Exportar PNG</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="arvore-shell">
+    <!-- Grafo -->
+    <div>
+        <div class="legenda">
+            <div class="legenda-item"><div class="legenda-dot" style="background:#00e5a0"></div> Legislação raiz</div>
+            <div class="legenda-item"><div class="legenda-dot" style="background:#3d9be9"></div> Vigente</div>
+            <div class="legenda-item"><div class="legenda-dot" style="background:#6b7d8f"></div> Revogada</div>
+            <div class="legenda-item"><div class="legenda-dot" style="background:#f5a623"></div> Altera</div>
+            <div class="legenda-item"><div class="legenda-dot" style="background:#ff4d6d"></div> Revoga</div>
+            <div class="legenda-item"><div class="legenda-dot" style="background:#9b6dff"></div> Regulamenta</div>
+        </div>
+        <div id="cy"></div>
+        <div id="cy-loading" style="text-align:center;padding:60px;color:var(--muted)">
+            <div class="spinner" style="margin:0 auto 14px"></div>
+            Carregando árvore genealógica...
+        </div>
+    </div>
+
+    <!-- Painel lateral -->
+    <div class="painel-lateral">
+        <div class="card" id="painel-inicial">
+            <div class="card-title"><span class="dot"></span>Como usar</div>
+            <div class="text-sm text-muted" style="line-height:1.8">
+                <div>• Clique em qualquer nó para ver os detalhes</div>
+                <div>• Arraste os nós para reorganizar</div>
+                <div>• Use o scroll para zoom</div>
+                <div>• Clique em "Árvore desta Lei" para navegar</div>
+            </div>
+        </div>
+
+        <div class="card hidden" id="painel-detalhe">
+            <div class="card-title"><span class="dot"></span>Detalhes</div>
+            <div id="detalhe-conteudo"></div>
+            <div style="display:flex;flex-direction:column;gap:7px;margin-top:14px" id="detalhe-acoes"></div>
+        </div>
+
+        <div class="card" id="painel-raiz">
+            <div class="card-title"><span class="dot" style="background:var(--amber)"></span>Legislação Principal</div>
+            <div id="raiz-info">
+                <div class="spinner" style="margin:0 auto"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const LEG_ID = {{ legislacao_id }};
+let cy = null;
+let legAtualId = null;
+
+const COR = {
+    raiz:        '#00e5a0',
+    vigente:     '#3d9be9',
+    revogada:    '#4d5f6e',
+    altera:      '#f5a623',
+    revoga:      '#ff4d6d',
+    regulamenta: '#9b6dff',
+    complementa: '#3d9be9',
+    acrescenta:  '#00b880',
+};
+
+async function carregarArvore(id) {
+    document.getElementById('cy-loading').style.display = 'block';
+    document.getElementById('cy') && (document.getElementById('cy').style.opacity = '0.3');
+
+    const r = await api('GET', `/api/legislacoes/${id}/arvore`);
+    document.getElementById('cy-loading').style.display = 'none';
+    document.getElementById('cy').style.opacity = '1';
+
+    if (!r.success) { document.getElementById('cy-loading').innerHTML = '<div class="text-red">Erro ao carregar árvore</div>'; document.getElementById('cy-loading').style.display='block'; return; }
+
+    const { nodes, edges, raiz } = r.data;
+
+    if (raiz) {
+        document.getElementById('arvore-titulo').textContent = `${raiz.tipo_nome||''} ${raiz.numero||''}/${raiz.ano||''}`;
+        document.getElementById('raiz-info').innerHTML = `
+            <div class="leg-info-item"><div class="leg-info-label">Tipo</div><div class="leg-info-val">${raiz.tipo_nome||'—'}</div></div>
+            <div class="leg-info-item"><div class="leg-info-label">Número/Ano</div><div class="leg-info-val">${raiz.numero||'—'}/${raiz.ano||'—'}</div></div>
+            <div class="leg-info-item"><div class="leg-info-label">Município</div><div class="leg-info-val">${raiz.municipio_nome||raiz.estado||'—'}</div></div>
+            <div class="leg-info-item"><div class="leg-info-label">Status</div><div class="leg-info-val">${raiz.status==='vigente'?'<span class="badge badge-green">Vigente</span>':'<span class="badge badge-muted">Revogada</span>'}</div></div>
+            ${raiz.ementa?`<div class="leg-info-item"><div class="leg-info-label">Ementa</div><div class="leg-info-val" style="font-size:12px;color:var(--muted)">${raiz.ementa.substring(0,120)}...</div></div>`:''}
+        `;
+    }
+
+    // Montar Cytoscape
+    cy = cytoscape({
+        container: document.getElementById('cy'),
+        elements: [
+            ...nodes.map(n => ({
+                data: {
+                    id: String(n.id),
+                    label: n.label,
+                    tipo_no: n.tipo_no,
+                    status: n.status || 'vigente',
+                    ...n
+                }
+            })),
+            ...edges.map(e => ({
+                data: {
+                    id: `e${e.id}`,
+                    source: String(e.fonte_id),
+                    target: String(e.alvo_id),
+                    label: e.tipo_relacao || '',
+                    tipo_relacao: e.tipo_relacao || ''
+                }
+            }))
+        ],
+        style: [
+            {
+                selector: 'node',
+                style: {
+                    'background-color': 'data(cor)',
+                    'label': 'data(label)',
+                    'color': '#e8edf2',
+                    'font-size': '11px',
+                    'font-family': 'DM Mono, monospace',
+                    'text-valign': 'center',
+                    'text-halign': 'center',
+                    'text-wrap': 'wrap',
+                    'text-max-width': '120px',
+                    'width': '90px',
+                    'height': '38px',
+                    'shape': 'roundrectangle',
+                    'border-width': '1px',
+                    'border-color': 'rgba(255,255,255,0.15)',
+                    'padding': '6px',
+                    'cursor': 'pointer'
+                }
+            },
+            {
+                selector: 'node[tipo_no="raiz"]',
+                style: {
+                    'background-color': COR.raiz,
+                    'color': '#0a0c0f',
+                    'font-weight': 'bold',
+                    'width': '110px',
+                    'height': '44px',
+                    'border-width': '2px',
+                    'border-color': '#fff'
+                }
+            },
+            {
+                selector: 'node[status="revogada"]',
+                style: { 'background-color': COR.revogada, 'opacity': 0.75 }
+            },
+            {
+                selector: 'node[status="vigente"][tipo_no!="raiz"]',
+                style: { 'background-color': COR.vigente }
+            },
+            {
+                selector: 'node:selected',
+                style: { 'border-width': '3px', 'border-color': '#fff', 'shadow-blur': '12px', 'shadow-color': '#fff', 'shadow-opacity': 0.4 }
+            },
+            {
+                selector: 'edge',
+                style: {
+                    'width': 2,
+                    'line-color': COR.altera,
+                    'target-arrow-color': COR.altera,
+                    'target-arrow-shape': 'triangle',
+                    'curve-style': 'bezier',
+                    'label': 'data(label)',
+                    'font-size': '9px',
+                    'color': '#6b7d8f',
+                    'font-family': 'DM Mono, monospace',
+                    'text-rotation': 'autorotate',
+                    'text-margin-y': '-8px'
+                }
+            },
+            {
+                selector: 'edge[tipo_relacao="revoga"]',
+                style: { 'line-color': COR.revoga, 'target-arrow-color': COR.revoga, 'line-style': 'dashed' }
+            },
+            {
+                selector: 'edge[tipo_relacao="regulamenta"]',
+                style: { 'line-color': COR.regulamenta, 'target-arrow-color': COR.regulamenta }
+            },
+            {
+                selector: 'edge[tipo_relacao="complementa"]',
+                style: { 'line-color': COR.complementa, 'target-arrow-color': COR.complementa }
+            }
+        ],
+        layout: {
+            name: 'breadthfirst',
+            directed: true,
+            padding: 30,
+            spacingFactor: 1.5,
+            avoidOverlap: true
+        },
+        wheelSensitivity: 0.3
+    });
+
+    // Colorir nós dinamicamente
+    cy.nodes().forEach(n => {
+        if (n.data('tipo_no') === 'raiz') return;
+        const status = n.data('status');
+        n.style('background-color', status === 'revogada' ? COR.revogada : COR.vigente);
+    });
+
+    // Evento de clique
+    cy.on('tap', 'node', async evt => {
+        const node = evt.target;
+        const data = node.data();
+        mostrarDetalhe(data);
+    });
+
+    cy.on('tap', function(evt) {
+        if (evt.target === cy) {
+            document.getElementById('painel-detalhe').classList.add('hidden');
+            document.getElementById('painel-inicial').classList.remove('hidden');
+        }
+    });
+}
+
+async function mostrarDetalhe(data) {
+    document.getElementById('painel-inicial').classList.add('hidden');
+    document.getElementById('painel-detalhe').classList.remove('hidden');
+
+    const id = parseInt(data.id);
+    if (isNaN(id)) {
+        document.getElementById('detalhe-conteudo').innerHTML = `<div class="text-muted text-sm">Legislação não cadastrada na base</div>`;
+        document.getElementById('detalhe-acoes').innerHTML = '';
+        return;
+    }
+
+    document.getElementById('detalhe-conteudo').innerHTML = '<div class="spinner" style="margin:0 auto"></div>';
+    const r = await api('GET', `/api/legislacoes/${id}`);
+    if (!r.success) { document.getElementById('detalhe-conteudo').innerHTML = '<div class="text-muted text-sm">Erro ao carregar</div>'; return; }
+
+    const l = r.data;
+    document.getElementById('detalhe-conteudo').innerHTML = `
+        <div class="leg-info-item"><div class="leg-info-label">Tipo</div><div class="leg-info-val">${l.tipo_nome||'—'}</div></div>
+        <div class="leg-info-item"><div class="leg-info-label">Número / Ano</div><div class="leg-info-val" style="font-family:var(--font-mono)">${l.numero||'—'} / ${l.ano||'—'}</div></div>
+        <div class="leg-info-item"><div class="leg-info-label">Município</div><div class="leg-info-val">${l.municipio_nome||l.estado||'N/A'}</div></div>
+        <div class="leg-info-item"><div class="leg-info-label">Publicação</div><div class="leg-info-val">${fmtData(l.data_publicacao)}</div></div>
+        <div class="leg-info-item"><div class="leg-info-label">Status</div><div class="leg-info-val">${l.status==='vigente'?'<span class="badge badge-green">Vigente</span>':'<span class="badge badge-muted">Revogada</span>'}</div></div>
+        ${l.ementa?`<div class="leg-info-item"><div class="leg-info-label">Ementa</div><div class="leg-info-val" style="font-size:12px;color:var(--muted);line-height:1.6">${l.ementa.substring(0,200)}</div></div>`:''}
+    `;
+
+    legAtualId = id;
+    const temTexto = !!l.conteudo_texto;
+    const temDoc   = !!l.arquivo_url;
+
+    document.getElementById('detalhe-acoes').innerHTML = `
+        <button class="btn btn-primary btn-sm" onclick="location.href='/legislacoes/arvore/${id}'">🌳 Árvore desta Lei</button>
+        ${temTexto ? `<button class="btn btn-ghost btn-sm" onclick="verTexto(${id})">📄 Ver Texto Completo</button>` : ''}
+        ${temDoc   ? `<button class="btn btn-ghost btn-sm" onclick="window.open('/api/legislacoes/${id}/documento','_blank')">📥 Baixar Documento</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="location.href='/legislacoes?highlight=${id}'">🔍 Ver na Biblioteca</button>
+    `;
+}
+
+async function verTexto(id) {
+    const r = await api('GET', `/api/legislacoes/${id}/texto`);
+    if (!r.success) { toast('Texto não disponível', 'warning'); return; }
+    const w = window.open('', '_blank');
+    w.document.write(`<html><head><title>Texto · ${id}</title>
+    <style>body{font-family:monospace;background:#0a0c0f;color:#e8edf2;padding:32px;max-width:900px;margin:0 auto;line-height:1.8;white-space:pre-wrap;font-size:13px}</style>
+    </head><body>${r.data.texto}</body></html>`);
+}
+
+function exportarPNG() {
+    if (!cy) return;
+    const uri = cy.png({ full: true, bg: '#0a0c0f', scale: 2 });
+    const a = document.createElement('a');
+    a.href = uri; a.download = `arvore_leg_${LEG_ID}.png`; a.click();
+}
+
+// Iniciar
+carregarArvore(LEG_ID);
+</script>
+{% endblock %}

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UrbanLex — Ativação de conta</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg: #0a0c0f; --surface: #111418; --border: #1f2830;
+            --accent: #00e5a0; --text: #e8edf2; --muted: #6b7d8f;
+            --red: #ff4d6d; --amber: #f5a623;
+            --font-head: 'Syne', sans-serif; --font-body: 'DM Sans', sans-serif;
+            --font-mono: 'DM Mono', monospace;
+        }
+        body {
+            background: var(--bg); color: var(--text); font-family: var(--font-body);
+            min-height: 100vh; display: flex; align-items: center;
+            justify-content: center; padding: 24px; position: relative; overflow: hidden;
+        }
+        body::before {
+            content: ''; position: absolute; inset: 0;
+            background-image:
+                linear-gradient(rgba(0,229,160,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,229,160,0.03) 1px, transparent 1px);
+            background-size: 40px 40px; pointer-events: none;
+        }
+        .glow {
+            position: absolute; width: 500px; height: 500px;
+            background: radial-gradient(circle, rgba(0,229,160,0.05) 0%, transparent 70%);
+            top: 50%; left: 50%; transform: translate(-50%,-50%); pointer-events: none;
+        }
+        .card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 16px; padding: 52px 44px; width: 100%;
+            max-width: 420px; position: relative; z-index: 1; text-align: center;
+        }
+        .wordmark {
+            font-family: var(--font-head); font-size: 20px; font-weight: 800;
+            letter-spacing: -0.5px; margin-bottom: 32px; display: block;
+        }
+        .wordmark span { color: var(--accent); }
+
+        .icon {
+            width: 72px; height: 72px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 32px; margin: 0 auto 24px;
+        }
+        .icon.ok    { background: rgba(0,229,160,0.1); border: 1px solid rgba(0,229,160,0.3); }
+        .icon.erro  { background: rgba(255,77,109,0.1); border: 1px solid rgba(255,77,109,0.3); }
+
+        h1 { font-family: var(--font-head); font-size: 22px; font-weight: 800; margin-bottom: 12px; }
+        .desc { color: var(--muted); font-size: 14px; line-height: 1.8; margin-bottom: 28px; }
+        .desc strong { color: var(--text); }
+
+        .info-box {
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 10px; padding: 14px 18px; margin-bottom: 28px; text-align: left;
+        }
+        .info-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+        .info-label { font-family: var(--font-mono); font-size: 10px; color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase; }
+        .info-val   { font-size: 13px; font-weight: 500; }
+        .role-badge {
+            display: inline-block; padding: 3px 10px; border-radius: 20px;
+            font-family: var(--font-mono); font-size: 10px; font-weight: 500;
+        }
+        .role-admin  { background: rgba(0,229,160,0.1); border: 1px solid rgba(0,229,160,0.2); color: var(--accent); }
+        .role-leitura{ background: rgba(107,125,143,0.1); border: 1px solid var(--border); color: var(--muted); }
+
+        .btn {
+            display: inline-block; background: var(--accent); color: #0a0c0f;
+            text-decoration: none; padding: 13px 36px; border-radius: 8px;
+            font-family: var(--font-head); font-weight: 700; font-size: 14px;
+            transition: background 0.15s;
+        }
+        .btn:hover { background: #00b880; }
+
+        .link-muted {
+            display: block; margin-top: 16px;
+            color: var(--muted); font-size: 13px; text-decoration: none;
+        }
+        .link-muted:hover { color: var(--text); }
+
+        /* Countdown redirect */
+        .countdown {
+            font-family: var(--font-mono); font-size: 11px;
+            color: var(--muted); margin-top: 12px;
+        }
+    </style>
+</head>
+<body>
+<div class="glow"></div>
+
+<div class="card">
+    <span class="wordmark">Urban<span>Lex</span></span>
+
+    {% if ok %}
+    <!-- ── Sucesso ── -->
+    <div class="icon ok">✓</div>
+    <h1>Conta ativada!</h1>
+    <div class="desc">
+        Bem-vindo ao UrbanLex, <strong>{{ nome }}</strong>!<br>
+        Sua conta está pronta para uso.
+    </div>
+
+    <div class="info-box">
+        <div class="info-row">
+            <span class="info-label">E-mail</span>
+            <span class="info-val">{{ email }}</span>
+        </div>
+        <div class="info-row" style="margin-top:6px">
+            <span class="info-label">Nível de acesso</span>
+            {% if role == 'admin' %}
+            <span class="role-badge role-admin">Administrador</span>
+            {% else %}
+            <span class="role-badge role-leitura">Apenas leitura</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <a href="/login" class="btn">Entrar no sistema →</a>
+    <div class="countdown" id="countdown">Redirecionando em <span id="secs">5</span>s...</div>
+
+    {% else %}
+    <!-- ── Erro ── -->
+    <div class="icon erro">✗</div>
+    <h1 style="color:var(--red)">Link inválido</h1>
+    <div class="desc">
+        {{ erro }}<br><br>
+        Links de ativação são de uso único e expiram em 24 horas
+        (ou 48 horas para usuários aprovados pelo administrador).
+    </div>
+    <a href="/cadastro" class="btn" style="background:transparent;color:var(--muted);border:1px solid var(--border)">
+        Fazer novo cadastro
+    </a>
+    <a href="/login" class="link-muted">← Voltar ao login</a>
+    {% endif %}
+</div>
+
+{% if ok %}
+<script>
+let n = 5;
+const el = document.getElementById('secs');
+const timer = setInterval(() => {
+    n--;
+    el.textContent = n;
+    if (n <= 0) { clearInterval(timer); window.location.href = '/login'; }
+}, 1000);
+</script>
+{% endif %}
+</body>
+</html>

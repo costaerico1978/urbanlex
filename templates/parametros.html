@@ -1,0 +1,478 @@
+{% extends "base.html" %}
+{% block title %}Parâmetros Urbanísticos · UrbanLex{% endblock %}
+
+{% block extra_style %}
+.planilha-wrap { overflow: auto; max-height: calc(100vh - 260px); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.planilha-wrap table { min-width: 1800px; }
+.planilha-wrap th { position: sticky; top: 0; background: var(--surface); z-index: 5; font-size: 9px; padding: 8px 10px; }
+.planilha-wrap th.col-fixed { position: sticky; left: 0; z-index: 10; background: var(--surface); }
+.planilha-wrap td.col-fixed { position: sticky; left: 0; background: var(--surface2); z-index: 2; font-size: 11px; }
+.planilha-wrap td { font-size: 11px; padding: 7px 10px; }
+.col-group-header { background: var(--surface3) !important; color: var(--accent) !important; text-align: center; letter-spacing: 1px; border-left: 2px solid var(--border2); }
+.num-cell { font-family: var(--font-mono); text-align: right; }
+{% endblock %}
+
+{% block topbar %}
+<span class="topbar-title">📊 Parâmetros Urbanísticos</span>
+<span class="topbar-sep"></span>
+<span class="topbar-sub" id="plan-count">carregando...</span>
+<div class="topbar-right">
+    <button class="btn btn-ghost btn-sm" onclick="location.href='/parametros/calculadora'">🧮 Calculadora</button>
+    <button class="btn btn-ghost btn-sm" onclick="openModal('modal-importar')">📥 Importar Excel</button>
+    <button class="btn btn-ghost btn-sm" onclick="exportarExcel()">📤 Exportar Excel</button>
+    <button class="btn btn-ghost btn-sm" onclick="abrirPendentes()">⏳ Pendentes <span id="badge-pend-plan" class="sub-badge hidden" style="background:var(--amber);color:#fff;font-size:9px;font-family:var(--font-mono);padding:1px 5px;border-radius:20px">0</span></button>
+    <button class="btn btn-primary btn-sm" onclick="openModal('modal-nova-zona')">➕ Nova Zona</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Filtros -->
+<div style="display:flex;gap:10px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+    <input type="text" id="f-municipio" placeholder="Município..." style="width:160px" oninput="carregarPlanilha()">
+    <select id="f-estado" style="width:100px" onchange="carregarPlanilha()">
+        <option value="">Estado</option>
+        <option>AC</option><option>AL</option><option>AM</option><option>BA</option><option>CE</option>
+        <option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MG</option>
+        <option>MS</option><option>MT</option><option>PA</option><option>PB</option><option>PE</option>
+        <option>PI</option><option>PR</option><option>RJ</option><option>RN</option><option>RO</option>
+        <option>RR</option><option>RS</option><option>SC</option><option>SE</option><option>SP</option>
+        <option>TO</option>
+    </select>
+    <input type="text" id="f-zona" placeholder="Zona..." style="width:120px" oninput="carregarPlanilha()">
+    <span class="text-muted text-sm" id="plan-count-inline"></span>
+    <div class="ml-auto" style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-xs" onclick="limparFiltros()">✕ Limpar</button>
+    </div>
+</div>
+
+<!-- Planilha -->
+<div class="planilha-wrap" id="planilha-wrap">
+    <table id="tabela-zonas">
+        <thead>
+            <tr>
+                <th class="col-fixed" rowspan="2">Município</th>
+                <th rowspan="2">Estado</th>
+                <th rowspan="2">Zona</th>
+                <th rowspan="2">Subzona</th>
+                <th class="col-group-header" colspan="4">Residencial Unifamiliar</th>
+                <th class="col-group-header" colspan="4">Residencial Multifamiliar</th>
+                <th class="col-group-header" colspan="4">HIS</th>
+                <th class="col-group-header" colspan="4">Comercial</th>
+                <th class="col-group-header" colspan="4">Serviços</th>
+                <th class="col-group-header" colspan="4">Misto</th>
+                <th class="col-group-header" colspan="4">Industrial</th>
+                <th class="col-group-header" colspan="4">Institucional</th>
+                <th class="col-group-header" colspan="3">Outorga Onerosa</th>
+                <th rowspan="2">Legislação</th>
+                <th rowspan="2">Ações</th>
+            </tr>
+            <tr>
+                <!-- ResUnif --> <th>CA Bás.</th><th>CA Máx.</th><th>TO%</th><th>Gab.</th>
+                <!-- ResMult --> <th>CA Bás.</th><th>CA Máx.</th><th>TO%</th><th>Gab.</th>
+                <!-- HIS -->     <th>CA Bás.</th><th>CA Máx.</th><th>TO%</th><th>Gab.</th>
+                <!-- Com -->     <th>CA Bás.</th><th>CA Máx.</th><th>TO%</th><th>Gab.</th>
+                <!-- Serv -->    <th>CA Bás.</th><th>CA Máx.</th><th>TO%</th><th>Gab.</th>
+                <!-- Misto -->   <th>CA Bás.</th><th>CA Máx.</th><th>TO%</th><th>Gab.</th>
+                <!-- Ind -->     <th>CA Bás.</th><th>CA Máx.</th><th>TO%</th><th>Gab.</th>
+                <!-- Inst -->    <th>CA Bás.</th><th>CA Máx.</th><th>TO%</th><th>Gab.</th>
+                <!-- Outorga --> <th>CT</th><th>FP</th><th>Fórmula</th>
+            </tr>
+        </thead>
+        <tbody id="tbody-zonas">
+            <tr><td colspan="36" style="text-align:center;padding:40px">
+                <span class="spinner" style="margin:0 auto"></span>
+            </td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- ═══ MODAL: Nova Zona / Editar ════════════════════════════ -->
+<div class="modal-overlay" id="modal-nova-zona">
+    <div class="modal modal-xl">
+        <div class="modal-title" id="modal-zona-titulo">
+            ➕ Nova Zona de Parâmetros
+            <button class="modal-close" onclick="closeModal('modal-nova-zona')">×</button>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>Município *</label>
+                <input type="text" id="z-municipio" placeholder="Ex: Curitiba">
+            </div>
+            <div class="form-group">
+                <label>Estado *</label>
+                <select id="z-estado">
+                    <option value="">Selecione</option>
+                    <option>AC</option><option>AL</option><option>AM</option><option>BA</option><option>CE</option>
+                    <option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MG</option>
+                    <option>MS</option><option>MT</option><option>PA</option><option>PB</option><option>PE</option>
+                    <option>PI</option><option>PR</option><option>RJ</option><option>RN</option><option>RO</option>
+                    <option>RR</option><option>RS</option><option>SC</option><option>SE</option><option>SP</option>
+                    <option>TO</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Zona *</label>
+                <input type="text" id="z-zona" placeholder="Ex: ZR-1">
+            </div>
+            <div class="form-group">
+                <label>Subzona</label>
+                <input type="text" id="z-subzona" placeholder="Ex: A">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Legislação de Referência</label>
+            <input type="text" id="z-legislacao" placeholder="Ex: Lei 14.771/2023 - LPUOS SP">
+        </div>
+
+        <!-- Abas por uso -->
+        <div class="page-tabs" style="margin-top:8px">
+            <div class="page-tab zona-tab active" id="zt-res" onclick="switchTab('zona','zt-res','zp-res')">ResUnif</div>
+            <div class="page-tab zona-tab" id="zt-mult" onclick="switchTab('zona','zt-mult','zp-mult')">ResMult</div>
+            <div class="page-tab zona-tab" id="zt-his" onclick="switchTab('zona','zt-his','zp-his')">HIS</div>
+            <div class="page-tab zona-tab" id="zt-com" onclick="switchTab('zona','zt-com','zp-com')">Comercial</div>
+            <div class="page-tab zona-tab" id="zt-serv" onclick="switchTab('zona','zt-serv','zp-serv')">Serviços</div>
+            <div class="page-tab zona-tab" id="zt-misto" onclick="switchTab('zona','zt-misto','zp-misto')">Misto</div>
+            <div class="page-tab zona-tab" id="zt-ind" onclick="switchTab('zona','zt-ind','zp-ind')">Industrial</div>
+            <div class="page-tab zona-tab" id="zt-inst" onclick="switchTab('zona','zt-inst','zp-inst')">Institucional</div>
+            <div class="page-tab zona-tab" id="zt-out" onclick="switchTab('zona','zt-out','zp-out')">Outorga</div>
+        </div>
+
+        <!-- Painel genérico (usado para todos os usos) -->
+        {% for uso in [('res','ResUnif'),('mult','ResMult'),('his','HIS'),('com','Comercial'),('serv','Serviços'),('misto','Misto'),('ind','Industrial'),('inst','Institucional')] %}
+        <div class="tab-panel zona-panel {% if loop.first %}active{% endif %}" id="zp-{{uso[0]}}">
+            <div class="form-row-3">
+                <div class="form-group"><label>CA Básico</label><input type="number" step="0.01" id="z-{{uso[0]}}-ca-basico" placeholder="0.00"></div>
+                <div class="form-group"><label>CA Máximo</label><input type="number" step="0.01" id="z-{{uso[0]}}-ca-maximo" placeholder="0.00"></div>
+                <div class="form-group"><label>TO Máximo (%)</label><input type="number" step="0.01" id="z-{{uso[0]}}-to-max" placeholder="0.00"></div>
+            </div>
+            <div class="form-row-3">
+                <div class="form-group"><label>Gabarito Máx. (m)</label><input type="number" step="0.1" id="z-{{uso[0]}}-gabarito-max" placeholder="0.0"></div>
+                <div class="form-group"><label>Recuo Frontal (m)</label><input type="number" step="0.01" id="z-{{uso[0]}}-recuo-frontal" placeholder="0.00"></div>
+                <div class="form-group"><label>Recuo Lateral (m)</label><input type="number" step="0.01" id="z-{{uso[0]}}-recuo-lateral" placeholder="0.00"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Recuo Fundos (m)</label><input type="number" step="0.01" id="z-{{uso[0]}}-recuo-fundos" placeholder="0.00"></div>
+                {% if uso[0] in ['res','mult','com'] %}
+                <div class="form-group"><label>Fator Privativa/Computável</label><input type="number" step="0.01" id="z-{{uso[0]}}-fator-privativa" placeholder="Ex: 1.0"></div>
+                {% endif %}
+            </div>
+            <div class="form-group"><label>Fórmula de Área (opcional)</label><input type="text" id="z-{{uso[0]}}-formula-area" placeholder="Ex: lote * CA_maximo"></div>
+            <div class="form-group"><label>Observações</label><textarea id="z-{{uso[0]}}-observacoes" rows="2"></textarea></div>
+        </div>
+        {% endfor %}
+
+        <!-- Outorga -->
+        <div class="tab-panel zona-panel" id="zp-out">
+            <div class="form-row-3">
+                <div class="form-group"><label>CT (Coef. de Transição)</label><input type="number" step="0.01" id="z-out-ct" placeholder="0.00"></div>
+                <div class="form-group"><label>FP (Fator de Planejamento)</label><input type="number" step="0.01" id="z-out-fp" placeholder="0.00"></div>
+                <div class="form-group"><label>Fórmula</label><input type="text" id="z-out-formula" placeholder="Ex: lote*(CA_max-CA_bas)*CT*FP*VPT"></div>
+            </div>
+            <div class="form-group"><label>Observações</label><textarea id="z-out-observacoes" rows="2"></textarea></div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('modal-nova-zona')">Cancelar</button>
+            <button class="btn btn-primary" onclick="salvarZona()" id="btn-salvar-zona">💾 Salvar Zona</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ MODAL: Importar Excel ════════════════════════════════ -->
+<div class="modal-overlay" id="modal-importar">
+    <div class="modal modal-md">
+        <div class="modal-title">
+            📥 Importar Planilha Excel
+            <button class="modal-close" onclick="closeModal('modal-importar')">×</button>
+        </div>
+        <div class="alert alert-info">
+            <span>ℹ</span>
+            <span>Use o template v2.3 para importar. Linhas existentes serão atualizadas, novas serão criadas.</span>
+        </div>
+        <div class="form-group">
+            <label>Arquivo Excel (.xlsx)</label>
+            <div class="upload-area" onclick="document.getElementById('imp-arquivo').click()">
+                <div class="upload-icon">📊</div>
+                <div class="upload-text">Clique para selecionar a planilha</div>
+                <div class="upload-sub">.xlsx · máx. 10MB</div>
+                <div id="imp-nome" style="margin-top:8px;font-size:12px;color:var(--accent);display:none"></div>
+            </div>
+            <input type="file" id="imp-arquivo" style="display:none" accept=".xlsx" onchange="document.getElementById('imp-nome').textContent='📎 '+this.files[0].name;document.getElementById('imp-nome').style.display='block'">
+        </div>
+        <div id="imp-progresso" style="display:none" class="alert alert-warning">
+            <span class="spinner"></span>
+            <span id="imp-status">Importando...</span>
+        </div>
+        <div id="imp-resultado" style="display:none"></div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('modal-importar')">Fechar</button>
+            <button class="btn btn-primary" onclick="importarExcel()" id="btn-importar">📥 Importar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ MODAL: Pendentes de Parâmetros ══════════════════════ -->
+<div class="modal-overlay" id="modal-pend-plan">
+    <div class="modal modal-xl">
+        <div class="modal-title">
+            ⏳ Parâmetros Pendentes de Aprovação
+            <button class="modal-close" onclick="closeModal('modal-pend-plan')">×</button>
+        </div>
+        <div id="pend-plan-conteudo">
+            <div class="spinner" style="margin:0 auto"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('modal-pend-plan')">Fechar</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let zonaEditandoId = null;
+const USOS = ['res','mult','his','com','serv','misto','ind','inst'];
+const CAMPOS_COMUNS = ['ca-basico','ca-maximo','to-max','gabarito-max','recuo-frontal','recuo-lateral','recuo-fundos','formula-area','observacoes'];
+
+async function carregarPlanilha() {
+    const mun   = document.getElementById('f-municipio').value;
+    const est   = document.getElementById('f-estado').value;
+    const zona  = document.getElementById('f-zona').value;
+    const params = new URLSearchParams();
+    if (mun)  params.set('municipio', mun);
+    if (est)  params.set('estado', est);
+    if (zona) params.set('zona', zona);
+
+    const r = await api('GET', '/api/zonas?' + params);
+    const tbody = document.getElementById('tbody-zonas');
+    if (!r.success || !r.data.length) {
+        tbody.innerHTML = `<tr><td colspan="36"><div class="empty-state"><div class="empty-icon">📊</div><div class="empty-title">Nenhuma zona cadastrada</div><div class="empty-sub">Clique em "Nova Zona" ou importe uma planilha Excel</div></div></td></tr>`;
+        document.getElementById('plan-count').textContent = '0 zonas';
+        document.getElementById('plan-count-inline').textContent = '0 resultados';
+        return;
+    }
+    document.getElementById('plan-count').textContent = `${r.data.length} zona(s)`;
+    document.getElementById('plan-count-inline').textContent = `${r.data.length} resultado(s)`;
+
+    const n = v => (v===null||v===undefined||v==='') ? '<span style="color:var(--muted2)">—</span>' : `<span class="num-cell">${v}</span>`;
+
+    tbody.innerHTML = r.data.map(z => `
+        <tr>
+            <td class="col-fixed fw-bold" style="white-space:nowrap">${z.municipio||'—'}</td>
+            <td>${z.estado||'—'}</td>
+            <td style="font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--accent)">${z.zona||'—'}</td>
+            <td style="font-size:11px">${z.subzona||'—'}</td>
+            <!-- ResUnif -->
+            ${n(z.res_unif_ca_basico)}${n(z.res_unif_ca_maximo)}${n(z.res_unif_to_max)}${n(z.res_unif_gabarito_max)}
+            <!-- ResMult -->
+            ${n(z.res_mult_ca_basico)}${n(z.res_mult_ca_maximo)}${n(z.res_mult_to_max)}${n(z.res_mult_gabarito_max)}
+            <!-- HIS -->
+            ${n(z.his_ca_basico)}${n(z.his_ca_maximo)}${n(z.his_to_max)}${n(z.his_gabarito_max)}
+            <!-- Com -->
+            ${n(z.com_ca_basico)}${n(z.com_ca_maximo)}${n(z.com_to_max)}${n(z.com_gabarito_max)}
+            <!-- Serv -->
+            ${n(z.serv_ca_basico)}${n(z.serv_ca_maximo)}${n(z.serv_to_max)}${n(z.serv_gabarito_max)}
+            <!-- Misto -->
+            ${n(z.misto_ca_basico)}${n(z.misto_ca_maximo)}${n(z.misto_to_max)}${n(z.misto_gabarito_max)}
+            <!-- Ind -->
+            ${n(z.ind_ca_basico)}${n(z.ind_ca_maximo)}${n(z.ind_to_max)}${n(z.ind_gabarito_max)}
+            <!-- Inst -->
+            ${n(z.inst_ca_basico)}${n(z.inst_ca_maximo)}${n(z.inst_to_max)}${n(z.inst_gabarito_max)}
+            <!-- Outorga -->
+            ${n(z.outorga_ct)}${n(z.outorga_fp)}<td style="font-size:10px;font-family:var(--font-mono);max-width:120px;overflow:hidden;text-overflow:ellipsis">${z.outorga_formula||'—'}</td>
+            <td style="font-size:11px;max-width:140px" title="${z.legislacao_referencia||''}">${(z.legislacao_referencia||'—').substring(0,30)}</td>
+            <td>
+                <div style="display:flex;gap:4px">
+                    <button class="btn btn-ghost btn-xs" onclick="editarZona(${z.id})" title="Editar">✏️</button>
+                    <button class="btn btn-danger btn-xs" onclick="excluirZona(${z.id})" title="Excluir">🗑</button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function limparFiltros() {
+    document.getElementById('f-municipio').value='';
+    document.getElementById('f-estado').value='';
+    document.getElementById('f-zona').value='';
+    carregarPlanilha();
+}
+
+// ── Salvar zona ───────────────────────────────────────────────
+function coletarDadosZona() {
+    const dados = {
+        municipio: document.getElementById('z-municipio').value,
+        estado:    document.getElementById('z-estado').value,
+        zona:      document.getElementById('z-zona').value,
+        subzona:   document.getElementById('z-subzona').value,
+        legislacao_referencia: document.getElementById('z-legislacao').value,
+    };
+    USOS.forEach(uso => {
+        const prefix = uso === 'mult' ? 'res_mult' : uso === 'res' ? 'res_unif' : uso;
+        CAMPOS_COMUNS.forEach(c => {
+            const el = document.getElementById(`z-${uso}-${c}`);
+            if (el) dados[`${prefix}_${c.replace(/-/g,'_')}`] = el.value || null;
+        });
+        ['fator-privativa'].forEach(c => {
+            const el = document.getElementById(`z-${uso}-${c}`);
+            if (el) dados[`${prefix}_${c.replace(/-/g,'_')}`] = el.value || null;
+        });
+    });
+    ['ct','fp','formula','observacoes'].forEach(c => {
+        const el = document.getElementById(`z-out-${c}`);
+        if (el) dados[`outorga_${c}`] = el.value || null;
+    });
+    return dados;
+}
+
+async function salvarZona() {
+    const dados = coletarDadosZona();
+    if (!dados.municipio || !dados.estado || !dados.zona) { toast('Preencha Município, Estado e Zona', 'error'); return; }
+    const btn = document.getElementById('btn-salvar-zona');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Salvando...';
+    const url = zonaEditandoId ? `/api/zona/${zonaEditandoId}` : '/api/zona';
+    const method = zonaEditandoId ? 'PUT' : 'POST';
+    const r = await api(method, url, dados);
+    btn.disabled = false; btn.innerHTML = '💾 Salvar Zona';
+    if (r.success) {
+        toast(zonaEditandoId ? 'Zona atualizada!' : 'Zona criada!');
+        closeModal('modal-nova-zona');
+        carregarPlanilha();
+    } else toast(r.error || 'Erro ao salvar', 'error');
+}
+
+async function editarZona(id) {
+    zonaEditandoId = id;
+    document.getElementById('modal-zona-titulo').textContent = '✏️ Editar Zona';
+    openModal('modal-nova-zona');
+    const r = await api('GET', `/api/zona/${id}`);
+    if (!r.success) return;
+    const z = r.data;
+    document.getElementById('z-municipio').value = z.municipio||'';
+    document.getElementById('z-estado').value = z.estado||'';
+    document.getElementById('z-zona').value = z.zona||'';
+    document.getElementById('z-subzona').value = z.subzona||'';
+    document.getElementById('z-legislacao').value = z.legislacao_referencia||'';
+    USOS.forEach(uso => {
+        const prefix = uso === 'mult' ? 'res_mult' : uso === 'res' ? 'res_unif' : uso;
+        CAMPOS_COMUNS.forEach(c => {
+            const el = document.getElementById(`z-${uso}-${c}`);
+            if (el) el.value = z[`${prefix}_${c.replace(/-/g,'_')}`] ?? '';
+        });
+    });
+    ['ct','fp','formula','observacoes'].forEach(c => {
+        const el = document.getElementById(`z-out-${c}`);
+        if (el) el.value = z[`outorga_${c}`] ?? '';
+    });
+}
+
+async function excluirZona(id) {
+    if (!confirm('Excluir esta zona? Esta ação não pode ser desfeita.')) return;
+    const r = await api('DELETE', `/api/zona/${id}`);
+    if (r.success) { toast('Zona excluída'); carregarPlanilha(); }
+    else toast(r.error || 'Erro', 'error');
+}
+
+// ── Importar Excel ────────────────────────────────────────────
+async function importarExcel() {
+    const f = document.getElementById('imp-arquivo').files[0];
+    if (!f) { toast('Selecione um arquivo Excel', 'error'); return; }
+    const btn = document.getElementById('btn-importar');
+    btn.disabled = true;
+    document.getElementById('imp-progresso').style.display = 'flex';
+    const fd = new FormData(); fd.append('arquivo', f);
+    const r = await apiForm('/api/parametros/importar', fd);
+    btn.disabled = false;
+    document.getElementById('imp-progresso').style.display = 'none';
+    const res = document.getElementById('imp-resultado');
+    res.style.display = 'block';
+    if (r.success) {
+        res.innerHTML = `<div class="alert alert-success">✓ Importado com sucesso! ${r.criadas||0} zonas criadas · ${r.atualizadas||0} atualizadas · ${r.erros||0} erros</div>`;
+        carregarPlanilha();
+    } else {
+        res.innerHTML = `<div class="alert alert-error">✗ Erro: ${r.error||'Falha na importação'}</div>`;
+    }
+}
+
+function exportarExcel() { window.open('/api/parametros/exportar', '_blank'); }
+
+// ── Pendentes ─────────────────────────────────────────────────
+async function abrirPendentes() {
+    openModal('modal-pend-plan');
+    const r = await api('GET', '/api/integracao/pendentes');
+    const el = document.getElementById('pend-plan-conteudo');
+    if (!r.success || !r.data.length) {
+        el.innerHTML = '<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-title">Nenhum parâmetro pendente</div></div>';
+        return;
+    }
+    el.innerHTML = `<div class="table-wrap"><table>
+        <thead><tr><th>Município</th><th>Zona</th><th>Origem</th><th>Data</th><th>Ações</th></tr></thead>
+        <tbody>${r.data.map(p=>`<tr>
+            <td>${p.municipio||'—'}</td>
+            <td style="font-family:var(--font-mono)">${p.zona||'—'}</td>
+            <td><span class="badge badge-blue">${p.origem||'IA'}</span></td>
+            <td style="font-size:11px">${fmtData(p.criado_em)}</td>
+            <td>
+                <div style="display:flex;gap:6px">
+                    <button class="btn btn-ghost btn-xs" onclick="verDetalheIntegracao(${p.id})">👁 Ver</button>
+                    <button class="btn btn-primary btn-xs" onclick="aprovarIntegracao(${p.id})">✓ Aprovar</button>
+                    <button class="btn btn-danger btn-xs" onclick="rejeitarIntegracao(${p.id})">✗ Rejeitar</button>
+                </div>
+            </td>
+        </tr>`).join('')}</tbody>
+    </table></div>`;
+}
+
+
+async function verDetalheIntegracao(id) {
+    const r = await api('GET', `/api/integracao/${id}`);
+    if (!r.success) { toast('Erro ao carregar','error'); return; }
+    const d = r.data;
+    const params = d.parametros_json || {};
+    const linhas = Object.entries(params).map(([k,v]) =>
+        `<tr><td style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">${k}</td><td style="font-family:var(--font-mono);font-size:12px">${v??'—'}</td></tr>`
+    ).join('');
+    const conteudo = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;font-size:13px">
+            <div><div class="text-mono text-muted mb-2">Município</div>${d.municipio||'—'}</div>
+            <div><div class="text-mono text-muted mb-2">Zona</div><span class="tag">${d.zona||'—'}</span></div>
+        </div>
+        <div class="table-wrap" style="max-height:300px;overflow-y:auto">
+            <table><thead><tr><th>Parâmetro</th><th>Valor</th></tr></thead><tbody>${linhas}</tbody></table>
+        </div>
+    `;
+    // Exibir em alert simples já que não há modal específico neste template
+    const win = window.open('', '_blank', 'width=600,height=500');
+    if (win) {
+        win.document.write(`<!DOCTYPE html><html><head><title>Detalhes</title>
+            <style>body{font-family:sans-serif;padding:20px;background:#111;color:#eee}
+            table{width:100%;border-collapse:collapse}td{padding:8px;border-bottom:1px solid #333}</style>
+            </head><body>${conteudo}<button onclick="window.close()">Fechar</button></body></html>`);
+    }
+}
+
+async function aprovarIntegracao(id) {
+    const r = await api('POST', `/api/integracao/${id}/aprovar`);
+    if (r.success) { toast('Parâmetros aprovados e aplicados!'); abrirPendentes(); carregarPlanilha(); atualizarBadges(); }
+    else toast(r.error||'Erro','error');
+}
+
+async function rejeitarIntegracao(id) {
+    const motivo = prompt('Motivo da rejeição (opcional):') || '';
+    const r = await api('POST', `/api/integracao/${id}/rejeitar`, { motivo });
+    if (r.success) { toast('Rejeitado','warning'); abrirPendentes(); atualizarBadges(); }
+    else toast(r.error||'Erro','error');
+}
+
+// Reset modal ao fechar
+document.getElementById('modal-nova-zona').addEventListener('click', function(e) {
+    if (!e.target.closest('.modal')) {
+        zonaEditandoId = null;
+        document.getElementById('modal-zona-titulo').textContent = '➕ Nova Zona de Parâmetros';
+    }
+});
+
+carregarPlanilha();
+</script>
+{% endblock %}

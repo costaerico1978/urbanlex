@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UrbanLex — Cadastro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg: #0a0c0f; --surface: #111418; --border: #1f2830; --border2: #2a3540;
+            --accent: #00e5a0; --accent2: #00b880; --text: #e8edf2; --muted: #6b7d8f;
+            --red: #ff4d6d; --amber: #f5a623; --blue: #3d9be9;
+            --font-head: 'Syne', sans-serif; --font-body: 'DM Sans', sans-serif;
+            --font-mono: 'DM Mono', monospace;
+        }
+        body {
+            background: var(--bg); color: var(--text);
+            font-family: var(--font-body); min-height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            position: relative; overflow: hidden; padding: 24px;
+        }
+        body::before {
+            content: ''; position: absolute; inset: 0;
+            background-image:
+                linear-gradient(rgba(0,229,160,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,229,160,0.03) 1px, transparent 1px);
+            background-size: 40px 40px; pointer-events: none;
+        }
+        .glow {
+            position: absolute; width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(0,229,160,0.04) 0%, transparent 70%);
+            top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none;
+        }
+        .card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 16px; padding: 44px 40px;
+            width: 100%; max-width: 440px; position: relative; z-index: 1;
+        }
+
+        /* Header */
+        .logo-area { text-align: center; margin-bottom: 32px; }
+        .logo-icon {
+            width: 48px; height: 48px;
+            background: linear-gradient(135deg, rgba(0,229,160,0.15), rgba(0,229,160,0.04));
+            border: 1px solid rgba(0,229,160,0.25); border-radius: 12px;
+            display: inline-flex; align-items: center; justify-content: center;
+            margin-bottom: 14px;
+        }
+        .wordmark { font-family: var(--font-head); font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+        .wordmark span { color: var(--accent); }
+        .page-title { font-family: var(--font-head); font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+        .page-desc  { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+        /* Form */
+        .form-group { margin-bottom: 16px; }
+        label {
+            display: block; font-family: var(--font-mono);
+            font-size: 10px; color: var(--muted);
+            letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 7px;
+        }
+        .input-wrap { position: relative; }
+        input {
+            width: 100%; background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border); border-radius: 8px;
+            color: var(--text); padding: 11px 14px;
+            font-family: var(--font-body); font-size: 14px; outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        input.com-toggle { padding-right: 42px; }
+        input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,229,160,0.08); }
+        input.erro { border-color: var(--red); }
+
+        .toggle-pw {
+            position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+            background: none; border: none; color: var(--muted);
+            cursor: pointer; padding: 4px; line-height: 0;
+            transition: color 0.15s;
+        }
+        .toggle-pw:hover { color: var(--text); }
+
+        /* Força da senha */
+        .senha-requisitos {
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 8px; padding: 12px 14px; margin-top: 8px;
+            display: none;
+        }
+        .senha-requisitos.show { display: block; }
+        .req {
+            display: flex; align-items: center; gap: 8px;
+            font-family: var(--font-mono); font-size: 10px;
+            color: var(--muted); margin-bottom: 5px; transition: color 0.2s;
+        }
+        .req:last-child { margin-bottom: 0; }
+        .req-dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: var(--border2); flex-shrink: 0; transition: background 0.2s;
+        }
+        .req.ok { color: var(--accent); }
+        .req.ok .req-dot { background: var(--accent); }
+
+        .strength-bar { display: flex; gap: 3px; margin-top: 8px; }
+        .seg { flex: 1; height: 3px; background: var(--border); border-radius: 3px; transition: background 0.2s; }
+        .strength-txt { font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-top: 5px; }
+
+        /* Match */
+        .match-hint { font-family: var(--font-mono); font-size: 10px; margin-top: 6px; display: none; }
+        .match-hint.ok  { color: var(--accent); display: block; }
+        .match-hint.err { color: var(--red);    display: block; }
+
+        /* Botão */
+        .btn {
+            width: 100%; background: var(--accent); color: #0a0c0f;
+            border: none; border-radius: 8px; padding: 13px;
+            font-family: var(--font-head); font-size: 14px; font-weight: 700;
+            cursor: pointer; transition: background 0.15s;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            margin-top: 8px;
+        }
+        .btn:hover { background: var(--accent2); }
+        .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        /* Mensagens */
+        .msg { border-radius: 8px; padding: 12px 14px; font-size: 13px; margin-top: 14px; display: none; line-height: 1.5; }
+        .msg.erro    { background: rgba(255,77,109,0.08); border: 1px solid rgba(255,77,109,0.2); color: var(--red); }
+        .msg.show    { display: block; }
+
+        /* Link login */
+        .login-link {
+            text-align: center; margin-top: 20px;
+            font-size: 13px; color: var(--muted);
+        }
+        .login-link a { color: var(--accent); text-decoration: none; }
+        .login-link a:hover { text-decoration: underline; }
+
+        /* Spinner */
+        .spinner {
+            width: 16px; height: 16px;
+            border: 2px solid rgba(10,12,15,0.3); border-top-color: var(--bg);
+            border-radius: 50%; animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Estado de sucesso */
+        .success-view { display: none; text-align: center; }
+        .success-icon {
+            width: 60px; height: 60px;
+            border-radius: 50%; display: flex;
+            align-items: center; justify-content: center;
+            font-size: 26px; margin: 0 auto 20px;
+        }
+        .success-icon.admin { background: rgba(0,229,160,0.1); border: 1px solid rgba(0,229,160,0.3); }
+        .success-icon.usuario { background: rgba(245,166,35,0.1); border: 1px solid rgba(245,166,35,0.3); }
+        .success-title { font-family: var(--font-head); font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+        .success-desc  { color: var(--muted); font-size: 13px; line-height: 1.8; }
+
+        .divider { height: 1px; background: var(--border); margin: 20px 0; }
+    </style>
+</head>
+<body>
+<div class="glow"></div>
+
+<div class="card">
+
+    <!-- ── Formulário ── -->
+    <div id="form-view">
+        <div class="logo-area">
+            <div class="logo-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00e5a0" stroke-width="1.5">
+                    <path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/>
+                </svg>
+            </div>
+            <div class="wordmark">Urban<span>Lex</span></div>
+        </div>
+
+        <div class="page-title">Criar conta</div>
+        <p class="page-desc" style="margin-bottom:24px">
+            Preencha os dados abaixo para solicitar acesso ao sistema.
+        </p>
+
+        <!-- Nome -->
+        <div class="form-group">
+            <label>Nome completo</label>
+            <input type="text" id="nome" placeholder="Érico Costa" autocomplete="name">
+        </div>
+
+        <!-- E-mail -->
+        <div class="form-group">
+            <label>E-mail</label>
+            <input type="email" id="email" placeholder="seuemail@exemplo.com" autocomplete="email">
+        </div>
+
+        <!-- Senha -->
+        <div class="form-group">
+            <label>Senha</label>
+            <div class="input-wrap">
+                <input type="password" id="senha" placeholder="6–15 caracteres"
+                       class="com-toggle" autocomplete="new-password"
+                       oninput="verificarSenha()" onfocus="mostrarRequisitos()">
+                <button class="toggle-pw" type="button" onclick="toggleVis('senha', this)" tabindex="-1">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/>
+                        <circle cx="8" cy="8" r="2"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Barra de força -->
+            <div class="strength-bar" id="strength-bar">
+                <div class="seg" id="s1"></div>
+                <div class="seg" id="s2"></div>
+                <div class="seg" id="s3"></div>
+                <div class="seg" id="s4"></div>
+            </div>
+            <div class="strength-txt" id="strength-txt"></div>
+
+            <!-- Requisitos -->
+            <div class="senha-requisitos" id="requisitos">
+                <div class="req" id="req-len">  <div class="req-dot"></div> 6 a 15 caracteres</div>
+                <div class="req" id="req-mai">  <div class="req-dot"></div> Letra maiúscula (A–Z)</div>
+                <div class="req" id="req-min">  <div class="req-dot"></div> Letra minúscula (a–z)</div>
+                <div class="req" id="req-num">  <div class="req-dot"></div> Número (0–9)</div>
+                <div class="req" id="req-esp">  <div class="req-dot"></div> Caractere especial (!@#$%...)</div>
+            </div>
+        </div>
+
+        <!-- Confirmar senha -->
+        <div class="form-group">
+            <label>Confirmar senha</label>
+            <div class="input-wrap">
+                <input type="password" id="confirmar" placeholder="Repita a senha"
+                       class="com-toggle" autocomplete="new-password"
+                       oninput="verificarMatch()">
+                <button class="toggle-pw" type="button" onclick="toggleVis('confirmar', this)" tabindex="-1">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/>
+                        <circle cx="8" cy="8" r="2"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="match-hint" id="match-hint"></div>
+        </div>
+
+        <button class="btn" id="btn-cadastrar" onclick="cadastrar()">
+            <span id="btn-txt">Criar conta</span>
+        </button>
+
+        <div class="msg erro" id="msg-erro"></div>
+
+        <div class="divider"></div>
+        <div class="login-link">Já tem conta? <a href="/login">Entrar →</a></div>
+    </div>
+
+    <!-- ── Sucesso: admin ── -->
+    <div class="success-view" id="view-admin">
+        <div class="success-icon admin">✉️</div>
+        <div class="success-title">Confirme seu e-mail</div>
+        <div class="success-desc">
+            Enviamos um link de confirmação para<br>
+            <strong id="email-admin" style="color:var(--text)"></strong><br><br>
+            Clique no link para ativar sua conta de administrador.<br>
+            <span style="color:var(--amber);font-family:var(--font-mono);font-size:11px">⚠ Link válido por 24 horas</span>
+        </div>
+        <div class="divider"></div>
+        <a href="/login" style="color:var(--muted);font-size:13px;text-decoration:none">← Ir para o login</a>
+    </div>
+
+    <!-- ── Sucesso: usuário comum ── -->
+    <div class="success-view" id="view-usuario">
+        <div class="success-icon usuario">⏳</div>
+        <div class="success-title">Cadastro enviado!</div>
+        <div class="success-desc">
+            Sua solicitação foi recebida e está<br>
+            <strong style="color:var(--amber)">aguardando aprovação do administrador.</strong><br><br>
+            Você receberá um e-mail assim que sua conta for aprovada.<br>
+            Isso costuma acontecer em até 24 horas.
+        </div>
+        <div class="divider"></div>
+        <a href="/login" style="color:var(--muted);font-size:13px;text-decoration:none">← Voltar ao login</a>
+    </div>
+
+</div><!-- /card -->
+
+<script>
+// ── Validação em tempo real ──────────────────────────────────────
+
+function mostrarRequisitos() {
+    document.getElementById('requisitos').classList.add('show');
+}
+
+function verificarSenha() {
+    const s = document.getElementById('senha').value;
+    const reqs = {
+        'req-len': s.length >= 6 && s.length <= 15,
+        'req-mai': /[A-Z]/.test(s),
+        'req-min': /[a-z]/.test(s),
+        'req-num': /[0-9]/.test(s),
+        'req-esp': /[^a-zA-Z0-9]/.test(s),
+    };
+    Object.entries(reqs).forEach(([id, ok]) => {
+        document.getElementById(id).classList.toggle('ok', ok);
+    });
+
+    // Força
+    const ok = Object.values(reqs).filter(Boolean).length;
+    const cores  = ['','#ff4d6d','#ff4d6d','#f5a623','#3d9be9','#00e5a0'];
+    const labels = ['','Muito fraca','Fraca','Média','Boa','Forte'];
+    for (let i = 1; i <= 4; i++) {
+        document.getElementById(`s${i}`).style.background = i <= ok ? cores[ok] : 'var(--border)';
+    }
+    const txt = document.getElementById('strength-txt');
+    txt.textContent = s ? labels[ok] : '';
+    txt.style.color = cores[ok];
+
+    verificarMatch();
+}
+
+function verificarMatch() {
+    const s1 = document.getElementById('senha').value;
+    const s2 = document.getElementById('confirmar').value;
+    const hint = document.getElementById('match-hint');
+    if (!s2) { hint.className = 'match-hint'; return; }
+    if (s1 === s2) {
+        hint.textContent = '✓ Senhas coincidem';
+        hint.className = 'match-hint ok';
+    } else {
+        hint.textContent = '✗ Senhas diferentes';
+        hint.className = 'match-hint err';
+    }
+}
+
+function toggleVis(id, btn) {
+    const el = document.getElementById(id);
+    el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+// ── Cadastro ─────────────────────────────────────────────────────
+
+function senhaValida(s) {
+    return s.length >= 6 && s.length <= 15 &&
+           /[A-Z]/.test(s) && /[a-z]/.test(s) &&
+           /[0-9]/.test(s) && /[^a-zA-Z0-9]/.test(s);
+}
+
+async function cadastrar() {
+    const nome      = document.getElementById('nome').value.trim();
+    const email     = document.getElementById('email').value.trim();
+    const senha     = document.getElementById('senha').value;
+    const confirmar = document.getElementById('confirmar').value;
+    const btn       = document.getElementById('btn-cadastrar');
+    const erro      = document.getElementById('msg-erro');
+
+    erro.classList.remove('show');
+
+    if (!nome)      { mostrarErro('Informe seu nome'); return; }
+    if (!email)     { mostrarErro('Informe seu e-mail'); return; }
+    if (!senhaValida(senha)) {
+        mostrarErro('A senha não atende todos os requisitos acima');
+        mostrarRequisitos(); verificarSenha(); return;
+    }
+    if (senha !== confirmar) { mostrarErro('As senhas não coincidem'); return; }
+
+    btn.disabled = true;
+    document.getElementById('btn-txt').innerHTML = '<div class="spinner"></div>';
+
+    try {
+        const r = await fetch('/api/auth/cadastrar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nome, email, senha, confirmar_senha: confirmar })
+        });
+        const data = await r.json();
+
+        if (data.success) {
+            document.getElementById('form-view').style.display = 'none';
+            if (data.tipo === 'admin') {
+                document.getElementById('email-admin').textContent = email;
+                document.getElementById('view-admin').style.display = 'block';
+            } else {
+                document.getElementById('view-usuario').style.display = 'block';
+            }
+        } else {
+            mostrarErro(data.error || 'Erro ao cadastrar');
+        }
+    } catch(e) {
+        mostrarErro('Erro de conexão — tente novamente');
+    } finally {
+        btn.disabled = false;
+        document.getElementById('btn-txt').textContent = 'Criar conta';
+    }
+}
+
+function mostrarErro(msg) {
+    const el = document.getElementById('msg-erro');
+    el.textContent = msg;
+    el.classList.add('show');
+}
+
+// Enter para submeter
+document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && document.getElementById('form-view').style.display !== 'none') {
+        cadastrar();
+    }
+});
+</script>
+</body>
+</html>

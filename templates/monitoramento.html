@@ -1,0 +1,591 @@
+{% extends "base.html" %}
+{% block title %}Monitoramento · UrbanLex
+<!-- MODAL: Debug de Execução -->
+<div class="modal-overlay" id="modal-debug">
+    <div class="modal modal-lg">
+        <div class="modal-title">
+            🔍 <span id="debug-titulo">Log de Execução</span>
+            <button class="modal-close" onclick="closeModal('modal-debug')">×</button>
+        </div>
+        <div id="debug-loading" style="text-align:center;padding:30px">
+            <span class="spinner" style="margin:0 auto"></span>
+        </div>
+        <div id="debug-content" style="display:none;padding:4px 0"></div>
+    </div>
+</div>
+
+<style>
+.log-box {
+    background: #0d1117;
+    color: #e6edf3;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 12px 14px;
+    font-size: 11px;
+    font-family: var(--font-mono, monospace);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 300px;
+    overflow-y: auto;
+    margin: 0;
+}
+.log-box-error {
+    background: #1a0a0a;
+    color: #ff8080;
+    border-color: #5c1a1a;
+}
+.stat-mini {
+    background: var(--bg-secondary, #1e2a3a);
+    border-radius: 8px;
+    padding: 10px 16px;
+    text-align: center;
+    min-width: 80px;
+}
+.stat-mini > div:first-child {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary, #fff);
+}
+.stat-mini > div:last-child {
+    font-size: 11px;
+    color: var(--text-muted, #888);
+    margin-top: 2px;
+}
+.stat-mini.stat-red > div:first-child { color: var(--red, #e74c3c); }
+</style>
+
+<!-- MODAL: Perfil do Diário Oficial -->
+<div class="modal-overlay" id="modal-perfil-diario">
+    <div class="modal modal-lg">
+        <div class="modal-title">
+            🔎 Perfil do Diário Oficial — <span id="perfil-municipio-nome"></span>
+            <button class="modal-close" onclick="closeModal('modal-perfil-diario')">×</button>
+        </div>
+        <div id="perfil-loading" style="text-align:center;padding:30px">
+            <span class="spinner" style="margin:0 auto"></span>
+        </div>
+        <div id="perfil-content" style="display:none">
+            <!-- Status badge -->
+            <div id="perfil-status-badge" style="margin-bottom:16px"></div>
+
+            <!-- Info básica -->
+            <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px" id="perfil-stats"></div>
+
+            <!-- URL com botão de editar -->
+            <div class="form-group" style="margin-bottom:12px">
+                <label>URL do Diário Oficial</label>
+                <div style="display:flex;gap:8px">
+                    <input type="url" id="perfil-url-input" class="form-control" placeholder="https://...">
+                    <button class="btn btn-ghost btn-sm" onclick="salvarUrlPerfil()">💾 Salvar</button>
+                    <button class="btn btn-sm" onclick="window.open(document.getElementById('perfil-url-input').value,'_blank')" title="Abrir site">🔗</button>
+                </div>
+            </div>
+
+            <!-- Detalhes técnicos -->
+            <div id="perfil-detalhes" style="margin-bottom:12px"></div>
+
+            <!-- Screenshot -->
+            <div id="perfil-screenshot-container" style="display:none;margin-bottom:12px">
+                <div class="form-label" style="margin-bottom:6px">📸 Screenshot capturado</div>
+                <img id="perfil-screenshot" style="max-width:100%;border-radius:6px;border:1px solid var(--border)" alt="Screenshot do site">
+            </div>
+
+            <!-- Ações -->
+            <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--border)">
+                <button class="btn btn-primary btn-sm" onclick="redetectarPerfil()" id="btn-redetectar">
+                    🔄 Re-detectar Perfil
+                </button>
+                <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-perfil-diario')">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Data de início do monitoramento -->
+<div class="modal-overlay" id="modal-data-inicio">
+    <div class="modal modal-sm">
+        <div class="modal-title">
+            📅 Configurar Monitoramento
+            <button class="modal-close" onclick="closeModal('modal-data-inicio')">×</button>
+        </div>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
+            A partir de qual data o robô deve buscar atualizações no diário oficial?
+        </p>
+        <div class="form-group">
+            <label>Data de início *</label>
+            <input type="date" id="data-inicio-input" class="form-control">
+            <small style="color:var(--text-muted)">Normalmente a data de publicação da lei.</small>
+        </div>
+        <div id="data-inicio-info" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('modal-data-inicio')">Cancelar</button>
+            <button class="btn btn-primary" onclick="confirmarMonitoramento()" id="btn-confirmar-mon">
+                ✅ Ativar Monitoramento
+            </button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block topbar %}
+<span class="topbar-title">🤖 Monitoramento</span>
+<span class="topbar-sep"></span>
+<span class="topbar-sub" id="sched-status-top">carregando...</span>
+<div class="topbar-right">
+    <button class="btn btn-ghost btn-sm" onclick="openModal('modal-scheduler')">⚙️ Configurar Scheduler</button>
+    <button class="btn btn-primary btn-sm" onclick="executarAgora()" id="btn-exec">⚡ Executar Agora</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="page-tabs">
+    <a href="/monitoramento" class="page-tab {% if active_page=='municipios-monitor' %}active{% endif %}">📡 Municípios Monitorados</a>
+    <a href="/monitoramento/alteracoes" class="page-tab {% if active_page=='alteracoes' %}active{% endif %}">🚨 Alterações Detectadas</a>
+    <a href="/monitoramento/historico" class="page-tab {% if active_page=='historico' %}active{% endif %}">📰 Histórico de Execuções</a>
+</div>
+
+{% if active_page == 'municipios-monitor' or not active_page %}
+<!-- ── Municípios ── -->
+<div class="section-header">
+    <div class="section-title">Municípios em Monitoramento</div>
+    <button class="btn btn-primary btn-sm" onclick="openModal('modal-add-municipio')">➕ Adicionar Município</button>
+</div>
+<div class="card" style="padding:0">
+    <div class="scroll-list-tall">
+        <table id="tabela-municipios">
+            <thead>
+                <tr><th>Município</th><th>Estado</th><th>URL do Diário</th><th>Perfil Scraper</th><th>Última Busca</th><th>Ações</th></tr>
+            </thead>
+            <tbody id="tbody-municipios">
+                <tr><td colspan="6" style="text-align:center;padding:30px"><span class="spinner" style="margin:0 auto"></span></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if active_page == 'alteracoes' %}
+<!-- ── Alterações ── -->
+<div class="card" style="padding:0">
+    <div class="scroll-list-tall">
+        <table id="tabela-alteracoes">
+            <thead>
+                <tr><th>Município</th><th>Legislação</th><th>Tipo Alteração</th><th>Descrição</th><th>Detectada em</th><th>Status</th></tr>
+            </thead>
+            <tbody id="tbody-alteracoes">
+                <tr><td colspan="6" style="text-align:center;padding:30px"><span class="spinner" style="margin:0 auto"></span></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if active_page == 'historico' %}
+<!-- ── Histórico ── -->
+<div class="card" style="padding:0">
+    <div class="scroll-list-tall">
+        <table id="tabela-historico">
+            <thead>
+                <tr><th>Iniciada em</th><th>Duração</th><th>Status</th><th>Processados</th><th>OK</th><th>Erros</th><th>Alterações</th><th>Debug</th></tr>
+            </thead>
+            <tbody id="tbody-historico">
+                <tr><td colspan="7" style="text-align:center;padding:30px"><span class="spinner" style="margin:0 auto"></span></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- MODAL: Adicionar Município -->
+<div class="modal-overlay" id="modal-add-municipio">
+    <div class="modal modal-md">
+        <div class="modal-title">
+            ➕ Adicionar Município ao Monitoramento
+            <button class="modal-close" onclick="closeModal('modal-add-municipio')">×</button>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Nome do Município *</label>
+                <input type="text" id="m-nome" placeholder="Ex: Curitiba">
+            </div>
+            <div class="form-group">
+                <label>Estado *</label>
+                <select id="m-estado">
+                    <option value="">Selecione</option>
+                    <option>AC</option><option>AL</option><option>AM</option><option>BA</option><option>CE</option>
+                    <option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MG</option>
+                    <option>MS</option><option>MT</option><option>PA</option><option>PB</option><option>PE</option>
+                    <option>PI</option><option>PR</option><option>RJ</option><option>RN</option><option>RO</option>
+                    <option>RR</option><option>RS</option><option>SC</option><option>SE</option><option>SP</option>
+                    <option>TO</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>URL do Diário Oficial *</label>
+            <input type="url" id="m-url" placeholder="https://diariooficial.municipio.pr.gov.br">
+        </div>
+        <div class="alert alert-info" style="font-size:12px;margin-top:4px">
+            🤖 Ao adicionar, o sistema irá <strong>detectar automaticamente</strong> o tipo de site e
+            aprender como navegar no diário oficial. Se não informar a URL, a IA tentará encontrá-la.
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('modal-add-municipio')">Cancelar</button>
+            <button class="btn btn-primary" onclick="adicionarMunicipio()" id="btn-add-mun">Adicionar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Configurar Scheduler -->
+<div class="modal-overlay" id="modal-scheduler">
+    <div class="modal modal-md">
+        <div class="modal-title">
+            ⚙️ Configurar Scheduler
+            <button class="modal-close" onclick="closeModal('modal-scheduler')">×</button>
+        </div>
+        <div id="sched-info" style="margin-bottom:16px"></div>
+        <div class="form-group">
+            <label>Horário de Execução Diária</label>
+            <input type="time" id="sched-horario" value="02:00">
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+            <button class="btn btn-primary btn-sm" onclick="salvarScheduler()">💾 Salvar Horário</button>
+            <button class="btn btn-amber btn-sm" onclick="pausarScheduler()">⏸ Pausar</button>
+            <button class="btn btn-ghost btn-sm" onclick="retomarScheduler()">▶ Retomar</button>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('modal-scheduler')">Fechar</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function carregarMunicipios() {
+    const r = await api('GET', '/api/monitor/municipios');
+    const tbody = document.getElementById('tbody-municipios');
+    if (!tbody) return;
+    if (!r.success || !r.data.length) {
+        tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📡</div><div class="empty-title">Nenhum município monitorado</div><div class="empty-sub">Adicione municípios para monitorar seus diários oficiais</div></div></td></tr>`;
+        return;
+    }
+    tbody.innerHTML = r.data.map(m => {
+        // Badge de perfil do scraper
+        const perfilMap = {
+            ok:           '<span class="badge badge-green">✓ Configurado</span>',
+            falhou:       '<span class="badge badge-red">✗ Falhou</span>',
+            captcha:      '<span class="badge badge-amber">⚠ CAPTCHA</span>',
+            login:        '<span class="badge badge-amber">⚠ Login</span>',
+            pendente:     '<span class="badge badge-blue">⟳ Detectando</span>',
+            nao_detectado:'<span class="badge badge-muted">Não detectado</span>',
+        };
+        const perfilStatus = m.tipo_site || 'nao_detectado';
+        const badgePerfil  = perfilMap[perfilStatus] || `<span class="badge badge-muted">${perfilStatus}</span>`;
+        const urlLabel     = m.url_diario ? `<a href="${m.url_diario}" target="_blank" style="color:var(--blue);font-size:11px">${m.url_diario.substring(0,35)}…</a>` : '<span style="color:var(--text-muted);font-size:11px">Não configurada</span>';
+        return `<tr>
+            <td class="fw-bold">${m.nome}</td>
+            <td>${m.estado||'—'}</td>
+            <td>${urlLabel}</td>
+            <td>
+                ${badgePerfil}
+                <button class="btn btn-xs btn-ghost" onclick="verPerfil(${m.id},'${m.nome.replace(/'/g,"\'")}')" title="Ver/editar perfil">🔎</button>
+            </td>
+            <td style="font-size:11px;font-family:var(--font-mono)">${fmtData(m.ultimo_monitoramento)||'Nunca'}</td>
+            <td>
+                <div style="display:flex;gap:4px">
+                    <button class="btn btn-ghost btn-xs" onclick="verPerfil(${m.id},'${m.nome.replace(/'/g,"\'")}')" title="Perfil do scraper">⚙️</button>
+                    <button class="btn btn-danger btn-xs" onclick="removerMunicipio(${m.id},'${m.nome}')">🗑</button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+// ─── Perfil do Diário Oficial ──────────────────────────────────────────────
+let _perfilAtualMid = null;
+
+async function verPerfil(mid, nome) {
+    _perfilAtualMid = mid;
+    document.getElementById('perfil-municipio-nome').textContent = nome;
+    document.getElementById('perfil-loading').style.display = 'block';
+    document.getElementById('perfil-content').style.display  = 'none';
+    openModal('modal-perfil-diario');
+
+    const r = await api('GET', `/api/monitor/municipios/${mid}/perfil`);
+    document.getElementById('perfil-loading').style.display = 'none';
+    document.getElementById('perfil-content').style.display = 'block';
+
+    const d = r.data || {};
+    const statusMap = {
+        ok:      {badge:'<span class="badge badge-green">✓ Perfil configurado</span>', desc:'Scraper pronto para operar.'},
+        falhou:  {badge:'<span class="badge badge-red">✗ Falhou</span>', desc:'Não foi possível detectar o padrão do site.'},
+        captcha: {badge:'<span class="badge badge-amber">⚠ CAPTCHA detectado</span>', desc:'Site possui CAPTCHA. Monitoramento automático limitado.'},
+        login:   {badge:'<span class="badge badge-amber">⚠ Login necessário</span>', desc:'Site requer autenticação.'},
+        pendente:{badge:'<span class="badge badge-blue">⟳ Detectando…</span>', desc:'Detecção em andamento.'},
+    };
+    const sm = statusMap[d.status_deteccao] || {badge:'<span class="badge badge-muted">Não detectado</span>', desc:'Clique em Re-detectar para iniciar.'};
+
+    document.getElementById('perfil-status-badge').innerHTML = `
+        <div style="padding:10px 14px;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border)">
+            ${sm.badge} <span style="font-size:12px;color:var(--text-muted);margin-left:8px">${sm.desc}</span>
+            ${d.erro_deteccao ? `<div style="font-size:11px;color:var(--red);margin-top:4px">${d.erro_deteccao}</div>` : ''}
+        </div>`;
+
+    const pj = d.perfil_json || {};
+    document.getElementById('perfil-stats').innerHTML = [
+        {label:'Plataforma',  val: d.plataforma || pj.plataforma_identificada || '—'},
+        {label:'JavaScript',  val: d.requer_playwright ? '✓ Necessário' : '✗ Não necessário'},
+        {label:'Login',       val: d.requer_login ? '⚠ Sim' : '✓ Não'},
+        {label:'CAPTCHA',     val: d.requer_captcha ? '⚠ Sim' : '✓ Não'},
+        {label:'Detectado em',val: fmtData(d.detectado_em) || '—'},
+        {label:'Última busca',val: fmtData(d.ultima_execucao_ok) || 'Nunca'},
+    ].map(s => `<div class="stat-mini"><div style="font-size:13px">${s.val}</div><div>${s.label}</div></div>`).join('');
+
+    document.getElementById('perfil-url-input').value = d.url_diario || d.url_base || '';
+
+    // Detalhes técnicos do perfil JSON
+    if (pj && Object.keys(pj).length > 1) {
+        const linhas = [
+            pj.url_busca        && `<tr><td>URL de busca</td><td><code>${pj.url_busca}</code></td></tr>`,
+            pj.formato_data     && `<tr><td>Formato de data</td><td><code>${pj.formato_data}</code></td></tr>`,
+            pj.metodo_busca     && `<tr><td>Método</td><td>${pj.metodo_busca}</td></tr>`,
+            pj.parametro_data_inicio && `<tr><td>Parâmetro data início</td><td><code>${pj.parametro_data_inicio}</code></td></tr>`,
+            pj.parametro_data_fim    && `<tr><td>Parâmetro data fim</td><td><code>${pj.parametro_data_fim}</code></td></tr>`,
+            pj.seletor_lista_resultados && `<tr><td>Seletor resultados</td><td><code>${pj.seletor_lista_resultados}</code></td></tr>`,
+            pj.observacoes      && `<tr><td>Observações</td><td>${pj.observacoes}</td></tr>`,
+        ].filter(Boolean).join('');
+        document.getElementById('perfil-detalhes').innerHTML = linhas ? `
+            <div class="form-label" style="margin-bottom:6px">🔧 Detalhes Técnicos</div>
+            <table style="width:100%;font-size:12px;border-collapse:collapse">
+                <colgroup><col style="width:160px"><col></colgroup>
+                ${linhas}
+            </table>` : '';
+    }
+
+    // Screenshot
+    if (d.screenshot_b64) {
+        document.getElementById('perfil-screenshot-container').style.display = 'block';
+        document.getElementById('perfil-screenshot').src = `data:image/png;base64,${d.screenshot_b64}`;
+    } else {
+        document.getElementById('perfil-screenshot-container').style.display = 'none';
+    }
+}
+
+async function redetectarPerfil() {
+    if (!_perfilAtualMid) return;
+    const btn = document.getElementById('btn-redetectar');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Detectando…';
+    const r = await api('POST', `/api/monitor/municipios/${_perfilAtualMid}/detectar`, {forcar:true});
+    btn.disabled = false;
+    btn.innerHTML = '🔄 Re-detectar Perfil';
+    toast(r.message || (r.success ? 'Detecção iniciada!' : 'Erro'), r.success ? 'success' : 'error');
+    if (r.success) {
+        // Recarregar após 5s (tempo para detecção rodar)
+        setTimeout(() => { verPerfil(_perfilAtualMid, document.getElementById('perfil-municipio-nome').textContent); carregarMunicipios(); }, 8000);
+    }
+}
+
+async function salvarUrlPerfil() {
+    if (!_perfilAtualMid) return;
+    const url = document.getElementById('perfil-url-input').value.trim();
+    if (!url) { toast('Informe uma URL', 'error'); return; }
+    const r = await api('POST', `/api/monitor/municipios/${_perfilAtualMid}/url`, {url});
+    toast(r.message || (r.success ? 'URL salva!' : 'Erro'), r.success ? 'success' : 'error');
+    if (r.success) setTimeout(() => verPerfil(_perfilAtualMid, document.getElementById('perfil-municipio-nome').textContent), 8000);
+}
+
+// ─── Data de início do monitoramento ──────────────────────────────────────
+let _monitorLegId = null;
+
+function abrirDataInicio(legId) {
+    _monitorLegId = legId;
+    // Sugerir data de hoje como padrão
+    document.getElementById('data-inicio-input').value = new Date().toISOString().slice(0,10);
+    document.getElementById('data-inicio-info').textContent = '';
+    openModal('modal-data-inicio');
+}
+
+async function confirmarMonitoramento() {
+    if (!_monitorLegId) return;
+    const dataInicio = document.getElementById('data-inicio-input').value;
+    if (!dataInicio) { toast('Informe a data de início', 'error'); return; }
+    const btn = document.getElementById('btn-confirmar-mon');
+    btn.disabled = true;
+    const r = await api('POST', `/api/legislacoes/${_monitorLegId}/monitoramento`, {
+        ativar: true,
+        data_inicio_monitoramento: dataInicio
+    });
+    btn.disabled = false;
+    if (r.success) {
+        toast('Monitoramento ativado!');
+        closeModal('modal-data-inicio');
+    } else {
+        toast(r.error || 'Erro ao ativar', 'error');
+    }
+}
+
+async function carregarAlteracoes() {
+    const r = await api('GET', '/api/monitor/alteracoes');
+    const tbody = document.getElementById('tbody-alteracoes');
+    if (!tbody) return;
+    if (!r.success || !r.data.length) {
+        tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🚨</div><div class="empty-title">Nenhuma alteração detectada ainda</div></div></td></tr>`;
+        return;
+    }
+    tbody.innerHTML = r.data.map(a => `
+        <tr>
+            <td>${a.municipio||'—'}</td>
+            <td style="font-size:11px">${a.legislacao_titulo||'—'}</td>
+            <td><span class="badge badge-amber">${a.tipo_alteracao||'—'}</span></td>
+            <td style="font-size:12px;max-width:250px">${(a.descricao||'—').substring(0,100)}</td>
+            <td style="font-size:11px;font-family:var(--font-mono)">${fmtData(a.data_deteccao)}</td>
+            <td>${a.aprovado?'<span class="badge badge-green">Aprovada</span>':'<span class="badge badge-amber">Pendente</span>'}</td>
+        </tr>
+    `).join('');
+}
+
+async function carregarHistorico() {
+    const r = await api('GET', '/api/monitor/historico');
+    const tbody = document.getElementById('tbody-historico');
+    if (!tbody) return;
+    if (!r.success || !r.data.length) {
+        tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📰</div><div class="empty-title">Nenhuma execução registrada</div></div></td></tr>`;
+        return;
+    }
+    tbody.innerHTML = r.data.map(h => {
+        const saudeMap = {
+            concluido: '<span class="badge badge-green">✓ OK</span>',
+            rodando:   '<span class="badge badge-blue">⟳ Rodando</span>',
+            erro:      '<span class="badge badge-red">✗ Erro</span>',
+        };
+        const badgeStatus = saudeMap[h.status] || `<span class="badge badge-amber">${h.status}</span>`;
+        const emailIcon = h.email_enviado ? '<span title="E-mail enviado" style="margin-left:4px">📧</span>' : '';
+        let duracao = '—';
+        if (h.iniciada_em && h.finalizada_em) {
+            const seg = Math.round((new Date(h.finalizada_em) - new Date(h.iniciada_em)) / 1000);
+            duracao = seg < 60 ? `${seg}s` : `${Math.floor(seg/60)}m${seg%60}s`;
+        }
+        return `<tr>
+            <td style="font-family:var(--font-mono);font-size:11px">${fmtData(h.iniciada_em)}</td>
+            <td style="font-size:11px">${duracao}</td>
+            <td>${badgeStatus}${emailIcon}</td>
+            <td class="num-cell">${h.municipios_processados??0}</td>
+            <td class="num-cell">${h.municipios_ok??0}</td>
+            <td class="num-cell ${h.municipios_erro>0?'text-red':''}">${h.municipios_erro??0}</td>
+            <td class="num-cell">${h.alteracoes_detectadas??0}</td>
+            <td><button class="btn btn-sm btn-ghost" onclick="verDebug(${h.id})" title="Ver log detalhado">🔍</button></td>
+        </tr>`;
+    }).join('');
+}
+
+async function verDebug(execId) {
+    document.getElementById('debug-loading').style.display = 'block';
+    document.getElementById('debug-content').style.display = 'none';
+    openModal('modal-debug');
+    const r = await api('GET', `/api/monitor/historico/${execId}`);
+    document.getElementById('debug-loading').style.display = 'none';
+    document.getElementById('debug-content').style.display = 'block';
+    if (!r.success) {
+        document.getElementById('debug-content').innerHTML = '<p class="text-red">Erro ao carregar log.</p>';
+        return;
+    }
+    const h = r.data;
+    const saudeMap = { concluido:'✅ Concluído', rodando:'⟳ Rodando', erro:'❌ Erro' };
+    const seg = (h.iniciada_em && h.finalizada_em)
+        ? Math.round((new Date(h.finalizada_em) - new Date(h.iniciada_em)) / 1000) : null;
+    const durStr = seg ? (seg < 60 ? `${seg}s` : `${Math.floor(seg/60)}m${seg%60}s`) : '—';
+    document.getElementById('debug-titulo').textContent = `Execução #${h.id} — ${fmtData(h.iniciada_em)}`;
+    document.getElementById('debug-content').innerHTML = `
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+            <div class="stat-mini"><div>${saudeMap[h.status]||h.status}</div><div>Status</div></div>
+            <div class="stat-mini"><div>${h.municipios_processados??0}</div><div>Processados</div></div>
+            <div class="stat-mini"><div>${h.municipios_ok??0}</div><div>OK</div></div>
+            <div class="stat-mini ${h.municipios_erro>0?'stat-red':''}"><div>${h.municipios_erro??0}</div><div>Com erro</div></div>
+            <div class="stat-mini"><div>${h.alteracoes_detectadas??0}</div><div>Alterações</div></div>
+            <div class="stat-mini"><div>${durStr}</div><div>Duração</div></div>
+        </div>
+        ${h.log ? `<div style="margin-bottom:12px"><div class="form-label" style="margin-bottom:6px">📋 Resumo</div><pre class="log-box">${h.log}</pre></div>` : ''}
+        ${h.log_erros ? `<div><div class="form-label" style="margin-bottom:6px;color:var(--red)">🔍 Log de Erros (Debug)</div><pre class="log-box log-box-error">${h.log_erros}</pre></div>` : '<div class="badge badge-green" style="display:inline-block;margin-top:8px">✓ Nenhum erro registrado</div>'}
+        <div style="margin-top:12px;font-size:11px;color:var(--text-muted)">
+            Disparado por: ${h.usuario_nome||'Sistema (agendado)'} &nbsp;·&nbsp; E-mail: ${h.email_enviado?'✓ Enviado':'Não enviado'}
+        </div>`;
+}
+
+
+async function carregarSchedulerInfo() {
+    const r = await api('GET', '/api/monitor/scheduler');
+    if (!r.success) return;
+    const s = r.data;
+    const status = s.status || 'ativo';
+    const mapa = { ativo: '🟢 Ativo', pausado: '🟡 Pausado', executando: '🔵 Executando', erro: '🔴 Erro' };
+    document.getElementById('sched-status-top').textContent = mapa[status] || status;
+    const el = document.getElementById('sched-info');
+    if (el) {
+        el.innerHTML = `
+            <div class="alert ${status==='ativo'?'alert-success':'alert-warning'}">
+                <span>${mapa[status]||status}</span>
+                <span>Horário: ${s.horario_execucao||'02:00'} · Última: ${fmtData(s.ultima_execucao)||'Nunca'}</span>
+            </div>
+        `;
+        document.getElementById('sched-horario').value = s.horario_execucao || '02:00';
+    }
+}
+
+async function adicionarMunicipio() {
+    const nome = document.getElementById('m-nome').value.trim();
+    const estado = document.getElementById('m-estado').value;
+    const url = document.getElementById('m-url').value.trim();
+    const tipo = document.getElementById('m-tipo').value;
+    if (!nome || !estado || !url) { toast('Preencha todos os campos obrigatórios', 'error'); return; }
+    const btn = document.getElementById('btn-add-mun');
+    btn.disabled = true;
+    const r = await api('POST', '/api/monitor/municipios', { nome, estado, url_diario: url, tipo_site: tipo });
+    btn.disabled = false;
+    if (r.success) { toast('Município adicionado!'); closeModal('modal-add-municipio'); carregarMunicipios(); }
+    else toast(r.error||'Erro','error');
+}
+
+async function removerMunicipio(id, nome) {
+    if (!confirm(`Remover "${nome}" do monitoramento?`)) return;
+    const r = await api('DELETE', `/api/monitor/municipios/${id}`);
+    if (r.success) { toast('Removido do monitoramento', 'warning'); carregarMunicipios(); }
+    else toast(r.error||'Erro','error');
+}
+
+async function executarAgora() {
+    const btn = document.getElementById('btn-exec');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Executando...';
+    const r = await api('POST', '/api/monitor/executar');
+    btn.disabled = false; btn.innerHTML = '⚡ Executar Agora';
+    toast(r.success ? 'Execução iniciada! Verifique o histórico em alguns minutos.' : (r.error||'Erro'), r.success?'success':'error');
+}
+
+async function salvarScheduler() {
+    const horario = document.getElementById('sched-horario').value;
+    const r = await api('POST', '/api/monitor/scheduler', { horario });
+    if (r.success) { toast('Horário salvo!'); carregarSchedulerInfo(); }
+    else toast(r.error||'Erro','error');
+}
+
+async function pausarScheduler() {
+    const r = await api('POST', '/api/monitor/scheduler', { acao: 'pausar' });
+    if (r.success) { toast('Scheduler pausado','warning'); carregarSchedulerInfo(); }
+    else toast(r.error||'Erro','error');
+}
+
+async function retomarScheduler() {
+    const r = await api('POST', '/api/monitor/scheduler', { acao: 'retomar' });
+    if (r.success) { toast('Scheduler retomado'); carregarSchedulerInfo(); }
+    else toast(r.error||'Erro','error');
+}
+
+// Init
+carregarSchedulerInfo();
+carregarMunicipios();
+carregarAlteracoes();
+carregarHistorico();
+</script>
+{% endblock %}

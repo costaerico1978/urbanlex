@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UrbanLex — Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg: #0a0c0f; --surface: #111418; --border: #1f2830; --border2: #2a3540;
+            --accent: #00e5a0; --accent2: #00b880; --text: #e8edf2; --muted: #6b7d8f;
+            --red: #ff4d6d;
+            --font-head: 'Syne', sans-serif; --font-body: 'DM Sans', sans-serif;
+            --font-mono: 'DM Mono', monospace;
+        }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font-body);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Decorative background grid */
+        body::before {
+            content: '';
+            position: absolute; inset: 0;
+            background-image:
+                linear-gradient(rgba(0,229,160,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,229,160,0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+        }
+
+        /* Glow blob */
+        .glow {
+            position: absolute;
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, rgba(0,229,160,0.06) 0%, transparent 70%);
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 44px 40px;
+            width: 100%;
+            max-width: 380px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .logo-area { text-align: center; margin-bottom: 36px; }
+        .logo-icon {
+            width: 48px; height: 48px;
+            background: linear-gradient(135deg, rgba(0,229,160,0.2), rgba(0,229,160,0.05));
+            border: 1px solid rgba(0,229,160,0.3);
+            border-radius: 12px;
+            display: inline-flex; align-items: center; justify-content: center;
+            margin-bottom: 16px;
+        }
+        .logo-icon svg { width: 24px; height: 24px; color: var(--accent); }
+        .wordmark {
+            font-family: var(--font-head);
+            font-size: 26px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            color: var(--text);
+        }
+        .wordmark span { color: var(--accent); }
+        .tagline {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 4px;
+            letter-spacing: 0.5px;
+        }
+
+        .form-group { margin-bottom: 16px; }
+        label {
+            display: block;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--muted);
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            margin-bottom: 7px;
+        }
+        input {
+            width: 100%;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            padding: 11px 14px;
+            font-family: var(--font-body);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(0,229,160,0.08);
+        }
+
+        .btn {
+            width: 100%;
+            background: var(--accent);
+            color: #0a0c0f;
+            border: none;
+            border-radius: 8px;
+            padding: 12px;
+            font-family: var(--font-head);
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.15s, transform 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 24px;
+        }
+        .btn:hover  { background: var(--accent2); }
+        .btn:active { transform: scale(0.99); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .error-msg {
+            background: rgba(255,77,109,0.08);
+            border: 1px solid rgba(255,77,109,0.2);
+            color: var(--red);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 13px;
+            margin-top: 16px;
+            display: none;
+        }
+        .error-msg.show { display: block; }
+
+        .spinner {
+            width: 16px; height: 16px;
+            border: 2px solid rgba(10,12,15,0.3);
+            border-top-color: var(--bg);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .version-tag {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            font-family: var(--font-mono); font-size: 10px; color: var(--muted);
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+<div class="glow"></div>
+
+<div class="card">
+    <div class="logo-area">
+        <div class="logo-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/>
+            </svg>
+        </div>
+        <div class="wordmark">Urban<span>Lex</span></div>
+        <div class="tagline">Sistema Urbanístico Integrado</div>
+    </div>
+
+    <div class="form-group">
+        <label>E-mail</label>
+        <input type="email" id="email" placeholder="admin@sistema.com" autocomplete="email">
+    </div>
+    <div class="form-group">
+        <label>Senha</label>
+        <input type="password" id="senha" placeholder="••••••••" autocomplete="current-password">
+    </div>
+
+    <div style="text-align:right;margin-bottom:-4px">
+        <a href="/esqueci-senha"
+           style="font-family:var(--font-mono);font-size:11px;color:var(--muted);
+                  text-decoration:none;transition:color 0.15s"
+           onmouseover="this.style.color='var(--text)'"
+           onmouseout="this.style.color='var(--muted)'">
+            Esqueci minha senha
+        </a>
+    </div>
+
+    <button class="btn" id="btn-login" onclick="fazerLogin()">
+        <span id="btn-text">Entrar</span>
+    </button>
+
+    <div class="error-msg" id="error-msg"></div>
+</div>
+
+<div class="version-tag">v1.3+2.3 · Railway · PostgreSQL</div>
+
+<script>
+async function fazerLogin() {
+    const email = document.getElementById('email').value.trim();
+    const senha = document.getElementById('senha').value;
+    const btn   = document.getElementById('btn-login');
+    const err   = document.getElementById('error-msg');
+
+    if (!email || !senha) { mostrarErro('Preencha todos os campos'); return; }
+
+    btn.disabled = true;
+    document.getElementById('btn-text').innerHTML = '<div class="spinner"></div>';
+
+    try {
+        const r = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({email, senha})
+        });
+        const data = await r.json();
+
+        if (data.success) {
+            window.location.href = '/';
+        } else {
+            mostrarErro(data.error || 'Credenciais inválidas');
+        }
+    } catch(e) {
+        mostrarErro('Erro de conexão');
+    } finally {
+        btn.disabled = false;
+        document.getElementById('btn-text').textContent = 'Entrar';
+    }
+}
+
+function mostrarErro(msg) {
+    const el = document.getElementById('error-msg');
+    el.textContent = msg;
+    el.classList.add('show');
+}
+
+// Enter para submeter
+document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') fazerLogin();
+});
+</script>
+</body>
+</html>

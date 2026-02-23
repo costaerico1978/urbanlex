@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UrbanLex — Nova senha</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg: #0a0c0f; --surface: #111418; --border: #1f2830;
+            --accent: #00e5a0; --accent2: #00b880; --text: #e8edf2; --muted: #6b7d8f;
+            --red: #ff4d6d; --amber: #f5a623; --blue: #3d9be9;
+            --font-head: 'Syne', sans-serif; --font-body: 'DM Sans', sans-serif;
+            --font-mono: 'DM Mono', monospace;
+        }
+        body {
+            background: var(--bg); color: var(--text);
+            font-family: var(--font-body); min-height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            position: relative; overflow: hidden;
+        }
+        body::before {
+            content: '';
+            position: absolute; inset: 0;
+            background-image:
+                linear-gradient(rgba(0,229,160,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,229,160,0.03) 1px, transparent 1px);
+            background-size: 40px 40px; pointer-events: none;
+        }
+        .glow {
+            position: absolute; width: 500px; height: 500px;
+            background: radial-gradient(circle, rgba(0,229,160,0.05) 0%, transparent 70%);
+            top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none;
+        }
+        .card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 16px; padding: 44px 40px;
+            width: 100%; max-width: 400px; position: relative; z-index: 1;
+        }
+        .wordmark { font-family: var(--font-head); font-size: 22px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 28px; }
+        .wordmark span { color: var(--accent); }
+
+        .page-title { font-family: var(--font-head); font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+        .page-desc  { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 24px; }
+
+        .user-chip {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: rgba(0,229,160,0.06); border: 1px solid rgba(0,229,160,0.2);
+            border-radius: 20px; padding: 5px 12px 5px 6px;
+            margin-bottom: 24px;
+        }
+        .user-dot { width: 24px; height: 24px; background: linear-gradient(135deg, var(--accent), var(--blue)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--bg); font-family: var(--font-head); }
+        .user-label { font-family: var(--font-mono); font-size: 11px; color: var(--accent); }
+
+        label {
+            display: block; font-family: var(--font-mono);
+            font-size: 10px; color: var(--muted);
+            letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 7px;
+        }
+        .input-wrap { position: relative; }
+        input[type="password"], input[type="text"] {
+            width: 100%; background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border); border-radius: 8px;
+            color: var(--text); padding: 11px 42px 11px 14px;
+            font-family: var(--font-body); font-size: 14px; outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,229,160,0.08); }
+        .toggle-pw {
+            position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+            background: none; border: none; color: var(--muted); cursor: pointer; padding: 2px;
+        }
+        .toggle-pw:hover { color: var(--text); }
+        .form-group { margin-bottom: 16px; }
+
+        /* Medidor de força */
+        .strength-bar { display: flex; gap: 3px; margin-top: 8px; }
+        .strength-seg { flex: 1; height: 3px; background: var(--border); border-radius: 3px; transition: background 0.2s; }
+        .strength-label { font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-top: 5px; }
+
+        .btn {
+            width: 100%; background: var(--accent); color: #0a0c0f;
+            border: none; border-radius: 8px; padding: 12px;
+            font-family: var(--font-head); font-size: 14px; font-weight: 700;
+            cursor: pointer; transition: background 0.15s;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            margin-top: 8px;
+        }
+        .btn:hover { background: var(--accent2); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .msg { border-radius: 8px; padding: 12px 14px; font-size: 13px; margin-top: 16px; display: none; line-height: 1.5; }
+        .msg.error   { background: rgba(255,77,109,0.08); border: 1px solid rgba(255,77,109,0.2); color: var(--red); }
+        .msg.success { background: rgba(0,229,160,0.08); border: 1px solid rgba(0,229,160,0.2); color: var(--accent); }
+        .msg.show    { display: block; }
+
+        /* Token inválido / expirado */
+        .error-state {
+            text-align: center;
+        }
+        .error-icon {
+            width: 56px; height: 56px;
+            background: rgba(255,77,109,0.08); border: 1px solid rgba(255,77,109,0.2);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 20px; font-size: 24px;
+        }
+        .error-title { font-family: var(--font-head); font-size: 20px; font-weight: 700; margin-bottom: 10px; color: var(--red); }
+        .error-desc  { color: var(--muted); font-size: 13px; line-height: 1.7; margin-bottom: 24px; }
+
+        /* Sucesso */
+        .success-state { text-align: center; display: none; }
+        .success-icon {
+            width: 56px; height: 56px;
+            background: rgba(0,229,160,0.1); border: 1px solid rgba(0,229,160,0.3);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 20px; font-size: 28px;
+        }
+        .success-title { font-family: var(--font-head); font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+        .success-desc  { color: var(--muted); font-size: 13px; line-height: 1.7; }
+        .btn-login {
+            display: inline-block; margin-top: 24px;
+            background: var(--accent); color: var(--bg);
+            text-decoration: none; padding: 12px 32px;
+            border-radius: 8px; font-family: var(--font-head);
+            font-weight: 700; font-size: 14px;
+        }
+
+        .spinner {
+            width: 16px; height: 16px;
+            border: 2px solid rgba(10,12,15,0.3);
+            border-top-color: var(--bg);
+            border-radius: 50%; animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .requisitos {
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 8px; padding: 12px 14px; margin-top: 6px;
+        }
+        .req-item {
+            display: flex; align-items: center; gap: 7px;
+            font-family: var(--font-mono); font-size: 11px;
+            color: var(--muted); margin-bottom: 4px;
+        }
+        .req-item:last-child { margin-bottom: 0; }
+        .req-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); flex-shrink: 0; transition: background 0.2s; }
+        .req-item.ok .req-dot { background: var(--accent); }
+        .req-item.ok { color: var(--accent); }
+    </style>
+</head>
+<body>
+<div class="glow"></div>
+
+<div class="card">
+    <div class="wordmark">Urban<span>Lex</span></div>
+
+    {% if erro %}
+    <!-- Token inválido ou expirado -->
+    <div class="error-state">
+        <div class="error-icon">🔒</div>
+        <div class="error-title">Link inválido</div>
+        <div class="error-desc">
+            {{ erro }}<br><br>
+            Os links de redefinição de senha são válidos por apenas 1 hora e
+            podem ser usados uma única vez.
+        </div>
+        <a href="/esqueci-senha"
+           style="display:inline-block;background:var(--accent);color:var(--bg);text-decoration:none;
+                  padding:12px 28px;border-radius:8px;font-family:var(--font-head);font-weight:700;font-size:14px">
+            Solicitar novo link →
+        </a>
+        <br>
+        <a href="/login" style="display:inline-block;margin-top:14px;color:var(--muted);font-size:13px;text-decoration:none">
+            ← Voltar ao login
+        </a>
+    </div>
+
+    {% else %}
+    <!-- Formulário de nova senha -->
+    <div id="form-state">
+        <div class="page-title">Nova senha</div>
+        <div class="page-desc">Defina sua nova senha de acesso ao sistema.</div>
+
+        {% if username %}
+        <div class="user-chip">
+            <div class="user-dot">{{ username[0].upper() }}</div>
+            <div class="user-label">{{ username }}</div>
+        </div>
+        {% endif %}
+
+        <div class="form-group">
+            <label>Nova senha</label>
+            <div class="input-wrap">
+                <input type="password" id="nova-senha" placeholder="Mínimo 8 caracteres"
+                       oninput="verificarForca()" autocomplete="new-password">
+                <button class="toggle-pw" type="button" onclick="toggleVisibilidade('nova-senha', this)">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/>
+                        <circle cx="8" cy="8" r="2"/>
+                    </svg>
+                </button>
+            </div>
+            <!-- Medidor de força -->
+            <div class="strength-bar" id="strength-bar">
+                <div class="strength-seg" id="seg1"></div>
+                <div class="strength-seg" id="seg2"></div>
+                <div class="strength-seg" id="seg3"></div>
+                <div class="strength-seg" id="seg4"></div>
+            </div>
+            <div class="strength-label" id="strength-label"></div>
+        </div>
+
+        <div class="form-group">
+            <label>Confirmar nova senha</label>
+            <div class="input-wrap">
+                <input type="password" id="confirmar-senha" placeholder="Repita a senha"
+                       oninput="verificarMatch()" autocomplete="new-password">
+                <button class="toggle-pw" type="button" onclick="toggleVisibilidade('confirmar-senha', this)">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/>
+                        <circle cx="8" cy="8" r="2"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Requisitos -->
+        <div class="requisitos">
+            <div class="req-item" id="req-len"><div class="req-dot"></div>Mínimo 8 caracteres</div>
+            <div class="req-item" id="req-num"><div class="req-dot"></div>Pelo menos 1 número</div>
+            <div class="req-item" id="req-match"><div class="req-dot"></div>Senhas coincidem</div>
+        </div>
+
+        <button class="btn" id="btn-salvar" onclick="salvarSenha()">
+            <span id="btn-text">Salvar nova senha</span>
+        </button>
+
+        <div class="msg error" id="msg-erro"></div>
+    </div>
+
+    <!-- Sucesso -->
+    <div class="success-state" id="success-state">
+        <div class="success-icon">✓</div>
+        <div class="success-title">Senha redefinida!</div>
+        <div class="success-desc">
+            Sua senha foi atualizada com sucesso.<br>
+            Você já pode fazer login com a nova senha.
+        </div>
+        <a href="/login" class="btn-login">Ir para o login →</a>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    const TOKEN = "{{ token or '' }}";
+
+    function toggleVisibilidade(inputId, btn) {
+        const input = document.getElementById(inputId);
+        input.type = input.type === 'password' ? 'text' : 'password';
+    }
+
+    function calcularForca(senha) {
+        let score = 0;
+        if (senha.length >= 8)  score++;
+        if (senha.length >= 12) score++;
+        if (/[0-9]/.test(senha)) score++;
+        if (/[A-Z]/.test(senha)) score++;
+        if (/[^a-zA-Z0-9]/.test(senha)) score++;
+        return Math.min(4, score);
+    }
+
+    function verificarForca() {
+        const senha = document.getElementById('nova-senha').value;
+        const forca = calcularForca(senha);
+        const cores  = ['', '#ff4d6d', '#f5a623', '#3d9be9', '#00e5a0'];
+        const labels = ['', 'Fraca', 'Média', 'Boa', 'Forte'];
+
+        for (let i = 1; i <= 4; i++) {
+            document.getElementById(`seg${i}`).style.background =
+                i <= forca ? cores[forca] : 'var(--border)';
+        }
+        document.getElementById('strength-label').textContent = senha ? labels[forca] : '';
+        document.getElementById('strength-label').style.color = cores[forca];
+
+        // Requisitos
+        setReq('req-len',   senha.length >= 8);
+        setReq('req-num',   /[0-9]/.test(senha));
+        verificarMatch();
+    }
+
+    function verificarMatch() {
+        const s1 = document.getElementById('nova-senha').value;
+        const s2 = document.getElementById('confirmar-senha').value;
+        setReq('req-match', s2 && s1 === s2);
+    }
+
+    function setReq(id, ok) {
+        const el = document.getElementById(id);
+        el.classList.toggle('ok', ok);
+    }
+
+    async function salvarSenha() {
+        const nova      = document.getElementById('nova-senha').value;
+        const confirmar = document.getElementById('confirmar-senha').value;
+        const btn       = document.getElementById('btn-salvar');
+        const erro      = document.getElementById('msg-erro');
+
+        erro.classList.remove('show');
+
+        if (nova.length < 8) { mostrarErro('A senha deve ter pelo menos 8 caracteres'); return; }
+        if (nova !== confirmar) { mostrarErro('As senhas não coincidem'); return; }
+        if (!/[0-9]/.test(nova)) { mostrarErro('Inclua pelo menos 1 número'); return; }
+
+        btn.disabled = true;
+        document.getElementById('btn-text').innerHTML = '<div class="spinner"></div>';
+
+        try {
+            const r = await fetch('/api/auth/reset-senha', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({
+                    token: TOKEN,
+                    nova_senha: nova,
+                    confirmar_senha: confirmar
+                })
+            });
+            const data = await r.json();
+
+            if (data.success) {
+                document.getElementById('form-state').style.display = 'none';
+                document.getElementById('success-state').style.display = 'block';
+                // Redirecionar automaticamente após 4s
+                setTimeout(() => window.location.href = '/login', 4000);
+            } else {
+                mostrarErro(data.error || 'Erro ao salvar senha');
+            }
+        } catch(e) {
+            mostrarErro('Erro de conexão');
+        } finally {
+            btn.disabled = false;
+            document.getElementById('btn-text').textContent = 'Salvar nova senha';
+        }
+    }
+
+    function mostrarErro(msg) {
+        const el = document.getElementById('msg-erro');
+        el.textContent = msg;
+        el.classList.add('show');
+    }
+
+    document.addEventListener('keydown', e => { if (e.key === 'Enter') salvarSenha(); });
+</script>
+</body>
+</html>

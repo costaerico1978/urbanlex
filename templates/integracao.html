@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}Integrações · UrbanLex{% endblock %}
+
+{% block topbar %}
+<span class="topbar-title">🔗 Fila de Aprovação</span>
+<span class="topbar-sep"></span>
+<span class="topbar-sub" id="integ-count">carregando...</span>
+<div class="topbar-right">
+    {% if active_page == 'integracao-fila' %}
+    <button class="btn btn-primary btn-sm" onclick="aprovarTodos()" id="btn-aprovar-todos">✓ Aprovar Todos</button>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="page-tabs">
+    <a href="/integracao" class="page-tab {% if active_page == 'integracao-fila' %}active{% endif %}">⏳ Fila de Aprovação <span class="tab-badge" id="tab-badge-fila">0</span></a>
+    <a href="/integracao/aprovadas" class="page-tab {% if active_page == 'integracao-aprovadas' %}active{% endif %}">✅ Aprovadas</a>
+    <a href="/integracao/rejeitadas" class="page-tab {% if active_page == 'integracao-rejeitadas' %}active{% endif %}">❌ Rejeitadas</a>
+</div>
+
+<div class="alert alert-info mb-3">
+    <span>ℹ</span>
+    <span>Estas são extrações de parâmetros urbanísticos geradas pela IA a partir de alterações detectadas nas legislações monitoradas. Revise e aprove para que entrem na planilha de zonas.</span>
+</div>
+
+<div class="card" style="padding:0">
+    <div id="lista-integ">
+        <div style="padding:40px;text-align:center"><span class="spinner" style="margin:0 auto"></span></div>
+    </div>
+</div>
+
+<!-- Modal detalhes -->
+<div class="modal-overlay" id="modal-detalhe-integ">
+    <div class="modal modal-lg">
+        <div class="modal-title" id="integ-detalhe-titulo">Detalhes <button class="modal-close" onclick="closeModal('modal-detalhe-integ')">×</button></div>
+        <div id="integ-detalhe-conteudo"></div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('modal-detalhe-integ')">Fechar</button>
+            <button class="btn btn-danger" id="btn-rejeitar-modal" onclick="rejeitarAtual()">✗ Rejeitar</button>
+            <button class="btn btn-primary" id="btn-aprovar-modal" onclick="aprovarAtual()">✓ Aprovar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal rejeição -->
+<div class="modal-overlay" id="modal-rejeicao">
+    <div class="modal modal-sm">
+        <div class="modal-title">Motivo da Rejeição <button class="modal-close" onclick="closeModal('modal-rejeicao')">×</button></div>
+        <div class="form-group">
+            <label>Motivo *</label>
+            <textarea id="motivo-rejeicao" rows="3" placeholder="Ex: Dados incorretos, zona não existe, etc."></textarea>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('modal-rejeicao')">Cancelar</button>
+            <button class="btn btn-danger" onclick="confirmarRejeicao()">Rejeitar</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let integAtualId = null;
+
+async function carregarFila() {
+    const activePage = '{{ active_page }}';
+    let endpoint = '/api/integracao/pendentes';
+    if (activePage === 'integracao-aprovadas') endpoint = '/api/integracao/aprovadas';
+    if (activePage === 'integracao-rejeitadas') endpoint = '/api/integracao/rejeitadas';
+    const r = await api('GET', endpoint);
+    const el = document.getElementById('lista-integ');
+    const count = r.data ? r.data.length : 0;
+    const activePage2 = '{{ active_page }}';
+    const labelMap = {
+        'integracao-fila': `${count} item(s) aguardando aprovação`,
+        'integracao-aprovadas': `${count} item(s) aprovado(s)`,
+        'integracao-rejeitadas': `${count} item(s) rejeitado(s)`
+    };
+    document.getElementById('integ-count').textContent = labelMap[activePage2] || `${count} item(s)`;
+    document.getElementById('tab-badge-fila').textContent = count;
+    document.getElementById('btn-aprovar-todos').disabled = count === 0;
+
+    if (!r.success || !count) {
+        el.innerHTML = `<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-title">Fila vazia</div><div class="empty-sub">Nenhum parâmetro aguardando aprovação</div></div>`;
+        return;
+    }
+    el.innerHTML = `<div class="table-wrap"><table>
+        <thead><tr>
+            <th>Município</th><th>Zona</th><th>Subzona</th>
+            <th>Legislação</th><th>Detectado em</th><th>Campos extraídos</th><th>Ações</th>
+        </tr></thead>
+        <tbody>${r.data.map(d => {
+            const params = d.parametros_json ? Object.keys(d.parametros_json).length : 0;
+            return `<tr>
+                <td>${d.municipio||'—'}</td>
+                <td><span class="tag">${d.zona||'—'}</span></td>
+                <td>${d.subzona||'—'}</td>
+                <td style="font-size:11px;font-family:var(--font-mono)">${d.legislacao_ref||'—'}</td>
+                <td style="font-size:11px;font-family:var(--font-mono)">${fmtData(d.criado_em)}</td>
+                <td><span class="badge badge-blue">${params} campos</span></td>
+                <td>
+                    <div style="display:flex;gap:6px">
+                        <button class="btn btn-ghost btn-xs" onclick="verDetalhe(${d.id})">👁 Ver</button>
+                        <button class="btn btn-primary btn-xs" onclick="aprovar(${d.id})">✓</button>
+                        <button class="btn btn-danger btn-xs" onclick="abrirRejeicao(${d.id})">✗</button>
+                    </div>
+                </td>
+            </tr>`;
+        }).join('')}</tbody>
+    </table></div>`;
+}
+
+async function verDetalhe(id) {
+    integAtualId = id;
+    openModal('modal-detalhe-integ');
+    const r = await api('GET', `/api/integracao/${id}`);
+    if (!r.success) { document.getElementById('integ-detalhe-conteudo').innerHTML = '<div class="text-muted">Erro ao carregar</div>'; return; }
+    const d = r.data;
+    document.getElementById('integ-detalhe-titulo').innerHTML = `Extração IA — ${d.municipio||''} / ${d.zona||''} <button class="modal-close" onclick="closeModal('modal-detalhe-integ')">×</button>`;
+    const params = d.parametros_json || {};
+    const linhasParams = Object.entries(params).map(([k,v]) =>
+        `<tr><td style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">${k}</td><td style="font-family:var(--font-mono);font-size:12px">${v??'—'}</td></tr>`
+    ).join('');
+    document.getElementById('integ-detalhe-conteudo').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;font-size:13px">
+            <div><div class="text-mono text-muted mb-2">Município</div>${d.municipio||'—'}</div>
+            <div><div class="text-mono text-muted mb-2">Zona</div><span class="tag">${d.zona||'—'}</span></div>
+            <div><div class="text-mono text-muted mb-2">Subzona</div>${d.subzona||'—'}</div>
+            <div><div class="text-mono text-muted mb-2">Legislação</div><span style="font-family:var(--font-mono);font-size:11px">${d.legislacao_ref||'—'}</span></div>
+        </div>
+        <div class="card-title"><span class="dot"></span>Parâmetros Extraídos pela IA</div>
+        <div class="table-wrap" style="max-height:300px;overflow-y:auto">
+            <table><thead><tr><th>Campo</th><th>Valor</th></tr></thead><tbody>${linhasParams}</tbody></table>
+        </div>
+        ${d.conteudo_original?`<div style="margin-top:14px"><div class="text-mono text-muted mb-2">Trecho da legislação</div><div style="background:var(--surface2);padding:12px;border-radius:var(--radius);font-size:11px;max-height:150px;overflow-y:auto;font-family:var(--font-mono);border:1px solid var(--border)">${d.conteudo_original}</div></div>`:''}
+    `;
+}
+
+async function aprovar(id) {
+    const r = await api('POST', `/api/integracao/${id}/aprovar`);
+    if (r.success) { toast('Aprovado! Parâmetros atualizados na planilha.'); carregarFila(); atualizarBadges(); }
+    else toast(r.error || 'Erro ao aprovar', 'error');
+}
+
+function aprovarAtual() { if (integAtualId) { closeModal('modal-detalhe-integ'); aprovar(integAtualId); } }
+
+async function aprovarTodos() {
+    if (!confirm('Aprovar TODOS os itens da fila? Os parâmetros serão aplicados à planilha.')) return;
+    const r = await api('POST', '/api/integracao/aprovar-todos');
+    if (r.success) { toast(`${r.count||0} item(s) aprovado(s)!`); carregarFila(); atualizarBadges(); }
+    else toast(r.error || 'Erro', 'error');
+}
+
+function abrirRejeicao(id) {
+    integAtualId = id;
+    document.getElementById('motivo-rejeicao').value = '';
+    openModal('modal-rejeicao');
+}
+
+function rejeitarAtual() { closeModal('modal-detalhe-integ'); abrirRejeicao(integAtualId); }
+
+async function confirmarRejeicao() {
+    const motivo = document.getElementById('motivo-rejeicao').value.trim();
+    if (!motivo) { toast('Informe o motivo da rejeição', 'error'); return; }
+    const r = await api('POST', `/api/integracao/${integAtualId}/rejeitar`, { motivo });
+    if (r.success) { toast('Rejeitado.', 'warning'); closeModal('modal-rejeicao'); carregarFila(); atualizarBadges(); }
+    else toast(r.error || 'Erro', 'error');
+}
+
+carregarFila();
+</script>
+{% endblock %}

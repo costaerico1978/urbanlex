@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UrbanLex — Esqueci minha senha</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg: #0a0c0f; --surface: #111418; --border: #1f2830; --border2: #2a3540;
+            --accent: #00e5a0; --accent2: #00b880; --text: #e8edf2; --muted: #6b7d8f;
+            --red: #ff4d6d; --amber: #f5a623;
+            --font-head: 'Syne', sans-serif; --font-body: 'DM Sans', sans-serif;
+            --font-mono: 'DM Mono', monospace;
+        }
+        body {
+            background: var(--bg); color: var(--text);
+            font-family: var(--font-body); min-height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            position: relative; overflow: hidden;
+        }
+        body::before {
+            content: '';
+            position: absolute; inset: 0;
+            background-image:
+                linear-gradient(rgba(0,229,160,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,229,160,0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+        }
+        .glow {
+            position: absolute; width: 500px; height: 500px;
+            background: radial-gradient(circle, rgba(0,229,160,0.05) 0%, transparent 70%);
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        .card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 16px; padding: 44px 40px;
+            width: 100%; max-width: 400px; position: relative; z-index: 1;
+        }
+        .back-link {
+            display: inline-flex; align-items: center; gap: 6px;
+            color: var(--muted); font-size: 12px; text-decoration: none;
+            font-family: var(--font-mono); margin-bottom: 28px;
+            transition: color 0.15s;
+        }
+        .back-link:hover { color: var(--text); }
+
+        .logo-area { margin-bottom: 28px; }
+        .wordmark { font-family: var(--font-head); font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+        .wordmark span { color: var(--accent); }
+        .page-title { font-family: var(--font-head); font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+        .page-desc  { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 24px; }
+
+        label {
+            display: block; font-family: var(--font-mono);
+            font-size: 10px; color: var(--muted);
+            letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 7px;
+        }
+        input {
+            width: 100%; background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border); border-radius: 8px;
+            color: var(--text); padding: 11px 14px;
+            font-family: var(--font-body); font-size: 14px; outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,229,160,0.08); }
+        .form-group { margin-bottom: 20px; }
+
+        .btn {
+            width: 100%; background: var(--accent); color: #0a0c0f;
+            border: none; border-radius: 8px; padding: 12px;
+            font-family: var(--font-head); font-size: 14px; font-weight: 700;
+            cursor: pointer; transition: background 0.15s;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn:hover { background: var(--accent2); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .msg {
+            border-radius: 8px; padding: 12px 14px;
+            font-size: 13px; margin-top: 16px; display: none;
+        }
+        .msg.error   { background: rgba(255,77,109,0.08); border: 1px solid rgba(255,77,109,0.2); color: var(--red); }
+        .msg.success { background: rgba(0,229,160,0.08); border: 1px solid rgba(0,229,160,0.2); color: var(--accent); }
+        .msg.show    { display: block; }
+
+        /* Estado de sucesso */
+        .success-state { text-align: center; display: none; }
+        .success-icon {
+            width: 56px; height: 56px;
+            background: rgba(0,229,160,0.1); border: 1px solid rgba(0,229,160,0.3);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 20px; font-size: 24px;
+        }
+        .success-title { font-family: var(--font-head); font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+        .success-desc  { color: var(--muted); font-size: 13px; line-height: 1.7; }
+
+        .spinner {
+            width: 16px; height: 16px;
+            border: 2px solid rgba(10,12,15,0.3);
+            border-top-color: var(--bg);
+            border-radius: 50%; animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+<div class="glow"></div>
+
+<div class="card">
+    <a href="/login" class="back-link">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10 12L6 8l4-4"/>
+        </svg>
+        Voltar ao login
+    </a>
+
+    <!-- Formulário -->
+    <div id="form-state">
+        <div class="logo-area">
+            <div class="wordmark">Urban<span>Lex</span></div>
+        </div>
+        <div class="page-title">Esqueci minha senha</div>
+        <div class="page-desc">
+            Digite o e-mail da sua conta. Se ele estiver cadastrado,
+            enviaremos um link de redefinição válido por <strong style="color:var(--amber)">1 hora</strong>.
+        </div>
+
+        <div class="form-group">
+            <label>E-mail da conta</label>
+            <input type="email" id="email" placeholder="admin@sistema.com" autocomplete="email">
+        </div>
+
+        <button class="btn" id="btn-enviar" onclick="enviarLink()">
+            <span id="btn-text">Enviar link de recuperação</span>
+        </button>
+
+        <div class="msg error" id="msg-erro"></div>
+    </div>
+
+    <!-- Sucesso -->
+    <div class="success-state" id="success-state">
+        <div class="success-icon">✉️</div>
+        <div class="success-title">E-mail enviado!</div>
+        <div class="success-desc">
+            Se o endereço <strong id="email-enviado" style="color:var(--text)"></strong>
+            estiver cadastrado, você receberá um e-mail com o link de redefinição nos próximos
+            minutos.<br><br>
+            Verifique também a caixa de spam.
+        </div>
+        <div style="margin-top:24px;padding:12px;background:rgba(245,166,35,0.06);border:1px solid rgba(245,166,35,0.15);border-radius:8px">
+            <div style="font-family:var(--font-mono);font-size:10px;color:var(--amber);margin-bottom:4px;letter-spacing:0.5px">ATENÇÃO</div>
+            <div style="font-size:12px;color:var(--muted)">O link expira em 1 hora. Após isso, solicite um novo.</div>
+        </div>
+        <a href="/login" style="display:inline-block;margin-top:24px;color:var(--muted);font-size:13px;text-decoration:none">
+            ← Voltar ao login
+        </a>
+    </div>
+</div>
+
+<script>
+async function enviarLink() {
+    const email = document.getElementById('email').value.trim();
+    const btn   = document.getElementById('btn-enviar');
+    const erro  = document.getElementById('msg-erro');
+
+    if (!email) { mostrarErro('Informe seu e-mail'); return; }
+    erro.classList.remove('show');
+
+    btn.disabled = true;
+    document.getElementById('btn-text').innerHTML = '<div class="spinner"></div>';
+
+    try {
+        const r = await fetch('/api/auth/esqueci-senha', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({email})
+        });
+        const data = await r.json();
+
+        if (data.success) {
+            document.getElementById('email-enviado').textContent = email;
+            document.getElementById('form-state').style.display = 'none';
+            document.getElementById('success-state').style.display = 'block';
+        } else {
+            mostrarErro(data.error || 'Erro ao enviar e-mail');
+        }
+    } catch(e) {
+        mostrarErro('Erro de conexão');
+    } finally {
+        btn.disabled = false;
+        document.getElementById('btn-text').textContent = 'Enviar link de recuperação';
+    }
+}
+
+function mostrarErro(msg) {
+    const el = document.getElementById('msg-erro');
+    el.textContent = msg;
+    el.classList.add('show');
+}
+
+document.getElementById('email').addEventListener('keydown', e => { if (e.key === 'Enter') enviarLink(); });
+</script>
+</body>
+</html>

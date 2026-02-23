@@ -1,0 +1,741 @@
+{% extends "base.html" %}
+{% block title %}Biblioteca de Legislações · UrbanLex{% endblock %}
+
+{% block topbar %}
+<span class="topbar-title">📚 Biblioteca de Legislações</span>
+<span class="topbar-sep"></span>
+<span class="topbar-sub" id="topbar-count">carregando...</span>
+<div class="topbar-right">
+    <button class="btn btn-ghost btn-sm" onclick="openModal('modal-buscar')">
+        🔍 Buscar Legislação
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="abrirPendentes()">
+        ⏳ Pendentes <span id="badge-pend-top" class="sub-badge hidden" style="background:var(--red);color:#fff;font-size:9px;font-family:var(--font-mono);padding:1px 5px;border-radius:20px">0</span>
+    </button>
+    <button class="btn btn-primary btn-sm" onclick="openModal('modal-incluir')">
+        ➕ Incluir Legislação
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Lista principal -->
+<div class="card" style="padding:0">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div class="section-title">Todas as Legislações</div>
+        <div class="ml-auto" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="text" id="filtro-rapido" placeholder="Filtro rápido..." style="width:180px;padding:5px 10px;font-size:12px" oninput="filtroRapido(this.value)">
+            <select id="filtro-status" style="width:130px;padding:5px 8px;font-size:12px" onchange="carregarLegislacoes()">
+                <option value="">Todos os status</option>
+                <option value="vigente">Vigente</option>
+                <option value="revogada">Revogada</option>
+            </select>
+            <select id="filtro-monitor" style="width:160px;padding:5px 8px;font-size:12px" onchange="carregarLegislacoes()">
+                <option value="">Todo monitoramento</option>
+                <option value="1">Em monitoramento</option>
+                <option value="0">Sem monitoramento</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="scroll-list-tall" id="lista-wrap">
+        <table id="tabela-legislacoes">
+            <thead>
+                <tr>
+                    <th>País</th>
+                    <th>Estado</th>
+                    <th>Município</th>
+                    <th>Tipo</th>
+                    <th>Número</th>
+                    <th>Ano</th>
+                    <th>Assunto</th>
+                    <th>Ementa</th>
+                    <th>Status</th>
+                    <th>Monitor</th>
+                    <th style="min-width:220px">Ações</th>
+                </tr>
+            </thead>
+            <tbody id="tbody-legislacoes">
+                <tr><td colspan="11" style="text-align:center;padding:30px">
+                    <span class="spinner" style="margin:0 auto"></span>
+                </td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:12px">
+        <span class="text-muted text-sm" id="paginacao-info">—</span>
+        <div class="ml-auto" style="display:flex;gap:6px">
+            <button class="btn btn-ghost btn-xs" id="btn-prev" onclick="mudarPagina(-1)" disabled>← Anterior</button>
+            <button class="btn btn-ghost btn-xs" id="btn-next" onclick="mudarPagina(1)">Próxima →</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- MODAL: BUSCAR LEGISLAÇÃO -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-buscar">
+    <div class="modal modal-xl">
+        <div class="modal-title">
+            🔍 Buscar Legislação
+            <button class="modal-close" onclick="closeModal('modal-buscar')">×</button>
+        </div>
+
+        <div class="form-row-3">
+            <div class="form-group">
+                <label>Estado</label>
+                <select id="b-estado" onchange="carregarMunicipiosBusca()">
+                    <option value="">Todos</option>
+                    <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
+                    <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+                    <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
+                    <option>MG</option><option>PA</option><option>PB</option><option>PR</option>
+                    <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
+                    <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
+                    <option>SP</option><option>SE</option><option>TO</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Município</label>
+                <input type="text" id="b-municipio" placeholder="Ex: Curitiba">
+            </div>
+            <div class="form-group">
+                <label>Número da Legislação</label>
+                <input type="text" id="b-numero" placeholder="Ex: 16.402">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Ano de Publicação</label>
+                <input type="number" id="b-ano" placeholder="Ex: 2016" min="1900" max="2099">
+            </div>
+            <div class="form-group">
+                <label>Tipo de Legislação</label>
+                <select id="b-tipo">
+                    <option value="">Todos os tipos</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Assunto</label>
+                <select id="b-assunto">
+                    <option value="">Todos os assuntos</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Palavras-chave</label>
+                <input type="text" id="b-keywords" placeholder="Ex: gabarito, afastamento...">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Monitoramento</label>
+            <select id="b-monitoramento">
+                <option value="">Todos</option>
+                <option value="1">Apenas em monitoramento</option>
+                <option value="0">Apenas sem monitoramento</option>
+            </select>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+            <button class="btn btn-primary" onclick="executarBusca()">🔍 Buscar</button>
+            <button class="btn btn-ghost" onclick="limparBusca()">✕ Limpar busca</button>
+        </div>
+
+        <div id="resultado-busca" style="display:none">
+            <div class="section-header">
+                <div class="section-title" id="resultado-titulo">Resultados</div>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>País</th><th>Estado</th><th>Município</th><th>Tipo</th>
+                            <th>Número</th><th>Ano</th><th>Assunto</th>
+                            <th style="max-width:200px">Ementa</th>
+                            <th>Status</th><th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-busca"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('modal-buscar')">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- MODAL: INCLUIR LEGISLAÇÃO -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-incluir">
+    <div class="modal modal-lg">
+        <div class="modal-title">
+            ➕ Incluir Legislação
+            <button class="modal-close" onclick="closeModal('modal-incluir')">×</button>
+        </div>
+
+        <div class="modal-tabs">
+            <div class="modal-tab inc-tab active" id="tab-upload" onclick="switchTab('inc','tab-upload','panel-upload')">
+                📎 Upload de Arquivo
+            </div>
+            <div class="modal-tab inc-tab" id="tab-busca-ia" onclick="switchTab('inc','tab-busca-ia','panel-busca-ia')">
+                🤖 Buscar com IA
+            </div>
+        </div>
+
+        <!-- Tab Upload -->
+        <div class="tab-panel inc-panel active" id="panel-upload">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Esfera *</label>
+                    <select id="inc-esfera" onchange="atualizarCamposEsfera()">
+                        <option value="municipal">Municipal</option>
+                        <option value="estadual">Estadual</option>
+                        <option value="federal">Federal</option>
+                    </select>
+                </div>
+                <div class="form-group" id="grp-estado">
+                    <label>Estado *</label>
+                    <select id="inc-estado">
+                        <option value="">Selecione</option>
+                        <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
+                        <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+                        <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
+                        <option>MG</option><option>PA</option><option>PB</option><option>PR</option>
+                        <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
+                        <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
+                        <option>SP</option><option>SE</option><option>TO</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group" id="grp-municipio">
+                <label>Município *</label>
+                <input type="text" id="inc-municipio" placeholder="Ex: Curitiba">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Tipo de Legislação *</label>
+                    <div style="display:flex;gap:6px">
+                        <select id="inc-tipo" style="flex:1"></select>
+                        <button class="btn btn-ghost btn-sm" onclick="openModal('modal-novo-tipo')" title="Adicionar novo tipo">＋</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Número *</label>
+                    <input type="text" id="inc-numero" placeholder="Ex: 16.402">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Ano de Publicação *</label>
+                    <input type="number" id="inc-ano" placeholder="Ex: 2016" min="1900" max="2099">
+                </div>
+                <div class="form-group">
+                    <label>Data de Publicação</label>
+                    <input type="date" id="inc-data">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Assunto</label>
+                    <div style="display:flex;gap:6px">
+                        <select id="inc-assunto" style="flex:1"></select>
+                        <button class="btn btn-ghost btn-sm" onclick="openModal('modal-novo-assunto')" title="Adicionar assunto">＋</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Palavras-chave</label>
+                    <input type="text" id="inc-keywords" placeholder="zoneamento, gabarito, CA...">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Ementa</label>
+                <textarea id="inc-ementa" rows="2" placeholder="Descrição resumida da legislação..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>Arquivo (PDF, DOC, DOCX, JPG, PNG, XLS, XLSX, TXT) *</label>
+                <div class="upload-area" id="upload-area" onclick="document.getElementById('inc-arquivo').click()" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropFile(event)">
+                    <div class="upload-icon">📄</div>
+                    <div class="upload-text">Clique para selecionar ou arraste o arquivo aqui</div>
+                    <div class="upload-sub">PDF · DOC · DOCX · JPG · PNG · XLS · XLSX · TXT · máx. 30MB</div>
+                    <div id="upload-filename" style="margin-top:10px;font-size:12px;color:var(--accent);display:none"></div>
+                </div>
+                <input type="file" id="inc-arquivo" style="display:none" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xls,.xlsx,.txt" onchange="selecionarArquivo(this)">
+            </div>
+            <div class="form-group">
+                <label>Incluir no Monitoramento Automático?</label>
+                <select id="inc-monitoramento">
+                    <option value="0">Não</option>
+                    <option value="1">Sim</option>
+                </select>
+            </div>
+            <div class="modal-footer" style="margin:0;padding-top:14px;border-top:1px solid var(--border)">
+                <button class="btn btn-ghost" onclick="closeModal('modal-incluir')">Cancelar</button>
+                <button class="btn btn-primary" onclick="salvarLegislacao()" id="btn-salvar-leg">
+                    💾 Salvar Legislação
+                </button>
+            </div>
+        </div>
+
+        <!-- Tab Busca IA -->
+        <div class="tab-panel inc-panel" id="panel-busca-ia">
+            <div class="alert alert-info">
+                <span>ℹ</span>
+                <span>Digite uma descrição da legislação que deseja encontrar. O sistema usará GROQ + Gemini para buscá-la na internet e adicioná-la automaticamente. Após aprovação do administrador, ela entrará na biblioteca.</span>
+            </div>
+            <div class="form-group">
+                <label>Descrição da Legislação *</label>
+                <textarea id="ia-consulta" rows="4" placeholder="Ex: Lei de Zoneamento e Uso do Solo de Curitiba&#10;Ex: Código de Obras do Município de São Paulo&#10;Ex: Plano Diretor de Florianópolis"></textarea>
+            </div>
+            <div class="alert alert-warning" id="ia-aviso" style="display:none">
+                <span>⚠</span>
+                <span id="ia-aviso-texto"></span>
+            </div>
+            <div id="ia-progresso" style="display:none">
+                <div style="display:flex;align-items:center;gap:12px;padding:16px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">
+                    <span class="spinner"></span>
+                    <div>
+                        <div style="font-size:13px">Buscando na internet...</div>
+                        <div class="text-muted text-sm" id="ia-status">Consultando GROQ e Gemini</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="margin:0;padding-top:14px;border-top:1px solid var(--border)">
+                <button class="btn btn-ghost" onclick="closeModal('modal-incluir')">Cancelar</button>
+                <button class="btn btn-primary" onclick="buscarComIA()" id="btn-buscar-ia">
+                    🤖 Buscar com IA
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- MODAL: PENDENTES DE APROVAÇÃO -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-pendentes">
+    <div class="modal modal-xl">
+        <div class="modal-title">
+            ⏳ Legislações Pendentes de Aprovação
+            <button class="modal-close" onclick="closeModal('modal-pendentes')">×</button>
+        </div>
+        <div class="alert alert-warning">
+            <span>⚠</span>
+            <span>Estas legislações foram encontradas pela IA e aguardam aprovação do administrador para entrar na biblioteca.</span>
+        </div>
+        <div id="lista-pendentes-conteudo">
+            <div class="spinner" style="margin:0 auto"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('modal-pendentes')">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Novo Tipo de Legislação -->
+<div class="modal-overlay" id="modal-novo-tipo">
+    <div class="modal modal-sm">
+        <div class="modal-title">
+            Novo Tipo de Legislação
+            <button class="modal-close" onclick="closeModal('modal-novo-tipo')">×</button>
+        </div>
+        <div class="form-group">
+            <label>Nome do Tipo *</label>
+            <input type="text" id="novo-tipo-nome" placeholder="Ex: Instrução Técnica">
+        </div>
+        <div class="form-group">
+            <label>Descrição (opcional)</label>
+            <textarea id="novo-tipo-desc" rows="2"></textarea>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('modal-novo-tipo')">Cancelar</button>
+            <button class="btn btn-primary" onclick="salvarNovoTipo()">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Novo Assunto -->
+<div class="modal-overlay" id="modal-novo-assunto">
+    <div class="modal modal-sm">
+        <div class="modal-title">
+            Novo Assunto
+            <button class="modal-close" onclick="closeModal('modal-novo-assunto')">×</button>
+        </div>
+        <div class="form-group">
+            <label>Nome do Assunto *</label>
+            <input type="text" id="novo-assunto-nome" placeholder="Ex: Regularização Fundiária">
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('modal-novo-assunto')">Cancelar</button>
+            <button class="btn btn-primary" onclick="salvarNovoAssunto()">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Ver Legislação -->
+<div class="modal-overlay" id="modal-ver">
+    <div class="modal modal-xl">
+        <div class="modal-title" id="ver-titulo">
+            Legislação
+            <button class="modal-close" onclick="closeModal('modal-ver')">×</button>
+        </div>
+        <div id="ver-conteudo"></div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost btn-sm" id="btn-download-doc" onclick="downloadDoc()" style="display:none">📥 Baixar Documento Original</button>
+            <button class="btn btn-ghost" onclick="closeModal('modal-ver')">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Confirmar Exclusão -->
+<div class="modal-overlay" id="modal-excluir">
+    <div class="modal modal-sm">
+        <div class="modal-title">Confirmar Exclusão</div>
+        <p style="margin-bottom:20px;color:var(--muted)">Tem certeza que deseja excluir esta legislação? Esta ação não pode ser desfeita.</p>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('modal-excluir')">Cancelar</button>
+            <button class="btn btn-danger" id="btn-confirmar-excluir">Sim, Excluir</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let pagAtual = 1;
+const PER_PAGE = 50;
+let totalPags = 1;
+let legParaExcluir = null;
+let legParaDownload = null;
+
+// ── Carregar lista principal ──────────────────────────────────
+async function carregarLegislacoes(pag = pagAtual) {
+    pagAtual = pag;
+    const status  = document.getElementById('filtro-status').value;
+    const monitor = document.getElementById('filtro-monitor').value;
+    const params  = new URLSearchParams({ page: pag, per_page: PER_PAGE });
+    if (status)  params.set('status', status);
+    if (monitor !== '') params.set('em_monitoramento', monitor);
+
+    const r = await api('GET', '/api/legislacoes?' + params);
+    const tbody = document.getElementById('tbody-legislacoes');
+    if (!r.success) { tbody.innerHTML = `<tr><td colspan="11" class="text-muted" style="text-align:center;padding:30px">Erro ao carregar</td></tr>`; return; }
+    if (!r.data.length) { tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state"><div class="empty-icon">📚</div><div class="empty-title">Nenhuma legislação cadastrada</div><div class="empty-sub">Clique em "Incluir Legislação" para adicionar</div></div></td></tr>`; return; }
+
+    totalPags = Math.ceil(r.total / PER_PAGE);
+    document.getElementById('paginacao-info').textContent = `Exibindo ${r.data.length} de ${r.total} legislações · Página ${pag} de ${totalPags}`;
+    document.getElementById('topbar-count').textContent = `${r.total} legislações`;
+    document.getElementById('btn-prev').disabled = pag <= 1;
+    document.getElementById('btn-next').disabled = pag >= totalPags;
+
+    tbody.innerHTML = r.data.map(l => {
+        const statusBadge = l.status === 'vigente'
+            ? `<span class="badge badge-green">Vigente</span>`
+            : `<span class="badge badge-muted">Revogada</span>`;
+        const monBadge = l.em_monitoramento
+            ? `<span class="badge badge-blue">Sim</span>`
+            : `<span class="badge badge-muted">Não</span>`;
+        const emenTrunc = (l.ementa || '—').length > 60 ? l.ementa.substring(0,60) + '...' : (l.ementa || '—');
+
+        return `<tr class="row-${l.status || 'vigente'}">
+            <td><span class="badge badge-muted">${l.pais || 'BR'}</span></td>
+            <td>${l.estado || 'N/A'}</td>
+            <td>${l.municipio_nome || 'N/A'}</td>
+            <td><span class="tag">${l.tipo_nome || '—'}</span></td>
+            <td style="font-family:var(--font-mono);font-size:11px">${l.numero || '—'}</td>
+            <td>${l.ano || '—'}</td>
+            <td style="font-size:12px">${l.assunto_nome || '—'}</td>
+            <td style="font-size:12px;max-width:180px" title="${l.ementa || ''}">${emenTrunc}</td>
+            <td>${statusBadge}</td>
+            <td>${monBadge}</td>
+            <td>
+                <div style="display:flex;gap:4px;flex-wrap:wrap">
+                    <button class="btn btn-ghost btn-xs" onclick="verLegislacao(${l.id})" title="Ver detalhes">👁</button>
+                    <button class="btn btn-ghost btn-xs" onclick="location.href='/legislacoes/arvore/${l.id}'" title="Árvore genealógica">🌳</button>
+                    ${l.em_monitoramento
+                        ? `<button class="btn btn-xs btn-danger" onclick="toggleMonitoramento(${l.id}, false)" title="Excluir do monitoramento">🔕</button>`
+                        : `<button class="btn btn-xs btn-blue" onclick="toggleMonitoramento(${l.id}, true)" title="Incluir no monitoramento">📡</button>`
+                    }
+                    <button class="btn btn-danger btn-xs" onclick="confirmarExcluir(${l.id})" title="Excluir">🗑</button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function mudarPagina(delta) { carregarLegislacoes(pagAtual + delta); }
+
+function filtroRapido(q) {
+    const rows = document.querySelectorAll('#tbody-legislacoes tr');
+    rows.forEach(r => { r.style.display = r.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none'; });
+}
+
+// ── Busca avançada ────────────────────────────────────────────
+async function carregarOpcoesBusca() {
+    const [tipos, assuntos] = await Promise.all([
+        api('GET', '/api/config/tipos-legislacao'),
+        api('GET', '/api/config/assuntos')
+    ]);
+    ['inc-tipo', 'b-tipo'].forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel || !tipos.success) return;
+        const base = id === 'inc-tipo' ? '' : '<option value="">Todos os tipos</option>';
+        sel.innerHTML = base + tipos.data.map(t => `<option value="${t.id}">${t.nome}</option>`).join('');
+    });
+    ['inc-assunto', 'b-assunto'].forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel || !assuntos.success) return;
+        const base = id === 'inc-assunto' ? '<option value="">Selecione</option>' : '<option value="">Todos os assuntos</option>';
+        sel.innerHTML = base + assuntos.data.map(a => `<option value="${a.id}">${a.nome}</option>`).join('');
+    });
+}
+
+async function executarBusca() {
+    const params = new URLSearchParams();
+    const campos = { estado:'b-estado', municipio:'b-municipio', numero:'b-numero', ano:'b-ano', tipo_id:'b-tipo', assunto_id:'b-assunto', keywords:'b-keywords', em_monitoramento:'b-monitoramento' };
+    Object.entries(campos).forEach(([k,id]) => { const v = document.getElementById(id).value; if(v) params.set(k,v); });
+
+    const r = await api('GET', '/api/legislacoes?' + params);
+    const div = document.getElementById('resultado-busca');
+    const tbody = document.getElementById('tbody-busca');
+    div.style.display = 'block';
+    document.getElementById('resultado-titulo').textContent = `${r.total ?? 0} resultado(s) encontrado(s)`;
+
+    if (!r.success || !r.data.length) { tbody.innerHTML = `<tr><td colspan="10" class="text-muted" style="text-align:center;padding:20px">Nenhum resultado encontrado</td></tr>`; return; }
+
+    tbody.innerHTML = r.data.map(l => {
+        const e = (l.ementa||'—').length>50?l.ementa.substring(0,50)+'...':(l.ementa||'—');
+        return `<tr>
+            <td>${l.pais||'BR'}</td><td>${l.estado||'N/A'}</td><td>${l.municipio_nome||'N/A'}</td>
+            <td><span class="tag">${l.tipo_nome||'—'}</span></td>
+            <td style="font-family:var(--font-mono);font-size:11px">${l.numero||'—'}</td>
+            <td>${l.ano||'—'}</td><td style="font-size:12px">${l.assunto_nome||'—'}</td>
+            <td style="font-size:12px;max-width:180px" title="${l.ementa||''}">${e}</td>
+            <td>${l.status==='vigente'?'<span class="badge badge-green">Vigente</span>':'<span class="badge badge-muted">Revogada</span>'}</td>
+            <td>
+                <div style="display:flex;gap:4px">
+                    <button class="btn btn-ghost btn-xs" onclick="verLegislacao(${l.id})">👁 Ver</button>
+                    <button class="btn btn-ghost btn-xs" onclick="location.href='/legislacoes/arvore/${l.id}'">🌳 Árvore</button>
+                    ${l.em_monitoramento
+                        ? `<button class="btn btn-xs btn-danger" onclick="toggleMonitoramento(${l.id},false)">🔕</button>`
+                        : `<button class="btn btn-xs btn-blue" onclick="toggleMonitoramento(${l.id},true)">📡</button>`
+                    }
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function limparBusca() {
+    ['b-estado','b-municipio','b-numero','b-ano','b-tipo','b-assunto','b-keywords','b-monitoramento'].forEach(id=>{
+        const el = document.getElementById(id);
+        if(el) el.value='';
+    });
+    document.getElementById('resultado-busca').style.display='none';
+}
+
+// ── Incluir Legislação ────────────────────────────────────────
+function atualizarCamposEsfera() {
+    const esfera = document.getElementById('inc-esfera').value;
+    document.getElementById('grp-estado').style.display = esfera === 'federal' ? 'none' : '';
+    document.getElementById('grp-municipio').style.display = esfera === 'municipal' ? '' : 'none';
+}
+
+function selecionarArquivo(input) {
+    const f = input.files[0];
+    if (!f) return;
+    document.getElementById('upload-filename').textContent = '📎 ' + f.name + ' (' + (f.size/1024/1024).toFixed(2) + ' MB)';
+    document.getElementById('upload-filename').style.display = 'block';
+}
+
+function dragOver(e) { e.preventDefault(); document.getElementById('upload-area').classList.add('drag-over'); }
+function dragLeave(e) { document.getElementById('upload-area').classList.remove('drag-over'); }
+function dropFile(e) {
+    e.preventDefault();
+    dragLeave(e);
+    const f = e.dataTransfer.files[0];
+    if (!f) return;
+    const input = document.getElementById('inc-arquivo');
+    const dt = new DataTransfer();
+    dt.items.add(f);
+    input.files = dt.files;
+    selecionarArquivo(input);
+}
+
+async function salvarLegislacao() {
+    const arquivo = document.getElementById('inc-arquivo').files[0];
+    if (!arquivo) { toast('Selecione um arquivo', 'error'); return; }
+    const campos = { estado: 'inc-estado', municipio: 'inc-municipio', tipo_id: 'inc-tipo', numero: 'inc-numero', ano: 'inc-ano' };
+    for (const [k, id] of Object.entries(campos)) {
+        const esfera = document.getElementById('inc-esfera').value;
+        if (k === 'estado' && esfera === 'federal') continue;
+        if (k === 'municipio' && esfera !== 'municipal') continue;
+        if (!document.getElementById(id).value) { toast(`Campo obrigatório: ${k}`, 'error'); return; }
+    }
+    const btn = document.getElementById('btn-salvar-leg');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Salvando...';
+    const fd = new FormData();
+    fd.append('arquivo', arquivo);
+    ['esfera','estado','municipio','tipo_id','numero','ano','data_publicacao','assunto_id','ementa','em_monitoramento'].forEach(f => {
+        const idMap = {esfera:'inc-esfera',estado:'inc-estado',municipio:'inc-municipio',tipo_id:'inc-tipo',numero:'inc-numero',ano:'inc-ano',data_publicacao:'inc-data',assunto_id:'inc-assunto',ementa:'inc-ementa',em_monitoramento:'inc-monitoramento'};
+        const v = document.getElementById(idMap[f]).value;
+        if(v) fd.append(f, v);
+    });
+    const kw = document.getElementById('inc-keywords').value;
+    if (kw) fd.append('palavras_chave', kw);
+    const r = await apiForm('/api/legislacoes', fd);
+    btn.disabled = false; btn.innerHTML = '💾 Salvar Legislação';
+    if (r.success) {
+        toast('Legislação salva com sucesso!');
+        closeModal('modal-incluir');
+        carregarLegislacoes();
+    } else {
+        toast(r.error || 'Erro ao salvar', 'error');
+    }
+}
+
+async function buscarComIA() {
+    const consulta = document.getElementById('ia-consulta').value.trim();
+    if (!consulta) { toast('Descreva a legislação que deseja buscar', 'error'); return; }
+    const btn = document.getElementById('btn-buscar-ia');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Buscando...';
+    document.getElementById('ia-progresso').style.display = 'block';
+    document.getElementById('ia-aviso').style.display = 'none';
+    const r = await api('POST', '/api/legislacoes/buscar-ia', { consulta });
+    btn.disabled = false; btn.innerHTML = '🤖 Buscar com IA';
+    document.getElementById('ia-progresso').style.display = 'none';
+    if (r.success) {
+        toast('Legislação encontrada! Aguardando aprovação do administrador.', 'success', 6000);
+        closeModal('modal-incluir');
+        atualizarBadges();
+    } else {
+        document.getElementById('ia-aviso').style.display = 'flex';
+        document.getElementById('ia-aviso-texto').textContent = r.error || 'Não foi possível encontrar a legislação. Tente ser mais específico ou faça o upload manual.';
+    }
+}
+
+// ── Pendentes ─────────────────────────────────────────────────
+async function abrirPendentes() {
+    openModal('modal-pendentes');
+    const r = await api('GET', '/api/legislacoes/pendentes');
+    const el = document.getElementById('lista-pendentes-conteudo');
+    if (!r.success || !r.data.length) {
+        el.innerHTML = '<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-title">Nenhuma legislação pendente</div></div>';
+        return;
+    }
+    el.innerHTML = `<div class="table-wrap"><table>
+        <thead><tr><th>Consulta</th><th>Fonte</th><th>Data</th><th>Ações</th></tr></thead>
+        <tbody>${r.data.map(p=>`<tr>
+            <td>${p.consulta||p.titulo||'—'}</td>
+            <td><a href="${p.resultado_url||'#'}" target="_blank" style="color:var(--blue);font-size:12px">${p.resultado_nome||'—'}</a></td>
+            <td style="font-size:11px;font-family:var(--font-mono)">${fmtData(p.criado_em)}</td>
+            <td>
+                <div style="display:flex;gap:6px">
+                    <button class="btn btn-primary btn-xs" onclick="aprovarPendente(${p.id})">✓ Aprovar</button>
+                    <button class="btn btn-danger btn-xs" onclick="rejeitarPendente(${p.id})">✗ Rejeitar</button>
+                </div>
+            </td>
+        </tr>`).join('')}</tbody>
+    </table></div>`;
+}
+
+async function aprovarPendente(id) {
+    const r = await api('POST', `/api/legislacoes/pendentes/${id}/aprovar`);
+    if (r.success) { toast('Legislação aprovada e adicionada à biblioteca!'); abrirPendentes(); carregarLegislacoes(); atualizarBadges(); }
+    else toast(r.error || 'Erro ao aprovar', 'error');
+}
+
+async function rejeitarPendente(id) {
+    const r = await api('POST', `/api/legislacoes/pendentes/${id}/rejeitar`);
+    if (r.success) { toast('Legislação rejeitada', 'warning'); abrirPendentes(); atualizarBadges(); }
+    else toast(r.error || 'Erro ao rejeitar', 'error');
+}
+
+// ── Ver Legislação ────────────────────────────────────────────
+async function verLegislacao(id) {
+    legParaDownload = id;
+    openModal('modal-ver');
+    document.getElementById('ver-conteudo').innerHTML = '<div class="spinner" style="margin:20px auto"></div>';
+    const r = await api('GET', `/api/legislacoes/${id}`);
+    if (!r.success) { document.getElementById('ver-conteudo').innerHTML = '<div class="text-muted">Erro ao carregar</div>'; return; }
+    const l = r.data;
+    document.getElementById('ver-titulo').innerHTML = `${l.tipo_nome||''} ${l.numero||''}/${l.ano||''} <button class="modal-close" onclick="closeModal('modal-ver')">×</button>`;
+    const temDoc = !!l.arquivo_url;
+    document.getElementById('btn-download-doc').style.display = temDoc ? '' : 'none';
+    document.getElementById('ver-conteudo').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+            <div><div class="text-mono text-muted mb-2">País / Esfera</div><div>${l.pais||'BR'} · ${l.esfera||'municipal'}</div></div>
+            <div><div class="text-mono text-muted mb-2">Estado</div><div>${l.estado||'—'}</div></div>
+            <div><div class="text-mono text-muted mb-2">Município</div><div>${l.municipio_nome||'N/A'}</div></div>
+            <div><div class="text-mono text-muted mb-2">Tipo</div><div>${l.tipo_nome||'—'}</div></div>
+            <div><div class="text-mono text-muted mb-2">Número</div><div style="font-family:var(--font-mono)">${l.numero||'—'}</div></div>
+            <div><div class="text-mono text-muted mb-2">Ano / Publicação</div><div>${l.ano||'—'} · ${fmtData(l.data_publicacao)}</div></div>
+            <div><div class="text-mono text-muted mb-2">Assunto</div><div>${l.assunto_nome||'—'}</div></div>
+            <div><div class="text-mono text-muted mb-2">Status</div><div>${l.status==='vigente'?'<span class="badge badge-green">Vigente</span>':'<span class="badge badge-muted">Revogada</span>'}</div></div>
+        </div>
+        ${l.ementa?`<div style="margin-bottom:16px"><div class="text-mono text-muted mb-2">Ementa</div><div style="font-size:13px;line-height:1.7;background:var(--surface2);padding:12px;border-radius:var(--radius);border:1px solid var(--border)">${l.ementa}</div></div>`:''}
+        ${l.palavras_chave?`<div style="margin-bottom:16px"><div class="text-mono text-muted mb-2">Palavras-chave</div><div>${JSON.parse(l.palavras_chave||'[]').map(k=>`<span class="tag" style="margin-right:4px">${k}</span>`).join('')}</div></div>`:''}
+        ${l.arquivo_nome?`<div style="margin-bottom:16px"><div class="text-mono text-muted mb-2">Arquivo</div><div style="font-family:var(--font-mono);font-size:12px">📎 ${l.arquivo_nome}</div></div>`:''}
+        ${l.conteudo_texto?`<div><div class="text-mono text-muted mb-2">Texto Extraído</div><div style="max-height:300px;overflow-y:auto;background:var(--surface2);padding:14px;border-radius:var(--radius);border:1px solid var(--border);font-size:12px;line-height:1.7;white-space:pre-wrap">${l.conteudo_texto.substring(0,5000)}${l.conteudo_texto.length>5000?'\n\n[... texto truncado para exibição ...]':''}</div></div>`:''}
+    `;
+}
+
+function downloadDoc() {
+    if (legParaDownload) window.open(`/api/legislacoes/${legParaDownload}/documento`, '_blank');
+}
+
+// ── Excluir ───────────────────────────────────────────────────
+function confirmarExcluir(id) {
+    legParaExcluir = id;
+    openModal('modal-excluir');
+    document.getElementById('btn-confirmar-excluir').onclick = async () => {
+        const r = await api('DELETE', `/api/legislacoes/${id}`);
+        if (r.success) { toast('Legislação excluída'); closeModal('modal-excluir'); carregarLegislacoes(); }
+        else toast(r.error || 'Erro ao excluir', 'error');
+    };
+}
+
+// ── Monitoramento ─────────────────────────────────────────────
+async function toggleMonitoramento(id, ativar) {
+    const r = await api('POST', `/api/legislacoes/${id}/monitoramento`, { ativar });
+    if (r.success) { toast(ativar ? 'Adicionado ao monitoramento' : 'Removido do monitoramento'); carregarLegislacoes(); }
+    else toast(r.error || 'Erro', 'error');
+}
+
+// ── Novo Tipo / Assunto ───────────────────────────────────────
+async function salvarNovoTipo() {
+    const nome = document.getElementById('novo-tipo-nome').value.trim();
+    if (!nome) { toast('Informe o nome do tipo', 'error'); return; }
+    const r = await api('POST', '/api/config/tipos-legislacao', { nome, descricao: document.getElementById('novo-tipo-desc').value });
+    if (r.success) { toast('Tipo adicionado!'); closeModal('modal-novo-tipo'); carregarOpcoesBusca(); document.getElementById('novo-tipo-nome').value=''; }
+    else toast(r.error || 'Erro', 'error');
+}
+
+async function salvarNovoAssunto() {
+    const nome = document.getElementById('novo-assunto-nome').value.trim();
+    if (!nome) { toast('Informe o nome do assunto', 'error'); return; }
+    const r = await api('POST', '/api/config/assuntos', { nome });
+    if (r.success) { toast('Assunto adicionado!'); closeModal('modal-novo-assunto'); carregarOpcoesBusca(); document.getElementById('novo-assunto-nome').value=''; }
+    else toast(r.error || 'Erro', 'error');
+}
+
+// Atualizar badge do botão de pendentes no topbar
+async function atualizarBadgePend() {
+    const r = await api('GET','/api/badges');
+    if (r.leg_pendentes !== undefined) {
+        const b = document.getElementById('badge-pend-top');
+        b.textContent = r.leg_pendentes;
+        b.classList.toggle('hidden', r.leg_pendentes === 0);
+    }
+}
+
+// ── Init ──────────────────────────────────────────────────────
+carregarLegislacoes();
+carregarOpcoesBusca();
+atualizarBadgePend();
+</script>
+{% endblock %}

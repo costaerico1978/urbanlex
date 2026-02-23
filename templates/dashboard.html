@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · UrbanLex{% endblock %}
+
+{% block extra_style %}
+<style>
+/* ── Toggle switch ── */
+.toggle-btn { background:none; border:none; cursor:pointer; padding:2px; flex-shrink:0; }
+.toggle-track { display:flex; align-items:center; width:40px; height:22px; background:var(--border,#333); border-radius:11px; padding:2px; transition:background .25s; position:relative; }
+.toggle-thumb { width:18px; height:18px; background:#888; border-radius:50%; transition:transform .25s,background .25s; display:block; }
+.toggle-btn.toggle-on .toggle-track { background:var(--accent,#00e5a0); }
+.toggle-btn.toggle-on .toggle-thumb { transform:translateX(18px); background:#fff; }
+.toggle-btn:disabled { opacity:.5; cursor:not-allowed; }
+</style>
+{% endblock %}
+
+{% block topbar %}
+<span class="topbar-title">Dashboard</span>
+<span class="topbar-sep"></span>
+<span class="topbar-sub" id="last-update">—</span>
+<div class="topbar-right">
+    <button class="btn btn-primary btn-sm" onclick="executarRobo()">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3,2 13,8 3,14"/></svg>
+        Executar Robô Agora
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="stat-grid" id="stat-grid">
+    <div class="stat-card accent">
+        <div class="stat-label">Legislações na Biblioteca</div>
+        <div class="stat-value" id="st-legislacoes">—</div>
+        <div class="stat-sub" id="st-leg-sub">carregando...</div>
+    </div>
+    <div class="stat-card blue">
+        <div class="stat-label">Municípios Monitorados</div>
+        <div class="stat-value" id="st-municipios">—</div>
+        <div class="stat-sub" id="st-mun-sub">carregando...</div>
+    </div>
+    <div class="stat-card amber">
+        <div class="stat-label">Pendentes de Aprovação</div>
+        <div class="stat-value" id="st-pendentes">—</div>
+        <div class="stat-sub">legislações + parâmetros</div>
+    </div>
+    <div class="stat-card purple">
+        <div class="stat-label">Zonas Cadastradas</div>
+        <div class="stat-value" id="st-zonas">—</div>
+        <div class="stat-sub" id="st-zon-sub">carregando...</div>
+    </div>
+    <div class="stat-card" id="st-card-robo">
+        <div class="stat-label">Status do Robô</div>
+        <div class="stat-value" id="st-robo" style="font-size:20px">—</div>
+        <div class="stat-sub" id="st-robo-sub">carregando...</div>
+    </div>
+</div>
+
+<!-- Grid principal -->
+<div style="display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:start">
+
+    <!-- Feed de atividade -->
+    <div class="card">
+        <div class="card-title">
+            <span class="dot"></span>
+            Atividade Recente
+        </div>
+        <div id="feed-list" class="scroll-list">
+            <div class="empty-state">
+                <div class="spinner" style="margin:0 auto 12px"></div>
+                <div class="text-muted">Carregando atividade...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Painel direito -->
+    <div style="display:flex;flex-direction:column;gap:14px">
+
+        <!-- Robô -->
+        <div class="card" id="card-robo">
+            <div class="card-title"><span class="dot" style="background:var(--blue)"></span>Monitoramento Automático</div>
+            <div id="robo-info">
+                <div class="text-muted text-sm" style="margin-bottom:10px">Carregando...</div>
+            </div>
+
+            <!-- Toggles de observabilidade -->
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;padding:10px 12px;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border)">
+                <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Observabilidade</div>
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div>
+                        <div style="font-size:13px">🔍 Debug detalhado</div>
+                        <div style="font-size:11px;color:var(--text-muted)">Salva stack traces nos logs</div>
+                    </div>
+                    <button id="toggle-debug" class="toggle-btn" onclick="toggleConfig('debug_ativo')" title="Ligar/desligar debug">
+                        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                    </button>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div>
+                        <div style="font-size:13px">📧 Relatório por e-mail</div>
+                        <div style="font-size:11px;color:var(--text-muted)">Envia resumo após cada execução</div>
+                    </div>
+                    <button id="toggle-email" class="toggle-btn" onclick="toggleConfig('email_relatorio')" title="Ligar/desligar e-mail">
+                        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                    </button>
+                </div>
+            </div>
+
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+                <button class="btn btn-ghost btn-sm" onclick="location.href='/monitoramento/scheduler'">Configurar</button>
+                <button class="btn btn-sm btn-blue" onclick="executarRobo()" id="btn-executar">Executar Agora</button>
+            </div>
+        </div>
+
+        <!-- Ações rápidas -->
+        <div class="card">
+            <div class="card-title"><span class="dot" style="background:var(--amber)"></span>Ações Rápidas</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+                <button class="btn btn-ghost w-full" style="justify-content:flex-start" onclick="location.href='/legislacoes'">
+                    📚 &nbsp;Ir para a Biblioteca
+                </button>
+                <button class="btn btn-ghost w-full" style="justify-content:flex-start" onclick="location.href='/parametros'">
+                    📊 &nbsp;Ver Planilha de Parâmetros
+                </button>
+                <button class="btn btn-ghost w-full" style="justify-content:flex-start" onclick="location.href='/integracao'">
+                    🔗 &nbsp;Revisar Aprovações Pendentes
+                </button>
+                <button class="btn btn-ghost w-full" style="justify-content:flex-start" onclick="location.href='/parametros/calculadora'">
+                    🧮 &nbsp;Calculadora de Área
+                </button>
+            </div>
+        </div>
+
+        <!-- Últimas legislações -->
+        <div class="card">
+            <div class="card-title"><span class="dot" style="background:var(--accent)"></span>Últimas Adicionadas</div>
+            <div id="ultimas-leg">
+                <div class="text-muted text-sm">Carregando...</div>
+            </div>
+            <div class="mt-3">
+                <a href="/legislacoes" class="btn btn-ghost btn-sm">Ver todas →</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function carregarDashboard() {
+    const r = await api('GET', '/api/dashboard/stats');
+    if (!r.success) return;
+    const d = r.data;
+
+    document.getElementById('st-legislacoes').textContent = d.total_legislacoes ?? '0';
+    document.getElementById('st-leg-sub').textContent = `${d.leg_vigentes ?? 0} vigentes · ${d.leg_revogadas ?? 0} revogadas`;
+    document.getElementById('st-municipios').textContent = d.total_municipios ?? '0';
+    document.getElementById('st-mun-sub').textContent = `monitorados ativamente`;
+    document.getElementById('st-pendentes').textContent = (d.leg_pendentes??0) + (d.integ_pendentes??0);
+    document.getElementById('st-zonas').textContent = d.total_zonas ?? '0';
+    document.getElementById('st-zon-sub').textContent = `em ${d.total_municipios_zonas ?? 0} municípios`;
+
+    // Robô status
+    const status = d.scheduler_status || 'desconhecido';
+    const statusMap = {
+        ativo: { emoji: '🟢', label: 'Ativo', color: 'var(--accent)' },
+        pausado: { emoji: '🟡', label: 'Pausado', color: 'var(--amber)' },
+        executando: { emoji: '🔵', label: 'Executando', color: 'var(--blue)' },
+        erro: { emoji: '🔴', label: 'Erro', color: 'var(--red)' },
+    };
+    const sm = statusMap[status] || { emoji: '⚪', label: status, color: 'var(--muted)' };
+    document.getElementById('st-robo').textContent = sm.emoji + ' ' + sm.label;
+    document.getElementById('st-robo').style.color = sm.color;
+    document.getElementById('st-robo-sub').textContent = d.proxima_execucao ? `Próxima: ${d.proxima_execucao}` : `Horário: ${d.horario_scheduler || '02:00'}`;
+    document.getElementById('st-card-robo').className = `stat-card ${status === 'ativo' ? 'accent' : status === 'erro' ? 'red' : 'amber'}`;
+
+    // Buscar status detalhado da última execução
+    let badgeUltima = '';
+    try {
+        const rs = await api('GET', '/api/monitor/status');
+        if (rs.success && rs.data) {
+            const ult = rs.data;
+            if (ult.status !== 'nunca_executou') {
+                const saudeLabel = { ok:'✅ OK', parcial:'⚠️ Com erros', erro:'❌ Falhou', executando:'⟳ Rodando' };
+                const saudeCor   = { ok:'var(--accent)', parcial:'var(--amber)', erro:'var(--red)', executando:'var(--blue)' };
+                const saude = ult.saude || 'ok';
+                const mun_ok   = ult.municipios_ok ?? 0;
+                const mun_erro = ult.municipios_erro ?? 0;
+                const alt_det  = ult.alteracoes_detectadas ?? 0;
+                const emailBadge = ult.email_enviado ? ' <span title="E-mail enviado">📧</span>' : '';
+                const linkErros = (mun_erro > 0 || ult.erros > 0)
+                    ? '<a href="/monitoramento/historico" style="font-size:11px;color:var(--red);text-decoration:none;display:block;margin-top:5px">🔍 Ver log de erros →</a>'
+                    : '';
+                badgeUltima = `<div style="margin-top:8px;padding:8px 10px;border-radius:6px;background:var(--bg-secondary);border:1px solid var(--border)">
+                    <div style="font-size:11px;font-weight:700;color:${saudeCor[saude]||'#aaa'};margin-bottom:4px">
+                        Última execução: ${saudeLabel[saude]||saude}${emailBadge}
+                    </div>
+                    <div style="font-size:11px;color:var(--text-muted);display:flex;gap:12px;flex-wrap:wrap">
+                        <span>🏙 ${mun_ok} ok${mun_erro > 0 ? ` · <span style="color:var(--red)">${mun_erro} erro(s)</span>` : ''}</span>
+                        <span>📋 ${alt_det} alterações</span>
+                        <span>${fmtData(ult.iniciada_em) || '—'}</span>
+                    </div>${linkErros}
+                </div>`;
+            }
+        }
+    } catch(e) {}
+
+    document.getElementById('robo-info').innerHTML = `
+        <div class="text-sm mb-2">Status: <strong style="color:${sm.color}">${sm.emoji} ${sm.label}</strong></div>
+        <div class="text-sm text-muted">Horário: ${d.horario_scheduler || '02:00'}</div>
+        <div class="text-sm text-muted">Próxima execução: ${d.proxima_execucao || '—'}</div>
+        ${badgeUltima}
+    `;
+
+    document.getElementById('last-update').textContent = 'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
+}
+
+async function carregarFeed() {
+    const r = await api('GET', '/api/dashboard/feed');
+    const el = document.getElementById('feed-list');
+    if (!r.success || !r.data.length) {
+        el.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">Nenhuma atividade recente</div><div class="empty-sub">O sistema registrará eventos aqui</div></div>`;
+        return;
+    }
+    const tipoIcon = { legislacao_adicionada:'📚', alteracao_detectada:'🔔', aprovacao:'✅', rejeicao:'❌', execucao_robo:'🤖', usuario_cadastrado:'👤' };
+    el.innerHTML = r.data.map(f => `
+        <div style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
+            <div style="font-size:18px;flex-shrink:0;width:28px;text-align:center">${tipoIcon[f.tipo] || '•'}</div>
+            <div style="flex:1;min-width:0">
+                <div style="font-size:13px;color:var(--text)">${f.titulo}</div>
+                <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono)">${f.descricao || ''}</div>
+            </div>
+            <div style="font-size:10px;color:var(--muted2);white-space:nowrap;font-family:var(--font-mono);flex-shrink:0">${fmtData(f.criado_em)}</div>
+        </div>
+    `).join('');
+}
+
+async function carregarUltimasLeg() {
+    const r = await api('GET', '/api/legislacoes?limit=5&order=recente');
+    const el = document.getElementById('ultimas-leg');
+    if (!r.success || !r.data.length) { el.innerHTML = '<div class="text-muted text-sm">Nenhuma legislação cadastrada</div>'; return; }
+    el.innerHTML = r.data.map(l => `
+        <div style="padding:7px 0;border-bottom:1px solid var(--border)">
+            <div style="font-size:12px;font-weight:600">${l.tipo_nome || ''} ${l.numero || ''}/${l.ano || ''}</div>
+            <div style="font-size:11px;color:var(--muted)">${l.municipio_nome || l.estado || 'N/A'}</div>
+        </div>
+    `).join('');
+}
+
+async function executarRobo() {
+    const btn = document.getElementById('btn-executar');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Executando...';
+    const r = await api('POST', '/api/monitor/executar');
+    btn.disabled = false;
+    btn.innerHTML = 'Executar Agora';
+    toast(r.success ? 'Robô iniciado! Verifique o histórico em alguns minutos.' : (r.error || 'Erro ao executar'), r.success ? 'success' : 'error');
+    if (r.success) setTimeout(carregarDashboard, 3000);
+}
+
+async function toggleConfig(campo) {
+    const idBtn = campo === 'debug_ativo' ? 'toggle-debug' : 'toggle-email';
+    const btn = document.getElementById(idBtn);
+    if (btn) btn.disabled = true;
+    const r = await api('POST', '/api/monitor/scheduler/toggle', { campo });
+    if (btn) btn.disabled = false;
+    if (r.success) {
+        atualizarToggle(idBtn, r.valor);
+        const label = campo === 'debug_ativo' ? 'Debug detalhado' : 'Relatório por e-mail';
+        toast(`${label}: ${r.valor ? 'ativado' : 'desativado'}`, r.valor ? 'success' : 'info');
+    } else {
+        toast(r.error || 'Erro ao alterar configuração', 'error');
+    }
+}
+
+function atualizarToggle(btnId, ativo) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    if (ativo) {
+        btn.classList.add('toggle-on');
+        btn.setAttribute('title', btn.getAttribute('title').replace('Ligar','Desligar'));
+    } else {
+        btn.classList.remove('toggle-on');
+        btn.setAttribute('title', btn.getAttribute('title').replace('Desligar','Ligar'));
+    }
+}
+
+async function carregarToggles() {
+    const r = await api('GET', '/api/monitor/scheduler');
+    if (!r.success || !r.data) return;
+    atualizarToggle('toggle-debug', r.data.debug_ativo !== false);
+    atualizarToggle('toggle-email', r.data.email_relatorio !== false);
+}
+
+// Init
+carregarDashboard();
+carregarFeed();
+carregarUltimasLeg();
+carregarToggles();
+setInterval(carregarDashboard, 60000);
+</script>
+{% endblock %}

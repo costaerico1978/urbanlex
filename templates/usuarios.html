@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Usuários · UrbanLex{% endblock %}
+
+{% block topbar %}
+<span class="topbar-title">👥 Gerenciamento de Usuários</span>
+<span class="topbar-sep"></span>
+<span class="topbar-sub" id="users-count">carregando...</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-tabs">
+    <a href="/usuarios" class="page-tab active">👤 Todos os Usuários</a>
+    <a href="/usuarios/pendentes" class="page-tab">⏳ Aguardando Aprovação <span class="tab-badge" id="tab-badge-pend">0</span></a>
+</div>
+
+<div class="card" style="padding:0">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--border)">
+        <input type="text" id="filtro-user" placeholder="Filtrar por nome ou e-mail..." style="width:280px;font-size:12px;padding:5px 10px" oninput="filtrar(this.value)">
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Nome</th><th>E-mail</th><th>Perfil</th>
+                    <th>Status</th><th>Último Acesso</th><th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="tbody-users">
+                <tr><td colspan="6" style="text-align:center;padding:30px"><span class="spinner" style="margin:0 auto"></span></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal alterar role -->
+<div class="modal-overlay" id="modal-role">
+    <div class="modal modal-sm">
+        <div class="modal-title">Alterar Perfil de Acesso <button class="modal-close" onclick="closeModal('modal-role')">×</button></div>
+        <div class="form-group">
+            <label>Usuário</label>
+            <div id="role-user-nome" style="font-size:13px;color:var(--text);margin-bottom:12px">—</div>
+        </div>
+        <div class="form-group">
+            <label>Novo Perfil</label>
+            <select id="novo-role">
+                <option value="apenas_leitura">Apenas Leitura</option>
+                <option value="editor">Editor</option>
+                <option value="admin">Administrador</option>
+            </select>
+        </div>
+        <div class="alert alert-warning mt-2">
+            <span>⚠</span>
+            <span>Administradores têm acesso total ao sistema, incluindo exclusão de usuários e configurações.</span>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('modal-role')">Cancelar</button>
+            <button class="btn btn-primary" onclick="salvarRole()">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal confirmar exclusão -->
+<div class="modal-overlay" id="modal-del-user">
+    <div class="modal modal-sm">
+        <div class="modal-title">Confirmar Exclusão</div>
+        <p style="margin-bottom:16px;color:var(--muted)">Tem certeza que deseja remover este usuário? Ele perderá acesso imediatamente.</p>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('modal-del-user')">Cancelar</button>
+            <button class="btn btn-danger" id="btn-confirmar-del-user">Sim, Remover</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let userIdAtual = null;
+const roleBadge = { admin:'<span class="badge badge-red">Admin</span>', editor:'<span class="badge badge-blue">Editor</span>', apenas_leitura:'<span class="badge badge-muted">Leitura</span>' };
+const roleLabel = { admin:'Administrador', editor:'Editor', apenas_leitura:'Apenas Leitura' };
+
+async function carregarUsuarios() {
+    const r = await api('GET', '/api/admin/usuarios');
+    const tbody = document.getElementById('tbody-users');
+    if (!r.success) { tbody.innerHTML = `<tr><td colspan="6" class="text-muted" style="text-align:center;padding:20px">Erro ao carregar</td></tr>`; return; }
+    const users = r.data || [];
+    document.getElementById('users-count').textContent = `${users.length} usuário(s)`;
+    const pendentes = users.filter(u => !u.aprovado).length;
+    document.getElementById('tab-badge-pend').textContent = pendentes;
+    document.getElementById('tab-badge-pend').style.display = pendentes > 0 ? '' : 'none';
+
+    tbody.innerHTML = users.map(u => `<tr>
+        <td>${u.nome}</td>
+        <td style="font-family:var(--font-mono);font-size:11px">${u.email}</td>
+        <td>${roleBadge[u.role]||u.role}</td>
+        <td>${u.ativo && u.aprovado ? '<span class="badge badge-green">Ativo</span>' : u.aprovado ? '<span class="badge badge-amber">Inativo</span>' : '<span class="badge badge-amber">Pendente</span>'}</td>
+        <td style="font-size:11px;font-family:var(--font-mono)">${fmtData(u.ultimo_acesso)||'Nunca'}</td>
+        <td>
+            <div style="display:flex;gap:6px">
+                <button class="btn btn-ghost btn-xs" onclick="abrirAlterarRole(${u.id},'${u.nome}','${u.role}')">✏ Perfil</button>
+                <button class="btn btn-danger btn-xs" onclick="confirmarDelUser(${u.id})">🗑</button>
+            </div>
+        </td>
+    </tr>`).join('');
+}
+
+function filtrar(q) {
+    document.querySelectorAll('#tbody-users tr').forEach(r => {
+        r.style.display = r.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none';
+    });
+}
+
+function abrirAlterarRole(id, nome, roleAtual) {
+    userIdAtual = id;
+    document.getElementById('role-user-nome').textContent = nome;
+    document.getElementById('novo-role').value = roleAtual;
+    openModal('modal-role');
+}
+
+async function salvarRole() {
+    const role = document.getElementById('novo-role').value;
+    const r = await api('POST', `/api/admin/usuarios/${userIdAtual}/role`, { role });
+    if (r.success) { toast('Perfil atualizado!'); closeModal('modal-role'); carregarUsuarios(); }
+    else toast(r.error || 'Erro', 'error');
+}
+
+function confirmarDelUser(id) {
+    userIdAtual = id;
+    openModal('modal-del-user');
+    document.getElementById('btn-confirmar-del-user').onclick = async () => {
+        const r = await api('DELETE', `/api/admin/usuarios/${id}`);
+        if (r.success) { toast('Usuário removido'); closeModal('modal-del-user'); carregarUsuarios(); }
+        else toast(r.error || 'Erro', 'error');
+    };
+}
+
+carregarUsuarios();
+</script>
+{% endblock %}

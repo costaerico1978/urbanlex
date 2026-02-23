@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% block title %}Configurações · UrbanLex{% endblock %}
+
+{% block topbar %}
+<span class="topbar-title">⚙️ Configurações</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-tabs">
+    <div class="page-tab cfg-tab active" id="cfg-tab-tipos" onclick="switchTab('cfg','cfg-tab-tipos','cfg-panel-tipos')">🏷 Tipos de Legislação</div>
+    <div class="page-tab cfg-tab" id="cfg-tab-assuntos" onclick="switchTab('cfg','cfg-tab-assuntos','cfg-panel-assuntos')">🗂 Assuntos</div>
+    <div class="page-tab cfg-tab" id="cfg-tab-email" onclick="switchTab('cfg','cfg-tab-email','cfg-panel-email')">📧 E-mail</div>
+    <div class="page-tab cfg-tab" id="cfg-tab-perfil" onclick="switchTab('cfg','cfg-tab-perfil','cfg-panel-perfil')">👤 Meu Perfil</div>
+</div>
+
+<!-- TIPOS DE LEGISLAÇÃO -->
+<div class="tab-panel cfg-panel active" id="cfg-panel-tipos">
+    <div class="section-header mb-3">
+        <div class="section-title">🏷 Tipos de Legislação</div>
+        <button class="btn btn-primary btn-sm" onclick="openModal('modal-novo-tipo')">➕ Novo Tipo</button>
+    </div>
+    <div class="card" style="padding:0">
+        <div class="table-wrap scroll-list">
+            <table>
+                <thead><tr><th>Nome</th><th>Descrição</th><th>Ações</th></tr></thead>
+                <tbody id="tbody-tipos">
+                    <tr><td colspan="3" style="text-align:center;padding:20px"><span class="spinner" style="margin:0 auto"></span></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ASSUNTOS -->
+<div class="tab-panel cfg-panel" id="cfg-panel-assuntos">
+    <div class="section-header mb-3">
+        <div class="section-title">🗂 Assuntos / Categorias</div>
+        <button class="btn btn-primary btn-sm" onclick="openModal('modal-novo-assunto')">➕ Novo Assunto</button>
+    </div>
+    <div class="card" style="padding:0">
+        <div class="table-wrap scroll-list">
+            <table>
+                <thead><tr><th>Nome</th><th>Descrição</th><th>Ações</th></tr></thead>
+                <tbody id="tbody-assuntos">
+                    <tr><td colspan="3" style="text-align:center;padding:20px"><span class="spinner" style="margin:0 auto"></span></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- E-MAIL -->
+<div class="tab-panel cfg-panel" id="cfg-panel-email">
+    <div class="section-title mb-3">📧 Configurações de E-mail</div>
+    <div class="card" style="max-width:500px">
+        <div class="alert alert-info mb-3">
+            <span>ℹ</span>
+            <span>As configurações de e-mail são definidas pelas variáveis de ambiente no Railway. Para alterá-las, acesse o painel do Railway.</span>
+        </div>
+        <div id="email-config-info" style="font-size:13px;margin-bottom:16px">
+            <div class="text-muted text-sm">Carregando...</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="testarEmail()" id="btn-testar-email">📧 Enviar E-mail de Teste</button>
+        <div id="email-teste-resultado" style="margin-top:12px"></div>
+    </div>
+</div>
+
+<!-- MEU PERFIL -->
+<div class="tab-panel cfg-panel" id="cfg-panel-perfil">
+    <div class="section-title mb-3">👤 Meu Perfil</div>
+    <div class="card" style="max-width:480px">
+        <div class="form-group">
+            <label>Nome</label>
+            <input type="text" id="perfil-nome" placeholder="Seu nome">
+        </div>
+        <div class="form-group">
+            <label>E-mail</label>
+            <input type="email" id="perfil-email" disabled style="opacity:0.5;cursor:not-allowed">
+        </div>
+        <button class="btn btn-primary btn-sm mb-4" onclick="salvarPerfil()">💾 Salvar Nome</button>
+
+        <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px">
+            <div class="section-title mb-3" style="font-size:13px">🔑 Alterar Senha</div>
+            <div class="form-group">
+                <label>Senha Atual</label>
+                <input type="password" id="senha-atual" placeholder="Digite sua senha atual">
+            </div>
+            <div class="form-group">
+                <label>Nova Senha</label>
+                <input type="password" id="senha-nova" placeholder="Mínimo 6 chars · maiúscula · número · especial">
+            </div>
+            <div class="form-group">
+                <label>Confirmar Nova Senha</label>
+                <input type="password" id="senha-confirmar" placeholder="Repita a nova senha">
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="alterarSenha()">🔑 Alterar Senha</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAIS -->
+<div class="modal-overlay" id="modal-novo-tipo">
+    <div class="modal modal-sm">
+        <div class="modal-title">Novo Tipo de Legislação <button class="modal-close" onclick="closeModal('modal-novo-tipo')">×</button></div>
+        <div class="form-group"><label>Nome *</label><input type="text" id="novo-tipo-nome" placeholder="Ex: Instrução Técnica"></div>
+        <div class="form-group"><label>Descrição</label><textarea id="novo-tipo-desc" rows="2"></textarea></div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('modal-novo-tipo')">Cancelar</button>
+            <button class="btn btn-primary" onclick="salvarNovoTipo()">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modal-novo-assunto">
+    <div class="modal modal-sm">
+        <div class="modal-title">Novo Assunto <button class="modal-close" onclick="closeModal('modal-novo-assunto')">×</button></div>
+        <div class="form-group"><label>Nome *</label><input type="text" id="novo-assunto-nome" placeholder="Ex: Regularização Fundiária"></div>
+        <div class="form-group"><label>Descrição</label><textarea id="novo-assunto-desc" rows="2"></textarea></div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('modal-novo-assunto')">Cancelar</button>
+            <button class="btn btn-primary" onclick="salvarNovoAssunto()">Salvar</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function carregarTipos() {
+    const r = await api('GET', '/api/config/tipos-legislacao');
+    const tbody = document.getElementById('tbody-tipos');
+    if (!r.success || !r.data.length) { tbody.innerHTML = '<tr><td colspan="3" class="text-muted" style="padding:20px;text-align:center">Nenhum tipo cadastrado</td></tr>'; return; }
+    tbody.innerHTML = r.data.map(t => `<tr>
+        <td><strong>${t.nome}</strong></td>
+        <td style="font-size:12px;color:var(--muted)">${t.descricao||'—'}</td>
+        <td><button class="btn btn-danger btn-xs" onclick="excluirTipo(${t.id})">🗑</button></td>
+    </tr>`).join('');
+}
+
+async function carregarAssuntos() {
+    const r = await api('GET', '/api/config/assuntos');
+    const tbody = document.getElementById('tbody-assuntos');
+    if (!r.success || !r.data.length) { tbody.innerHTML = '<tr><td colspan="3" class="text-muted" style="padding:20px;text-align:center">Nenhum assunto cadastrado</td></tr>'; return; }
+    tbody.innerHTML = r.data.map(a => `<tr>
+        <td><strong>${a.nome}</strong></td>
+        <td style="font-size:12px;color:var(--muted)">${a.descricao||'—'}</td>
+        <td><button class="btn btn-danger btn-xs" onclick="excluirAssunto(${a.id})">🗑</button></td>
+    </tr>`).join('');
+}
+
+async function carregarEmailConfig() {
+    const r = await api('GET', '/api/config/email');
+    if (!r.success) return;
+    const d = r.data;
+    document.getElementById('email-config-info').innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:8px">
+            <div><span class="text-mono text-muted">Host SMTP: </span>${d.host||'—'}</div>
+            <div><span class="text-mono text-muted">Porta: </span>${d.port||'—'}</div>
+            <div><span class="text-mono text-muted">Usuário: </span>${d.user||'—'}</div>
+            <div><span class="text-mono text-muted">Remetente: </span>${d.from||'—'}</div>
+        </div>
+    `;
+}
+
+async function carregarPerfil() {
+    const r = await api('GET', '/api/auth/perfil');
+    if (!r.success) return;
+    document.getElementById('perfil-nome').value = r.data.nome || '';
+    document.getElementById('perfil-email').value = r.data.email || '';
+}
+
+async function salvarPerfil() {
+    const nome = document.getElementById('perfil-nome').value.trim();
+    if (!nome) { toast('Informe seu nome', 'error'); return; }
+    const r = await api('POST', '/api/auth/perfil', { nome });
+    if (r.success) toast('Nome atualizado!');
+    else toast(r.error || 'Erro', 'error');
+}
+
+async function alterarSenha() {
+    const atual = document.getElementById('senha-atual').value;
+    const nova = document.getElementById('senha-nova').value;
+    const conf = document.getElementById('senha-confirmar').value;
+    if (!atual || !nova || !conf) { toast('Preencha todos os campos', 'error'); return; }
+    if (nova !== conf) { toast('As senhas não coincidem', 'error'); return; }
+    const r = await api('POST', '/api/auth/alterar-senha', { senha_atual: atual, senha_nova: nova });
+    if (r.success) { toast('Senha alterada com sucesso!'); ['senha-atual','senha-nova','senha-confirmar'].forEach(id => document.getElementById(id).value = ''); }
+    else toast(r.error || 'Erro ao alterar senha', 'error');
+}
+
+async function testarEmail() {
+    const btn = document.getElementById('btn-testar-email');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Enviando...';
+    const r = await api('POST', '/api/config/email/testar');
+    btn.disabled = false; btn.innerHTML = '📧 Enviar E-mail de Teste';
+    const el = document.getElementById('email-teste-resultado');
+    el.innerHTML = r.success
+        ? '<div class="alert alert-success">E-mail de teste enviado com sucesso!</div>'
+        : `<div class="alert alert-error">${r.error || 'Erro ao enviar'}</div>`;
+}
+
+async function salvarNovoTipo() {
+    const nome = document.getElementById('novo-tipo-nome').value.trim();
+    if (!nome) { toast('Informe o nome', 'error'); return; }
+    const r = await api('POST', '/api/config/tipos-legislacao', { nome, descricao: document.getElementById('novo-tipo-desc').value });
+    if (r.success) { toast('Tipo adicionado!'); closeModal('modal-novo-tipo'); document.getElementById('novo-tipo-nome').value=''; carregarTipos(); }
+    else toast(r.error || 'Erro', 'error');
+}
+
+async function salvarNovoAssunto() {
+    const nome = document.getElementById('novo-assunto-nome').value.trim();
+    if (!nome) { toast('Informe o nome', 'error'); return; }
+    const r = await api('POST', '/api/config/assuntos', { nome, descricao: document.getElementById('novo-assunto-desc').value });
+    if (r.success) { toast('Assunto adicionado!'); closeModal('modal-novo-assunto'); document.getElementById('novo-assunto-nome').value=''; carregarAssuntos(); }
+    else toast(r.error || 'Erro', 'error');
+}
+
+async function excluirTipo(id) {
+    if (!confirm('Excluir este tipo? Legislações que o usam ficarão sem tipo.')) return;
+    const r = await api('DELETE', `/api/config/tipos-legislacao/${id}`);
+    if (r.success) { toast('Excluído'); carregarTipos(); }
+    else toast(r.error || 'Erro', 'error');
+}
+
+async function excluirAssunto(id) {
+    if (!confirm('Excluir este assunto?')) return;
+    const r = await api('DELETE', `/api/config/assuntos/${id}`);
+    if (r.success) { toast('Excluído'); carregarAssuntos(); }
+    else toast(r.error || 'Erro', 'error');
+}
+
+carregarTipos(); carregarAssuntos(); carregarEmailConfig(); carregarPerfil();
+</script>
+{% endblock %}
