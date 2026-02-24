@@ -176,78 +176,26 @@
         <div class="tagline">Sistema Urbanístico Integrado</div>
     </div>
 
-    <div class="form-group">
-        <label>E-mail</label>
-        <input type="email" id="email" placeholder="admin@sistema.com" autocomplete="email">
-    </div>
-    <div class="form-group">
-        <label>Senha</label>
-        <input type="password" id="senha" placeholder="••••••••" autocomplete="current-password">
-    </div>
-
-    <div style="text-align:right;margin-bottom:-4px">
-        <a href="/esqueci-senha"
-           style="font-family:var(--font-mono);font-size:11px;color:var(--muted);
-                  text-decoration:none;transition:color 0.15s"
-           onmouseover="this.style.color='var(--text)'"
-           onmouseout="this.style.color='var(--muted)'">
-            Esqueci minha senha
-        </a>
-    </div>
-
-    <button class="btn" id="btn-login" onclick="fazerLogin()">
-        <span id="btn-text">Entrar</span>
-    </button>
-
-    <div class="error-msg" id="error-msg"></div>
+<form method="POST" action="/login">
+<div class="form-group">
+    <label>E-mail</label>
+    <input type="email" name="email" placeholder="admin@sistema.com" autocomplete="email">
 </div>
+<div class="form-group">
+    <label>Senha</label>
+    <input type="password" name="senha" placeholder="••••••••" autocomplete="current-password">
+</div>
+<div style="text-align:right;margin-bottom:-4px">
+    <a href="/esqueci-senha" style="font-family:var(--font-mono);font-size:11px;color:var(--muted);text-decoration:none">Esqueci minha senha</a>
+</div>
+<button class="btn" type="submit">
+    <span>Entrar</span>
+</button>
+{% if error %}<div class="error-msg show">{{ error }}</div>{% endif %}
+</form>
 
 <div class="version-tag">v1.3+2.3 · Railway · PostgreSQL</div>
 
-<script>
-async function fazerLogin() {
-    const email = document.getElementById('email').value.trim();
-    const senha = document.getElementById('senha').value;
-    const btn   = document.getElementById('btn-login');
-    const err   = document.getElementById('error-msg');
 
-    if (!email || !senha) { mostrarErro('Preencha todos os campos'); return; }
-
-    btn.disabled = true;
-    document.getElementById('btn-text').innerHTML = '<div class="spinner"></div>';
-
-    try {
-        const r = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            credentials: 'include',
-            body: JSON.stringify({email, senha})
-        });
-        const data = await r.json();
-
-        if (data.success) {
-            window.location.href = '/';
-        } else {
-            mostrarErro(data.error || 'Credenciais inválidas');
-        }
-    } catch(e) {
-        mostrarErro('Erro de conexão');
-    } finally {
-        btn.disabled = false;
-        document.getElementById('btn-text').textContent = 'Entrar';
-    }
-}
-
-function mostrarErro(msg) {
-    const el = document.getElementById('error-msg');
-    el.textContent = msg;
-    el.classList.add('show');
-}
-
-// Enter para submeter
-document.addEventListener('keydown', e => {
-    if (e.key === 'Enter') fazerLogin();
-});
-</script>
 </body>
 </html>
