@@ -142,7 +142,7 @@ except: PANDAS_OK = False
 # ── App ────────────────────────────────────────────────────────
 app = Flask(__name__, template_folder='templates')
 app.secret_key = os.getenv('SECRET_KEY', 'urbanlex-dev-key-change-in-prod')
-app.config['MAX_CONTENT_LENGTH'] = 30 * 1024 * 1024  # 30MB
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
