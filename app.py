@@ -1184,11 +1184,11 @@ def aprovar_admin():
         admin_email = os.environ.get('ADMIN_EMAIL')
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         cur = conn.cursor()
-        cur.execute("""
-            UPDATE users 
-            SET ativo=TRUE, aprovado=TRUE, perfil='admin'
-            WHERE email=%s
-        """, (admin_email,))
+cur.execute("""
+    UPDATE users 
+    SET ativo=TRUE, aprovado=TRUE, role='admin'
+    WHERE email=%s
+""", (admin_email,))
         conn.commit()
         cur.close()
         conn.close()
