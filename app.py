@@ -1177,6 +1177,24 @@ def setup_banco():
         return 'Banco inicializado com sucesso!'
     except Exception as e:
         return f'Erro: {str(e)}'
+
+@app.route('/aprovar-admin-agora')
+def aprovar_admin():
+    try:
+        admin_email = os.environ.get('ADMIN_EMAIL')
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE users 
+            SET ativo=TRUE, aprovado=TRUE, perfil='admin'
+            WHERE email=%s
+        """, (admin_email,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return f'Admin {admin_email} aprovado com sucesso! <a href="/login">Fazer login</a>'
+    except Exception as e:
+        return f'Erro: {str(e)}'
 if __name__ == '__main__':
     inicializar()
     app.run(host='0.0.0.0', port=int(os.getenv('PORT',5000)), debug=os.getenv('FLASK_ENV')!='production')
