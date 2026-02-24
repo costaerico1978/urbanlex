@@ -1163,6 +1163,20 @@ def inicializar():
         try: iniciar_scheduler(); print("✅ Scheduler iniciado")
         except Exception as e: print(f"⚠ Scheduler: {e}")
 
+@app.route('/setup-banco-agora')
+def setup_banco():
+    try:
+        with open('schema_final.sql', 'r') as f:
+            sql = f.read()
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+        cur = conn.cursor()
+        cur.execute(sql)
+        conn.commit()
+        cur.close()
+        conn.close()
+        return 'Banco inicializado com sucesso!'
+    except Exception as e:
+        return f'Erro: {str(e)}'
 if __name__ == '__main__':
     inicializar()
     app.run(host='0.0.0.0', port=int(os.getenv('PORT',5000)), debug=os.getenv('FLASK_ENV')!='production')
