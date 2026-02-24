@@ -410,7 +410,7 @@ def api_login():
         return jsonify({'success':False,'error':'E-mail ou senha incorretos'}), 401
     session['user_id'] = user['id']; session['nome'] = user['nome']
     session['email'] = user['email']; session['role'] = user['role']
-    qry("UPDATE users SET ultimo_acesso=NOW() WHERE id=%s", (user['id'],), commit=True)
+   qry("UPDATE users SET ultimo_acesso=NOW() WHERE id=%s", (user['id'],), commit=True, fetch=None)
     return jsonify({'success':True,'role':user['role']})
 
 @app.route('/api/auth/logout', methods=['POST'])
