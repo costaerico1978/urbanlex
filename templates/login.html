@@ -220,6 +220,7 @@ async function fazerLogin() {
         const r = await fetch('/api/auth/login', {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
+            credentials: 'include',
             body: JSON.stringify({email, senha})
         });
         const data = await r.json();
