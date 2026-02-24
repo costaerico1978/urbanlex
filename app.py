@@ -409,9 +409,9 @@ def api_login():
     user = qry("SELECT * FROM users WHERE email=%s AND ativo=TRUE AND aprovado=TRUE", (email,), 'one')
     if not user or not verificar_senha(senha, user['senha_hash']):
         return jsonify({'success':False,'error':'E-mail ou senha incorretos'}), 401
-    session['user_id'] = user['id']; session['nome'] = user['nome']
-    session['email'] = user['email']; session['role'] = user['role']
-   qry("UPDATE users SET ultimo_acesso=NOW() WHERE id=%s", (user['id'],), commit=True, fetch=None)
+        session['user_id'] = user['id']; session['nome'] = user['nome']
+        session['email'] = user['email']; session['role'] = user['role']
+        qry("UPDATE users SET ultimo_acesso=NOW() WHERE id=%s", (user['id'],), commit=True, fetch=None)
     return jsonify({'success':True,'role':user['role']})
 
 @app.route('/api/auth/logout', methods=['POST'])
