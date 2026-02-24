@@ -250,7 +250,8 @@ cur_temp = conn_temp.cursor()
 cur_temp.execute("UPDATE users SET ultimo_acesso=NOW() WHERE id=%s", (user['id'],))
 conn_temp.commit()
 cur_temp.close()
-conn_temp.close()            return redirect('/')
+conn_temp.close()
+            return redirect('/')
         error = 'E-mail ou senha incorretos'
     return render_template('login.html', error=error, **tmpl_ctx())
 
