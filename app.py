@@ -245,8 +245,12 @@ def login_page():
             session['nome'] = user['nome']
             session['email'] = user['email']
             session['role'] = user['role']
-            qry("UPDATE users SET ultimo_acesso=NOW() WHERE id=%s", (user['id'],), commit=True)
-            return redirect('/')
+conn_temp = psycopg2.connect(os.environ.get('DATABASE_URL'))
+cur_temp = conn_temp.cursor()
+cur_temp.execute("UPDATE users SET ultimo_acesso=NOW() WHERE id=%s", (user['id'],))
+conn_temp.commit()
+cur_temp.close()
+conn_temp.close()            return redirect('/')
         error = 'E-mail ou senha incorretos'
     return render_template('login.html', error=error, **tmpl_ctx())
 
