@@ -1192,16 +1192,11 @@ def aprovar_admin():
         admin_email = os.environ.get('ADMIN_EMAIL')
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         cur = conn.cursor()
-        cur.execute("""
-            SELECT column_name FROM information_schema.columns 
-            WHERE table_name='users'
-        """)
-        colunas = [r[0] for r in cur.fetchall()]
-        cur.execute("UPDATE users SET ativo=TRUE, aprovado=TRUE WHERE email=%s", (admin_email,))
+        cur.execute("UPDATE users SET ativo=TRUE, aprovado=TRUE, role='admin' WHERE email=%s", (admin_email,))
         conn.commit()
         cur.close()
         conn.close()
-        return f'Colunas: {colunas} | Admin aprovado!'
+        return f'Admin {admin_email} atualizado! <a href="/login">Fazer login</a>'
     except Exception as e:
         return f'Erro: {str(e)}'
 if __name__ == '__main__':
