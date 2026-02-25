@@ -679,13 +679,16 @@ async function verLegislacao(id) {
         </div>
         ${l.ementa?`<div style="margin-bottom:16px"><div class="text-mono text-muted mb-2">Ementa</div><div style="font-size:13px;line-height:1.7;background:var(--surface2);padding:12px;border-radius:var(--radius);border:1px solid var(--border)">${l.ementa}</div></div>`:''}
         ${l.palavras_chave?`<div style="margin-bottom:16px"><div class="text-mono text-muted mb-2">Palavras-chave</div><div>${JSON.parse(l.palavras_chave||'[]').map(k=>`<span class="tag" style="margin-right:4px">${k}</span>`).join('')}</div></div>`:''}
-        ${l.arquivo_nome?`<div style="margin-bottom:16px"><div class="text-mono text-muted mb-2">Arquivo</div><div style="font-family:var(--font-mono);font-size:12px">📎 ${l.arquivo_nome}</div></div>`:''}
+        ${l.arquivo_nome?`<div style="margin-bottom:16px"><div class="text-mono text-muted mb-2">Arquivo</div><div style="font-family:var(--font-mono);font-size:12px"><a href="#" onclick="abrirDoc(${l.id})" style="color:var(--accent);text-decoration:none">📎 ${l.arquivo_nome}</a> <button onclick="downloadDoc()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;margin-left:8px">⬇ Download</button></div></div>`:''}
         ${l.conteudo_texto?`<div><div class="text-mono text-muted mb-2">Texto Extraído</div><div style="max-height:300px;overflow-y:auto;background:var(--surface2);padding:14px;border-radius:var(--radius);border:1px solid var(--border);font-size:12px;line-height:1.7;white-space:pre-wrap">${l.conteudo_texto.substring(0,5000)}${l.conteudo_texto.length>5000?'\n\n[... texto truncado para exibição ...]':''}</div></div>`:''}
     `;
 }
 
 function downloadDoc() {
     if (legParaDownload) window.open(`/api/legislacoes/${legParaDownload}/documento`, '_blank');
+}
+function abrirDoc(id) {
+    window.open(`/api/legislacoes/${id}/documento`, '_blank');
 }
 
 // ── Excluir ───────────────────────────────────────────────────
