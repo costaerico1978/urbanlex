@@ -608,7 +608,7 @@ def api_excluir_legislacao(leg_id):
     leg = qry("SELECT arquivo_url FROM legislacoes WHERE id=%s", (leg_id,), 'one')
     if leg and leg.get('arquivo_url') and r2_disponivel():
         r2_delete(leg['arquivo_url'])
-    qry("DELETE FROM legislacoes WHERE id=%s", (leg_id,), commit=True)
+    qry("DELETE FROM legislacoes WHERE id=%s", (id,), commit=True, fetch=None)
     return jsonify({'success':True})
 
 @app.route('/api/legislacoes/<int:leg_id>/texto')
