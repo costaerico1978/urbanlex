@@ -96,10 +96,23 @@
 
     <!-- Histórico de Monitoramento -->
     <div style="margin-bottom:12px">
-        <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📋 Histórico de Monitoramento</div>
+        <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📋 Histórico de Monitoramento por Legislação</div>
         <div id="perfil-historico-container" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--surface)">
             <div id="perfil-historico-list" style="padding:4px 0">
                 <div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Carregando histórico...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Legislações do Município -->
+    <div style="margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.5px">📚 Legislações deste Município</div>
+            <span id="perfil-leg-count" style="font-size:10px;color:var(--muted)"></span>
+        </div>
+        <div id="perfil-legislacoes-container" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--surface)">
+            <div id="perfil-legislacoes-list" style="padding:4px 0">
+                <div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Carregando legislações...</div>
             </div>
         </div>
     </div>
@@ -155,6 +168,7 @@ async function verPerfil(mid,nome){
     document.getElementById('perfil-loading').style.display='none';
     document.getElementById('perfil-content').style.display='block';
     var d=r.data||{};
+    carregarPerfilLegislacoes(mid);
     var statusMap={ok:{badge:'<span class="badge badge-green">✓ Perfil configurado</span>',desc:'Scraper pronto para operar.'},falhou:{badge:'<span class="badge badge-red">✗ Falhou</span>',desc:'Não foi possível detectar o padrão do site.'},captcha:{badge:'<span class="badge badge-amber">⚠ CAPTCHA detectado</span>',desc:'Site possui CAPTCHA.'},login:{badge:'<span class="badge badge-amber">⚠ Login necessário</span>',desc:'Site requer autenticação.'},pendente:{badge:'<span class="badge badge-blue">⟳ Detectando…</span>',desc:'Detecção em andamento.'}};
     var sm=statusMap[d.status_deteccao]||{badge:'<span class="badge badge-muted">Não detectado</span>',desc:'Clique em Re-detectar para iniciar.'};
     document.getElementById('perfil-status-badge').innerHTML='<div style="padding:10px 14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">'+sm.badge+' <span style="font-size:12px;color:var(--muted);margin-left:8px">'+sm.desc+'</span>'+(d.erro_deteccao?'<div style="font-size:11px;color:var(--red);margin-top:4px">'+d.erro_deteccao+'</div>':'')+'</div>';
@@ -187,12 +201,49 @@ async function carregarPerfilHistorico(mid){
         var dataStr=fmtData(h.data||h.iniciada_em);
         var isOk=h.status==='concluido'||h.status==='ok'||h.sucesso===true;
         var isErro=h.status==='erro'||h.sucesso===false;
-        var icon=isOk?'✅':isErro?'❌':'⏳';
-        var label=isOk?'Monitoramento realizado':isErro?'Falha no monitoramento':'Em andamento';
-        var color=isOk?'var(--accent)':isErro?'var(--red)':'var(--amber)';
-        var altCount=h.alteracoes_detectadas||h.alteracoes||0;
-        var altBadge=altCount>0?' <span class="badge badge-amber" style="font-size:9px;padding:1px 6px">'+altCount+' alteraç'+(altCount===1?'ão':'ões')+'</span>':'';
-        return '<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border);font-size:12px"><span style="flex-shrink:0">'+icon+'</span><span style="font-family:var(--font-mono);color:var(--muted);min-width:85px">'+dataStr+'</span><span style="color:'+color+'">'+label+'</span>'+altBadge+(h.duracao_seg?'<span style="margin-left:auto;font-size:10px;color:var(--muted);font-family:var(--font-mono)">'+(h.duracao_seg<60?h.duracao_seg+'s':Math.floor(h.duracao_seg/60)+'m')+'</span>':'')+'</div>';
+        var isParcial=h.status==='parcial';
+        var icon=isOk?'✅':isErro?'❌':isParcial?'⚠️':'⏳';
+
+        // Mensagem detalhada ou fallback genérico
+        var label=h.mensagem||
+            (isOk?'Monitoramento realizado':isErro?'Falha no monitoramento':'Em andamento');
+        var color=isOk?'var(--accent)':isErro?'var(--red)':isParcial?'var(--amber)':'var(--amber)';
+
+        // Título da legislação (se disponível no log por legislação)
+        var legTitulo=h.legislacao_titulo?'<div style="font-size:10px;color:var(--blue);margin-top:2px;font-weight:500">📋 '+h.legislacao_titulo+'</div>':'';
+
+        // Badges de contadores
+        var badges='';
+        if(h.publicacoes_encontradas!=null){
+            var pe=h.publicacoes_encontradas||0;
+            var pa=h.publicacoes_analisadas||0;
+            var alt=h.alteracoes_detectadas||0;
+            var pd=h.publicacoes_duplicadas||0;
+            badges='<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:3px">';
+            badges+='<span class="badge badge-muted" style="font-size:9px;padding:1px 5px" title="Publicações encontradas no diário">📰 '+pe+'</span>';
+            if(pa>0) badges+='<span class="badge badge-blue" style="font-size:9px;padding:1px 5px" title="Analisadas pela IA">🤖 '+pa+'</span>';
+            if(alt>0) badges+='<span class="badge badge-amber" style="font-size:9px;padding:1px 5px" title="Alterações detectadas">🔔 '+alt+'</span>';
+            if(pd>0) badges+='<span class="badge badge-muted" style="font-size:9px;padding:1px 5px" title="Duplicadas">♻ '+pd+'</span>';
+            badges+='</div>';
+        }else{
+            var altCount=h.alteracoes_detectadas||0;
+            if(altCount>0) badges='<div style="margin-top:3px"><span class="badge badge-amber" style="font-size:9px;padding:1px 6px">'+altCount+' alteraç'+(altCount===1?'ão':'ões')+'</span></div>';
+        }
+
+        // Erro tooltip
+        var erroTip=h.erro?'<div style="font-size:10px;color:var(--red);margin-top:2px;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+h.erro.replace(/"/g,'&quot;').substring(0,200)+'">❌ '+h.erro.substring(0,80)+(h.erro.length>80?'…':'')+'</div>':'';
+
+        var metodo=h.metodo_busca?'<span style="font-size:9px;color:var(--muted);font-family:var(--font-mono)">['+h.metodo_busca+']</span> ':'';
+
+        return '<div style="padding:8px 14px;border-bottom:1px solid var(--border);font-size:12px">'
+            +'<div style="display:flex;align-items:center;gap:10px">'
+            +'<span style="flex-shrink:0">'+icon+'</span>'
+            +'<span style="font-family:var(--font-mono);color:var(--muted);min-width:85px">'+dataStr+'</span>'
+            +'<span style="color:'+color+';flex:1">'+metodo+label+'</span>'
+            +(h.duracao_seg?'<span style="font-size:10px;color:var(--muted);font-family:var(--font-mono)">'+(h.duracao_seg<60?h.duracao_seg+'s':Math.floor(h.duracao_seg/60)+'m')+'</span>':'')
+            +'</div>'
+            +legTitulo+badges+erroTip
+            +'</div>';
     }).join('');
 }
 
@@ -208,9 +259,59 @@ async function executarMunicipio(){
 async function redetectarPerfil(){if(!_perfilAtualMid)return;var btn=document.getElementById('btn-redetectar');btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Detectando…';var r=await api('POST','/api/monitor/municipios/'+_perfilAtualMid+'/detectar',{forcar:true});btn.disabled=false;btn.innerHTML='🔄 Re-detectar Perfil';toast(r.message||(r.success?'Detecção iniciada!':'Erro'),r.success?'success':'error');if(r.success)setTimeout(function(){verPerfil(_perfilAtualMid,document.getElementById('perfil-municipio-nome').textContent);carregarMunicipios()},8000)}
 async function salvarUrlPerfil(){if(!_perfilAtualMid)return;var url=document.getElementById('perfil-url-input').value.trim();if(!url){toast('Informe uma URL','error');return}var r=await api('POST','/api/monitor/municipios/'+_perfilAtualMid+'/url',{url:url});toast(r.message||(r.success?'URL salva!':'Erro'),r.success?'success':'error');if(r.success)setTimeout(function(){verPerfil(_perfilAtualMid,document.getElementById('perfil-municipio-nome').textContent)},8000)}
 
+// === Legislações no modal de perfil ===
+async function carregarPerfilLegislacoes(mid){
+    var el=document.getElementById('perfil-legislacoes-list');if(!el)return;
+    el.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px"><span class="spinner" style="margin:0 auto"></span></div>';
+    var r=await api('GET','/api/monitor/municipios/'+mid+'/legislacoes');
+    if(!r.success||!r.data||!r.data.length){
+        el.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Nenhuma legislação cadastrada para este município.</div>';
+        document.getElementById('perfil-leg-count').textContent='';
+        return;
+    }
+    var monCount=r.data.filter(function(l){return l.em_monitoramento}).length;
+    document.getElementById('perfil-leg-count').textContent=r.data.length+' legislaç'+(r.data.length===1?'ão':'ões')+' · '+monCount+' monitorada'+(monCount===1?'':'s');
+    el.innerHTML=r.data.map(function(l){
+        var tipo=l.tipo_display||l.tipo_nome||'Lei';
+        var titulo=tipo+(l.numero?' nº '+l.numero:'')+(l.ano?'/'+l.ano:'');
+        var ementa=l.ementa?l.ementa.substring(0,80)+(l.ementa.length>80?'…':''):'';
+        var isMon=l.em_monitoramento;
+        var statusBadge=isMon
+            ?'<span class="badge badge-green" style="font-size:9px;padding:1px 6px">✓ Monitorando</span>'
+            :'<span class="badge badge-muted" style="font-size:9px;padding:1px 6px">Inativo</span>';
+        var btnAcao=isMon
+            ?'<button class="btn btn-xs btn-amber" onclick="pausarMonLeg('+l.id+')" title="Pausar monitoramento" style="font-size:10px;padding:2px 6px">⏸ Pausar</button>'
+            :'<button class="btn btn-xs btn-primary" onclick="iniciarMonLeg('+l.id+')" title="Iniciar monitoramento" style="font-size:10px;padding:2px 6px">▶ Iniciar</button>';
+        var btnExcluir='<button class="btn btn-xs btn-danger" onclick="excluirMonLeg('+l.id+',\''+titulo.replace(/'/g,"&#39;")+'\')" title="Excluir do monitoramento" style="font-size:10px;padding:2px 6px">🗑</button>';
+        return '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);font-size:12px">'
+            +'<div style="flex:1;min-width:0">'
+            +'<div style="font-weight:600;color:var(--text)">'+titulo+' '+statusBadge+'</div>'
+            +(ementa?'<div style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+ementa+'</div>':'')
+            +'</div>'
+            +'<div style="display:flex;gap:4px;flex-shrink:0">'+btnAcao+btnExcluir+'</div>'
+            +'</div>';
+    }).join('');
+}
+
+function iniciarMonLeg(legId){_monitorLegId=legId;document.getElementById('data-inicio-input').value=new Date().toISOString().slice(0,10);openModal('modal-data-inicio')}
+
+async function pausarMonLeg(legId){
+    if(!confirm('Pausar monitoramento desta legislação?'))return;
+    var r=await api('POST','/api/legislacoes/'+legId+'/monitoramento',{ativar:false});
+    if(r.success){toast('Monitoramento pausado','warning');if(_perfilAtualMid)carregarPerfilLegislacoes(_perfilAtualMid)}
+    else toast(r.error||'Erro ao pausar','error');
+}
+
+async function excluirMonLeg(legId,titulo){
+    if(!confirm('Excluir "'+titulo+'" do monitoramento? A legislação será removida da biblioteca.'))return;
+    var r=await api('DELETE','/api/legislacoes/'+legId);
+    if(r.success){toast('Legislação removida','warning');if(_perfilAtualMid)carregarPerfilLegislacoes(_perfilAtualMid)}
+    else toast(r.error||'Erro ao excluir','error');
+}
+
 var _monitorLegId=null;
 function abrirDataInicio(legId){_monitorLegId=legId;document.getElementById('data-inicio-input').value=new Date().toISOString().slice(0,10);document.getElementById('data-inicio-info').textContent='';openModal('modal-data-inicio')}
-async function confirmarMonitoramento(){if(!_monitorLegId)return;var dataInicio=document.getElementById('data-inicio-input').value;if(!dataInicio){toast('Informe a data de início','error');return}var btn=document.getElementById('btn-confirmar-mon');btn.disabled=true;var r=await api('POST','/api/legislacoes/'+_monitorLegId+'/monitoramento',{ativar:true,data_inicio_monitoramento:dataInicio});btn.disabled=false;if(r.success){toast('Monitoramento ativado!');closeModal('modal-data-inicio')}else toast(r.error||'Erro ao ativar','error')}
+async function confirmarMonitoramento(){if(!_monitorLegId)return;var dataInicio=document.getElementById('data-inicio-input').value;if(!dataInicio){toast('Informe a data de início','error');return}var btn=document.getElementById('btn-confirmar-mon');btn.disabled=true;var r=await api('POST','/api/legislacoes/'+_monitorLegId+'/monitoramento',{ativar:true,data_inicio_monitoramento:dataInicio});btn.disabled=false;if(r.success){toast('Monitoramento ativado!');closeModal('modal-data-inicio');if(_perfilAtualMid)carregarPerfilLegislacoes(_perfilAtualMid)}else toast(r.error||'Erro ao ativar','error')}
 
 async function carregarAlteracoes(){var r=await api('GET','/api/monitor/alteracoes');var tbody=document.getElementById('tbody-alteracoes');if(!tbody)return;if(!r.success||!r.data||!r.data.length){tbody.innerHTML='<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🚨</div><div class="empty-title">Nenhuma alteração detectada ainda</div></div></td></tr>';return}tbody.innerHTML=r.data.map(function(a){return'<tr><td>'+(a.municipio||'—')+'</td><td style="font-size:11px">'+(a.legislacao_titulo||'—')+'</td><td><span class="badge badge-amber">'+(a.tipo_alteracao||'—')+'</span></td><td style="font-size:12px;max-width:250px">'+(a.descricao||'—').substring(0,100)+'</td><td style="font-size:11px;font-family:var(--font-mono)">'+fmtData(a.data_deteccao)+'</td><td>'+(a.aprovado?'<span class="badge badge-green">Aprovada</span>':'<span class="badge badge-amber">Pendente</span>')+'</td></tr>'}).join('')}
 
