@@ -1,17 +1,19 @@
 """
-UrbanLex — Aplicação Flask Principal v3.5
-Parâmetros Urbanísticos + Biblioteca Legislativa + Monitoramento IA
+UrbanLex - Aplicacao Flask Principal v3.5
+Parametros Urbanisticos + Biblioteca Legislativa + Monitoramento IA
 
-CORREÇÕES APLICADAS (25/02/2026):
-  BUG 1: DELETE legislação usava id() em vez de leg_id + foreign keys
-  BUG 2: Login API tinha sessão como código morto (indentação)
+CORRECOES APLICADAS (25/02/2026):
+  BUG 1: DELETE legislacao usava id() em vez de leg_id + foreign keys
+  BUG 2: Login API tinha sessao como codigo morto (indentacao)
   BUG 3: Login HTML mostrava erro no GET
-  BUG 4: Rotas diagnóstico sem autenticação
+  BUG 4: Rotas diagnostico sem autenticacao
   BUG 5: Rotas FIX 6-10 movidas para antes do if __name__
-  BUG 6: inicializar() chamada no nível do módulo
-  BUG 7: Query alterações usa COALESCE para municipio_nome
+  BUG 6: inicializar() chamada no nivel do modulo
+  BUG 7: Query alteracoes usa COALESCE para municipio_nome
   BUG 8: Adicionada rota GET /logout
-  BUG 9: Login HTML usa qry() em vez de conexão manual
+  BUG 9: Login HTML usa qry() em vez de conexao manual
+  BUG 10: Rota diagnostico R2 adicionada
+  BUG 11: Rota re-upload de arquivo adicionada
 """
 
 import os, io, sys, json, hashlib, threading
@@ -27,8 +29,7 @@ import psycopg2
 import psycopg2.extras
 from werkzeug.utils import secure_filename
 
-# Módulos internos
-# ── Auth helpers (adapters para compatibilidade) ──────────────
+# -- Auth helpers (adapters para compatibilidade) --
 try:
     import bcrypt as _bcrypt
     def hash_senha(s): return _bcrypt.hashpw(s.encode(), _bcrypt.gensalt(12)).decode()
@@ -71,7 +72,7 @@ def enviar_email_generico(para, assunto, html):
 
 
 def get_app_url():
-    """Retorna a URL base da aplicação, com fallback para variável de ambiente."""
+    """Retorna a URL base da aplicacao, com fallback para variavel de ambiente."""
     url = os.getenv('APP_URL', '')
     if not url:
         try:
@@ -84,8 +85,8 @@ def get_app_url():
 def enviar_email_ativacao(user, token):
     url = f"{get_app_url()}/ativar/{token}"
     enviar_email_generico(user['email'], 'Ative sua conta UrbanLex',
-        f'<p>Olá {user["nome"]},</p><p>Clique para ativar sua conta:</p>'
-        f'<p><a href="{url}">{url}</a></p><p>Link válido por 24 horas.</p>')
+        f'<p>Ola {user["nome"]},</p><p>Clique para ativar sua conta:</p>'
+        f'<p><a href="{url}">{url}</a></p><p>Link valido por 24 horas.</p>')
 
 def enviar_email_aprovacao_admin(user):
     app_url = get_app_url()
@@ -98,22 +99,22 @@ def enviar_email_aprovacao_admin(user):
     url_apr = f"{app_url}/admin/aprovar/{token_apr}"
     url_rej = f"{app_url}/admin/rejeitar/{token_apr}"
     enviar_email_generico(admin_email, f'Novo cadastro: {user["nome"]}',
-        f'<p>Novo usuário aguardando aprovação: <strong>{user["nome"]}</strong> ({user["email"]})</p>'
-        f'<p><a href="{url_apr}">✅ Aprovar</a> &nbsp; <a href="{url_rej}">❌ Rejeitar</a></p>')
+        f'<p>Novo usuario aguardando aprovacao: <strong>{user["nome"]}</strong> ({user["email"]})</p>'
+        f'<p><a href="{url_apr}">Aprovar</a> &nbsp; <a href="{url_rej}">Rejeitar</a></p>')
 
 def enviar_email_boas_vindas(user):
     enviar_email_generico(user['email'], 'Bem-vindo ao UrbanLex!',
-        f'<p>Olá {user["nome"]}, sua conta foi aprovada! Acesse: {get_app_url()}/login</p>')
+        f'<p>Ola {user["nome"]}, sua conta foi aprovada! Acesse: {get_app_url()}/login</p>')
 
 def enviar_email_rejeicao(user):
     enviar_email_generico(user['email'], 'Cadastro UrbanLex',
-        f'<p>Olá {user["nome"]}, seu cadastro não foi aprovado. Entre em contato com o administrador.</p>')
+        f'<p>Ola {user["nome"]}, seu cadastro nao foi aprovado. Entre em contato com o administrador.</p>')
 
 def enviar_email_reset(user, token):
     url = f"{get_app_url()}/reset-senha/{token}"
-    enviar_email_generico(user['email'], 'Redefinição de senha — UrbanLex',
-        f'<p>Olá {user["nome"]},</p><p>Clique para redefinir sua senha:</p>'
-        f'<p><a href="{url}">{url}</a></p><p>Link válido por 1 hora.</p>')
+    enviar_email_generico(user['email'], 'Redefinicao de senha - UrbanLex',
+        f'<p>Ola {user["nome"]},</p><p>Clique para redefinir sua senha:</p>'
+        f'<p><a href="{url}">{url}</a></p><p>Link valido por 1 hora.</p>')
 
 try:
     from modulos.scheduler_integrado import iniciar_scheduler
@@ -121,7 +122,7 @@ try:
 except ImportError:
     SCHEDULER_OK = False
 
-# ── Cloudflare R2 storage (opcional — ativo somente se variáveis configuradas)
+# -- Cloudflare R2 storage (opcional) --
 try:
     from modulos.storage_r2 import upload_arquivo as r2_upload, deletar_arquivo as r2_delete, \
                                     gerar_url_assinada as r2_url_assinada, r2_disponivel, \
@@ -135,9 +136,9 @@ except ImportError:
     def r2_url_assinada(*a, **kw): return None
     def r2_download(*a, **kw): return None
 
-# Conversão de arquivos
+# Conversao de arquivos
 try: import PyMuPDF as fitz; PDF_OK = True
-except: 
+except:
     try: import fitz; PDF_OK = True
     except: PDF_OK = False
 
@@ -150,7 +151,7 @@ except: OCR_OK = False
 try: import pandas as pd; PANDAS_OK = True
 except: PANDAS_OK = False
 
-# ── App ────────────────────────────────────────────────────────
+# -- App --
 app = Flask(__name__, template_folder='templates')
 app.secret_key = os.getenv('SECRET_KEY', 'urbanlex-dev-key-change-in-prod')
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB
@@ -159,7 +160,7 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', '')
 
-# ── DB ─────────────────────────────────────────────────────────
+# -- DB --
 def get_db():
     conn = psycopg2.connect(os.environ['DATABASE_URL'])
     conn.autocommit = False
@@ -179,12 +180,12 @@ def qry(sql, params=None, fetch='all', commit=False):
     finally:
         conn.close()
 
-# ── Auth helpers ───────────────────────────────────────────────
+# -- Auth helpers --
 def login_required(f):
     @wraps(f)
     def dec(*a, **k):
         if 'user_id' not in session:
-            if request.path.startswith('/api/'): return jsonify({'error':'Não autenticado'}), 401
+            if request.path.startswith('/api/'): return jsonify({'error':'Nao autenticado'}), 401
             return redirect('/login')
         return f(*a, **k)
     return dec
@@ -193,7 +194,7 @@ def admin_required(f):
     @wraps(f)
     def dec(*a, **k):
         if 'user_id' not in session:
-            if request.path.startswith('/api/'): return jsonify({'error':'Não autenticado'}), 401
+            if request.path.startswith('/api/'): return jsonify({'error':'Nao autenticado'}), 401
             return redirect('/login')
         if session.get('role') != 'admin':
             if request.path.startswith('/api/'): return jsonify({'error':'Acesso negado'}), 403
@@ -205,7 +206,7 @@ def editor_required(f):
     @wraps(f)
     def dec(*a, **k):
         if 'user_id' not in session:
-            if request.path.startswith('/api/'): return jsonify({'error':'Não autenticado'}), 401
+            if request.path.startswith('/api/'): return jsonify({'error':'Nao autenticado'}), 401
             return redirect('/login')
         if session.get('role') not in ('admin','editor'):
             if request.path.startswith('/api/'): return jsonify({'error':'Acesso negado'}), 403
@@ -243,15 +244,15 @@ def extrair_texto_arquivo(arquivo_bytes, nome_arquivo):
     return texto
 
 
-# ── Função auxiliar de busca com IA (FIX 5: movida para antes do if __name__) ──
+# -- Funcao auxiliar de busca com IA --
 def _buscar_legislacao_internet(consulta: str) -> dict:
-    """Tenta encontrar legislação via GROQ ou busca simples."""
+    """Tenta encontrar legislacao via GROQ ou busca simples."""
     try:
         from groq import Groq
         client = Groq(api_key=os.getenv('GROQ_API_KEY',''))
-        prompt = (f"Encontre a seguinte legislação urbanística brasileira: '{consulta}'. "
+        prompt = (f"Encontre a seguinte legislacao urbanistica brasileira: '{consulta}'. "
                   "Retorne APENAS um JSON com: titulo, estado, municipio, numero, ano, url. "
-                  "Se não encontrar, retorne {}.")
+                  "Se nao encontrar, retorne {{}}.")
         resp = client.chat.completions.create(
             model="llama3-8b-8192",
             messages=[{"role":"user","content":prompt}],
@@ -269,11 +270,11 @@ def _buscar_legislacao_internet(consulta: str) -> dict:
     return {}
 
 
-# ═══════════════════════════════════════════════════════════════
-# PÁGINAS HTML
-# ═══════════════════════════════════════════════════════════════
+# -------------------------------------------------------------------
+# PAGINAS HTML
+# -------------------------------------------------------------------
 
-# ── FIX 3: Login corrigido — erro só aparece no POST com falha ──
+# -- FIX 3: Login corrigido -- erro so aparece no POST com falha --
 @app.route('/login', methods=['GET','POST'])
 def login_page():
     if 'user_id' in session: return redirect('/')
@@ -287,10 +288,10 @@ def login_page():
             session['nome'] = user['nome']
             session['email'] = user['email']
             session['role'] = user['role']
-            # FIX 9: usar qry() em vez de conexão manual
+            # FIX 9: usar qry() em vez de conexao manual
             qry("UPDATE users SET ultimo_acesso=NOW() WHERE id=%s", (user['id'],), commit=True, fetch=None)
             return redirect('/')
-        error = 'E-mail ou senha incorretos'  # ← Agora só no POST com falha
+        error = 'E-mail ou senha incorretos'
     return render_template('login.html', error=error, **tmpl_ctx())
 
 @app.route('/cadastro')
@@ -304,44 +305,44 @@ def pagina_reset_senha(token):
     tk = qry("SELECT * FROM password_reset_tokens WHERE token=%s AND usado=FALSE AND expira_em>NOW()", (token,), 'one')
     if not tk:
         return render_template('reset_senha.html', token=token,
-            erro='Este link é inválido ou já expirou. Solicite um novo.', **tmpl_ctx())
+            erro='Este link e invalido ou ja expirou. Solicite um novo.', **tmpl_ctx())
     return render_template('reset_senha.html', token=token, erro=None, **tmpl_ctx())
 
 @app.route('/ativar/<token>')
 def pagina_ativar(token):
     tk = qry("SELECT * FROM aprovacao_tokens WHERE token=%s AND tipo='ativacao' AND usado=FALSE AND expira_em>NOW()", (token,), 'one')
-    if not tk: return render_template('conta_ativada.html', sucesso=False, msg='Link inválido ou expirado.', **tmpl_ctx())
+    if not tk: return render_template('conta_ativada.html', sucesso=False, msg='Link invalido ou expirado.', **tmpl_ctx())
     qry("UPDATE users SET ativo=TRUE WHERE id=%s", (tk['user_id'],), commit=True)
     qry("UPDATE aprovacao_tokens SET usado=TRUE WHERE id=%s", (tk['id'],), commit=True)
     user = qry("SELECT * FROM users WHERE id=%s", (tk['user_id'],), 'one')
     if ADMIN_EMAIL: enviar_email_aprovacao_admin(user)
     return render_template('conta_ativada.html', sucesso=True,
-        msg='Conta ativada! Aguardando aprovação do administrador.',
+        msg='Conta ativada! Aguardando aprovacao do administrador.',
         nome=user.get('nome',''), email=user.get('email',''), **tmpl_ctx())
 
 @app.route('/admin/aprovar/<token>')
 def admin_aprovar(token):
     tk = qry("SELECT * FROM aprovacao_tokens WHERE token=%s AND tipo='aprovacao' AND usado=FALSE", (token,), 'one')
-    if not tk: return render_template('resultado_aprovacao.html', sucesso=False, msg='Link inválido.', **tmpl_ctx())
+    if not tk: return render_template('resultado_aprovacao.html', sucesso=False, msg='Link invalido.', **tmpl_ctx())
     qry("UPDATE users SET aprovado=TRUE WHERE id=%s", (tk['user_id'],), commit=True)
     qry("UPDATE aprovacao_tokens SET usado=TRUE WHERE id=%s", (tk['id'],), commit=True)
     user = qry("SELECT * FROM users WHERE id=%s", (tk['user_id'],), 'one')
     if not user:
-        return render_template('resultado_aprovacao.html', sucesso=False, msg='Usuário não encontrado.', nome='', email='', **tmpl_ctx())
+        return render_template('resultado_aprovacao.html', sucesso=False, msg='Usuario nao encontrado.', nome='', email='', **tmpl_ctx())
     enviar_email_boas_vindas(user)
     return render_template('resultado_aprovacao.html', sucesso=True,
-        msg=f'Usuário {user["nome"]} aprovado com sucesso!',
+        msg=f'Usuario {user["nome"]} aprovado com sucesso!',
         nome=user.get('nome',''), email=user.get('email',''), **tmpl_ctx())
 
 @app.route('/admin/rejeitar/<token>')
 def admin_rejeitar(token):
     tk = qry("SELECT * FROM aprovacao_tokens WHERE token=%s AND tipo='aprovacao' AND usado=FALSE", (token,), 'one')
-    if not tk: return render_template('resultado_aprovacao.html', sucesso=False, msg='Link inválido.', **tmpl_ctx())
+    if not tk: return render_template('resultado_aprovacao.html', sucesso=False, msg='Link invalido.', **tmpl_ctx())
     qry("UPDATE users SET aprovado=FALSE, ativo=FALSE WHERE id=%s", (tk['user_id'],), commit=True)
     qry("UPDATE aprovacao_tokens SET usado=TRUE WHERE id=%s", (tk['id'],), commit=True)
     user = qry("SELECT * FROM users WHERE id=%s", (tk['user_id'],), 'one')
     if user: enviar_email_rejeicao(user)
-    nome_rej = user.get('nome','usuário') if user else 'usuário'
+    nome_rej = user.get('nome','usuario') if user else 'usuario'
     return render_template('resultado_aprovacao.html', sucesso=False,
         msg=f'Cadastro de {nome_rej} rejeitado.',
         nome=user.get('nome','') if user else '', email=user.get('email','') if user else '', **tmpl_ctx())
@@ -435,11 +436,11 @@ def pagina_config_email(): return render_template('configuracoes.html', active_p
 @login_required
 def pagina_perfil(): return render_template('configuracoes.html', active_page='perfil', active_group='config', **tmpl_ctx())
 
-# ═══════════════════════════════════════════════════════════════
+# -------------------------------------------------------------------
 # API: AUTH
-# ═══════════════════════════════════════════════════════════════
+# -------------------------------------------------------------------
 
-# ── FIX 2: Login API corrigido — sessão agora é criada corretamente ──
+# -- FIX 2: Login API corrigido -- sessao agora e criada corretamente --
 @app.route('/api/auth/login', methods=['POST'])
 def api_login():
     d = request.json or {}
@@ -458,7 +459,7 @@ def api_login():
 @app.route('/api/auth/logout', methods=['POST'])
 def api_logout(): session.clear(); return jsonify({'success':True})
 
-# ── FIX 8: Rota GET para logout (links <a href="/logout">) ──
+# -- FIX 8: Rota GET para logout --
 @app.route('/logout')
 def logout():
     session.clear()
@@ -470,11 +471,11 @@ def api_cadastrar():
     nome = d.get('nome','').strip()
     email = d.get('email','').strip().lower()
     senha = d.get('senha','')
-    if not nome or not email or not senha: return jsonify({'success':False,'error':'Campos obrigatórios'}), 400
-    if qry("SELECT id FROM users WHERE email=%s", (email,), 'one'): return jsonify({'success':False,'error':'E-mail já cadastrado'}), 400
+    if not nome or not email or not senha: return jsonify({'success':False,'error':'Campos obrigatorios'}), 400
+    if qry("SELECT id FROM users WHERE email=%s", (email,), 'one'): return jsonify({'success':False,'error':'E-mail ja cadastrado'}), 400
     import re
     if not re.match(r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&\-_#])[A-Za-z\d@$!%*?&\-_#]{6,15}$', senha):
-        return jsonify({'success':False,'error':'Senha fraca. Use 6-15 chars com maiúscula, minúscula, número e especial.'}), 400
+        return jsonify({'success':False,'error':'Senha fraca. Use 6-15 chars com maiuscula, minuscula, numero e especial.'}), 400
     conn = get_db()
     try:
         cur = conn.cursor()
@@ -507,7 +508,7 @@ def api_reset_senha():
     token = d.get('token','')
     senha = d.get('senha','')
     tk = qry("SELECT * FROM password_reset_tokens WHERE token=%s AND usado=FALSE AND expira_em>NOW()", (token,), 'one')
-    if not tk: return jsonify({'success':False,'error':'Link inválido ou expirado'}), 400
+    if not tk: return jsonify({'success':False,'error':'Link invalido ou expirado'}), 400
     qry("UPDATE users SET senha_hash=%s WHERE id=%s", (hash_senha(senha), tk['user_id']), commit=True)
     qry("UPDATE password_reset_tokens SET usado=TRUE WHERE id=%s", (tk['id'],), commit=True)
     return jsonify({'success':True})
@@ -517,7 +518,7 @@ def api_reset_senha():
 def api_alterar_senha():
     d = request.json or {}
     user = qry("SELECT * FROM users WHERE id=%s", (session['user_id'],), 'one')
-    if not user: return jsonify({'success':False,'error':'Usuário não encontrado'}), 404
+    if not user: return jsonify({'success':False,'error':'Usuario nao encontrado'}), 404
     if not verificar_senha(d.get('senha_atual',''), user['senha_hash']):
         return jsonify({'success':False,'error':'Senha atual incorreta'}), 400
     qry("UPDATE users SET senha_hash=%s WHERE id=%s", (hash_senha(d['senha_nova']), session['user_id']), commit=True)
@@ -531,14 +532,14 @@ def api_perfil():
         return jsonify({'success':True,'data':user})
     d = request.json or {}
     nome = d.get('nome','').strip()
-    if not nome: return jsonify({'success':False,'error':'Nome obrigatório'}), 400
+    if not nome: return jsonify({'success':False,'error':'Nome obrigatorio'}), 400
     qry("UPDATE users SET nome=%s WHERE id=%s", (nome, session['user_id']), commit=True)
     session['nome'] = nome
     return jsonify({'success':True})
 
-# ═══════════════════════════════════════════════════════════════
-# API: ADMIN USUÁRIOS
-# ═══════════════════════════════════════════════════════════════
+# -------------------------------------------------------------------
+# API: ADMIN USUARIOS
+# -------------------------------------------------------------------
 
 @app.route('/api/admin/usuarios', methods=['GET'])
 @admin_required
@@ -550,20 +551,20 @@ def api_listar_usuarios():
 @admin_required
 def api_alterar_role(uid):
     role = (request.json or {}).get('role')
-    if role not in ('admin','editor','apenas_leitura'): return jsonify({'success':False,'error':'Role inválida'}), 400
+    if role not in ('admin','editor','apenas_leitura'): return jsonify({'success':False,'error':'Role invalida'}), 400
     qry("UPDATE users SET role=%s WHERE id=%s", (role, uid), commit=True)
     return jsonify({'success':True})
 
 @app.route('/api/admin/usuarios/<int:uid>', methods=['DELETE'])
 @admin_required
 def api_excluir_usuario(uid):
-    if uid == session['user_id']: return jsonify({'success':False,'error':'Não pode excluir a si mesmo'}), 400
+    if uid == session['user_id']: return jsonify({'success':False,'error':'Nao pode excluir a si mesmo'}), 400
     qry("DELETE FROM users WHERE id=%s", (uid,), commit=True)
     return jsonify({'success':True})
 
-# ═══════════════════════════════════════════════════════════════
-# API: BIBLIOTECA DE LEGISLAÇÕES
-# ═══════════════════════════════════════════════════════════════
+# -------------------------------------------------------------------
+# API: BIBLIOTECA DE LEGISLACOES
+# -------------------------------------------------------------------
 
 @app.route('/api/legislacoes', methods=['GET'])
 @login_required
@@ -613,11 +614,9 @@ def api_criar_legislacao():
     kw = request.form.get('palavras_chave')
     kw_json = json.dumps([k.strip() for k in kw.split(',') if k.strip()]) if kw else None
 
-    # Buscar nome do tipo
     tipo_row = qry("SELECT nome FROM tipos_legislacao WHERE id=%s", (tipo_id,), 'one') if tipo_id else None
     assunto_row = qry("SELECT nome FROM assuntos_legislacao WHERE id=%s", (assunto_id,), 'one') if assunto_id else None
 
-    # Inserir legislação (sem arquivo_url ainda) para obter o ID
     leg_row = qry("""
         INSERT INTO legislacoes (pais,esfera,estado,municipio_nome,tipo_id,tipo_nome,numero,ano,data_publicacao,
             ementa,assunto_id,assunto_nome,palavras_chave,conteudo_texto,arquivo_nome,arquivo_tipo,
@@ -630,7 +629,6 @@ def api_criar_legislacao():
 
     novo_id = leg_row['id'] if leg_row else None
 
-    # Upload para Cloudflare R2 (se configurado)
     if novo_id and r2_disponivel():
         url_r2 = r2_upload(arquivo_bytes, nome_arquivo, leg_id=novo_id)
         if url_r2:
@@ -642,22 +640,18 @@ def api_criar_legislacao():
 @login_required
 def api_get_legislacao(leg_id):
     l = qry("SELECT l.*, tl.nome as tipo_nome, al.nome as assunto_nome FROM legislacoes l LEFT JOIN tipos_legislacao tl ON l.tipo_id=tl.id LEFT JOIN assuntos_legislacao al ON l.assunto_id=al.id WHERE l.id=%s", (leg_id,), 'one')
-    if not l: return jsonify({'success':False,'error':'Não encontrada'}), 404
+    if not l: return jsonify({'success':False,'error':'Nao encontrada'}), 404
     return jsonify({'success':True,'data':l})
 
-# ── FIX 1: DELETE corrigido — leg_id + foreign keys + verificação ──
+# -- FIX 1: DELETE corrigido -- leg_id + foreign keys + verificacao --
 @app.route('/api/legislacoes/<int:leg_id>', methods=['DELETE'])
 @editor_required
 def api_excluir_legislacao(leg_id):
     leg = qry("SELECT arquivo_url FROM legislacoes WHERE id=%s", (leg_id,), 'one')
     if not leg:
-        return jsonify({'success': False, 'error': 'Legislação não encontrada'}), 404
-
-    # Remover arquivo do R2
+        return jsonify({'success': False, 'error': 'Legislacao nao encontrada'}), 404
     if leg.get('arquivo_url') and r2_disponivel():
         r2_delete(leg['arquivo_url'])
-
-    # Remover registros dependentes (foreign keys) e a legislação
     conn = get_db()
     try:
         cur = conn.cursor()
@@ -671,34 +665,27 @@ def api_excluir_legislacao(leg_id):
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         conn.close()
-
     return jsonify({'success': True})
 
 @app.route('/api/legislacoes/<int:leg_id>/texto')
 @login_required
 def api_leg_texto(leg_id):
     l = qry("SELECT conteudo_texto, arquivo_nome FROM legislacoes WHERE id=%s", (leg_id,), 'one')
-    if not l or not l.get('conteudo_texto'): return jsonify({'success':False,'error':'Texto não disponível'}), 404
+    if not l or not l.get('conteudo_texto'): return jsonify({'success':False,'error':'Texto nao disponivel'}), 404
     return jsonify({'success':True,'data':{'texto':l['conteudo_texto'],'arquivo_nome':l.get('arquivo_nome','')}})
 
 @app.route('/api/legislacoes/<int:leg_id>/documento')
 @login_required
 def api_leg_documento(leg_id):
     l = qry("SELECT arquivo_url, arquivo_nome FROM legislacoes WHERE id=%s", (leg_id,), 'one')
-    if not l: return jsonify({'error':'Não encontrada'}), 404
-
+    if not l: return jsonify({'error':'Nao encontrada'}), 404
     url = l.get('arquivo_url')
     if not url:
-        return jsonify({'error':'Documento não disponível. Faça upload do arquivo.'}), 404
-
-    # Se R2 disponível e a URL é uma chave interna (não começa com http),
-    # gerar URL assinada de 1 hora
+        return jsonify({'error':'Documento nao disponivel. Faca upload do arquivo.'}), 404
     if r2_disponivel() and not url.startswith('http'):
         url_assinada = r2_url_assinada(url, expiracao_seg=3600)
         if url_assinada:
             return redirect(url_assinada)
-
-    # URL pública ou pré-assinada já completa → redirect direto
     return redirect(url)
 
 @app.route('/api/legislacoes/<int:leg_id>/monitoramento', methods=['POST'])
@@ -711,12 +698,46 @@ def api_toggle_monitoramento(leg_id):
         (ativar, data_inicio, leg_id), commit=True)
     return jsonify({'success':True})
 
-# Árvore genealógica
+# -- Re-upload de arquivo para legislacao existente --
+@app.route('/api/legislacoes/<int:leg_id>/upload', methods=['POST'])
+@editor_required
+def api_reupload_legislacao(leg_id):
+    """Faz upload/re-upload de arquivo para uma legislacao existente."""
+    leg = qry("SELECT id, arquivo_url FROM legislacoes WHERE id=%s", (leg_id,), 'one')
+    if not leg:
+        return jsonify({'success': False, 'error': 'Legislacao nao encontrada'}), 404
+    arquivo = request.files.get('arquivo')
+    if not arquivo:
+        return jsonify({'success': False, 'error': 'Nenhum arquivo enviado'}), 400
+    nome_arquivo = secure_filename(arquivo.filename)
+    arquivo_bytes = arquivo.read()
+    texto = extrair_texto_arquivo(arquivo_bytes, nome_arquivo)
+    hash_c = hashlib.sha256(arquivo_bytes).hexdigest()
+    if leg.get('arquivo_url') and r2_disponivel():
+        r2_delete(leg['arquivo_url'])
+    url_r2 = None
+    if r2_disponivel():
+        url_r2 = r2_upload(arquivo_bytes, nome_arquivo, leg_id=leg_id)
+    qry("""UPDATE legislacoes
+           SET arquivo_nome=%s, arquivo_tipo=%s, arquivo_url=%s,
+               conteudo_texto=%s, hash_conteudo=%s, atualizado_em=NOW()
+           WHERE id=%s""",
+        (nome_arquivo, Path(nome_arquivo).suffix.lower()[1:],
+         url_r2, texto, hash_c, leg_id),
+        commit=True, fetch=None)
+    return jsonify({
+        'success': True,
+        'arquivo_url': url_r2,
+        'texto_extraido': bool(texto),
+        'message': 'Arquivo salvo no R2' if url_r2 else 'Arquivo salvo (R2 indisponivel - apenas texto extraido)'
+    })
+
+# -- Arvore genealogica --
 @app.route('/api/legislacoes/<int:leg_id>/arvore')
 @login_required
 def api_leg_arvore(leg_id):
     raiz = qry("SELECT l.*, tl.nome as tipo_nome FROM legislacoes l LEFT JOIN tipos_legislacao tl ON l.tipo_id=tl.id WHERE l.id=%s", (leg_id,), 'one')
-    if not raiz: return jsonify({'success':False,'error':'Não encontrada'}), 404
+    if not raiz: return jsonify({'success':False,'error':'Nao encontrada'}), 404
     relacoes = qry("""
         SELECT r.*, lp.id as pai_id, lp.numero as pai_numero, lp.ano as pai_ano, tl1.nome as pai_tipo,
                lf.id as filha_id, lf.numero as filha_numero, lf.ano as filha_ano, tl2.nome as filha_tipo,
@@ -747,12 +768,12 @@ def api_leg_arvore(leg_id):
                       'legislacao_filha_id':r['legislacao_filha_id'],'tipo_relacao':r['tipo_relacao']})
     return jsonify({'success':True,'data':{'nodes':nodes,'edges':edges,'raiz':raiz}})
 
-# Busca com IA
+# -- Busca com IA --
 @app.route('/api/legislacoes/buscar-ia', methods=['POST'])
 @editor_required
 def api_buscar_ia():
     consulta = (request.json or {}).get('consulta','').strip()
-    if not consulta: return jsonify({'success':False,'error':'Consulta obrigatória'}), 400
+    if not consulta: return jsonify({'success':False,'error':'Consulta obrigatoria'}), 400
     leg_id = qry("INSERT INTO buscas_ia (consulta,status,solicitado_por,criado_em) VALUES (%s,'pendente',%s,NOW()) RETURNING id",
                  (consulta, session['user_id']), 'one', commit=True)
     def rodar_busca(bid, consul):
@@ -769,9 +790,9 @@ def api_buscar_ia():
         except Exception as e:
             qry("UPDATE buscas_ia SET status='erro',erro=%s,finalizado_em=NOW() WHERE id=%s", (str(e),bid), commit=True)
     threading.Thread(target=rodar_busca, args=(leg_id['id'] if leg_id else 0, consulta), daemon=True).start()
-    return jsonify({'success':True,'message':'Busca iniciada. A legislação será adicionada aos pendentes quando encontrada.'})
+    return jsonify({'success':True,'message':'Busca iniciada. A legislacao sera adicionada aos pendentes quando encontrada.'})
 
-# Pendentes de aprovação
+# -- Pendentes de aprovacao --
 @app.route('/api/legislacoes/pendentes', methods=['GET'])
 @login_required
 def api_leg_pendentes():
@@ -782,7 +803,7 @@ def api_leg_pendentes():
 @admin_required
 def api_aprovar_leg_pendente(bid):
     busca = qry("SELECT * FROM buscas_ia WHERE id=%s", (bid,), 'one')
-    if not busca: return jsonify({'success':False,'error':'Não encontrado'}), 404
+    if not busca: return jsonify({'success':False,'error':'Nao encontrado'}), 404
     qry("UPDATE legislacoes SET pendente_aprovacao=FALSE, aprovado_em=NOW(), aprovado_por=%s WHERE url_original=%s AND pendente_aprovacao=TRUE",
         (session['user_id'], busca.get('resultado_url','')), commit=True)
     qry("UPDATE buscas_ia SET status='aprovado' WHERE id=%s", (bid,), commit=True)
@@ -795,9 +816,9 @@ def api_rejeitar_leg_pendente(bid):
     qry("UPDATE buscas_ia SET status='rejeitado' WHERE id=%s", (bid,), commit=True)
     return jsonify({'success':True})
 
-# ═══════════════════════════════════════════════════════════════
-# API: CONFIGURAÇÕES (tipos, assuntos, email)
-# ═══════════════════════════════════════════════════════════════
+# -------------------------------------------------------------------
+# API: CONFIGURACOES (tipos, assuntos, email)
+# -------------------------------------------------------------------
 
 @app.route('/api/config/tipos-legislacao', methods=['GET'])
 @login_required
@@ -808,12 +829,12 @@ def api_get_tipos(): return jsonify({'success':True,'data':qry("SELECT * FROM ti
 def api_criar_tipo():
     d = request.json or {}
     nome = d.get('nome','').strip()
-    if not nome: return jsonify({'success':False,'error':'Nome obrigatório'}), 400
+    if not nome: return jsonify({'success':False,'error':'Nome obrigatorio'}), 400
     try:
         qry("INSERT INTO tipos_legislacao (nome,descricao,criado_por) VALUES (%s,%s,%s)",
             (nome, d.get('descricao',''), session['user_id']), commit=True)
         return jsonify({'success':True})
-    except: return jsonify({'success':False,'error':'Tipo já existe'}), 400
+    except: return jsonify({'success':False,'error':'Tipo ja existe'}), 400
 
 @app.route('/api/config/tipos-legislacao/<int:tid>', methods=['DELETE'])
 @admin_required
@@ -830,12 +851,12 @@ def api_get_assuntos(): return jsonify({'success':True,'data':qry("SELECT * FROM
 def api_criar_assunto():
     d = request.json or {}
     nome = d.get('nome','').strip()
-    if not nome: return jsonify({'success':False,'error':'Nome obrigatório'}), 400
+    if not nome: return jsonify({'success':False,'error':'Nome obrigatorio'}), 400
     try:
         qry("INSERT INTO assuntos_legislacao (nome,descricao,criado_por) VALUES (%s,%s,%s)",
             (nome, d.get('descricao',''), session['user_id']), commit=True)
         return jsonify({'success':True})
-    except: return jsonify({'success':False,'error':'Assunto já existe'}), 400
+    except: return jsonify({'success':False,'error':'Assunto ja existe'}), 400
 
 @app.route('/api/config/assuntos/<int:aid>', methods=['DELETE'])
 @admin_required
@@ -857,9 +878,9 @@ def api_testar_email():
     except Exception as e:
         return jsonify({'success':False,'error':str(e)}), 500
 
-# ═══════════════════════════════════════════════════════════════
-# API: PARÂMETROS URBANÍSTICOS
-# ═══════════════════════════════════════════════════════════════
+# -------------------------------------------------------------------
+# API: PARAMETROS URBANISTICOS
+# -------------------------------------------------------------------
 
 @app.route('/api/municipios')
 @login_required
@@ -873,7 +894,7 @@ def api_zonas(municipio): return jsonify(qry("SELECT zona, subzona FROM zonas_ur
 @login_required
 def api_zona(municipio, zona):
     z = qry("SELECT * FROM zonas_urbanas WHERE municipio=%s AND zona=%s LIMIT 1", (municipio,zona), 'one')
-    if not z: return jsonify({'error':'Zona não encontrada'}), 404
+    if not z: return jsonify({'error':'Zona nao encontrada'}), 404
     return jsonify(z)
 
 @app.route('/api/zonas/todas')
@@ -891,7 +912,7 @@ def api_criar_zona():
     d = request.json or {}
     mun = d.get('municipio','').strip()
     zona = d.get('zona','').strip()
-    if not mun or not zona: return jsonify({'success':False,'error':'Município e zona obrigatórios'}), 400
+    if not mun or not zona: return jsonify({'success':False,'error':'Municipio e zona obrigatorios'}), 400
     cols = [k for k in d.keys() if k not in ('id','criado_em','atualizado_em','atualizado_por')]
     vals = [d[c] for c in cols]
     cols_str = ','.join(cols); ph = ','.join(['%s']*len(cols))
@@ -911,9 +932,9 @@ def api_calcular_area():
     except Exception as e:
         return jsonify({'success':False,'error':str(e)}), 500
 
-# ═══════════════════════════════════════════════════════════════
+# -------------------------------------------------------------------
 # API: MONITORAMENTO
-# ═══════════════════════════════════════════════════════════════
+# -------------------------------------------------------------------
 
 @app.route('/api/monitor/municipios', methods=['GET'])
 @login_required
@@ -924,7 +945,7 @@ def api_monitor_municipios(): return jsonify(qry("SELECT * FROM municipios WHERE
 def api_monitor_add_municipio():
     d = request.json or {}
     nome = d.get('nome','').strip()
-    if not nome: return jsonify({'success':False,'error':'Nome obrigatório'}), 400
+    if not nome: return jsonify({'success':False,'error':'Nome obrigatorio'}), 400
     row = qry("INSERT INTO municipios (nome,estado,url_diario,tipo_site) VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING RETURNING id",
         (nome, d.get('estado',''), d.get('url_diario',''), d.get('tipo_site','generico')), 'one', commit=True)
     mun_id = row['id'] if row else None
@@ -988,7 +1009,6 @@ def api_monitor_historico():
                   FROM scheduler_execucoes se
                   LEFT JOIN users u ON se.disparado_por=u.id
                   ORDER BY iniciada_em DESC LIMIT 50""")
-    # Não retornar log_erros completo na listagem (pesado) — só na rota de detalhe
     for row in (data or []):
         row.pop('log_erros', None)
     return jsonify({'success':True,'data':data})
@@ -996,19 +1016,17 @@ def api_monitor_historico():
 @app.route('/api/monitor/historico/<int:exec_id>')
 @login_required
 def api_monitor_execucao_detalhe(exec_id):
-    """Retorna log completo de uma execução, incluindo stack traces."""
     row = qry("""SELECT se.*, u.nome as usuario_nome
                  FROM scheduler_execucoes se
                  LEFT JOIN users u ON se.disparado_por=u.id
                  WHERE se.id=%s""", (exec_id,), 'one')
     if not row:
-        return jsonify({'success':False,'error':'Execução não encontrada'}), 404
+        return jsonify({'success':False,'error':'Execucao nao encontrada'}), 404
     return jsonify({'success':True,'data':row})
 
 @app.route('/api/monitor/status')
 @login_required
 def api_monitor_status_resumo():
-    """Badge de status: retorna a última execução com indicador de saúde."""
     ultima = qry("""SELECT id, iniciada_em, finalizada_em, status,
                            municipios_processados, municipios_ok, municipios_erro,
                            alteracoes_detectadas, erros, email_enviado
@@ -1016,8 +1034,6 @@ def api_monitor_status_resumo():
                     ORDER BY iniciada_em DESC LIMIT 1""", fetch='one')
     if not ultima:
         return jsonify({'success':True,'data':{'status':'nunca_executou','ultima':None}})
-
-    # Calcular "saúde" para o badge
     if ultima['status'] == 'rodando':
         saude = 'executando'
     elif ultima['status'] == 'erro' or (ultima.get('municipios_erro',0) == ultima.get('municipios_processados',1) and ultima.get('municipios_processados',0) > 0):
@@ -1026,11 +1042,10 @@ def api_monitor_status_resumo():
         saude = 'parcial'
     else:
         saude = 'ok'
-
     ultima['saude'] = saude
     return jsonify({'success':True,'data':ultima})
 
-# ── FIX 7: Query alterações usa COALESCE para municipio_nome ──
+# -- FIX 7: Query alteracoes usa COALESCE para municipio_nome --
 @app.route('/api/monitor/alteracoes')
 @login_required
 def api_monitor_alteracoes():
@@ -1095,13 +1110,13 @@ def api_monitor_executar():
             kwargs={'bridge_callback': processar_alteracao_detectada, 'disparado_por': uid},
             daemon=True
         ).start()
-        return jsonify({'success':True,'message':'Execução iniciada. Acompanhe em Histórico.'})
+        return jsonify({'success':True,'message':'Execucao iniciada. Acompanhe em Historico.'})
     except Exception as e:
         return jsonify({'success':False,'error':str(e)}), 500
 
-# ═══════════════════════════════════════════════════════════════
-# API: INTEGRAÇÕES (fila de parâmetros)
-# ═══════════════════════════════════════════════════════════════
+# -------------------------------------------------------------------
+# API: INTEGRACOES (fila de parametros)
+# -------------------------------------------------------------------
 
 @app.route('/api/integracao/pendentes')
 @login_required
@@ -1117,7 +1132,7 @@ def api_integ_pendentes():
 def api_integ_detalhe(iid):
     i = qry("""SELECT i.*, CONCAT(l.numero,'/',l.ano) as legislacao_ref FROM integracao_atualizacoes i
         LEFT JOIN legislacoes l ON i.legislacao_id=l.id WHERE i.id=%s""", (iid,), 'one')
-    if not i: return jsonify({'success':False,'error':'Não encontrado'}), 404
+    if not i: return jsonify({'success':False,'error':'Nao encontrado'}), 404
     if i.get('parametros_json') and isinstance(i['parametros_json'], str):
         try: i['parametros_json'] = json.loads(i['parametros_json'])
         except: pass
@@ -1127,7 +1142,7 @@ def api_integ_detalhe(iid):
 @editor_required
 def api_integ_aprovar(iid):
     i = qry("SELECT * FROM integracao_atualizacoes WHERE id=%s", (iid,), 'one')
-    if not i: return jsonify({'success':False,'error':'Não encontrado'}), 404
+    if not i: return jsonify({'success':False,'error':'Nao encontrado'}), 404
     params = i.get('parametros_json') or {}
     if isinstance(params, str):
         try: params = json.loads(params)
@@ -1172,9 +1187,9 @@ def api_integ_aprovar_todos():
         count += 1
     return jsonify({'success':True,'count':count})
 
-# ═══════════════════════════════════════════════════════════════
+# -------------------------------------------------------------------
 # API: DASHBOARD
-# ═══════════════════════════════════════════════════════════════
+# -------------------------------------------------------------------
 
 @app.route('/api/dashboard/stats')
 @login_required
@@ -1208,7 +1223,7 @@ def api_dashboard_feed():
         SELECT 'legislacao_adicionada' as tipo, tipo_nome||' '||COALESCE(numero,'')||'/'||COALESCE(CAST(ano AS TEXT),'') as titulo,
                municipio_nome as descricao, criado_em FROM legislacoes WHERE pendente_aprovacao=FALSE
         UNION ALL
-        SELECT 'execucao_robo', 'Execução do robô: '||COALESCE(status,''), COALESCE(municipios_ok::text,'0')||' municípios processados', iniciada_em FROM scheduler_execucoes
+        SELECT 'execucao_robo', 'Execucao do robo: '||COALESCE(status,''), COALESCE(municipios_ok::text,'0')||' municipios processados', iniciada_em FROM scheduler_execucoes
         ORDER BY criado_em DESC LIMIT 20
     """)
     return jsonify({'success':True,'data':rows})
@@ -1221,12 +1236,14 @@ def api_badges():
     usr  = qry("SELECT COUNT(*) as n FROM users WHERE ativo=TRUE AND aprovado=FALSE", fetch='one')['n']
     return jsonify({'leg_pendentes':leg,'param_pendentes':intg,'integ_pendentes':intg,'users_pendentes':usr})
 
-# ═══════════════════════════════════════════════════════════════
-# SISTEMA
-#@app.route('/api/diagnostico/r2')
+# -------------------------------------------------------------------
+# SISTEMA: DIAGNOSTICO E HEALTH
+# -------------------------------------------------------------------
+
+# -- Diagnostico R2 (CORRIGIDO: decorator ativo + sem chars especiais) --
+@app.route('/api/diagnostico/r2')
 @admin_required
 def api_diagnostico_r2():
-    """Testa se o Cloudflare R2 está funcionando."""
     info = {
         'r2_importado': _R2_IMPORTADO,
         'r2_disponivel': r2_disponivel(),
@@ -1235,7 +1252,6 @@ def api_diagnostico_r2():
         'R2_SECRET_KEY': bool(os.getenv('R2_SECRET_KEY')),
         'R2_BUCKET_NAME': os.getenv('R2_BUCKET_NAME', ''),
     }
-    # Tentar upload de teste
     if info['r2_disponivel']:
         try:
             url_teste = r2_upload(b'teste urbanlex', 'teste_diagnostico.txt', leg_id=0)
@@ -1247,8 +1263,8 @@ def api_diagnostico_r2():
         except Exception as e:
             info['upload_erro'] = str(e)
             info['upload_ok'] = False
-    return jsonify(info) ═══════════════════════════════════════════════════════════════
- 
+    return jsonify(info)
+
 @app.route('/health')
 def health():
     try:
@@ -1257,7 +1273,7 @@ def health():
     except Exception as e:
         return jsonify({'status':'erro','error':str(e)}), 500
 
-# ── FIX 4: Rotas diagnóstico agora exigem token SECRET_KEY ──
+# -- FIX 4: Rotas diagnostico agora exigem token SECRET_KEY --
 @app.route('/setup-banco-agora')
 def setup_banco():
     token = request.args.get('token', '')
@@ -1293,18 +1309,16 @@ def aprovar_admin():
     except Exception as e:
         return f'Erro: {str(e)}'
 
-# ═══════════════════════════════════════════════════════════════
-# ROTAS E APIs ADICIONAIS (FIX 5: movidas para ANTES do if __name__)
-# ═══════════════════════════════════════════════════════════════
+# -------------------------------------------------------------------
+# ROTAS ADICIONAIS (FIX 5: movidas para ANTES do if __name__)
+# -------------------------------------------------------------------
 
-# FIX 6: /parametros/nova-zona
 @app.route('/parametros/nova-zona')
 @login_required
 def pagina_nova_zona():
     return render_template('parametros.html', active_page='nova-zona', active_group='parametros',
                            abrir_modal='nova_zona', **tmpl_ctx())
 
-# FIX 7b: PUT /api/zona/<id> — atualizar zona existente
 @app.route('/api/zona/<int:zona_id>', methods=['PUT'])
 @editor_required
 def api_atualizar_zona(zona_id):
@@ -1314,14 +1328,13 @@ def api_atualizar_zona(zona_id):
     campos_proibidos = {'id', 'criado_em', 'municipio', 'zona', 'subzona'}
     cols = [k for k in d.keys() if k not in campos_proibidos]
     if not cols:
-        return jsonify({'success': False, 'error': 'Nenhum campo válido para atualizar'}), 400
+        return jsonify({'success': False, 'error': 'Nenhum campo valido para atualizar'}), 400
     set_sql = ', '.join(f"{c} = %s" for c in cols)
     vals = [d[c] for c in cols] + [datetime.now(), session['user_id'], zona_id]
     qry(f"UPDATE zonas_urbanas SET {set_sql}, atualizado_em = %s, atualizado_por = %s WHERE id = %s",
         vals, commit=True)
     return jsonify({'success': True})
 
-# FIX 8b: /api/zonas com querystring (sem municipio no path)
 @app.route('/api/zonas')
 @login_required
 def api_zonas_query():
@@ -1337,7 +1350,6 @@ def api_zonas_query():
     data = qry(f"SELECT * FROM zonas_urbanas {where_sql} ORDER BY estado, municipio, zona LIMIT 200", params)
     return jsonify({'success': True, 'data': data, 'total': len(data)})
 
-# FIX 9a: /api/parametros/importar — importar Excel
 @app.route('/api/parametros/importar', methods=['POST'])
 @editor_required
 def api_parametros_importar():
@@ -1345,7 +1357,7 @@ def api_parametros_importar():
     if not arquivo:
         return jsonify({'success': False, 'error': 'Nenhum arquivo enviado'}), 400
     if not PANDAS_OK:
-        return jsonify({'success': False, 'error': 'Pandas não instalado'}), 500
+        return jsonify({'success': False, 'error': 'Pandas nao instalado'}), 500
     try:
         df = pd.read_excel(io.BytesIO(arquivo.read()))
         df.columns = [c.strip().lower().replace(' ', '_') for c in df.columns]
@@ -1377,18 +1389,17 @@ def api_parametros_importar():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# FIX 9b: /api/parametros/exportar — exportar Excel
 @app.route('/api/parametros/exportar')
 @login_required
 def api_parametros_exportar():
     if not PANDAS_OK:
-        return jsonify({'success': False, 'error': 'Pandas não instalado'}), 500
+        return jsonify({'success': False, 'error': 'Pandas nao instalado'}), 500
     try:
         data = qry("SELECT * FROM zonas_urbanas ORDER BY estado, municipio, zona, subzona")
         df = pd.DataFrame(data)
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False, sheet_name='Parâmetros')
+            df.to_excel(writer, index=False, sheet_name='Parametros')
         output.seek(0)
         return send_file(output, as_attachment=True,
                          download_name=f'urbanlex_parametros_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx',
@@ -1396,7 +1407,6 @@ def api_parametros_exportar():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# FIX 10: /api/integracao/aprovadas e /rejeitadas
 @app.route('/api/integracao/aprovadas')
 @login_required
 def api_integ_aprovadas():
@@ -1417,18 +1427,17 @@ def api_integ_rejeitadas():
         WHERE i.status='rejeitado' ORDER BY i.revisado_em DESC LIMIT 100""")
     return jsonify({'success': True, 'data': data})
 
-# ═══════════════════════════════════════════════════════════════
-# INICIALIZAÇÃO (FIX 6: inicializar() no nível do módulo)
-# ═══════════════════════════════════════════════════════════════
+# -------------------------------------------------------------------
+# INICIALIZACAO (FIX 6: inicializar() no nivel do modulo)
+# -------------------------------------------------------------------
 
 def inicializar():
     print("UrbanLex v3.5 iniciando...")
     if SCHEDULER_OK:
-        try: iniciar_scheduler(); print("✅ Scheduler iniciado")
-        except Exception as e: print(f"⚠ Scheduler: {e}")
+        try: iniciar_scheduler(); print("Scheduler iniciado")
+        except Exception as e: print(f"Scheduler: {e}")
 
-# FIX 6: Chamar inicializar() no nível do módulo para funcionar com gunicorn
 inicializar()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT',5000)), debug=os.getenv('FLASK_ENV')!='production')
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT',5000)), debug=os.ge
