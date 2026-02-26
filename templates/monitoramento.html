@@ -66,7 +66,51 @@
 
 <div class="modal-overlay" id="modal-debug"><div class="modal modal-lg"><div class="modal-title">🔍 <span id="debug-titulo">Log de Execução</span> <button class="modal-close" onclick="closeModal('modal-debug')">×</button></div><div id="debug-loading" style="text-align:center;padding:30px"><span class="spinner" style="margin:0 auto"></span></div><div id="debug-content" style="display:none;padding:4px 0"></div></div></div>
 
-<div class="modal-overlay" id="modal-perfil-diario"><div class="modal modal-lg"><div class="modal-title">🔎 Perfil do Diário Oficial — <span id="perfil-municipio-nome"></span> <button class="modal-close" onclick="closeModal('modal-perfil-diario')">×</button></div><div id="perfil-loading" style="text-align:center;padding:30px"><span class="spinner" style="margin:0 auto"></span></div><div id="perfil-content" style="display:none"><div id="perfil-status-badge" style="margin-bottom:16px"></div><div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px" id="perfil-stats"></div><div class="form-group" style="margin-bottom:12px"><label>URL do Diário Oficial</label><div style="display:flex;gap:8px"><input type="url" id="perfil-url-input" placeholder="https://..."><button class="btn btn-ghost btn-sm" onclick="salvarUrlPerfil()">💾 Salvar</button><button class="btn btn-sm" onclick="window.open(document.getElementById('perfil-url-input').value,'_blank')" title="Abrir site">🔗</button></div></div><div id="perfil-detalhes" style="margin-bottom:12px"></div><div id="perfil-screenshot-container" style="display:none;margin-bottom:12px"><div style="margin-bottom:6px;font-size:11px;color:var(--muted)">📸 Screenshot capturado</div><img id="perfil-screenshot" style="max-width:100%;border-radius:6px;border:1px solid var(--border)" alt="Screenshot"></div><div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--border)"><button class="btn btn-primary btn-sm" onclick="redetectarPerfil()" id="btn-redetectar">🔄 Re-detectar Perfil</button><button class="btn btn-ghost btn-sm" onclick="closeModal('modal-perfil-diario')">Fechar</button></div></div></div></div>
+<div class="modal-overlay" id="modal-perfil-diario"><div class="modal modal-lg"><div class="modal-title">🔎 Perfil do Diário Oficial — <span id="perfil-municipio-nome"></span> <button class="modal-close" onclick="closeModal('modal-perfil-diario')">×</button></div>
+<div id="perfil-loading" style="text-align:center;padding:30px"><span class="spinner" style="margin:0 auto"></span></div>
+<div id="perfil-content" style="display:none">
+    <!-- Status badge -->
+    <div id="perfil-status-badge" style="margin-bottom:16px"></div>
+    <!-- Stats row -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px" id="perfil-stats"></div>
+
+    <!-- Scheduler + Executar -->
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;padding:12px 14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+            <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">⏰ Monitoramento Programado</div>
+            <div style="font-size:13px;color:var(--text)" id="perfil-sched-info">Carregando...</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="executarMunicipio()" id="btn-exec-municipio">⚡ Executar Agora</button>
+    </div>
+
+    <!-- URL -->
+    <div class="form-group" style="margin-bottom:12px"><label>URL do Diário Oficial</label>
+        <div style="display:flex;gap:8px"><input type="url" id="perfil-url-input" placeholder="https://..."><button class="btn btn-ghost btn-sm" onclick="salvarUrlPerfil()">💾 Salvar</button><button class="btn btn-sm" onclick="window.open(document.getElementById('perfil-url-input').value,'_blank')" title="Abrir site">🔗</button></div>
+    </div>
+
+    <!-- Detalhes técnicos -->
+    <div id="perfil-detalhes" style="margin-bottom:12px"></div>
+
+    <!-- Screenshot -->
+    <div id="perfil-screenshot-container" style="display:none;margin-bottom:12px"><div style="margin-bottom:6px;font-size:11px;color:var(--muted)">📸 Screenshot capturado</div><img id="perfil-screenshot" style="max-width:100%;border-radius:6px;border:1px solid var(--border)" alt="Screenshot"></div>
+
+    <!-- Histórico de Monitoramento -->
+    <div style="margin-bottom:12px">
+        <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📋 Histórico de Monitoramento</div>
+        <div id="perfil-historico-container" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--surface)">
+            <div id="perfil-historico-list" style="padding:4px 0">
+                <div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Carregando histórico...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ações -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--border)">
+        <button class="btn btn-primary btn-sm" onclick="redetectarPerfil()" id="btn-redetectar">🔄 Re-detectar Perfil</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-perfil-diario')">Fechar</button>
+    </div>
+</div>
+</div></div>
 
 <div class="modal-overlay" id="modal-data-inicio"><div class="modal modal-sm"><div class="modal-title">📅 Configurar Monitoramento <button class="modal-close" onclick="closeModal('modal-data-inicio')">×</button></div><p style="font-size:13px;color:var(--muted);margin-bottom:16px">A partir de qual data o robô deve buscar atualizações no diário oficial?</p><div class="form-group"><label>Data de início *</label><input type="date" id="data-inicio-input"><small style="color:var(--muted)">Normalmente a data de publicação da lei.</small></div><div id="data-inicio-info" style="font-size:12px;color:var(--muted);margin-top:8px"></div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('modal-data-inicio')">Cancelar</button><button class="btn btn-primary" onclick="confirmarMonitoramento()" id="btn-confirmar-mon">✅ Ativar Monitoramento</button></div></div></div>
 
@@ -119,7 +163,48 @@ async function verPerfil(mid,nome){
     document.getElementById('perfil-url-input').value=d.url_diario||d.url_base||'';
     if(pj&&Object.keys(pj).length>1){var linhas=[pj.url_busca?'<tr><td>URL de busca</td><td><code>'+pj.url_busca+'</code></td></tr>':'',pj.formato_data?'<tr><td>Formato data</td><td><code>'+pj.formato_data+'</code></td></tr>':'',pj.metodo_busca?'<tr><td>Método</td><td>'+pj.metodo_busca+'</td></tr>':''].filter(Boolean).join('');document.getElementById('perfil-detalhes').innerHTML=linhas?'<div style="margin-bottom:6px;font-size:11px;color:var(--muted)">🔧 Detalhes Técnicos</div><table style="width:100%;font-size:12px"><colgroup><col style="width:160px"><col></colgroup>'+linhas+'</table>':''}
     if(d.screenshot_b64){document.getElementById('perfil-screenshot-container').style.display='block';document.getElementById('perfil-screenshot').src='data:image/png;base64,'+d.screenshot_b64}else{document.getElementById('perfil-screenshot-container').style.display='none'}
+    carregarPerfilScheduler();
+    carregarPerfilHistorico(mid);
 }
+async function carregarPerfilScheduler(){
+    var r=await api('GET','/api/monitor/scheduler');
+    var el=document.getElementById('perfil-sched-info');if(!el)return;
+    if(!r.success){el.textContent='Não disponível';return}
+    var s=r.data;var status=s.status||'ativo';
+    var mapa={ativo:'🟢 Ativo',pausado:'🟡 Pausado',executando:'🔵 Executando',erro:'🔴 Erro'};
+    el.innerHTML=(mapa[status]||status)+' · Execução diária às <strong>'+(s.horario_execucao||'02:00')+'</strong>'+(s.proxima_execucao?' · Próxima: '+fmtData(s.proxima_execucao):'');
+}
+
+async function carregarPerfilHistorico(mid){
+    var el=document.getElementById('perfil-historico-list');if(!el)return;
+    el.innerHTML='<div style="text-align:center;padding:16px"><span class="spinner" style="margin:0 auto"></span></div>';
+    var r=await api('GET','/api/monitor/municipios/'+mid+'/historico');
+    if(!r.success||!r.data||!r.data.length){
+        el.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Nenhum histórico de monitoramento registrado</div>';
+        return;
+    }
+    el.innerHTML=r.data.map(function(h){
+        var dataStr=fmtData(h.data||h.iniciada_em);
+        var isOk=h.status==='concluido'||h.status==='ok'||h.sucesso===true;
+        var isErro=h.status==='erro'||h.sucesso===false;
+        var icon=isOk?'✅':isErro?'❌':'⏳';
+        var label=isOk?'Monitoramento realizado':isErro?'Falha no monitoramento':'Em andamento';
+        var color=isOk?'var(--accent)':isErro?'var(--red)':'var(--amber)';
+        var altCount=h.alteracoes_detectadas||h.alteracoes||0;
+        var altBadge=altCount>0?' <span class="badge badge-amber" style="font-size:9px;padding:1px 6px">'+altCount+' alteraç'+(altCount===1?'ão':'ões')+'</span>':'';
+        return '<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border);font-size:12px"><span style="flex-shrink:0">'+icon+'</span><span style="font-family:var(--font-mono);color:var(--muted);min-width:85px">'+dataStr+'</span><span style="color:'+color+'">'+label+'</span>'+altBadge+(h.duracao_seg?'<span style="margin-left:auto;font-size:10px;color:var(--muted);font-family:var(--font-mono)">'+(h.duracao_seg<60?h.duracao_seg+'s':Math.floor(h.duracao_seg/60)+'m')+'</span>':'')+'</div>';
+    }).join('');
+}
+
+async function executarMunicipio(){
+    if(!_perfilAtualMid)return;
+    var btn=document.getElementById('btn-exec-municipio');btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Executando...';
+    var r=await api('POST','/api/monitor/municipios/'+_perfilAtualMid+'/executar');
+    btn.disabled=false;btn.innerHTML='⚡ Executar Agora';
+    if(r.success){toast('Monitoramento iniciado para este município!');setTimeout(function(){carregarPerfilHistorico(_perfilAtualMid);carregarMunicipios()},10000)}
+    else toast(r.error||r.message||'Erro ao executar','error');
+}
+
 async function redetectarPerfil(){if(!_perfilAtualMid)return;var btn=document.getElementById('btn-redetectar');btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Detectando…';var r=await api('POST','/api/monitor/municipios/'+_perfilAtualMid+'/detectar',{forcar:true});btn.disabled=false;btn.innerHTML='🔄 Re-detectar Perfil';toast(r.message||(r.success?'Detecção iniciada!':'Erro'),r.success?'success':'error');if(r.success)setTimeout(function(){verPerfil(_perfilAtualMid,document.getElementById('perfil-municipio-nome').textContent);carregarMunicipios()},8000)}
 async function salvarUrlPerfil(){if(!_perfilAtualMid)return;var url=document.getElementById('perfil-url-input').value.trim();if(!url){toast('Informe uma URL','error');return}var r=await api('POST','/api/monitor/municipios/'+_perfilAtualMid+'/url',{url:url});toast(r.message||(r.success?'URL salva!':'Erro'),r.success?'success':'error');if(r.success)setTimeout(function(){verPerfil(_perfilAtualMid,document.getElementById('perfil-municipio-nome').textContent)},8000)}
 
