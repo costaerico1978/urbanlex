@@ -1,590 +1,149 @@
-{% extends "base.html" %}
-{% block title %}Monitoramento · UrbanLex
-<!-- MODAL: Debug de Execução -->
-<div class="modal-overlay" id="modal-debug">
-    <div class="modal modal-lg">
-        <div class="modal-title">
-            🔍 <span id="debug-titulo">Log de Execução</span>
-            <button class="modal-close" onclick="closeModal('modal-debug')">×</button>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoramento · UrbanLex</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        :root{--bg:#0a0c0f;--surface:#111418;--surface2:#181d23;--surface3:#1e242c;--border:#1f2830;--border2:#2a3540;--accent:#00e5a0;--accent2:#00b880;--amber:#f5a623;--red:#ff4d6d;--blue:#3d9be9;--purple:#9b6dff;--text:#e8edf2;--muted:#6b7d8f;--muted2:#3d4f5e;--font-head:'Syne',sans-serif;--font-body:'DM Sans',sans-serif;--font-mono:'DM Mono',monospace;--radius:8px;--radius-lg:14px;--sidebar-w:240px}
+        html{scroll-behavior:smooth}body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;line-height:1.6;min-height:100vh}
+        ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+        .shell{display:flex;min-height:100vh}.sidebar{width:var(--sidebar-w);min-height:100vh;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
+        .sidebar-logo{padding:22px 18px 18px;border-bottom:1px solid var(--border);flex-shrink:0}.sidebar-logo .wordmark{font-family:var(--font-head);font-weight:800;font-size:19px;letter-spacing:-0.5px;color:var(--text)}.sidebar-logo .wordmark span{color:var(--accent)}.sidebar-logo .tagline{font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:2px;letter-spacing:0.5px}
+        .sidebar-nav{padding:10px;flex:1}.nav-group{margin-bottom:2px}.nav-group-header{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:var(--radius);color:var(--muted);cursor:pointer;font-size:13px;font-weight:500;transition:all .15s;user-select:none;position:relative}.nav-group-header:hover{background:var(--surface2);color:var(--text)}.nav-group-header.active-group{color:var(--text)}.nav-group-header .nav-icon{width:15px;height:15px;flex-shrink:0}.nav-group-header .nav-label{flex:1}.nav-group-header .nav-badge{background:var(--red);color:#fff;font-size:9px;font-family:var(--font-mono);padding:1px 5px;border-radius:20px;min-width:17px;text-align:center}.nav-group-header .chevron{width:12px;height:12px;flex-shrink:0;transition:transform .2s;opacity:.5}.nav-group.open .chevron{transform:rotate(90deg)}
+        .nav-submenu{display:none;padding-left:14px;margin-top:2px}.nav-group.open .nav-submenu{display:block}.nav-sub-item{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:var(--radius);color:var(--muted);text-decoration:none;font-size:12.5px;transition:all .12s;margin-bottom:1px;position:relative}.nav-sub-item:hover{background:var(--surface2);color:var(--text)}.nav-sub-item.active{background:rgba(0,229,160,0.08);color:var(--accent)}.nav-sub-item.active::before{content:'';position:absolute;left:0;top:20%;height:60%;width:2px;background:var(--accent);border-radius:2px}.nav-sub-item .sub-badge{margin-left:auto;background:var(--red);color:#fff;font-size:9px;font-family:var(--font-mono);padding:1px 5px;border-radius:20px;min-width:17px;text-align:center}.sub-dot{width:5px;height:5px;border-radius:50%;background:var(--muted2);flex-shrink:0}.nav-sub-item.active .sub-dot{background:var(--accent)}
+        .nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:var(--radius);color:var(--muted);text-decoration:none;font-size:13px;font-weight:500;transition:all .15s;margin-bottom:2px;position:relative}.nav-item:hover{background:var(--surface2);color:var(--text)}.nav-item.active{background:rgba(0,229,160,0.08);color:var(--accent)}.nav-item .nav-icon{width:15px;height:15px;flex-shrink:0}.nav-section-sep{height:1px;background:var(--border);margin:8px 4px}
+        .sidebar-footer{padding:12px 10px;border-top:1px solid var(--border);flex-shrink:0}.user-chip{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:var(--radius)}.user-avatar{width:26px;height:26px;background:linear-gradient(135deg,var(--accent),var(--blue));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--bg);font-family:var(--font-head);flex-shrink:0}.user-name{font-size:12px;color:var(--text);font-weight:500}.user-role{font-size:9px;color:var(--muted);font-family:var(--font-mono);text-transform:uppercase}.logout-btn{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;border-radius:4px;transition:color .15s}.logout-btn:hover{color:var(--red)}
+        .main{flex:1;display:flex;flex-direction:column;min-width:0}.topbar{height:52px;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:14px;background:var(--surface);position:sticky;top:0;z-index:40;flex-shrink:0}.topbar-title{font-family:var(--font-head);font-size:14px;font-weight:700;color:var(--text);letter-spacing:-0.3px}.topbar-sub{font-size:11px;color:var(--muted);font-family:var(--font-mono)}.topbar-sep{width:1px;height:16px;background:var(--border)}.topbar-right{margin-left:auto;display:flex;align-items:center;gap:8px}.content{padding:24px;flex:1}
+        .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px}
+        .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius);font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;text-decoration:none;border:none;font-family:var(--font-body);white-space:nowrap}.btn-primary{background:var(--accent);color:var(--bg)}.btn-primary:hover{background:var(--accent2)}.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}.btn-ghost:hover{background:var(--surface2);color:var(--text);border-color:var(--border2)}.btn-danger{background:rgba(255,77,109,0.12);color:var(--red);border:1px solid rgba(255,77,109,0.2)}.btn-danger:hover{background:rgba(255,77,109,0.2)}.btn-amber{background:rgba(245,166,35,0.12);color:var(--amber);border:1px solid rgba(245,166,35,0.2)}.btn-amber:hover{background:rgba(245,166,35,0.2)}.btn-sm{padding:5px 11px;font-size:12px}.btn-xs{padding:3px 8px;font-size:11px}.btn[disabled]{opacity:.4;cursor:not-allowed}
+        .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-family:var(--font-mono);font-size:10px;font-weight:500}.badge-green{background:rgba(0,229,160,0.1);color:var(--accent);border:1px solid rgba(0,229,160,0.2)}.badge-amber{background:rgba(245,166,35,0.1);color:var(--amber);border:1px solid rgba(245,166,35,0.2)}.badge-red{background:rgba(255,77,109,0.1);color:var(--red);border:1px solid rgba(255,77,109,0.2)}.badge-blue{background:rgba(61,155,233,0.1);color:var(--blue);border:1px solid rgba(61,155,233,0.2)}.badge-muted{background:rgba(107,125,143,0.1);color:var(--muted);border:1px solid var(--border)}
+        table{width:100%;border-collapse:collapse}th{text-align:left;font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;padding:9px 12px;border-bottom:1px solid var(--border);white-space:nowrap}td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:12.5px;color:var(--text)}tr:last-child td{border-bottom:none}tr:hover td{background:rgba(255,255,255,0.018)}
+        .form-group{margin-bottom:14px}label{display:block;font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:5px}input,select,textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:8px 11px;font-family:var(--font-body);font-size:13px;outline:none;transition:border-color .15s}input:focus,select:focus{border-color:var(--accent)}select option{background:var(--surface2)}.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+        .alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:14px;display:flex;gap:8px;align-items:flex-start}.alert-success{background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.2);color:var(--accent)}.alert-warning{background:rgba(245,166,35,0.08);border:1px solid rgba(245,166,35,0.2);color:var(--amber)}.alert-info{background:rgba(61,155,233,0.08);border:1px solid rgba(61,155,233,0.2);color:var(--blue)}
+        #toast-container{position:fixed;bottom:22px;right:22px;z-index:1000;display:flex;flex-direction:column;gap:8px}.toast{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:11px 15px;font-size:13px;color:var(--text);min-width:240px;animation:slideIn .2s ease;display:flex;gap:9px;align-items:center}.toast.success{border-left:3px solid var(--accent)}.toast.error{border-left:3px solid var(--red)}.toast.warning{border-left:3px solid var(--amber)}@keyframes slideIn{from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}
+        .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;align-items:center;justify-content:center;padding:20px}.modal-overlay.open{display:flex}.modal{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:26px;width:100%;max-height:90vh;overflow-y:auto}.modal-sm{max-width:440px}.modal-md{max-width:620px}.modal-lg{max-width:860px}.modal-title{font-family:var(--font-head);font-size:16px;font-weight:700;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between}.modal-close{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:2px 4px}.modal-close:hover{color:var(--text)}.modal-footer{display:flex;gap:9px;justify-content:flex-end;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)}
+        .scroll-list-tall{max-height:560px;overflow-y:auto}.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px}.section-title{font-family:var(--font-head);font-size:14px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}.empty-state{text-align:center;padding:40px 20px;color:var(--muted)}.empty-icon{font-size:28px;margin-bottom:10px;opacity:.35}.empty-title{font-family:var(--font-head);font-size:14px;color:var(--muted);margin-bottom:5px}.empty-sub{font-size:12px;color:var(--muted2)}
+        .spinner{width:15px;height:15px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0}@keyframes spin{to{transform:rotate(360deg)}}.hidden{display:none !important}.fw-bold{font-weight:600}.text-red{color:var(--red)}
+        .page-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:20px}.page-tab{padding:9px 18px;font-size:13px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:all .15s;text-decoration:none;display:flex;align-items:center;gap:6px}.page-tab:hover{color:var(--text)}.page-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+        .log-box{background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:12px 14px;font-size:11px;font-family:var(--font-mono);white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;margin:0}.log-box-error{background:#1a0a0a;color:#ff8080;border-color:#5c1a1a}
+        .stat-mini{background:var(--surface2);border-radius:8px;padding:10px 16px;text-align:center;min-width:80px}.stat-mini>div:first-child{font-size:20px;font-weight:700;color:var(--text)}.stat-mini>div:last-child{font-size:11px;color:var(--muted);margin-top:2px}.stat-mini.stat-red>div:first-child{color:var(--red)}
+    </style>
+</head>
+<body>
+<div class="shell">
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-logo"><div class="wordmark">Urban<span>Lex</span></div><div class="tagline">Parâmetros Urbanísticos · IA</div></div>
+        <div class="sidebar-nav">
+            <a href="/" class="nav-item"><svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5"/></svg> Dashboard</a>
+            <div class="nav-group" id="grp-biblioteca"><div class="nav-group-header" onclick="toggleGroup('grp-biblioteca')"><svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h2v12H3zM7 2h2v12H7zM11 2l2 .5v11l-2-.5z"/></svg><span class="nav-label">Biblioteca</span><span class="nav-badge hidden" id="badge-leg-pendentes">0</span><svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2l4 4-4 4"/></svg></div><div class="nav-submenu"><a href="/legislacoes" class="nav-sub-item"><span class="sub-dot"></span> Todas as Legislações</a><a href="/legislacoes/arvores" class="nav-sub-item"><span class="sub-dot"></span> Árvores Genealógicas</a><a href="/legislacoes/pendentes" class="nav-sub-item"><span class="sub-dot"></span> Pendentes de Aprovação <span class="sub-badge hidden" id="badge-leg-sub">0</span></a></div></div>
+            <div class="nav-group" id="grp-parametros"><div class="nav-group-header" onclick="toggleGroup('grp-parametros')"><svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="2" width="14" height="12" rx="1.5"/><path d="M1 6h14M5 6v8M10 6v8"/></svg><span class="nav-label">Parâmetros</span><span class="nav-badge hidden" id="badge-param-pendentes">0</span><svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2l4 4-4 4"/></svg></div><div class="nav-submenu"><a href="/parametros" class="nav-sub-item"><span class="sub-dot"></span> Planilha de Zonas</a><a href="/parametros/nova-zona" class="nav-sub-item"><span class="sub-dot"></span> Nova Zona Manual</a><a href="/parametros/calculadora" class="nav-sub-item"><span class="sub-dot"></span> Calculadora de Área</a><a href="/parametros/importar" class="nav-sub-item"><span class="sub-dot"></span> Importar Excel</a><a href="/parametros/pendentes" class="nav-sub-item"><span class="sub-dot"></span> Pendentes de Aprovação <span class="sub-badge hidden" id="badge-param-sub">0</span></a></div></div>
+            <div class="nav-group open" id="grp-monitor"><div class="nav-group-header active-group" onclick="toggleGroup('grp-monitor')"><svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5l2 1.5"/></svg><span class="nav-label">Monitoramento</span><svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2l4 4-4 4"/></svg></div><div class="nav-submenu"><a href="/monitoramento" class="nav-sub-item active"><span class="sub-dot"></span> Municípios Monitorados</a><a href="/monitoramento/historico" class="nav-sub-item"><span class="sub-dot"></span> Histórico de Execuções</a><a href="/monitoramento/alteracoes" class="nav-sub-item"><span class="sub-dot"></span> Alterações Detectadas</a><a href="/monitoramento/scheduler" class="nav-sub-item"><span class="sub-dot"></span> Configurar Scheduler</a></div></div>
+            <div class="nav-group" id="grp-integ"><div class="nav-group-header" onclick="toggleGroup('grp-integ')"><svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h10M9 4l4 4-4 4"/><circle cx="3" cy="8" r="1.5"/></svg><span class="nav-label">Integrações</span><span class="nav-badge hidden" id="badge-integ">0</span><svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2l4 4-4 4"/></svg></div><div class="nav-submenu"><a href="/integracao" class="nav-sub-item"><span class="sub-dot"></span> Fila de Aprovação <span class="sub-badge hidden" id="badge-integ-sub">0</span></a><a href="/integracao/aprovadas" class="nav-sub-item"><span class="sub-dot"></span> Aprovadas</a><a href="/integracao/rejeitadas" class="nav-sub-item"><span class="sub-dot"></span> Rejeitadas</a></div></div>
+            <div class="nav-section-sep"></div>
+            <div class="nav-group" id="grp-users"><div class="nav-group-header" onclick="toggleGroup('grp-users')"><svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="5" r="3"/><path d="M1 14c0-3 2-5 5-5"/><circle cx="12" cy="6" r="2"/><path d="M10 14c0-2 1-3 2-3s2 1 2 3"/></svg><span class="nav-label">Usuários</span><span class="nav-badge hidden" id="badge-users">0</span><svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2l4 4-4 4"/></svg></div><div class="nav-submenu"><a href="/usuarios" class="nav-sub-item"><span class="sub-dot"></span> Todos os Usuários</a><a href="/usuarios/pendentes" class="nav-sub-item"><span class="sub-dot"></span> Aguardando Aprovação <span class="sub-badge hidden" id="badge-users-sub">0</span></a></div></div>
+            <div class="nav-group" id="grp-config"><div class="nav-group-header" onclick="toggleGroup('grp-config')"><svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4"/></svg><span class="nav-label">Configurações</span><svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2l4 4-4 4"/></svg></div><div class="nav-submenu"><a href="/config/tipos-legislacao" class="nav-sub-item"><span class="sub-dot"></span> Tipos de Legislação</a><a href="/config/assuntos" class="nav-sub-item"><span class="sub-dot"></span> Assuntos / Categorias</a><a href="/config/email" class="nav-sub-item"><span class="sub-dot"></span> Configurações de E-mail</a><a href="/config/perfil" class="nav-sub-item"><span class="sub-dot"></span> Meu Perfil</a></div></div>
         </div>
-        <div id="debug-loading" style="text-align:center;padding:30px">
-            <span class="spinner" style="margin:0 auto"></span>
-        </div>
-        <div id="debug-content" style="display:none;padding:4px 0"></div>
-    </div>
-</div>
-
-<style>
-.log-box {
-    background: #0d1117;
-    color: #e6edf3;
-    border: 1px solid #30363d;
-    border-radius: 6px;
-    padding: 12px 14px;
-    font-size: 11px;
-    font-family: var(--font-mono, monospace);
-    white-space: pre-wrap;
-    word-break: break-all;
-    max-height: 300px;
-    overflow-y: auto;
-    margin: 0;
-}
-.log-box-error {
-    background: #1a0a0a;
-    color: #ff8080;
-    border-color: #5c1a1a;
-}
-.stat-mini {
-    background: var(--bg-secondary, #1e2a3a);
-    border-radius: 8px;
-    padding: 10px 16px;
-    text-align: center;
-    min-width: 80px;
-}
-.stat-mini > div:first-child {
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--text-primary, #fff);
-}
-.stat-mini > div:last-child {
-    font-size: 11px;
-    color: var(--text-muted, #888);
-    margin-top: 2px;
-}
-.stat-mini.stat-red > div:first-child { color: var(--red, #e74c3c); }
-</style>
-
-<!-- MODAL: Perfil do Diário Oficial -->
-<div class="modal-overlay" id="modal-perfil-diario">
-    <div class="modal modal-lg">
-        <div class="modal-title">
-            🔎 Perfil do Diário Oficial — <span id="perfil-municipio-nome"></span>
-            <button class="modal-close" onclick="closeModal('modal-perfil-diario')">×</button>
-        </div>
-        <div id="perfil-loading" style="text-align:center;padding:30px">
-            <span class="spinner" style="margin:0 auto"></span>
-        </div>
-        <div id="perfil-content" style="display:none">
-            <!-- Status badge -->
-            <div id="perfil-status-badge" style="margin-bottom:16px"></div>
-
-            <!-- Info básica -->
-            <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px" id="perfil-stats"></div>
-
-            <!-- URL com botão de editar -->
-            <div class="form-group" style="margin-bottom:12px">
-                <label>URL do Diário Oficial</label>
-                <div style="display:flex;gap:8px">
-                    <input type="url" id="perfil-url-input" class="form-control" placeholder="https://...">
-                    <button class="btn btn-ghost btn-sm" onclick="salvarUrlPerfil()">💾 Salvar</button>
-                    <button class="btn btn-sm" onclick="window.open(document.getElementById('perfil-url-input').value,'_blank')" title="Abrir site">🔗</button>
-                </div>
-            </div>
-
-            <!-- Detalhes técnicos -->
-            <div id="perfil-detalhes" style="margin-bottom:12px"></div>
-
-            <!-- Screenshot -->
-            <div id="perfil-screenshot-container" style="display:none;margin-bottom:12px">
-                <div class="form-label" style="margin-bottom:6px">📸 Screenshot capturado</div>
-                <img id="perfil-screenshot" style="max-width:100%;border-radius:6px;border:1px solid var(--border)" alt="Screenshot do site">
-            </div>
-
-            <!-- Ações -->
-            <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--border)">
-                <button class="btn btn-primary btn-sm" onclick="redetectarPerfil()" id="btn-redetectar">
-                    🔄 Re-detectar Perfil
-                </button>
-                <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-perfil-diario')">Fechar</button>
-            </div>
+        <div class="sidebar-footer"><div class="user-chip"><div class="user-avatar" id="user-avatar">A</div><div><div class="user-name" id="user-name">Erico costa</div><div class="user-role" id="user-role">admin</div></div><button class="logout-btn" onclick="logout()" title="Sair"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 14H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h3M11 11l3-3-3-3M14 8H6"/></svg></button></div></div>
+    </nav>
+    <div class="main">
+        <div class="topbar"><span class="topbar-title">🤖 Monitoramento</span><span class="topbar-sep"></span><span class="topbar-sub" id="sched-status-top">carregando...</span><div class="topbar-right"><button class="btn btn-ghost btn-sm" onclick="openModal('modal-scheduler')">⚙️ Configurar Scheduler</button><button class="btn btn-primary btn-sm" onclick="executarAgora()" id="btn-exec">⚡ Executar Agora</button></div></div>
+        <div class="content">
+            <div class="page-tabs"><a href="/monitoramento" class="page-tab active">📡 Municípios Monitorados</a><a href="/monitoramento/alteracoes" class="page-tab">🚨 Alterações Detectadas</a><a href="/monitoramento/historico" class="page-tab">📰 Histórico de Execuções</a></div>
+            <div class="section-header"><div class="section-title">Municípios em Monitoramento</div><button class="btn btn-primary btn-sm" onclick="openModal('modal-add-municipio')">➕ Adicionar Município</button></div>
+            <div class="card" style="padding:0"><div class="scroll-list-tall"><table id="tabela-municipios"><thead><tr><th>Município</th><th>Estado</th><th>URL do Diário</th><th>Perfil Scraper</th><th>Última Busca</th><th>Ações</th></tr></thead><tbody id="tbody-municipios"><tr><td colspan="6" style="text-align:center;padding:30px"><span class="spinner" style="margin:0 auto"></span></td></tr></tbody></table></div></div>
         </div>
     </div>
 </div>
 
-<!-- MODAL: Data de início do monitoramento -->
-<div class="modal-overlay" id="modal-data-inicio">
-    <div class="modal modal-sm">
-        <div class="modal-title">
-            📅 Configurar Monitoramento
-            <button class="modal-close" onclick="closeModal('modal-data-inicio')">×</button>
-        </div>
-        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
-            A partir de qual data o robô deve buscar atualizações no diário oficial?
-        </p>
-        <div class="form-group">
-            <label>Data de início *</label>
-            <input type="date" id="data-inicio-input" class="form-control">
-            <small style="color:var(--text-muted)">Normalmente a data de publicação da lei.</small>
-        </div>
-        <div id="data-inicio-info" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div>
-        <div class="modal-footer">
-            <button class="btn btn-ghost" onclick="closeModal('modal-data-inicio')">Cancelar</button>
-            <button class="btn btn-primary" onclick="confirmarMonitoramento()" id="btn-confirmar-mon">
-                ✅ Ativar Monitoramento
-            </button>
-        </div>
-    </div>
-</div>
+<!-- MODAIS -->
+<div class="modal-overlay" id="modal-add-municipio"><div class="modal modal-md"><div class="modal-title">➕ Adicionar Município ao Monitoramento <button class="modal-close" onclick="closeModal('modal-add-municipio')">×</button></div><div class="form-row"><div class="form-group"><label>Nome do Município *</label><input type="text" id="m-nome" placeholder="Ex: Curitiba"></div><div class="form-group"><label>Estado *</label><select id="m-estado"><option value="">Selecione</option><option>AC</option><option>AL</option><option>AM</option><option>BA</option><option>CE</option><option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MG</option><option>MS</option><option>MT</option><option>PA</option><option>PB</option><option>PE</option><option>PI</option><option>PR</option><option>RJ</option><option>RN</option><option>RO</option><option>RR</option><option>RS</option><option>SC</option><option>SE</option><option>SP</option><option>TO</option></select></div></div><div class="form-group"><label>URL do Diário Oficial *</label><input type="url" id="m-url" placeholder="https://diariooficial.municipio.pr.gov.br"></div><div class="alert alert-info" style="font-size:12px;margin-top:4px">🤖 Ao adicionar, o sistema irá <strong>detectar automaticamente</strong> o tipo de site e aprender como navegar no diário oficial.</div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('modal-add-municipio')">Cancelar</button><button class="btn btn-primary" onclick="adicionarMunicipio()" id="btn-add-mun">Adicionar</button></div></div></div>
 
-{% endblock %}
+<div class="modal-overlay" id="modal-scheduler"><div class="modal modal-md"><div class="modal-title">⚙️ Configurar Scheduler <button class="modal-close" onclick="closeModal('modal-scheduler')">×</button></div><div id="sched-info" style="margin-bottom:16px"></div><div class="form-group"><label>Horário de Execução Diária</label><input type="time" id="sched-horario" value="02:00"></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px"><button class="btn btn-primary btn-sm" onclick="salvarScheduler()">💾 Salvar Horário</button><button class="btn btn-amber btn-sm" onclick="pausarScheduler()">⏸ Pausar</button><button class="btn btn-ghost btn-sm" onclick="retomarScheduler()">▶ Retomar</button></div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('modal-scheduler')">Fechar</button></div></div></div>
 
-{% block topbar %}
-<span class="topbar-title">🤖 Monitoramento</span>
-<span class="topbar-sep"></span>
-<span class="topbar-sub" id="sched-status-top">carregando...</span>
-<div class="topbar-right">
-    <button class="btn btn-ghost btn-sm" onclick="openModal('modal-scheduler')">⚙️ Configurar Scheduler</button>
-    <button class="btn btn-primary btn-sm" onclick="executarAgora()" id="btn-exec">⚡ Executar Agora</button>
-</div>
-{% endblock %}
+<div class="modal-overlay" id="modal-debug"><div class="modal modal-lg"><div class="modal-title">🔍 <span id="debug-titulo">Log de Execução</span> <button class="modal-close" onclick="closeModal('modal-debug')">×</button></div><div id="debug-loading" style="text-align:center;padding:30px"><span class="spinner" style="margin:0 auto"></span></div><div id="debug-content" style="display:none;padding:4px 0"></div></div></div>
 
-{% block content %}
-<div class="page-tabs">
-    <a href="/monitoramento" class="page-tab {% if active_page=='municipios-monitor' %}active{% endif %}">📡 Municípios Monitorados</a>
-    <a href="/monitoramento/alteracoes" class="page-tab {% if active_page=='alteracoes' %}active{% endif %}">🚨 Alterações Detectadas</a>
-    <a href="/monitoramento/historico" class="page-tab {% if active_page=='historico' %}active{% endif %}">📰 Histórico de Execuções</a>
-</div>
+<div class="modal-overlay" id="modal-perfil-diario"><div class="modal modal-lg"><div class="modal-title">🔎 Perfil do Diário Oficial — <span id="perfil-municipio-nome"></span> <button class="modal-close" onclick="closeModal('modal-perfil-diario')">×</button></div><div id="perfil-loading" style="text-align:center;padding:30px"><span class="spinner" style="margin:0 auto"></span></div><div id="perfil-content" style="display:none"><div id="perfil-status-badge" style="margin-bottom:16px"></div><div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px" id="perfil-stats"></div><div class="form-group" style="margin-bottom:12px"><label>URL do Diário Oficial</label><div style="display:flex;gap:8px"><input type="url" id="perfil-url-input" placeholder="https://..."><button class="btn btn-ghost btn-sm" onclick="salvarUrlPerfil()">💾 Salvar</button><button class="btn btn-sm" onclick="window.open(document.getElementById('perfil-url-input').value,'_blank')" title="Abrir site">🔗</button></div></div><div id="perfil-detalhes" style="margin-bottom:12px"></div><div id="perfil-screenshot-container" style="display:none;margin-bottom:12px"><div style="margin-bottom:6px;font-size:11px;color:var(--muted)">📸 Screenshot capturado</div><img id="perfil-screenshot" style="max-width:100%;border-radius:6px;border:1px solid var(--border)" alt="Screenshot"></div><div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--border)"><button class="btn btn-primary btn-sm" onclick="redetectarPerfil()" id="btn-redetectar">🔄 Re-detectar Perfil</button><button class="btn btn-ghost btn-sm" onclick="closeModal('modal-perfil-diario')">Fechar</button></div></div></div></div>
 
-{% if active_page == 'municipios-monitor' or not active_page %}
-<!-- ── Municípios ── -->
-<div class="section-header">
-    <div class="section-title">Municípios em Monitoramento</div>
-    <button class="btn btn-primary btn-sm" onclick="openModal('modal-add-municipio')">➕ Adicionar Município</button>
-</div>
-<div class="card" style="padding:0">
-    <div class="scroll-list-tall">
-        <table id="tabela-municipios">
-            <thead>
-                <tr><th>Município</th><th>Estado</th><th>URL do Diário</th><th>Perfil Scraper</th><th>Última Busca</th><th>Ações</th></tr>
-            </thead>
-            <tbody id="tbody-municipios">
-                <tr><td colspan="6" style="text-align:center;padding:30px"><span class="spinner" style="margin:0 auto"></span></td></tr>
-            </tbody>
-        </table>
-    </div>
-</div>
-{% endif %}
+<div class="modal-overlay" id="modal-data-inicio"><div class="modal modal-sm"><div class="modal-title">📅 Configurar Monitoramento <button class="modal-close" onclick="closeModal('modal-data-inicio')">×</button></div><p style="font-size:13px;color:var(--muted);margin-bottom:16px">A partir de qual data o robô deve buscar atualizações no diário oficial?</p><div class="form-group"><label>Data de início *</label><input type="date" id="data-inicio-input"><small style="color:var(--muted)">Normalmente a data de publicação da lei.</small></div><div id="data-inicio-info" style="font-size:12px;color:var(--muted);margin-top:8px"></div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('modal-data-inicio')">Cancelar</button><button class="btn btn-primary" onclick="confirmarMonitoramento()" id="btn-confirmar-mon">✅ Ativar Monitoramento</button></div></div></div>
 
-{% if active_page == 'alteracoes' %}
-<!-- ── Alterações ── -->
-<div class="card" style="padding:0">
-    <div class="scroll-list-tall">
-        <table id="tabela-alteracoes">
-            <thead>
-                <tr><th>Município</th><th>Legislação</th><th>Tipo Alteração</th><th>Descrição</th><th>Detectada em</th><th>Status</th></tr>
-            </thead>
-            <tbody id="tbody-alteracoes">
-                <tr><td colspan="6" style="text-align:center;padding:30px"><span class="spinner" style="margin:0 auto"></span></td></tr>
-            </tbody>
-        </table>
-    </div>
-</div>
-{% endif %}
+<div id="toast-container"></div>
 
-{% if active_page == 'historico' %}
-<!-- ── Histórico ── -->
-<div class="card" style="padding:0">
-    <div class="scroll-list-tall">
-        <table id="tabela-historico">
-            <thead>
-                <tr><th>Iniciada em</th><th>Duração</th><th>Status</th><th>Processados</th><th>OK</th><th>Erros</th><th>Alterações</th><th>Debug</th></tr>
-            </thead>
-            <tbody id="tbody-historico">
-                <tr><td colspan="7" style="text-align:center;padding:30px"><span class="spinner" style="margin:0 auto"></span></td></tr>
-            </tbody>
-        </table>
-    </div>
-</div>
-{% endif %}
-
-<!-- MODAL: Adicionar Município -->
-<div class="modal-overlay" id="modal-add-municipio">
-    <div class="modal modal-md">
-        <div class="modal-title">
-            ➕ Adicionar Município ao Monitoramento
-            <button class="modal-close" onclick="closeModal('modal-add-municipio')">×</button>
-        </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label>Nome do Município *</label>
-                <input type="text" id="m-nome" placeholder="Ex: Curitiba">
-            </div>
-            <div class="form-group">
-                <label>Estado *</label>
-                <select id="m-estado">
-                    <option value="">Selecione</option>
-                    <option>AC</option><option>AL</option><option>AM</option><option>BA</option><option>CE</option>
-                    <option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MG</option>
-                    <option>MS</option><option>MT</option><option>PA</option><option>PB</option><option>PE</option>
-                    <option>PI</option><option>PR</option><option>RJ</option><option>RN</option><option>RO</option>
-                    <option>RR</option><option>RS</option><option>SC</option><option>SE</option><option>SP</option>
-                    <option>TO</option>
-                </select>
-            </div>
-        </div>
-        <div class="form-group">
-            <label>URL do Diário Oficial *</label>
-            <input type="url" id="m-url" placeholder="https://diariooficial.municipio.pr.gov.br">
-        </div>
-        <div class="alert alert-info" style="font-size:12px;margin-top:4px">
-            🤖 Ao adicionar, o sistema irá <strong>detectar automaticamente</strong> o tipo de site e
-            aprender como navegar no diário oficial. Se não informar a URL, a IA tentará encontrá-la.
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-ghost" onclick="closeModal('modal-add-municipio')">Cancelar</button>
-            <button class="btn btn-primary" onclick="adicionarMunicipio()" id="btn-add-mun">Adicionar</button>
-        </div>
-    </div>
-</div>
-
-<!-- MODAL: Configurar Scheduler -->
-<div class="modal-overlay" id="modal-scheduler">
-    <div class="modal modal-md">
-        <div class="modal-title">
-            ⚙️ Configurar Scheduler
-            <button class="modal-close" onclick="closeModal('modal-scheduler')">×</button>
-        </div>
-        <div id="sched-info" style="margin-bottom:16px"></div>
-        <div class="form-group">
-            <label>Horário de Execução Diária</label>
-            <input type="time" id="sched-horario" value="02:00">
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-            <button class="btn btn-primary btn-sm" onclick="salvarScheduler()">💾 Salvar Horário</button>
-            <button class="btn btn-amber btn-sm" onclick="pausarScheduler()">⏸ Pausar</button>
-            <button class="btn btn-ghost btn-sm" onclick="retomarScheduler()">▶ Retomar</button>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-ghost" onclick="closeModal('modal-scheduler')">Fechar</button>
-        </div>
-    </div>
-</div>
-{% endblock %}
-
-{% block scripts %}
 <script>
-async function carregarMunicipios() {
-    const r = await api('GET', '/api/monitor/municipios');
-    const tbody = document.getElementById('tbody-municipios');
-    if (!tbody) return;
-    if (!r.success || !r.data.length) {
-        tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📡</div><div class="empty-title">Nenhum município monitorado</div><div class="empty-sub">Adicione municípios para monitorar seus diários oficiais</div></div></td></tr>`;
-        return;
-    }
-    tbody.innerHTML = r.data.map(m => {
-        // Badge de perfil do scraper
-        const perfilMap = {
-            ok:           '<span class="badge badge-green">✓ Configurado</span>',
-            falhou:       '<span class="badge badge-red">✗ Falhou</span>',
-            captcha:      '<span class="badge badge-amber">⚠ CAPTCHA</span>',
-            login:        '<span class="badge badge-amber">⚠ Login</span>',
-            pendente:     '<span class="badge badge-blue">⟳ Detectando</span>',
-            nao_detectado:'<span class="badge badge-muted">Não detectado</span>',
-        };
-        const perfilStatus = m.tipo_site || 'nao_detectado';
-        const badgePerfil  = perfilMap[perfilStatus] || `<span class="badge badge-muted">${perfilStatus}</span>`;
-        const urlLabel     = m.url_diario ? `<a href="${m.url_diario}" target="_blank" style="color:var(--blue);font-size:11px">${m.url_diario.substring(0,35)}…</a>` : '<span style="color:var(--text-muted);font-size:11px">Não configurada</span>';
-        return `<tr>
-            <td class="fw-bold">${m.nome}</td>
-            <td>${m.estado||'—'}</td>
-            <td>${urlLabel}</td>
-            <td>
-                ${badgePerfil}
-                <button class="btn btn-xs btn-ghost" onclick="verPerfil(${m.id},'${m.nome.replace(/'/g,"\'")}')" title="Ver/editar perfil">🔎</button>
-            </td>
-            <td style="font-size:11px;font-family:var(--font-mono)">${fmtData(m.ultimo_monitoramento)||'Nunca'}</td>
-            <td>
-                <div style="display:flex;gap:4px">
-                    <button class="btn btn-ghost btn-xs" onclick="verPerfil(${m.id},'${m.nome.replace(/'/g,"\'")}')" title="Perfil do scraper">⚙️</button>
-                    <button class="btn btn-danger btn-xs" onclick="removerMunicipio(${m.id},'${m.nome}')">🗑</button>
-                </div>
-            </td>
-        </tr>`;
-    }).join('');
-}
-
-// ─── Perfil do Diário Oficial ──────────────────────────────────────────────
-let _perfilAtualMid = null;
-
-async function verPerfil(mid, nome) {
-    _perfilAtualMid = mid;
-    document.getElementById('perfil-municipio-nome').textContent = nome;
-    document.getElementById('perfil-loading').style.display = 'block';
-    document.getElementById('perfil-content').style.display  = 'none';
-    openModal('modal-perfil-diario');
-
-    const r = await api('GET', `/api/monitor/municipios/${mid}/perfil`);
-    document.getElementById('perfil-loading').style.display = 'none';
-    document.getElementById('perfil-content').style.display = 'block';
-
-    const d = r.data || {};
-    const statusMap = {
-        ok:      {badge:'<span class="badge badge-green">✓ Perfil configurado</span>', desc:'Scraper pronto para operar.'},
-        falhou:  {badge:'<span class="badge badge-red">✗ Falhou</span>', desc:'Não foi possível detectar o padrão do site.'},
-        captcha: {badge:'<span class="badge badge-amber">⚠ CAPTCHA detectado</span>', desc:'Site possui CAPTCHA. Monitoramento automático limitado.'},
-        login:   {badge:'<span class="badge badge-amber">⚠ Login necessário</span>', desc:'Site requer autenticação.'},
-        pendente:{badge:'<span class="badge badge-blue">⟳ Detectando…</span>', desc:'Detecção em andamento.'},
-    };
-    const sm = statusMap[d.status_deteccao] || {badge:'<span class="badge badge-muted">Não detectado</span>', desc:'Clique em Re-detectar para iniciar.'};
-
-    document.getElementById('perfil-status-badge').innerHTML = `
-        <div style="padding:10px 14px;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border)">
-            ${sm.badge} <span style="font-size:12px;color:var(--text-muted);margin-left:8px">${sm.desc}</span>
-            ${d.erro_deteccao ? `<div style="font-size:11px;color:var(--red);margin-top:4px">${d.erro_deteccao}</div>` : ''}
-        </div>`;
-
-    const pj = d.perfil_json || {};
-    document.getElementById('perfil-stats').innerHTML = [
-        {label:'Plataforma',  val: d.plataforma || pj.plataforma_identificada || '—'},
-        {label:'JavaScript',  val: d.requer_playwright ? '✓ Necessário' : '✗ Não necessário'},
-        {label:'Login',       val: d.requer_login ? '⚠ Sim' : '✓ Não'},
-        {label:'CAPTCHA',     val: d.requer_captcha ? '⚠ Sim' : '✓ Não'},
-        {label:'Detectado em',val: fmtData(d.detectado_em) || '—'},
-        {label:'Última busca',val: fmtData(d.ultima_execucao_ok) || 'Nunca'},
-    ].map(s => `<div class="stat-mini"><div style="font-size:13px">${s.val}</div><div>${s.label}</div></div>`).join('');
-
-    document.getElementById('perfil-url-input').value = d.url_diario || d.url_base || '';
-
-    // Detalhes técnicos do perfil JSON
-    if (pj && Object.keys(pj).length > 1) {
-        const linhas = [
-            pj.url_busca        && `<tr><td>URL de busca</td><td><code>${pj.url_busca}</code></td></tr>`,
-            pj.formato_data     && `<tr><td>Formato de data</td><td><code>${pj.formato_data}</code></td></tr>`,
-            pj.metodo_busca     && `<tr><td>Método</td><td>${pj.metodo_busca}</td></tr>`,
-            pj.parametro_data_inicio && `<tr><td>Parâmetro data início</td><td><code>${pj.parametro_data_inicio}</code></td></tr>`,
-            pj.parametro_data_fim    && `<tr><td>Parâmetro data fim</td><td><code>${pj.parametro_data_fim}</code></td></tr>`,
-            pj.seletor_lista_resultados && `<tr><td>Seletor resultados</td><td><code>${pj.seletor_lista_resultados}</code></td></tr>`,
-            pj.observacoes      && `<tr><td>Observações</td><td>${pj.observacoes}</td></tr>`,
-        ].filter(Boolean).join('');
-        document.getElementById('perfil-detalhes').innerHTML = linhas ? `
-            <div class="form-label" style="margin-bottom:6px">🔧 Detalhes Técnicos</div>
-            <table style="width:100%;font-size:12px;border-collapse:collapse">
-                <colgroup><col style="width:160px"><col></colgroup>
-                ${linhas}
-            </table>` : '';
-    }
-
-    // Screenshot
-    if (d.screenshot_b64) {
-        document.getElementById('perfil-screenshot-container').style.display = 'block';
-        document.getElementById('perfil-screenshot').src = `data:image/png;base64,${d.screenshot_b64}`;
-    } else {
-        document.getElementById('perfil-screenshot-container').style.display = 'none';
-    }
-}
-
-async function redetectarPerfil() {
-    if (!_perfilAtualMid) return;
-    const btn = document.getElementById('btn-redetectar');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Detectando…';
-    const r = await api('POST', `/api/monitor/municipios/${_perfilAtualMid}/detectar`, {forcar:true});
-    btn.disabled = false;
-    btn.innerHTML = '🔄 Re-detectar Perfil';
-    toast(r.message || (r.success ? 'Detecção iniciada!' : 'Erro'), r.success ? 'success' : 'error');
-    if (r.success) {
-        // Recarregar após 5s (tempo para detecção rodar)
-        setTimeout(() => { verPerfil(_perfilAtualMid, document.getElementById('perfil-municipio-nome').textContent); carregarMunicipios(); }, 8000);
-    }
-}
-
-async function salvarUrlPerfil() {
-    if (!_perfilAtualMid) return;
-    const url = document.getElementById('perfil-url-input').value.trim();
-    if (!url) { toast('Informe uma URL', 'error'); return; }
-    const r = await api('POST', `/api/monitor/municipios/${_perfilAtualMid}/url`, {url});
-    toast(r.message || (r.success ? 'URL salva!' : 'Erro'), r.success ? 'success' : 'error');
-    if (r.success) setTimeout(() => verPerfil(_perfilAtualMid, document.getElementById('perfil-municipio-nome').textContent), 8000);
-}
-
-// ─── Data de início do monitoramento ──────────────────────────────────────
-let _monitorLegId = null;
-
-function abrirDataInicio(legId) {
-    _monitorLegId = legId;
-    // Sugerir data de hoje como padrão
-    document.getElementById('data-inicio-input').value = new Date().toISOString().slice(0,10);
-    document.getElementById('data-inicio-info').textContent = '';
-    openModal('modal-data-inicio');
-}
-
-async function confirmarMonitoramento() {
-    if (!_monitorLegId) return;
-    const dataInicio = document.getElementById('data-inicio-input').value;
-    if (!dataInicio) { toast('Informe a data de início', 'error'); return; }
-    const btn = document.getElementById('btn-confirmar-mon');
-    btn.disabled = true;
-    const r = await api('POST', `/api/legislacoes/${_monitorLegId}/monitoramento`, {
-        ativar: true,
-        data_inicio_monitoramento: dataInicio
-    });
-    btn.disabled = false;
-    if (r.success) {
-        toast('Monitoramento ativado!');
-        closeModal('modal-data-inicio');
-    } else {
-        toast(r.error || 'Erro ao ativar', 'error');
-    }
-}
-
-async function carregarAlteracoes() {
-    const r = await api('GET', '/api/monitor/alteracoes');
-    const tbody = document.getElementById('tbody-alteracoes');
-    if (!tbody) return;
-    if (!r.success || !r.data.length) {
-        tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🚨</div><div class="empty-title">Nenhuma alteração detectada ainda</div></div></td></tr>`;
-        return;
-    }
-    tbody.innerHTML = r.data.map(a => `
-        <tr>
-            <td>${a.municipio||'—'}</td>
-            <td style="font-size:11px">${a.legislacao_titulo||'—'}</td>
-            <td><span class="badge badge-amber">${a.tipo_alteracao||'—'}</span></td>
-            <td style="font-size:12px;max-width:250px">${(a.descricao||'—').substring(0,100)}</td>
-            <td style="font-size:11px;font-family:var(--font-mono)">${fmtData(a.data_deteccao)}</td>
-            <td>${a.aprovado?'<span class="badge badge-green">Aprovada</span>':'<span class="badge badge-amber">Pendente</span>'}</td>
-        </tr>
-    `).join('');
-}
-
-async function carregarHistorico() {
-    const r = await api('GET', '/api/monitor/historico');
-    const tbody = document.getElementById('tbody-historico');
-    if (!tbody) return;
-    if (!r.success || !r.data.length) {
-        tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📰</div><div class="empty-title">Nenhuma execução registrada</div></div></td></tr>`;
-        return;
-    }
-    tbody.innerHTML = r.data.map(h => {
-        const saudeMap = {
-            concluido: '<span class="badge badge-green">✓ OK</span>',
-            rodando:   '<span class="badge badge-blue">⟳ Rodando</span>',
-            erro:      '<span class="badge badge-red">✗ Erro</span>',
-        };
-        const badgeStatus = saudeMap[h.status] || `<span class="badge badge-amber">${h.status}</span>`;
-        const emailIcon = h.email_enviado ? '<span title="E-mail enviado" style="margin-left:4px">📧</span>' : '';
-        let duracao = '—';
-        if (h.iniciada_em && h.finalizada_em) {
-            const seg = Math.round((new Date(h.finalizada_em) - new Date(h.iniciada_em)) / 1000);
-            duracao = seg < 60 ? `${seg}s` : `${Math.floor(seg/60)}m${seg%60}s`;
-        }
-        return `<tr>
-            <td style="font-family:var(--font-mono);font-size:11px">${fmtData(h.iniciada_em)}</td>
-            <td style="font-size:11px">${duracao}</td>
-            <td>${badgeStatus}${emailIcon}</td>
-            <td class="num-cell">${h.municipios_processados??0}</td>
-            <td class="num-cell">${h.municipios_ok??0}</td>
-            <td class="num-cell ${h.municipios_erro>0?'text-red':''}">${h.municipios_erro??0}</td>
-            <td class="num-cell">${h.alteracoes_detectadas??0}</td>
-            <td><button class="btn btn-sm btn-ghost" onclick="verDebug(${h.id})" title="Ver log detalhado">🔍</button></td>
-        </tr>`;
-    }).join('');
-}
-
-async function verDebug(execId) {
-    document.getElementById('debug-loading').style.display = 'block';
-    document.getElementById('debug-content').style.display = 'none';
-    openModal('modal-debug');
-    const r = await api('GET', `/api/monitor/historico/${execId}`);
-    document.getElementById('debug-loading').style.display = 'none';
-    document.getElementById('debug-content').style.display = 'block';
-    if (!r.success) {
-        document.getElementById('debug-content').innerHTML = '<p class="text-red">Erro ao carregar log.</p>';
-        return;
-    }
-    const h = r.data;
-    const saudeMap = { concluido:'✅ Concluído', rodando:'⟳ Rodando', erro:'❌ Erro' };
-    const seg = (h.iniciada_em && h.finalizada_em)
-        ? Math.round((new Date(h.finalizada_em) - new Date(h.iniciada_em)) / 1000) : null;
-    const durStr = seg ? (seg < 60 ? `${seg}s` : `${Math.floor(seg/60)}m${seg%60}s`) : '—';
-    document.getElementById('debug-titulo').textContent = `Execução #${h.id} — ${fmtData(h.iniciada_em)}`;
-    document.getElementById('debug-content').innerHTML = `
-        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
-            <div class="stat-mini"><div>${saudeMap[h.status]||h.status}</div><div>Status</div></div>
-            <div class="stat-mini"><div>${h.municipios_processados??0}</div><div>Processados</div></div>
-            <div class="stat-mini"><div>${h.municipios_ok??0}</div><div>OK</div></div>
-            <div class="stat-mini ${h.municipios_erro>0?'stat-red':''}"><div>${h.municipios_erro??0}</div><div>Com erro</div></div>
-            <div class="stat-mini"><div>${h.alteracoes_detectadas??0}</div><div>Alterações</div></div>
-            <div class="stat-mini"><div>${durStr}</div><div>Duração</div></div>
-        </div>
-        ${h.log ? `<div style="margin-bottom:12px"><div class="form-label" style="margin-bottom:6px">📋 Resumo</div><pre class="log-box">${h.log}</pre></div>` : ''}
-        ${h.log_erros ? `<div><div class="form-label" style="margin-bottom:6px;color:var(--red)">🔍 Log de Erros (Debug)</div><pre class="log-box log-box-error">${h.log_erros}</pre></div>` : '<div class="badge badge-green" style="display:inline-block;margin-top:8px">✓ Nenhum erro registrado</div>'}
-        <div style="margin-top:12px;font-size:11px;color:var(--text-muted)">
-            Disparado por: ${h.usuario_nome||'Sistema (agendado)'} &nbsp;·&nbsp; E-mail: ${h.email_enviado?'✓ Enviado':'Não enviado'}
-        </div>`;
-}
-
-
-async function carregarSchedulerInfo() {
-    const r = await api('GET', '/api/monitor/scheduler');
-    if (!r.success) return;
-    const s = r.data;
-    const status = s.status || 'ativo';
-    const mapa = { ativo: '🟢 Ativo', pausado: '🟡 Pausado', executando: '🔵 Executando', erro: '🔴 Erro' };
-    document.getElementById('sched-status-top').textContent = mapa[status] || status;
-    const el = document.getElementById('sched-info');
-    if (el) {
-        el.innerHTML = `
-            <div class="alert ${status==='ativo'?'alert-success':'alert-warning'}">
-                <span>${mapa[status]||status}</span>
-                <span>Horário: ${s.horario_execucao||'02:00'} · Última: ${fmtData(s.ultima_execucao)||'Nunca'}</span>
-            </div>
-        `;
-        document.getElementById('sched-horario').value = s.horario_execucao || '02:00';
-    }
-}
-
-async function adicionarMunicipio() {
-    const nome = document.getElementById('m-nome').value.trim();
-    const estado = document.getElementById('m-estado').value;
-    const url = document.getElementById('m-url').value.trim();
-    if (!nome || !estado || !url) { toast('Preencha todos os campos obrigatórios', 'error'); return; }
-    const btn = document.getElementById('btn-add-mun');
-    btn.disabled = true;
-    const r = await api('POST', '/api/monitor/municipios', { nome, estado, url_diario: url });
-    btn.disabled = false;
-    if (r.success) { toast('Município adicionado!'); closeModal('modal-add-municipio'); carregarMunicipios(); }
-    else toast(r.error||'Erro','error');
-}
-
-async function removerMunicipio(id, nome) {
-    if (!confirm(`Remover "${nome}" do monitoramento?`)) return;
-    const r = await api('DELETE', `/api/monitor/municipios/${id}`);
-    if (r.success) { toast('Removido do monitoramento', 'warning'); carregarMunicipios(); }
-    else toast(r.error||'Erro','error');
-}
-
-async function executarAgora() {
-    const btn = document.getElementById('btn-exec');
-    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Executando...';
-    const r = await api('POST', '/api/monitor/executar');
-    btn.disabled = false; btn.innerHTML = '⚡ Executar Agora';
-    toast(r.success ? 'Execução iniciada! Verifique o histórico em alguns minutos.' : (r.error||'Erro'), r.success?'success':'error');
-}
-
-async function salvarScheduler() {
-    const horario = document.getElementById('sched-horario').value;
-    const r = await api('POST', '/api/monitor/scheduler', { horario });
-    if (r.success) { toast('Horário salvo!'); carregarSchedulerInfo(); }
-    else toast(r.error||'Erro','error');
-}
-
-async function pausarScheduler() {
-    const r = await api('POST', '/api/monitor/scheduler', { acao: 'pausar' });
-    if (r.success) { toast('Scheduler pausado','warning'); carregarSchedulerInfo(); }
-    else toast(r.error||'Erro','error');
-}
-
-async function retomarScheduler() {
-    const r = await api('POST', '/api/monitor/scheduler', { acao: 'retomar' });
-    if (r.success) { toast('Scheduler retomado'); carregarSchedulerInfo(); }
-    else toast(r.error||'Erro','error');
-}
-
-// Init
-carregarSchedulerInfo();
-carregarMunicipios();
-carregarAlteracoes();
-carregarHistorico();
+function toggleGroup(id){document.getElementById(id).classList.toggle('open')}
+function toast(msg,type='success',duration=4000){const c=document.getElementById('toast-container');const el=document.createElement('div');el.className='toast '+type;const icons={success:'✓',error:'✗',warning:'⚠',info:'ℹ'};el.innerHTML='<span>'+(icons[type]||'•')+'</span><span>'+msg+'</span>';c.appendChild(el);setTimeout(function(){el.remove()},duration)}
+async function api(method,url,body){try{var opts={method:method,headers:{'Content-Type':'application/json'}};if(body)opts.body=JSON.stringify(body);var r=await fetch(url,opts);return await r.json()}catch(e){return{success:false,error:String(e)}}}
+function logout(){api('POST','/api/auth/logout').then(function(){location.href='/login'})}
+var nm=document.getElementById('user-name'),av=document.getElementById('user-avatar');if(nm&&av&&nm.textContent.trim())av.textContent=nm.textContent.trim()[0].toUpperCase();
+function openModal(id){document.getElementById(id).classList.add('open')}
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+document.addEventListener('click',function(e){if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('open')});
+function setBadge(ids,n){ids.forEach(function(id){var el=document.getElementById(id);if(!el)return;el.textContent=n;el.classList.toggle('hidden',n===0)})}
+async function atualizarBadges(){try{var r=await fetch('/api/badges');if(!r.ok)return;var d=await r.json();setBadge(['badge-leg-pendentes','badge-leg-sub'],d.leg_pendentes||0);setBadge(['badge-param-pendentes','badge-param-sub'],d.param_pendentes||0);setBadge(['badge-integ','badge-integ-sub'],d.integ_pendentes||0);setBadge(['badge-users','badge-users-sub'],d.users_pendentes||0);var total=(d.leg_pendentes||0)+(d.param_pendentes||0)+(d.integ_pendentes||0)+(d.users_pendentes||0);document.title=total>0?'('+total+') UrbanLex':'UrbanLex'}catch(e){}}
+atualizarBadges();setInterval(atualizarBadges,30000);
+function fmtData(d){if(!d)return'—';try{return new Date(d).toLocaleDateString('pt-BR')}catch(e){return d}}
 </script>
-{% endblock %}
+<script>
+async function carregarMunicipios(){
+    var r=await api('GET','/api/monitor/municipios');
+    var tbody=document.getElementById('tbody-municipios');if(!tbody)return;
+    if(!r.success||!r.data||!r.data.length){tbody.innerHTML='<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📡</div><div class="empty-title">Nenhum município monitorado</div><div class="empty-sub">Adicione municípios para monitorar seus diários oficiais</div></div></td></tr>';return}
+    tbody.innerHTML=r.data.map(function(m){
+        var perfilMap={ok:'<span class="badge badge-green">✓ Configurado</span>',falhou:'<span class="badge badge-red">✗ Falhou</span>',captcha:'<span class="badge badge-amber">⚠ CAPTCHA</span>',login:'<span class="badge badge-amber">⚠ Login</span>',pendente:'<span class="badge badge-blue">⟳ Detectando</span>',nao_detectado:'<span class="badge badge-muted">Não detectado</span>'};
+        var ps=m.tipo_site||'nao_detectado';var bp=perfilMap[ps]||('<span class="badge badge-muted">'+ps+'</span>');
+        var ul=m.url_diario?'<a href="'+m.url_diario+'" target="_blank" style="color:var(--blue);font-size:11px">'+m.url_diario.substring(0,35)+'…</a>':'<span style="color:var(--muted);font-size:11px">Não configurada</span>';
+        var ne=m.nome.replace(/'/g,"&#39;");
+        return '<tr><td class="fw-bold">'+m.nome+'</td><td>'+(m.estado||'—')+'</td><td>'+ul+'</td><td>'+bp+' <button class="btn btn-xs btn-ghost" onclick="verPerfil('+m.id+',\''+ne+'\')" title="Ver perfil">🔎</button></td><td style="font-size:11px;font-family:var(--font-mono)">'+(fmtData(m.ultimo_monitoramento)||'Nunca')+'</td><td><div style="display:flex;gap:4px"><button class="btn btn-ghost btn-xs" onclick="verPerfil('+m.id+',\''+ne+'\')" title="Perfil">⚙️</button><button class="btn btn-danger btn-xs" onclick="removerMunicipio('+m.id+',\''+ne+'\')">🗑</button></div></td></tr>';
+    }).join('');
+}
+
+var _perfilAtualMid=null;
+async function verPerfil(mid,nome){
+    _perfilAtualMid=mid;
+    document.getElementById('perfil-municipio-nome').textContent=nome;
+    document.getElementById('perfil-loading').style.display='block';
+    document.getElementById('perfil-content').style.display='none';
+    openModal('modal-perfil-diario');
+    var r=await api('GET','/api/monitor/municipios/'+mid+'/perfil');
+    document.getElementById('perfil-loading').style.display='none';
+    document.getElementById('perfil-content').style.display='block';
+    var d=r.data||{};
+    var statusMap={ok:{badge:'<span class="badge badge-green">✓ Perfil configurado</span>',desc:'Scraper pronto para operar.'},falhou:{badge:'<span class="badge badge-red">✗ Falhou</span>',desc:'Não foi possível detectar o padrão do site.'},captcha:{badge:'<span class="badge badge-amber">⚠ CAPTCHA detectado</span>',desc:'Site possui CAPTCHA.'},login:{badge:'<span class="badge badge-amber">⚠ Login necessário</span>',desc:'Site requer autenticação.'},pendente:{badge:'<span class="badge badge-blue">⟳ Detectando…</span>',desc:'Detecção em andamento.'}};
+    var sm=statusMap[d.status_deteccao]||{badge:'<span class="badge badge-muted">Não detectado</span>',desc:'Clique em Re-detectar para iniciar.'};
+    document.getElementById('perfil-status-badge').innerHTML='<div style="padding:10px 14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">'+sm.badge+' <span style="font-size:12px;color:var(--muted);margin-left:8px">'+sm.desc+'</span>'+(d.erro_deteccao?'<div style="font-size:11px;color:var(--red);margin-top:4px">'+d.erro_deteccao+'</div>':'')+'</div>';
+    var pj=d.perfil_json||{};
+    document.getElementById('perfil-stats').innerHTML=[{label:'Plataforma',val:d.plataforma||pj.plataforma_identificada||'—'},{label:'JavaScript',val:d.requer_playwright?'✓ Necessário':'✗ Não necessário'},{label:'Login',val:d.requer_login?'⚠ Sim':'✓ Não'},{label:'CAPTCHA',val:d.requer_captcha?'⚠ Sim':'✓ Não'},{label:'Detectado em',val:fmtData(d.detectado_em)||'—'},{label:'Última busca',val:fmtData(d.ultima_execucao_ok)||'Nunca'}].map(function(s){return'<div class="stat-mini"><div style="font-size:13px">'+s.val+'</div><div>'+s.label+'</div></div>'}).join('');
+    document.getElementById('perfil-url-input').value=d.url_diario||d.url_base||'';
+    if(pj&&Object.keys(pj).length>1){var linhas=[pj.url_busca?'<tr><td>URL de busca</td><td><code>'+pj.url_busca+'</code></td></tr>':'',pj.formato_data?'<tr><td>Formato data</td><td><code>'+pj.formato_data+'</code></td></tr>':'',pj.metodo_busca?'<tr><td>Método</td><td>'+pj.metodo_busca+'</td></tr>':''].filter(Boolean).join('');document.getElementById('perfil-detalhes').innerHTML=linhas?'<div style="margin-bottom:6px;font-size:11px;color:var(--muted)">🔧 Detalhes Técnicos</div><table style="width:100%;font-size:12px"><colgroup><col style="width:160px"><col></colgroup>'+linhas+'</table>':''}
+    if(d.screenshot_b64){document.getElementById('perfil-screenshot-container').style.display='block';document.getElementById('perfil-screenshot').src='data:image/png;base64,'+d.screenshot_b64}else{document.getElementById('perfil-screenshot-container').style.display='none'}
+}
+async function redetectarPerfil(){if(!_perfilAtualMid)return;var btn=document.getElementById('btn-redetectar');btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Detectando…';var r=await api('POST','/api/monitor/municipios/'+_perfilAtualMid+'/detectar',{forcar:true});btn.disabled=false;btn.innerHTML='🔄 Re-detectar Perfil';toast(r.message||(r.success?'Detecção iniciada!':'Erro'),r.success?'success':'error');if(r.success)setTimeout(function(){verPerfil(_perfilAtualMid,document.getElementById('perfil-municipio-nome').textContent);carregarMunicipios()},8000)}
+async function salvarUrlPerfil(){if(!_perfilAtualMid)return;var url=document.getElementById('perfil-url-input').value.trim();if(!url){toast('Informe uma URL','error');return}var r=await api('POST','/api/monitor/municipios/'+_perfilAtualMid+'/url',{url:url});toast(r.message||(r.success?'URL salva!':'Erro'),r.success?'success':'error');if(r.success)setTimeout(function(){verPerfil(_perfilAtualMid,document.getElementById('perfil-municipio-nome').textContent)},8000)}
+
+var _monitorLegId=null;
+function abrirDataInicio(legId){_monitorLegId=legId;document.getElementById('data-inicio-input').value=new Date().toISOString().slice(0,10);document.getElementById('data-inicio-info').textContent='';openModal('modal-data-inicio')}
+async function confirmarMonitoramento(){if(!_monitorLegId)return;var dataInicio=document.getElementById('data-inicio-input').value;if(!dataInicio){toast('Informe a data de início','error');return}var btn=document.getElementById('btn-confirmar-mon');btn.disabled=true;var r=await api('POST','/api/legislacoes/'+_monitorLegId+'/monitoramento',{ativar:true,data_inicio_monitoramento:dataInicio});btn.disabled=false;if(r.success){toast('Monitoramento ativado!');closeModal('modal-data-inicio')}else toast(r.error||'Erro ao ativar','error')}
+
+async function carregarAlteracoes(){var r=await api('GET','/api/monitor/alteracoes');var tbody=document.getElementById('tbody-alteracoes');if(!tbody)return;if(!r.success||!r.data||!r.data.length){tbody.innerHTML='<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🚨</div><div class="empty-title">Nenhuma alteração detectada ainda</div></div></td></tr>';return}tbody.innerHTML=r.data.map(function(a){return'<tr><td>'+(a.municipio||'—')+'</td><td style="font-size:11px">'+(a.legislacao_titulo||'—')+'</td><td><span class="badge badge-amber">'+(a.tipo_alteracao||'—')+'</span></td><td style="font-size:12px;max-width:250px">'+(a.descricao||'—').substring(0,100)+'</td><td style="font-size:11px;font-family:var(--font-mono)">'+fmtData(a.data_deteccao)+'</td><td>'+(a.aprovado?'<span class="badge badge-green">Aprovada</span>':'<span class="badge badge-amber">Pendente</span>')+'</td></tr>'}).join('')}
+
+async function carregarHistorico(){var r=await api('GET','/api/monitor/historico');var tbody=document.getElementById('tbody-historico');if(!tbody)return;if(!r.success||!r.data||!r.data.length){tbody.innerHTML='<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📰</div><div class="empty-title">Nenhuma execução registrada</div></div></td></tr>';return}tbody.innerHTML=r.data.map(function(h){var saudeMap={concluido:'<span class="badge badge-green">✓ OK</span>',rodando:'<span class="badge badge-blue">⟳ Rodando</span>',erro:'<span class="badge badge-red">✗ Erro</span>'};var bs=saudeMap[h.status]||('<span class="badge badge-amber">'+h.status+'</span>');var ei=h.email_enviado?'<span title="E-mail enviado" style="margin-left:4px">📧</span>':'';var dur='—';if(h.iniciada_em&&h.finalizada_em){var seg=Math.round((new Date(h.finalizada_em)-new Date(h.iniciada_em))/1000);dur=seg<60?seg+'s':Math.floor(seg/60)+'m'+seg%60+'s'}return'<tr><td style="font-family:var(--font-mono);font-size:11px">'+fmtData(h.iniciada_em)+'</td><td style="font-size:11px">'+dur+'</td><td>'+bs+ei+'</td><td>'+(h.municipios_processados||0)+'</td><td>'+(h.municipios_ok||0)+'</td><td class="'+(h.municipios_erro>0?'text-red':'')+'">'+(h.municipios_erro||0)+'</td><td>'+(h.alteracoes_detectadas||0)+'</td><td><button class="btn btn-sm btn-ghost" onclick="verDebug('+h.id+')" title="Ver log">🔍</button></td></tr>'}).join('')}
+
+async function verDebug(execId){document.getElementById('debug-loading').style.display='block';document.getElementById('debug-content').style.display='none';openModal('modal-debug');var r=await api('GET','/api/monitor/historico/'+execId);document.getElementById('debug-loading').style.display='none';document.getElementById('debug-content').style.display='block';if(!r.success){document.getElementById('debug-content').innerHTML='<p class="text-red">Erro ao carregar log.</p>';return}var h=r.data;var saudeMap={concluido:'✅ Concluído',rodando:'⟳ Rodando',erro:'❌ Erro'};var seg=(h.iniciada_em&&h.finalizada_em)?Math.round((new Date(h.finalizada_em)-new Date(h.iniciada_em))/1000):null;var durStr=seg?(seg<60?seg+'s':Math.floor(seg/60)+'m'+seg%60+'s'):'—';document.getElementById('debug-titulo').textContent='Execução #'+h.id+' — '+fmtData(h.iniciada_em);document.getElementById('debug-content').innerHTML='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px"><div class="stat-mini"><div>'+(saudeMap[h.status]||h.status)+'</div><div>Status</div></div><div class="stat-mini"><div>'+(h.municipios_processados||0)+'</div><div>Processados</div></div><div class="stat-mini"><div>'+(h.municipios_ok||0)+'</div><div>OK</div></div><div class="stat-mini '+(h.municipios_erro>0?'stat-red':'')+'"><div>'+(h.municipios_erro||0)+'</div><div>Com erro</div></div><div class="stat-mini"><div>'+(h.alteracoes_detectadas||0)+'</div><div>Alterações</div></div><div class="stat-mini"><div>'+durStr+'</div><div>Duração</div></div></div>'+(h.log?'<div style="margin-bottom:12px"><div style="margin-bottom:6px;font-size:11px;color:var(--muted)">📋 Resumo</div><pre class="log-box">'+h.log+'</pre></div>':'')+(h.log_erros?'<div><div style="margin-bottom:6px;font-size:11px;color:var(--red)">🔍 Log de Erros</div><pre class="log-box log-box-error">'+h.log_erros+'</pre></div>':'<div class="badge badge-green" style="display:inline-block;margin-top:8px">✓ Nenhum erro registrado</div>')+'<div style="margin-top:12px;font-size:11px;color:var(--muted)">Disparado por: '+(h.usuario_nome||'Sistema (agendado)')+' · E-mail: '+(h.email_enviado?'✓ Enviado':'Não enviado')+'</div>'}
+
+async function carregarSchedulerInfo(){var r=await api('GET','/api/monitor/scheduler');if(!r.success)return;var s=r.data;var status=s.status||'ativo';var mapa={ativo:'🟢 Ativo',pausado:'🟡 Pausado',executando:'🔵 Executando',erro:'🔴 Erro'};document.getElementById('sched-status-top').textContent=mapa[status]||status;var el=document.getElementById('sched-info');if(el){el.innerHTML='<div class="alert '+(status==='ativo'?'alert-success':'alert-warning')+'"><span>'+(mapa[status]||status)+'</span><span>Horário: '+(s.horario_execucao||'02:00')+' · Última: '+(fmtData(s.ultima_execucao)||'Nunca')+'</span></div>';document.getElementById('sched-horario').value=s.horario_execucao||'02:00'}}
+
+async function adicionarMunicipio(){var nome=document.getElementById('m-nome').value.trim();var estado=document.getElementById('m-estado').value;var url=document.getElementById('m-url').value.trim();if(!nome||!estado||!url){toast('Preencha todos os campos obrigatórios','error');return}var btn=document.getElementById('btn-add-mun');btn.disabled=true;var r=await api('POST','/api/monitor/municipios',{nome:nome,estado:estado,url_diario:url});btn.disabled=false;if(r.success){toast('Município adicionado!');closeModal('modal-add-municipio');carregarMunicipios()}else toast(r.error||'Erro','error')}
+
+async function removerMunicipio(id,nome){if(!confirm('Remover "'+nome+'" do monitoramento?'))return;var r=await api('DELETE','/api/monitor/municipios/'+id);if(r.success){toast('Removido do monitoramento','warning');carregarMunicipios()}else toast(r.error||'Erro','error')}
+async function executarAgora(){var btn=document.getElementById('btn-exec');btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Executando...';var r=await api('POST','/api/monitor/executar');btn.disabled=false;btn.innerHTML='⚡ Executar Agora';toast(r.success?'Execução iniciada! Verifique o histórico em alguns minutos.':(r.error||'Erro'),r.success?'success':'error')}
+async function salvarScheduler(){var horario=document.getElementById('sched-horario').value;var r=await api('POST','/api/monitor/scheduler',{horario:horario});if(r.success){toast('Horário salvo!');carregarSchedulerInfo()}else toast(r.error||'Erro','error')}
+async function pausarScheduler(){var r=await api('POST','/api/monitor/scheduler',{acao:'pausar'});if(r.success){toast('Scheduler pausado','warning');carregarSchedulerInfo()}else toast(r.error||'Erro','error')}
+async function retomarScheduler(){var r=await api('POST','/api/monitor/scheduler',{acao:'retomar'});if(r.success){toast('Scheduler retomado');carregarSchedulerInfo()}else toast(r.error||'Erro','error')}
+
+carregarSchedulerInfo();carregarMunicipios();carregarAlteracoes();carregarHistorico();
+</script>
+</body>
+</html>
