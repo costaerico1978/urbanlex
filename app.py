@@ -1312,7 +1312,7 @@ def api_calcular_area():
 
 @app.route('/api/monitor/municipios', methods=['GET'])
 @login_required
-def api_monitor_municipios(): return jsonify(qry("SELECT * FROM municipios WHERE ativo=TRUE ORDER BY nome"))
+def api_monitor_municipios(): return jsonify({'success':True,'data':qry("SELECT * FROM municipios WHERE ativo=TRUE ORDER BY nome")})
 
 @app.route('/api/monitor/municipios', methods=['POST'])
 @admin_required
