@@ -632,7 +632,7 @@ def api_criar_legislacao():
     if novo_id and r2_disponivel():
         url_r2 = r2_upload(arquivo_bytes, nome_arquivo, leg_id=novo_id)
         if url_r2:
-            qry("UPDATE legislacoes SET arquivo_url=%s WHERE id=%s", (url_r2, novo_id), commit=True)
+            qry("UPDATE legislacoes SET arquivo_url=%s WHERE id=%s", (url_r2, novo_id), commit=True, fetch=None)
 
     return jsonify({'success':True,'id':novo_id})
 
