@@ -1223,8 +1223,32 @@ def api_badges():
 
 # ═══════════════════════════════════════════════════════════════
 # SISTEMA
-# ═══════════════════════════════════════════════════════════════
-
+#@app.route('/api/diagnostico/r2')
+@admin_required
+def api_diagnostico_r2():
+    """Testa se o Cloudflare R2 está funcionando."""
+    info = {
+        'r2_importado': _R2_IMPORTADO,
+        'r2_disponivel': r2_disponivel(),
+        'R2_ACCOUNT_ID': bool(os.getenv('R2_ACCOUNT_ID')),
+        'R2_ACCESS_KEY': bool(os.getenv('R2_ACCESS_KEY')),
+        'R2_SECRET_KEY': bool(os.getenv('R2_SECRET_KEY')),
+        'R2_BUCKET_NAME': os.getenv('R2_BUCKET_NAME', ''),
+    }
+    # Tentar upload de teste
+    if info['r2_disponivel']:
+        try:
+            url_teste = r2_upload(b'teste urbanlex', 'teste_diagnostico.txt', leg_id=0)
+            info['upload_teste'] = url_teste
+            info['upload_ok'] = bool(url_teste)
+            if url_teste:
+                r2_delete(url_teste)
+                info['delete_ok'] = True
+        except Exception as e:
+            info['upload_erro'] = str(e)
+            info['upload_ok'] = False
+    return jsonify(info) ═══════════════════════════════════════════════════════════════
+ 
 @app.route('/health')
 def health():
     try:
