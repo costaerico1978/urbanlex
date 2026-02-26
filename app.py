@@ -1,6 +1,17 @@
 """
-UrbanLex — Aplicação Flask Principal v3.0
+UrbanLex — Aplicação Flask Principal v3.5
 Parâmetros Urbanísticos + Biblioteca Legislativa + Monitoramento IA
+
+CORREÇÕES APLICADAS (25/02/2026):
+  BUG 1: DELETE legislação usava id() em vez de leg_id + foreign keys
+  BUG 2: Login API tinha sessão como código morto (indentação)
+  BUG 3: Login HTML mostrava erro no GET
+  BUG 4: Rotas diagnóstico sem autenticação
+  BUG 5: Rotas FIX 6-10 movidas para antes do if __name__
+  BUG 6: inicializar() chamada no nível do módulo
+  BUG 7: Query alterações usa COALESCE para municipio_nome
+  BUG 8: Adicionada rota GET /logout
+  BUG 9: Login HTML usa qry() em vez de conexão manual
 """
 
 import os, io, sys, json, hashlib, threading
@@ -231,10 +242,38 @@ def extrair_texto_arquivo(arquivo_bytes, nome_arquivo):
         texto = f'[Erro ao extrair texto: {e}]'
     return texto
 
+
+# ── Função auxiliar de busca com IA (FIX 5: movida para antes do if __name__) ──
+def _buscar_legislacao_internet(consulta: str) -> dict:
+    """Tenta encontrar legislação via GROQ ou busca simples."""
+    try:
+        from groq import Groq
+        client = Groq(api_key=os.getenv('GROQ_API_KEY',''))
+        prompt = (f"Encontre a seguinte legislação urbanística brasileira: '{consulta}'. "
+                  "Retorne APENAS um JSON com: titulo, estado, municipio, numero, ano, url. "
+                  "Se não encontrar, retorne {}.")
+        resp = client.chat.completions.create(
+            model="llama3-8b-8192",
+            messages=[{"role":"user","content":prompt}],
+            max_tokens=300
+        )
+        text = resp.choices[0].message.content.strip()
+        import re
+        m = re.search(r'\{.*\}', text, re.DOTALL)
+        if m:
+            result = json.loads(m.group(0))
+            if result.get('titulo') or result.get('url'):
+                return result
+    except Exception as e:
+        print(f"[BUSCA IA] {e}")
+    return {}
+
+
 # ═══════════════════════════════════════════════════════════════
 # PÁGINAS HTML
 # ═══════════════════════════════════════════════════════════════
 
+# ── FIX 3: Login corrigido — erro só aparece no POST com falha ──
 @app.route('/login', methods=['GET','POST'])
 def login_page():
     if 'user_id' in session: return redirect('/')
@@ -248,14 +287,10 @@ def login_page():
             session['nome'] = user['nome']
             session['email'] = user['email']
             session['role'] = user['role']
-            conn_temp = psycopg2.connect(os.environ.get('DATABASE_URL'))
-            cur_temp = conn_temp.cursor()
-            cur_temp.execute("UPDATE users SET ultimo_acesso=NOW() WHERE id=%s", (user['id'],))
-            conn_temp.commit()
-            cur_temp.close()
-            conn_temp.close()
+            # FIX 9: usar qry() em vez de conexão manual
+            qry("UPDATE users SET ultimo_acesso=NOW() WHERE id=%s", (user['id'],), commit=True, fetch=None)
             return redirect('/')
-    error = 'E-mail ou senha incorretos'
+        error = 'E-mail ou senha incorretos'  # ← Agora só no POST com falha
     return render_template('login.html', error=error, **tmpl_ctx())
 
 @app.route('/cadastro')
@@ -404,6 +439,7 @@ def pagina_perfil(): return render_template('configuracoes.html', active_page='p
 # API: AUTH
 # ═══════════════════════════════════════════════════════════════
 
+# ── FIX 2: Login API corrigido — sessão agora é criada corretamente ──
 @app.route('/api/auth/login', methods=['POST'])
 def api_login():
     d = request.json or {}
@@ -412,13 +448,21 @@ def api_login():
     user = qry("SELECT * FROM users WHERE email=%s AND ativo=TRUE AND aprovado=TRUE", (email,), 'one')
     if not user or not verificar_senha(senha, user['senha_hash']):
         return jsonify({'success':False,'error':'E-mail ou senha incorretos'}), 401
-        session['user_id'] = user['id']; session['nome'] = user['nome']
-        session['email'] = user['email']; session['role'] = user['role']
-        qry("UPDATE users SET ultimo_acesso=NOW() WHERE id=%s", (user['id'],), commit=True, fetch=None)
+    session['user_id'] = user['id']
+    session['nome'] = user['nome']
+    session['email'] = user['email']
+    session['role'] = user['role']
+    qry("UPDATE users SET ultimo_acesso=NOW() WHERE id=%s", (user['id'],), commit=True, fetch=None)
     return jsonify({'success':True,'role':user['role']})
 
 @app.route('/api/auth/logout', methods=['POST'])
 def api_logout(): session.clear(); return jsonify({'success':True})
+
+# ── FIX 8: Rota GET para logout (links <a href="/logout">) ──
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect('/login')
 
 @app.route('/api/auth/cadastrar', methods=['POST'])
 def api_cadastrar():
@@ -601,15 +645,34 @@ def api_get_legislacao(leg_id):
     if not l: return jsonify({'success':False,'error':'Não encontrada'}), 404
     return jsonify({'success':True,'data':l})
 
+# ── FIX 1: DELETE corrigido — leg_id + foreign keys + verificação ──
 @app.route('/api/legislacoes/<int:leg_id>', methods=['DELETE'])
 @editor_required
 def api_excluir_legislacao(leg_id):
-    # Remover arquivo do R2 antes de deletar do banco
     leg = qry("SELECT arquivo_url FROM legislacoes WHERE id=%s", (leg_id,), 'one')
-    if leg and leg.get('arquivo_url') and r2_disponivel():
+    if not leg:
+        return jsonify({'success': False, 'error': 'Legislação não encontrada'}), 404
+
+    # Remover arquivo do R2
+    if leg.get('arquivo_url') and r2_disponivel():
         r2_delete(leg['arquivo_url'])
-    qry("DELETE FROM legislacoes WHERE id=%s", (id,), commit=True, fetch=None)
-    return jsonify({'success':True})
+
+    # Remover registros dependentes (foreign keys) e a legislação
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM legislacao_relacoes WHERE legislacao_pai_id=%s OR legislacao_filha_id=%s", (leg_id, leg_id))
+        cur.execute("DELETE FROM alteracoes WHERE legislacao_id=%s", (leg_id,))
+        cur.execute("DELETE FROM integracao_atualizacoes WHERE legislacao_id=%s", (leg_id,))
+        cur.execute("DELETE FROM legislacoes WHERE id=%s", (leg_id,))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conn.close()
+
+    return jsonify({'success': True})
 
 @app.route('/api/legislacoes/<int:leg_id>/texto')
 @login_required
@@ -967,11 +1030,17 @@ def api_monitor_status_resumo():
     ultima['saude'] = saude
     return jsonify({'success':True,'data':ultima})
 
-
+# ── FIX 7: Query alterações usa COALESCE para municipio_nome ──
 @app.route('/api/monitor/alteracoes')
 @login_required
 def api_monitor_alteracoes():
-    data = qry("SELECT a.*, l.numero, l.ano, tl.nome as tipo_nome, m.nome as municipio_nome FROM alteracoes a JOIN legislacoes l ON a.legislacao_id=l.id LEFT JOIN tipos_legislacao tl ON l.tipo_id=tl.id LEFT JOIN municipios m ON l.municipio_id=m.id ORDER BY a.data_deteccao DESC LIMIT 100")
+    data = qry("""SELECT a.*, l.numero, l.ano, tl.nome as tipo_nome,
+        COALESCE(m.nome, l.municipio_nome) as municipio_nome
+        FROM alteracoes a
+        JOIN legislacoes l ON a.legislacao_id=l.id
+        LEFT JOIN tipos_legislacao tl ON l.tipo_id=tl.id
+        LEFT JOIN municipios m ON l.municipio_id=m.id
+        ORDER BY a.data_deteccao DESC LIMIT 100""")
     return jsonify({'success':True,'data':data})
 
 @app.route('/api/monitor/scheduler', methods=['GET'])
@@ -1160,19 +1229,16 @@ def api_badges():
 def health():
     try:
         qry("SELECT 1", fetch='one')
-        return jsonify({'status':'ok','db':'conectado','version':'3.0'})
+        return jsonify({'status':'ok','db':'conectado','version':'3.5'})
     except Exception as e:
         return jsonify({'status':'erro','error':str(e)}), 500
 
-# ── Inicialização ──────────────────────────────────────────────
-def inicializar():
-    print("UrbanLex v3.0 iniciando...")
-    if SCHEDULER_OK:
-        try: iniciar_scheduler(); print("✅ Scheduler iniciado")
-        except Exception as e: print(f"⚠ Scheduler: {e}")
-
+# ── FIX 4: Rotas diagnóstico agora exigem token SECRET_KEY ──
 @app.route('/setup-banco-agora')
 def setup_banco():
+    token = request.args.get('token', '')
+    if token != os.getenv('SECRET_KEY', ''):
+        return 'Acesso negado. Use ?token=SUA_SECRET_KEY', 403
     try:
         with open('schema_final.sql', 'r') as f:
             sql = f.read()
@@ -1188,6 +1254,9 @@ def setup_banco():
 
 @app.route('/aprovar-admin-agora')
 def aprovar_admin():
+    token = request.args.get('token', '')
+    if token != os.getenv('SECRET_KEY', ''):
+        return 'Acesso negado. Use ?token=SUA_SECRET_KEY', 403
     try:
         admin_email = os.environ.get('ADMIN_EMAIL')
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
@@ -1199,12 +1268,9 @@ def aprovar_admin():
         return f'Admin {admin_email} atualizado! <a href="/login">Fazer login</a>'
     except Exception as e:
         return f'Erro: {str(e)}'
-if __name__ == '__main__':
-    inicializar()
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT',5000)), debug=os.getenv('FLASK_ENV')!='production')
 
 # ═══════════════════════════════════════════════════════════════
-# ROTAS E APIs ADICIONAIS (fixes)
+# ROTAS E APIs ADICIONAIS (FIX 5: movidas para ANTES do if __name__)
 # ═══════════════════════════════════════════════════════════════
 
 # FIX 6: /parametros/nova-zona
@@ -1214,14 +1280,13 @@ def pagina_nova_zona():
     return render_template('parametros.html', active_page='nova-zona', active_group='parametros',
                            abrir_modal='nova_zona', **tmpl_ctx())
 
-# FIX 7: PUT /api/zona/<id> — atualizar zona existente
+# FIX 7b: PUT /api/zona/<id> — atualizar zona existente
 @app.route('/api/zona/<int:zona_id>', methods=['PUT'])
 @editor_required
 def api_atualizar_zona(zona_id):
     d = request.json or {}
     if not d:
         return jsonify({'success': False, 'error': 'Nenhum dado enviado'}), 400
-    # Campos permitidos para atualização
     campos_proibidos = {'id', 'criado_em', 'municipio', 'zona', 'subzona'}
     cols = [k for k in d.keys() if k not in campos_proibidos]
     if not cols:
@@ -1232,7 +1297,7 @@ def api_atualizar_zona(zona_id):
         vals, commit=True)
     return jsonify({'success': True})
 
-# FIX 8: /api/zonas com querystring (sem municipio no path)
+# FIX 8b: /api/zonas com querystring (sem municipio no path)
 @app.route('/api/zonas')
 @login_required
 def api_zonas_query():
@@ -1328,29 +1393,18 @@ def api_integ_rejeitadas():
         WHERE i.status='rejeitado' ORDER BY i.revisado_em DESC LIMIT 100""")
     return jsonify({'success': True, 'data': data})
 
-# FIX 4: buscar_legislacao_internet — implementação básica no app.py
-# (bridge_integracao não tinha essa função)
-def _buscar_legislacao_internet(consulta: str) -> dict:
-    """Tenta encontrar legislação via GROQ ou busca simples."""
-    try:
-        from groq import Groq
-        client = Groq(api_key=os.getenv('GROQ_API_KEY',''))
-        prompt = (f"Encontre a seguinte legislação urbanística brasileira: '{consulta}'. "
-                  "Retorne APENAS um JSON com: titulo, estado, municipio, numero, ano, url. "
-                  "Se não encontrar, retorne {}.")
-        resp = client.chat.completions.create(
-            model="llama3-8b-8192",
-            messages=[{"role":"user","content":prompt}],
-            max_tokens=300
-        )
-        text = resp.choices[0].message.content.strip()
-        # Tentar extrair JSON
-        import re
-        m = re.search(r'\{.*\}', text, re.DOTALL)
-        if m:
-            result = json.loads(m.group(0))
-            if result.get('titulo') or result.get('url'):
-                return result
-    except Exception as e:
-        print(f"[BUSCA IA] {e}")
-    return {}
+# ═══════════════════════════════════════════════════════════════
+# INICIALIZAÇÃO (FIX 6: inicializar() no nível do módulo)
+# ═══════════════════════════════════════════════════════════════
+
+def inicializar():
+    print("UrbanLex v3.5 iniciando...")
+    if SCHEDULER_OK:
+        try: iniciar_scheduler(); print("✅ Scheduler iniciado")
+        except Exception as e: print(f"⚠ Scheduler: {e}")
+
+# FIX 6: Chamar inicializar() no nível do módulo para funcionar com gunicorn
+inicializar()
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT',5000)), debug=os.getenv('FLASK_ENV')!='production')
