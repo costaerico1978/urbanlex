@@ -1360,20 +1360,7 @@ def api_monitor_detectar_perfil(mid):
     threading.Thread(target=_detectar, daemon=True).start()
     return jsonify({'success':True,'message':'Deteccao iniciada. Aguarde alguns instantes.'})
 
-@app.route('/api/monitor/municipios/<int:mid>/url', methods=['POST'])
-@editor_required
-def api_monitor_atualizar_url(mid):
-    d = request.json or {}
-    url = d.get('url','').strip()
-    if not url: return jsonify({'success':False,'error':'URL obrigatoria'}), 400
-    qry("UPDATE municipios SET url_diario=%s WHERE id=%s", (url, mid), commit=True, fetch=None)
-    def _re_detectar():
-        try:
-            from modulos.scraper_inteligente import detectar_e_salvar_perfil
-            detectar_e_salvar_perfil(mid, forcar_redeteccao=True)
-        except Exception as e:
-            import logging; logging.getLogger(__name__).error(f"Re-deteccao: {e}")
-    thre# --- Histórico por município ---
+# --- Histórico por município ---
 @app.route('/api/monitor/municipios/<int:mid>/historico')
 @login_required
 def api_monitor_municipio_historico(mid):
@@ -1420,8 +1407,7 @@ def api_monitor_executar_municipio(mid):
         except Exception as e:
             import logging; logging.getLogger(__name__).error(f"Monitoramento {municipio_id}: {e}")
     threading.Thread(target=_executar, args=(mid,), daemon=True).start()
-    return jsonify({'success': True, 'message': f'Monitoramento iniciado para {mun["nome"]}'})ading.Thread(target=_re_detectar, daemon=True).start()
-    return jsonify({'success':True,'message':'URL atualizada. Re-detectando perfil...'})
+    return jsonify({'success': True, 'message': f'Monitoramento iniciado para {mun["nome"]}'})
   
 @app.route('/api/monitor/historico')
 @login_required
