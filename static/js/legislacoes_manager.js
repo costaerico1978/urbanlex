@@ -1,16 +1,9 @@
 /**
  * UrbanLex v3.5 - Legislacoes Manager
  * Gerenciamento de legislacoes: edicao inline, download, gestao multi-arquivo
- *
- * Uso: Incluir no template legislacoes.html
- *   <script src="/static/js/legislacoes_manager.js"></script>
- *   <script>LegManager.init();</script>
  */
 const LegManager = (() => {
 
-  // =====================================================================
-  //  UTILIDADES
-  // =====================================================================
   const API = (url, opts = {}) => {
     const defaults = { headers: {} };
     if (opts.body && !(opts.body instanceof FormData)) {
@@ -19,10 +12,7 @@ const LegManager = (() => {
     }
     return fetch(url, { ...defaults, ...opts })
       .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
-      .catch(err => {
-        console.error('API error:', err);
-        throw err;
-      });
+      .catch(err => { console.error('API error:', err); throw err; });
   };
 
   const fmtBytes = (b) => {
@@ -59,15 +49,11 @@ const LegManager = (() => {
     setTimeout(() => { t.classList.remove('leg-toast--show'); setTimeout(() => t.remove(), 300); }, 3000);
   };
 
-  // =====================================================================
-  //  CSS (injetado dinamicamente)
-  // =====================================================================
   const injectCSS = () => {
     if (document.getElementById('leg-mgr-css')) return;
     const style = document.createElement('style');
     style.id = 'leg-mgr-css';
     style.textContent = `
-      /* ---- Icones de acao na tabela ---- */
       .leg-actions { display:flex; gap:6px; align-items:center; flex-shrink:0; }
       .leg-actions button {
         background:none; border:none; cursor:pointer; padding:4px 6px;
@@ -83,15 +69,11 @@ const LegManager = (() => {
       .leg-actions button.leg-act-cancel       { color:#dc2626; }
       .leg-actions button.leg-act-cancel:hover { background:#fef2f2; }
       .leg-actions svg { width:16px; height:16px; }
-
-      /* Badge de contagem de arquivos */
       .leg-file-badge {
         font-size:10px; background:#7c3aed; color:#fff; border-radius:50%;
         width:16px; height:16px; display:inline-flex; align-items:center;
         justify-content:center; margin-left:2px; font-weight:600;
       }
-
-      /* ---- Edicao inline ---- */
       .leg-row--editing td { background:#fffbeb !important; }
       .leg-edit-input {
         width:100%; padding:4px 8px; border:1px solid #d1d5db; border-radius:6px;
@@ -99,8 +81,6 @@ const LegManager = (() => {
       }
       .leg-edit-input:focus { outline:none; border-color:#2563eb; box-shadow:0 0 0 2px rgba(37,99,235,.15); }
       select.leg-edit-input { padding:4px 6px; }
-
-      /* ---- Modal ---- */
       .leg-modal-overlay {
         position:fixed; inset:0; background:rgba(15,23,42,.45); z-index:9998;
         display:flex; align-items:center; justify-content:center;
@@ -114,7 +94,6 @@ const LegManager = (() => {
         transform:translateY(12px); transition:transform .2s;
       }
       .leg-modal-overlay.leg-modal--show .leg-modal { transform:translateY(0); }
-
       .leg-modal-header {
         padding:20px 24px 16px; border-bottom:1px solid #e2e8f0;
         display:flex; justify-content:space-between; align-items:center;
@@ -125,15 +104,11 @@ const LegManager = (() => {
         padding:4px; border-radius:8px; transition:all .15s;
       }
       .leg-modal-close:hover { background:#f1f5f9; color:#0f172a; }
-
       .leg-modal-body { padding:20px 24px; overflow-y:auto; flex:1; }
-
       .leg-modal-footer {
         padding:16px 24px; border-top:1px solid #e2e8f0;
         display:flex; justify-content:space-between; align-items:center;
       }
-
-      /* Barra de espaco */
       .leg-space-bar {
         width:100%; height:8px; background:#e2e8f0; border-radius:99px;
         overflow:hidden; margin:8px 0;
@@ -145,8 +120,6 @@ const LegManager = (() => {
       .leg-space-bar-fill.leg-space--warning { background:linear-gradient(90deg, #d97706, #f59e0b); }
       .leg-space-bar-fill.leg-space--danger  { background:linear-gradient(90deg, #dc2626, #ef4444); }
       .leg-space-info { font-size:12px; color:#64748b; margin-bottom:12px; }
-
-      /* Lista de arquivos */
       .leg-file-list { list-style:none; padding:0; margin:0 0 16px; }
       .leg-file-item {
         display:flex; align-items:center; gap:10px; padding:10px 12px;
@@ -177,12 +150,9 @@ const LegManager = (() => {
       }
       .leg-file-actions button:hover { background:#f1f5f9; color:#0f172a; }
       .leg-file-actions button.leg-file-del:hover { color:#dc2626; background:#fef2f2; }
-
-      /* Upload area */
       .leg-upload-zone {
         border:2px dashed #cbd5e1; border-radius:12px; padding:24px;
-        text-align:center; cursor:pointer; transition:all .2s;
-        margin-bottom:8px;
+        text-align:center; cursor:pointer; transition:all .2s; margin-bottom:8px;
       }
       .leg-upload-zone:hover, .leg-upload-zone.leg-upload--drag {
         border-color:#2563eb; background:#eff6ff;
@@ -191,8 +161,6 @@ const LegManager = (() => {
       .leg-upload-zone .leg-upload-icon { font-size:28px; color:#94a3b8; }
       .leg-upload-zone input { display:none; }
       .leg-upload-limit { font-size:11px; color:#94a3b8; text-align:center; }
-
-      /* Botao primario */
       .leg-btn-primary {
         background:#2563eb; color:#fff; border:none; padding:8px 16px;
         border-radius:8px; font-size:13px; font-weight:500; cursor:pointer;
@@ -200,19 +168,13 @@ const LegManager = (() => {
       }
       .leg-btn-primary:hover { background:#1d4ed8; }
       .leg-btn-primary:disabled { opacity:.5; cursor:not-allowed; }
-
-      /* Spinner */
       .leg-spinner {
         display:inline-block; width:14px; height:14px;
         border:2px solid #e2e8f0; border-top-color:#2563eb;
         border-radius:50%; animation:leg-spin .6s linear infinite;
       }
       @keyframes leg-spin { to { transform:rotate(360deg); } }
-
-      /* Empty state */
       .leg-empty { text-align:center; padding:24px; color:#94a3b8; font-size:13px; }
-
-      /* Toast */
       .leg-toast {
         position:fixed; bottom:24px; right:24px; padding:12px 20px;
         border-radius:10px; font-size:13px; font-weight:500; z-index:9999;
@@ -227,9 +189,6 @@ const LegManager = (() => {
     document.head.appendChild(style);
   };
 
-  // =====================================================================
-  //  SVG ICONS
-  // =====================================================================
   const ICONS = {
     edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
     download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
@@ -241,10 +200,6 @@ const LegManager = (() => {
     upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
     dlFile: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
   };
-
-  // =====================================================================
-  //  RENDERIZAR ICONES DE ACAO (chamado pelo template para cada row)
-  // =====================================================================
   const renderActions = (legId, opts = {}) => {
     const hasFiles = opts.qtdArquivos > 0;
     const hasDoc   = opts.hasDocumento;
@@ -264,32 +219,24 @@ const LegManager = (() => {
       </div>`;
   };
 
-  // =====================================================================
-  //  EDICAO INLINE
-  // =====================================================================
   let _editingId = null;
   let _originalData = null;
 
   const startEdit = async (legId) => {
     if (_editingId) cancelEdit();
     await loadSelects();
-
     const res = await API(`/api/legislacoes/${legId}`);
     if (!res.success) return toast('Erro ao carregar legislacao', 'error');
     _originalData = res.data;
     _editingId = legId;
-
-    const row = document.querySelector(`tr[data-leg-id="${legId}"], [data-leg-row="${legId}"]`);
+    const row = document.querySelector(`tr[data-leg-id="${legId}"]`);
     if (!row) return;
     row.classList.add('leg-row--editing');
-
-    // Substituir celulas editaveis por inputs
     const editableCells = row.querySelectorAll('[data-field]');
     editableCells.forEach(cell => {
       const field = cell.dataset.field;
       const val = _originalData[field] ?? '';
       cell.dataset.originalHtml = cell.innerHTML;
-
       if (field === 'tipo_id') {
         cell.innerHTML = `<select class="leg-edit-input" data-edit-field="${field}">
           <option value="">--</option>
@@ -316,8 +263,6 @@ const LegManager = (() => {
         cell.innerHTML = `<input type="text" class="leg-edit-input" data-edit-field="${field}" value="${escHtml(String(val))}">`;
       }
     });
-
-    // Trocar botoes de acao
     const actionsDiv = row.querySelector('.leg-actions');
     if (actionsDiv) {
       actionsDiv.innerHTML = `
@@ -331,9 +276,8 @@ const LegManager = (() => {
   };
 
   const saveEdit = async (legId) => {
-    const row = document.querySelector(`tr[data-leg-id="${legId}"], [data-leg-row="${legId}"]`);
+    const row = document.querySelector(`tr[data-leg-id="${legId}"]`);
     if (!row) return;
-
     const inputs = row.querySelectorAll('[data-edit-field]');
     const payload = {};
     inputs.forEach(input => {
@@ -345,22 +289,16 @@ const LegManager = (() => {
       else if (val === '') val = null;
       payload[field] = val;
     });
-
-    // Verificar se algo mudou
     let changed = false;
     for (const k of Object.keys(payload)) {
       if (String(payload[k] ?? '') !== String(_originalData[k] ?? '')) { changed = true; break; }
     }
     if (!changed) { cancelEdit(); return; }
-
     try {
       const res = await API(`/api/legislacoes/${legId}`, { method: 'PUT', body: payload });
       if (!res.success) throw new Error(res.error || 'Erro ao salvar');
       toast('Legislacao atualizada');
       cancelEdit();
-      // Recarregar a linha/tabela (disparar evento custom)
-      document.dispatchEvent(new CustomEvent('legUpdated', { detail: { id: legId, data: res.data } }));
-      // Se ha funcao global de reload, chamar
       if (typeof carregarLegislacoes === 'function') carregarLegislacoes();
     } catch (err) {
       toast(err.message || 'Erro ao salvar', 'error');
@@ -369,7 +307,7 @@ const LegManager = (() => {
 
   const cancelEdit = () => {
     if (!_editingId) return;
-    const row = document.querySelector(`tr[data-leg-id="${_editingId}"], [data-leg-row="${_editingId}"]`);
+    const row = document.querySelector(`tr[data-leg-id="${_editingId}"]`);
     if (row) {
       row.classList.remove('leg-row--editing');
       row.querySelectorAll('[data-field]').forEach(cell => {
@@ -378,7 +316,6 @@ const LegManager = (() => {
           delete cell.dataset.originalHtml;
         }
       });
-      // Restaurar botoes de acao
       const actionsDiv = row.querySelector('.leg-actions');
       if (actionsDiv && _originalData) {
         actionsDiv.outerHTML = renderActions(_editingId, {
@@ -391,9 +328,6 @@ const LegManager = (() => {
     _originalData = null;
   };
 
-  // =====================================================================
-  //  DOWNLOAD
-  // =====================================================================
   const download = (legId) => {
     window.open(`/api/legislacoes/${legId}/documento`, '_blank');
   };
@@ -402,9 +336,6 @@ const LegManager = (() => {
     window.open(`/api/legislacoes/${legId}/arquivos/${arqId}/download`, '_blank');
   };
 
-  // =====================================================================
-  //  MODAL DE ARQUIVOS
-  // =====================================================================
   let _modalLegId = null;
   let _modalOverlay = null;
 
@@ -422,25 +353,18 @@ const LegManager = (() => {
     if (!tipo) return '?';
     return tipo.substring(0, 4).toUpperCase();
   };
-
   const openFiles = async (legId) => {
     _modalLegId = legId;
     closeModal();
-
-    // Carregar dados
     const res = await API(`/api/legislacoes/${legId}/arquivos`);
     if (!res.success) return toast('Erro ao carregar arquivos', 'error');
-
-    const { data: arquivos, total_bytes, limite_bytes, espaco_disponivel, arquivo_principal } = res;
+    const { data: arquivos, total_bytes, limite_bytes, espaco_disponivel } = res;
     const pct = Math.min(100, (total_bytes / limite_bytes) * 100);
     const spaceClass = pct > 90 ? 'leg-space--danger' : pct > 70 ? 'leg-space--warning' : '';
-
-    // Buscar info da legislacao
     const legRes = await API(`/api/legislacoes/${legId}`);
     const legData = legRes.success ? legRes.data : {};
     const titulo = [legData.tipo_nome, legData.numero, legData.ano].filter(Boolean).join(' ') || `Legislacao #${legId}`;
 
-    // Renderizar modal
     _modalOverlay = document.createElement('div');
     _modalOverlay.className = 'leg-modal-overlay';
     _modalOverlay.innerHTML = `
@@ -457,19 +381,17 @@ const LegManager = (() => {
           <div class="leg-space-bar">
             <div class="leg-space-bar-fill ${spaceClass}" style="width:${pct}%"></div>
           </div>
-
           <ul class="leg-file-list" id="leg-file-list">
             ${arquivos.length === 0
               ? '<li class="leg-empty">Nenhum arquivo associado a esta legislacao</li>'
               : arquivos.map(a => renderFileItem(a, legId)).join('')}
           </ul>
-
           <div class="leg-upload-zone" id="leg-upload-zone">
             <div class="leg-upload-icon">${ICONS.upload}</div>
             <p><strong>Clique para selecionar</strong> ou arraste arquivos aqui</p>
             <input type="file" id="leg-file-input" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.odt,.rtf,.jpg,.jpeg,.png,.gif">
           </div>
-          <div class="leg-upload-limit">Limite total: 100 MB por legislacao. Formatos aceitos: PDF, DOC, DOCX, XLS, XLSX, CSV, TXT, imagens</div>
+          <div class="leg-upload-limit">Limite total: 100 MB por legislacao</div>
         </div>
         <div class="leg-modal-footer">
           <span class="leg-space-info" id="leg-space-footer">${arquivos.length} arquivo(s)</span>
@@ -480,27 +402,20 @@ const LegManager = (() => {
     document.body.appendChild(_modalOverlay);
     requestAnimationFrame(() => _modalOverlay.classList.add('leg-modal--show'));
 
-    // Event listeners
     const zone = document.getElementById('leg-upload-zone');
     const input = document.getElementById('leg-file-input');
-
     zone.addEventListener('click', () => input.click());
     zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('leg-upload--drag'); });
     zone.addEventListener('dragleave', () => zone.classList.remove('leg-upload--drag'));
     zone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      zone.classList.remove('leg-upload--drag');
+      e.preventDefault(); zone.classList.remove('leg-upload--drag');
       if (e.dataTransfer.files.length) uploadFiles(legId, e.dataTransfer.files);
     });
     input.addEventListener('change', () => {
       if (input.files.length) uploadFiles(legId, input.files);
       input.value = '';
     });
-
-    // Fechar com ESC ou click no overlay
-    _modalOverlay.addEventListener('click', (e) => {
-      if (e.target === _modalOverlay) closeModal();
-    });
+    _modalOverlay.addEventListener('click', (e) => { if (e.target === _modalOverlay) closeModal(); });
     const escHandler = (e) => {
       if (e.key === 'Escape') { closeModal(); document.removeEventListener('keydown', escHandler); }
     };
@@ -529,41 +444,25 @@ const LegManager = (() => {
 
   const uploadFiles = async (legId, fileList) => {
     const formData = new FormData();
-    for (const f of fileList) {
-      formData.append('arquivos', f);
-    }
-
+    for (const f of fileList) { formData.append('arquivos', f); }
     const zone = document.getElementById('leg-upload-zone');
     if (zone) zone.innerHTML = `<div class="leg-spinner"></div><p>Enviando ${fileList.length} arquivo(s)...</p>`;
-
     try {
       const res = await fetch(`/api/legislacoes/${legId}/arquivos`, { method: 'POST', body: formData });
       const data = await res.json();
-
-      if (data.erros && data.erros.length > 0) {
-        data.erros.forEach(e => toast(e, 'error'));
-      }
+      if (data.erros && data.erros.length > 0) { data.erros.forEach(e => toast(e, 'error')); }
       if (data.arquivos && data.arquivos.length > 0) {
         toast(`${data.arquivos.length} arquivo(s) enviado(s)`);
-        // Adicionar a lista sem reabrir o modal
         const list = document.getElementById('leg-file-list');
         if (list) {
           const empty = list.querySelector('.leg-empty');
           if (empty) empty.remove();
-          data.arquivos.forEach(a => {
-            list.insertAdjacentHTML('beforeend', renderFileItem(a, legId));
-          });
+          data.arquivos.forEach(a => { list.insertAdjacentHTML('beforeend', renderFileItem(a, legId)); });
         }
         updateSpaceInfo(legId);
-        // Atualizar badge na tabela
-        document.dispatchEvent(new CustomEvent('legFilesChanged', { detail: { id: legId } }));
         if (typeof carregarLegislacoes === 'function') carregarLegislacoes();
       }
-    } catch (err) {
-      toast('Erro no upload: ' + (err.message || err), 'error');
-    }
-
-    // Restaurar zona de upload
+    } catch (err) { toast('Erro no upload: ' + (err.message || err), 'error'); }
     if (zone) {
       zone.innerHTML = `
         <div class="leg-upload-icon">${ICONS.upload}</div>
@@ -580,17 +479,13 @@ const LegManager = (() => {
 
   const deleteFile = async (legId, arqId, nome) => {
     if (!confirm(`Excluir o arquivo "${nome}"?`)) return;
-
     try {
       const res = await API(`/api/legislacoes/${legId}/arquivos/${arqId}`, { method: 'DELETE' });
       if (!res.success) throw new Error(res.error);
       toast(res.message || 'Arquivo excluido');
-      // Remover da lista
       const item = document.querySelector(`.leg-file-item[data-arq-id="${arqId}"]`);
       if (item) {
-        item.style.opacity = '0';
-        item.style.transform = 'translateX(20px)';
-        item.style.transition = 'all .2s';
+        item.style.opacity = '0'; item.style.transform = 'translateX(20px)'; item.style.transition = 'all .2s';
         setTimeout(() => {
           item.remove();
           const list = document.getElementById('leg-file-list');
@@ -600,11 +495,8 @@ const LegManager = (() => {
         }, 200);
       }
       updateSpaceInfo(legId);
-      document.dispatchEvent(new CustomEvent('legFilesChanged', { detail: { id: legId } }));
       if (typeof carregarLegislacoes === 'function') carregarLegislacoes();
-    } catch (err) {
-      toast('Erro ao excluir: ' + (err.message || err), 'error');
-    }
+    } catch (err) { toast('Erro ao excluir: ' + (err.message || err), 'error'); }
   };
 
   const updateSpaceInfo = async (legId) => {
@@ -631,28 +523,11 @@ const LegManager = (() => {
     _modalLegId = null;
   };
 
-  // =====================================================================
-  //  INIT
-  // =====================================================================
-  const init = () => {
-    injectCSS();
-    console.log('LegManager initialized');
-  };
+  const init = () => { injectCSS(); console.log('LegManager initialized'); };
 
-  // =====================================================================
-  //  API PUBLICA
-  // =====================================================================
   return {
-    init,
-    renderActions,
-    startEdit,
-    saveEdit,
-    cancelEdit,
-    download,
-    downloadArquivo,
-    openFiles,
-    closeModal,
-    deleteFile,
+    init, renderActions, startEdit, saveEdit, cancelEdit,
+    download, downloadArquivo, openFiles, closeModal, deleteFile,
   };
 
 })();
