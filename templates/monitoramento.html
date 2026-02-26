@@ -538,11 +538,10 @@ async function adicionarMunicipio() {
     const nome = document.getElementById('m-nome').value.trim();
     const estado = document.getElementById('m-estado').value;
     const url = document.getElementById('m-url').value.trim();
-    const tipo = document.getElementById('m-tipo').value;
     if (!nome || !estado || !url) { toast('Preencha todos os campos obrigatórios', 'error'); return; }
     const btn = document.getElementById('btn-add-mun');
     btn.disabled = true;
-    const r = await api('POST', '/api/monitor/municipios', { nome, estado, url_diario: url, tipo_site: tipo });
+    const r = await api('POST', '/api/monitor/municipios', { nome, estado, url_diario: url });
     btn.disabled = false;
     if (r.success) { toast('Município adicionado!'); closeModal('modal-add-municipio'); carregarMunicipios(); }
     else toast(r.error||'Erro','error');
