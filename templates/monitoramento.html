@@ -125,7 +125,7 @@
 </div>
 </div></div>
 
-<div class="modal-overlay" id="modal-data-inicio"><div class="modal modal-sm"><div class="modal-title">📅 Configurar Monitoramento <button class="modal-close" onclick="closeModal('modal-data-inicio')">×</button></div><p style="font-size:13px;color:var(--muted);margin-bottom:16px">A partir de qual data o robô deve buscar atualizações no diário oficial?</p><div class="form-group"><label>Data de início *</label><input type="date" id="data-inicio-input"><small style="color:var(--muted)">Normalmente a data de publicação da lei.</small></div><div id="data-inicio-info" style="font-size:12px;color:var(--muted);margin-top:8px"></div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('modal-data-inicio')">Cancelar</button><button class="btn btn-primary" onclick="confirmarMonitoramento()" id="btn-confirmar-mon">✅ Ativar Monitoramento</button></div></div></div>
+<div class="modal-overlay" id="modal-data-inicio"><div class="modal modal-sm"><div class="modal-title">📅 Configurar Monitoramento <button class="modal-close" onclick="closeModal('modal-data-inicio')">×</button></div><p style="font-size:13px;color:var(--muted);margin-bottom:16px">Defina o período em que o robô deve buscar alterações no diário oficial.</p><div class="form-group"><label>De: (data início) *</label><input type="date" id="data-inicio-input"><small style="color:var(--muted)">Normalmente a data de publicação da lei.</small></div><div class="form-group" style="margin-top:12px"><label>Até:</label><div style="display:flex;align-items:center;gap:10px"><input type="date" id="data-fim-input" disabled style="flex:1;opacity:0.4"><label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap;user-select:none"><input type="checkbox" id="data-fim-hoje" checked onchange="var inp=document.getElementById('data-fim-input');if(this.checked){inp.disabled=true;inp.value='';inp.style.opacity='0.4'}else{inp.disabled=false;inp.style.opacity='1';inp.value=new Date().toISOString().slice(0,10)}"> Até hoje (contínuo)</label></div><small style="color:var(--muted)">Marque "Até hoje" para monitorar continuamente. Ou defina uma data final específica.</small></div><div id="data-inicio-info" style="font-size:12px;color:var(--muted);margin-top:8px"></div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('modal-data-inicio')">Cancelar</button><button class="btn btn-primary" onclick="confirmarMonitoramento()" id="btn-confirmar-mon">✅ Ativar Monitoramento</button></div></div></div>
 
 <div id="toast-container"></div>
 
@@ -282,18 +282,73 @@ async function carregarPerfilLegislacoes(mid){
         var btnAcao=isMon
             ?'<button class="btn btn-xs btn-amber" onclick="pausarMonLeg('+l.id+')" title="Pausar monitoramento" style="font-size:10px;padding:2px 6px">⏸ Pausar</button>'
             :'<button class="btn btn-xs btn-primary" onclick="iniciarMonLeg('+l.id+')" title="Iniciar monitoramento" style="font-size:10px;padding:2px 6px">▶ Iniciar</button>';
-        var btnExcluir='<button class="btn btn-xs btn-danger" onclick="excluirMonLeg('+l.id+',\''+titulo.replace(/'/g,"&#39;")+'\')" title="Excluir do monitoramento" style="font-size:10px;padding:2px 6px">🗑</button>';
-        return '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);font-size:12px">'
+        var btnExcluir='<button class="btn btn-xs btn-danger" onclick="excluirMonLeg('+l.id+',\''+titulo.replace(/'/g,"&#39;")+'\')" title="Excluir" style="font-size:10px;padding:2px 6px">🗑</button>';
+
+        // Período de monitoramento
+        var dtInicio=l.data_inicio_monitoramento?l.data_inicio_monitoramento.substring(0,10):'';
+        var dtFim=l.data_fim_monitoramento?l.data_fim_monitoramento.substring(0,10):'';
+        var ateHoje=!dtFim;
+        var ultVerif=l.ultima_verificacao_monitoramento?l.ultima_verificacao_monitoramento.substring(0,10):'';
+
+        var periodoHtml='';
+        if(isMon){
+            periodoHtml='<div style="display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap">'
+                +'<span style="font-size:10px;color:var(--muted);min-width:22px">De:</span>'
+                +'<input type="date" id="leg-dt-ini-'+l.id+'" value="'+dtInicio+'" '
+                +'style="font-size:11px;padding:2px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);width:130px">'
+                +'<span style="font-size:10px;color:var(--muted);min-width:26px">Até:</span>'
+                +'<input type="date" id="leg-dt-fim-'+l.id+'" value="'+dtFim+'" '
+                +(ateHoje?'disabled ':'')
+                +'style="font-size:11px;padding:2px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);width:130px;'+(ateHoje?'opacity:0.4':'')+'">'
+                +'<label style="display:flex;align-items:center;gap:3px;font-size:10px;color:var(--muted);cursor:pointer;user-select:none" title="Monitorar continuamente até hoje">'
+                +'<input type="checkbox" id="leg-hoje-'+l.id+'" '+(ateHoje?'checked ':'')+' onchange="toggleAteHoje('+l.id+')" style="margin:0;accent-color:var(--accent)"> Hoje'
+                +'</label>'
+                +'<button class="btn btn-xs" onclick="salvarPeriodoLeg('+l.id+')" title="Salvar período" '
+                +'style="font-size:10px;padding:2px 8px;background:var(--accent);color:#000;border:none;border-radius:4px;font-weight:600">💾</button>'
+                +'</div>';
+            if(ultVerif){
+                periodoHtml+='<div style="font-size:10px;color:var(--muted);margin-top:3px;font-family:var(--font-mono)">'
+                    +'Verificado até: '+ultVerif+'</div>';
+            }
+        }
+
+        return '<div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px">'
+            +'<div style="display:flex;align-items:center;gap:8px">'
             +'<div style="flex:1;min-width:0">'
             +'<div style="font-weight:600;color:var(--text)">'+titulo+' '+statusBadge+'</div>'
             +(ementa?'<div style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+ementa+'</div>':'')
             +'</div>'
             +'<div style="display:flex;gap:4px;flex-shrink:0">'+btnAcao+btnExcluir+'</div>'
+            +'</div>'
+            +periodoHtml
             +'</div>';
     }).join('');
 }
 
-function iniciarMonLeg(legId){_monitorLegId=legId;document.getElementById('data-inicio-input').value=new Date().toISOString().slice(0,10);openModal('modal-data-inicio')}
+function toggleAteHoje(legId){
+    var cb=document.getElementById('leg-hoje-'+legId);
+    var inp=document.getElementById('leg-dt-fim-'+legId);
+    if(cb.checked){inp.disabled=true;inp.value='';inp.style.opacity='0.4'}
+    else{inp.disabled=false;inp.style.opacity='1';inp.value=new Date().toISOString().slice(0,10)}
+}
+
+async function salvarPeriodoLeg(legId){
+    var dtIni=document.getElementById('leg-dt-ini-'+legId).value;
+    var ateHoje=document.getElementById('leg-hoje-'+legId).checked;
+    var dtFim=ateHoje?null:document.getElementById('leg-dt-fim-'+legId).value;
+    if(!dtIni){toast('Informe a data de início do monitoramento','error');return}
+    if(!ateHoje&&!dtFim){toast('Informe a data final ou marque "Hoje"','error');return}
+    if(!ateHoje&&dtFim&&dtFim<dtIni){toast('Data final deve ser posterior à data inicial','error');return}
+    var r=await api('POST','/api/legislacoes/'+legId+'/periodo-monitoramento',{data_inicio:dtIni,data_fim:dtFim});
+    if(r.success){
+        var msg='Período salvo!';
+        if(r.reset_verificacao) msg+=' Verificação será reiniciada do novo período.';
+        toast(msg);
+        if(_perfilAtualMid)carregarPerfilLegislacoes(_perfilAtualMid);
+    }else toast(r.error||'Erro ao salvar período','error');
+}
+
+function iniciarMonLeg(legId){_monitorLegId=legId;document.getElementById('data-inicio-input').value=new Date().toISOString().slice(0,10);document.getElementById('data-fim-input').value='';document.getElementById('data-fim-input').disabled=true;document.getElementById('data-fim-input').style.opacity='0.4';document.getElementById('data-fim-hoje').checked=true;openModal('modal-data-inicio')}
 
 async function pausarMonLeg(legId){
     if(!confirm('Pausar monitoramento desta legislação?'))return;
@@ -310,8 +365,8 @@ async function excluirMonLeg(legId,titulo){
 }
 
 var _monitorLegId=null;
-function abrirDataInicio(legId){_monitorLegId=legId;document.getElementById('data-inicio-input').value=new Date().toISOString().slice(0,10);document.getElementById('data-inicio-info').textContent='';openModal('modal-data-inicio')}
-async function confirmarMonitoramento(){if(!_monitorLegId)return;var dataInicio=document.getElementById('data-inicio-input').value;if(!dataInicio){toast('Informe a data de início','error');return}var btn=document.getElementById('btn-confirmar-mon');btn.disabled=true;var r=await api('POST','/api/legislacoes/'+_monitorLegId+'/monitoramento',{ativar:true,data_inicio_monitoramento:dataInicio});btn.disabled=false;if(r.success){toast('Monitoramento ativado!');closeModal('modal-data-inicio');if(_perfilAtualMid)carregarPerfilLegislacoes(_perfilAtualMid)}else toast(r.error||'Erro ao ativar','error')}
+function abrirDataInicio(legId){_monitorLegId=legId;document.getElementById('data-inicio-input').value=new Date().toISOString().slice(0,10);document.getElementById('data-fim-input').value='';document.getElementById('data-fim-input').disabled=true;document.getElementById('data-fim-input').style.opacity='0.4';document.getElementById('data-fim-hoje').checked=true;document.getElementById('data-inicio-info').textContent='';openModal('modal-data-inicio')}
+async function confirmarMonitoramento(){if(!_monitorLegId)return;var dataInicio=document.getElementById('data-inicio-input').value;if(!dataInicio){toast('Informe a data de início','error');return}var ateHoje=document.getElementById('data-fim-hoje').checked;var dataFim=ateHoje?null:document.getElementById('data-fim-input').value;if(!ateHoje&&!dataFim){toast('Informe a data final ou marque "Até hoje"','error');return}if(!ateHoje&&dataFim&&dataFim<dataInicio){toast('Data final deve ser posterior à data inicial','error');return}var btn=document.getElementById('btn-confirmar-mon');btn.disabled=true;var r=await api('POST','/api/legislacoes/'+_monitorLegId+'/monitoramento',{ativar:true,data_inicio_monitoramento:dataInicio,data_fim_monitoramento:dataFim});btn.disabled=false;if(r.success){toast('Monitoramento ativado!');closeModal('modal-data-inicio');if(_perfilAtualMid)carregarPerfilLegislacoes(_perfilAtualMid)}else toast(r.error||'Erro ao ativar','error')}
 
 async function carregarAlteracoes(){var r=await api('GET','/api/monitor/alteracoes');var tbody=document.getElementById('tbody-alteracoes');if(!tbody)return;if(!r.success||!r.data||!r.data.length){tbody.innerHTML='<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🚨</div><div class="empty-title">Nenhuma alteração detectada ainda</div></div></td></tr>';return}tbody.innerHTML=r.data.map(function(a){return'<tr><td>'+(a.municipio||'—')+'</td><td style="font-size:11px">'+(a.legislacao_titulo||'—')+'</td><td><span class="badge badge-amber">'+(a.tipo_alteracao||'—')+'</span></td><td style="font-size:12px;max-width:250px">'+(a.descricao||'—').substring(0,100)+'</td><td style="font-size:11px;font-family:var(--font-mono)">'+fmtData(a.data_deteccao)+'</td><td>'+(a.aprovado?'<span class="badge badge-green">Aprovada</span>':'<span class="badge badge-amber">Pendente</span>')+'</td></tr>'}).join('')}
 
