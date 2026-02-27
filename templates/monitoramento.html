@@ -157,12 +157,27 @@
     <!-- Ações -->
     <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--border)">
         <button class="btn btn-primary btn-sm" onclick="redetectarPerfil()" id="btn-redetectar">🔄 Re-detectar Perfil</button>
+        <button class="btn btn-sm" style="background:var(--blue);color:#fff" onclick="executarDiagnostico()" id="btn-diagnostico">🩺 Diagnóstico</button>
         <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-perfil-diario')">Fechar</button>
     </div>
 </div>
 </div></div>
 
 <div class="modal-overlay" id="modal-data-inicio"><div class="modal modal-sm"><div class="modal-title">📅 Configurar Monitoramento <button class="modal-close" onclick="closeModal('modal-data-inicio')">×</button></div><p style="font-size:13px;color:var(--muted);margin-bottom:16px">Defina o período em que o robô deve buscar alterações no diário oficial.</p><div class="form-group"><label>De: (data início) *</label><input type="date" id="data-inicio-input"><small style="color:var(--muted)">Normalmente a data de publicação da lei.</small></div><div class="form-group" style="margin-top:12px"><label>Até:</label><div style="display:flex;align-items:center;gap:10px"><input type="date" id="data-fim-input" disabled style="flex:1;opacity:0.4"><label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap;user-select:none"><input type="checkbox" id="data-fim-hoje" checked onchange="var inp=document.getElementById('data-fim-input');if(this.checked){inp.disabled=true;inp.value='';inp.style.opacity='0.4'}else{inp.disabled=false;inp.style.opacity='1';inp.value=new Date().toISOString().slice(0,10)}"> Até hoje (contínuo)</label></div><small style="color:var(--muted)">Marque "Até hoje" para monitorar continuamente. Ou defina uma data final específica.</small></div><div id="data-inicio-info" style="font-size:12px;color:var(--muted);margin-top:8px"></div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('modal-data-inicio')">Cancelar</button><button class="btn btn-primary" onclick="confirmarMonitoramento()" id="btn-confirmar-mon">✅ Ativar Monitoramento</button></div></div></div>
+
+<!-- Modal Diagnóstico -->
+<div class="modal-overlay" id="modal-diagnostico">
+<div class="modal modal-lg">
+    <div class="modal-title">🩺 Diagnóstico do Monitoramento — <span id="diag-municipio-nome"></span> <button class="modal-close" onclick="closeModal('modal-diagnostico')">×</button></div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Executa uma busca real no diário oficial e mostra cada passo do processo.</p>
+    <div id="diag-loading" style="text-align:center;padding:30px;display:none"><span class="spinner" style="margin:0 auto"></span><div style="margin-top:8px;color:var(--muted);font-size:12px">Executando diagnóstico… pode levar até 30s</div></div>
+    <div id="diag-results" style="max-height:500px;overflow-y:auto"></div>
+    <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-diagnostico')">Fechar</button>
+        <button class="btn btn-sm" style="background:var(--blue);color:#fff" onclick="executarDiagnostico()">🔄 Executar Novamente</button>
+    </div>
+</div>
+</div>
 
 <div id="toast-container"></div>
 
@@ -308,6 +323,46 @@ async function executarMunicipio(){
 }
 
 async function redetectarPerfil(){if(!_perfilAtualMid)return;var btn=document.getElementById('btn-redetectar');btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Detectando…';var r=await api('POST','/api/monitor/municipios/'+_perfilAtualMid+'/detectar',{forcar:true});btn.disabled=false;btn.innerHTML='🔄 Re-detectar Perfil';toast(r.message||(r.success?'Detecção iniciada!':'Erro'),r.success?'success':'error');if(r.success)setTimeout(function(){verPerfil(_perfilAtualMid,document.getElementById('perfil-municipio-nome').textContent);carregarMunicipios()},8000)}
+
+async function executarDiagnostico(){
+    if(!_perfilAtualMid)return;
+    document.getElementById('diag-municipio-nome').textContent=document.getElementById('perfil-municipio-nome').textContent;
+    document.getElementById('diag-loading').style.display='block';
+    document.getElementById('diag-results').innerHTML='';
+    openModal('modal-diagnostico');
+    try{
+        var r=await api('POST','/api/monitor/municipios/'+_perfilAtualMid+'/diagnostico',{dias:7});
+        document.getElementById('diag-loading').style.display='none';
+        if(!r.steps||!r.steps.length){
+            document.getElementById('diag-results').innerHTML='<div style="padding:20px;color:var(--muted);text-align:center">Nenhum resultado retornado</div>';
+            return;
+        }
+        var html='';
+        r.steps.forEach(function(s){
+            var dataHtml='';
+            if(s.data&&typeof s.data==='object'){
+                dataHtml='<div style="margin:4px 0 4px 28px;padding:8px;background:var(--surface2);border-radius:6px;font-family:var(--font-mono);font-size:11px;line-height:1.6">';
+                Object.keys(s.data).forEach(function(k){
+                    var v=s.data[k]||'—';
+                    var isWarning=v==='— não definido'||v==='— não definida'||v.indexOf('NULL')>-1;
+                    dataHtml+='<div><span style="color:var(--muted)">'+k+':</span> <span style="color:'+(isWarning?'var(--amber)':'var(--text)')+'">'+v+'</span></div>';
+                });
+                dataHtml+='</div>';
+            }
+            var isError=s.emoji==='❌'||s.emoji==='⚠️';
+            var isSuccess=s.emoji==='✅'||s.emoji==='📰';
+            var bgColor=isError?'rgba(255,77,77,0.05)':isSuccess?'rgba(0,229,160,0.05)':'transparent';
+            html+='<div style="padding:6px 12px;border-bottom:1px solid var(--border);background:'+bgColor+';font-size:12px">'
+                +'<span style="margin-right:6px">'+s.emoji+'</span>'
+                +'<span style="color:'+(isError?'var(--red)':'var(--text)')+'">'+s.msg+'</span>'
+                +'</div>'+dataHtml;
+        });
+        document.getElementById('diag-results').innerHTML=html;
+    }catch(e){
+        document.getElementById('diag-loading').style.display='none';
+        document.getElementById('diag-results').innerHTML='<div style="padding:20px;color:var(--red)">Erro ao executar diagnóstico: '+e+'</div>';
+    }
+}
 async function salvarUrlPerfil(){if(!_perfilAtualMid)return;var url=document.getElementById('perfil-url-input').value.trim();if(!url){toast('Informe uma URL','error');return}var r=await api('POST','/api/monitor/municipios/'+_perfilAtualMid+'/url',{url:url});toast(r.message||(r.success?'URL salva!':'Erro'),r.success?'success':'error');if(r.success)setTimeout(function(){verPerfil(_perfilAtualMid,document.getElementById('perfil-municipio-nome').textContent)},8000)}
 
 // === Legislações no modal de perfil ===
