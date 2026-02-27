@@ -41,7 +41,7 @@
             <a href="/" class="nav-item"><svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5"/></svg> Dashboard</a>
             <div class="nav-group" id="grp-biblioteca"><div class="nav-group-header" onclick="toggleGroup('grp-biblioteca')"><svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h2v12H3zM7 2h2v12H7zM11 2l2 .5v11l-2-.5z"/></svg><span class="nav-label">Biblioteca</span><span class="nav-badge hidden" id="badge-leg-pendentes">0</span><svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2l4 4-4 4"/></svg></div><div class="nav-submenu"><a href="/legislacoes" class="nav-sub-item"><span class="sub-dot"></span> Todas as Legislações</a><a href="/legislacoes/arvores" class="nav-sub-item"><span class="sub-dot"></span> Árvores Genealógicas</a><a href="/legislacoes/pendentes" class="nav-sub-item"><span class="sub-dot"></span> Pendentes de Aprovação <span class="sub-badge hidden" id="badge-leg-sub">0</span></a></div></div>
             <div class="nav-group" id="grp-parametros"><div class="nav-group-header" onclick="toggleGroup('grp-parametros')"><svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="2" width="14" height="12" rx="1.5"/><path d="M1 6h14M5 6v8M10 6v8"/></svg><span class="nav-label">Parâmetros</span><span class="nav-badge hidden" id="badge-param-pendentes">0</span><svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2l4 4-4 4"/></svg></div><div class="nav-submenu"><a href="/parametros" class="nav-sub-item"><span class="sub-dot"></span> Planilha de Zonas</a><a href="/parametros/nova-zona" class="nav-sub-item"><span class="sub-dot"></span> Nova Zona Manual</a><a href="/parametros/calculadora" class="nav-sub-item"><span class="sub-dot"></span> Calculadora de Área</a><a href="/parametros/importar" class="nav-sub-item"><span class="sub-dot"></span> Importar Excel</a><a href="/parametros/pendentes" class="nav-sub-item"><span class="sub-dot"></span> Pendentes de Aprovação <span class="sub-badge hidden" id="badge-param-sub">0</span></a></div></div>
-            <div class="nav-group open" id="grp-monitor"><div class="nav-group-header active-group" onclick="toggleGroup('grp-monitor')"><svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5l2 1.5"/></svg><span class="nav-label">Monitoramento</span><svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2l4 4-4 4"/></svg></div><div class="nav-submenu"><a href="/monitoramento" class="nav-sub-item active"><span class="sub-dot"></span> Municípios Monitorados</a><a href="/monitoramento/historico" class="nav-sub-item"><span class="sub-dot"></span> Histórico de Execuções</a><a href="/monitoramento/alteracoes" class="nav-sub-item"><span class="sub-dot"></span> Alterações Detectadas</a><a href="/monitoramento/scheduler" class="nav-sub-item"><span class="sub-dot"></span> Configurar Scheduler</a></div></div>
+            <div class="nav-group open" id="grp-monitor"><div class="nav-group-header active-group" onclick="toggleGroup('grp-monitor')"><svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5l2 1.5"/></svg><span class="nav-label">Monitoramento</span><svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2l4 4-4 4"/></svg></div><div class="nav-submenu"><a href="/monitoramento" class="nav-sub-item {% if not active_page or active_page == 'municipios' %}active{% endif %}"><span class="sub-dot"></span> Municípios Monitorados</a><a href="/monitoramento/historico" class="nav-sub-item {% if active_page == 'historico' %}active{% endif %}"><span class="sub-dot"></span> Histórico de Execuções</a><a href="/monitoramento/alteracoes" class="nav-sub-item {% if active_page == 'alteracoes' %}active{% endif %}"><span class="sub-dot"></span> Alterações Detectadas</a><a href="/monitoramento/scheduler" class="nav-sub-item {% if active_page == 'scheduler' %}active{% endif %}"><span class="sub-dot"></span> Configurar Scheduler</a></div></div>
             <div class="nav-group" id="grp-integ"><div class="nav-group-header" onclick="toggleGroup('grp-integ')"><svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h10M9 4l4 4-4 4"/><circle cx="3" cy="8" r="1.5"/></svg><span class="nav-label">Integrações</span><span class="nav-badge hidden" id="badge-integ">0</span><svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2l4 4-4 4"/></svg></div><div class="nav-submenu"><a href="/integracao" class="nav-sub-item"><span class="sub-dot"></span> Fila de Aprovação <span class="sub-badge hidden" id="badge-integ-sub">0</span></a><a href="/integracao/aprovadas" class="nav-sub-item"><span class="sub-dot"></span> Aprovadas</a><a href="/integracao/rejeitadas" class="nav-sub-item"><span class="sub-dot"></span> Rejeitadas</a></div></div>
             <div class="nav-section-sep"></div>
             <div class="nav-group" id="grp-users"><div class="nav-group-header" onclick="toggleGroup('grp-users')"><svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="5" r="3"/><path d="M1 14c0-3 2-5 5-5"/><circle cx="12" cy="6" r="2"/><path d="M10 14c0-2 1-3 2-3s2 1 2 3"/></svg><span class="nav-label">Usuários</span><span class="nav-badge hidden" id="badge-users">0</span><svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2l4 4-4 4"/></svg></div><div class="nav-submenu"><a href="/usuarios" class="nav-sub-item"><span class="sub-dot"></span> Todos os Usuários</a><a href="/usuarios/pendentes" class="nav-sub-item"><span class="sub-dot"></span> Aguardando Aprovação <span class="sub-badge hidden" id="badge-users-sub">0</span></a></div></div>
@@ -52,9 +52,46 @@
     <div class="main">
         <div class="topbar"><span class="topbar-title">🤖 Monitoramento</span><span class="topbar-sep"></span><span class="topbar-sub" id="sched-status-top">carregando...</span><div class="topbar-right"><button class="btn btn-ghost btn-sm" onclick="openModal('modal-scheduler')">⚙️ Configurar Scheduler</button><button class="btn btn-primary btn-sm" onclick="executarAgora()" id="btn-exec">⚡ Executar Agora</button></div></div>
         <div class="content">
-            <div class="page-tabs"><a href="/monitoramento" class="page-tab active">📡 Municípios Monitorados</a><a href="/monitoramento/alteracoes" class="page-tab">🚨 Alterações Detectadas</a><a href="/monitoramento/historico" class="page-tab">📰 Histórico de Execuções</a></div>
+            <div class="page-tabs"><a href="/monitoramento" class="page-tab {% if not active_page or active_page == 'municipios' %}active{% endif %}">📡 Municípios Monitorados</a><a href="/monitoramento/alteracoes" class="page-tab {% if active_page == 'alteracoes' %}active{% endif %}">🚨 Alterações Detectadas</a><a href="/monitoramento/historico" class="page-tab {% if active_page == 'historico' %}active{% endif %}">📰 Histórico de Execuções</a></div>
+
+            {% if not active_page or active_page == 'municipios' %}
+            <!-- ═══ MUNICÍPIOS ═══ -->
             <div class="section-header"><div class="section-title">Municípios em Monitoramento</div><button class="btn btn-primary btn-sm" onclick="openModal('modal-add-municipio')">➕ Adicionar Município</button></div>
             <div class="card" style="padding:0"><div class="scroll-list-tall"><table id="tabela-municipios"><thead><tr><th>Município</th><th>Estado</th><th>URL do Diário</th><th>Perfil Scraper</th><th>Última Busca</th><th>Ações</th></tr></thead><tbody id="tbody-municipios"><tr><td colspan="6" style="text-align:center;padding:30px"><span class="spinner" style="margin:0 auto"></span></td></tr></tbody></table></div></div>
+
+            {% elif active_page == 'alteracoes' %}
+            <!-- ═══ ALTERAÇÕES DETECTADAS ═══ -->
+            <div class="section-header"><div class="section-title">Alterações Detectadas</div><div style="font-size:12px;color:var(--muted)">Alterações encontradas pela IA nos diários oficiais — pendentes de revisão</div></div>
+            <div class="card" style="padding:0"><div class="scroll-list-tall"><table><thead><tr><th>Município</th><th>Legislação Monitorada</th><th>Tipo</th><th>Lei Alteradora</th><th>Resumo</th><th>Data</th><th>Status</th></tr></thead><tbody id="tbody-alteracoes"><tr><td colspan="7" style="text-align:center;padding:30px"><span class="spinner" style="margin:0 auto"></span></td></tr></tbody></table></div></div>
+
+            {% elif active_page == 'historico' %}
+            <!-- ═══ HISTÓRICO DE EXECUÇÕES ═══ -->
+            <div class="section-header"><div class="section-title">Histórico de Execuções</div><div style="font-size:12px;color:var(--muted)">Registro de todas as execuções do monitoramento</div></div>
+            <div class="card" style="padding:0"><div class="scroll-list-tall"><table><thead><tr><th>Data/Hora</th><th>Duração</th><th>Status</th><th>Municípios</th><th>OK</th><th>Erros</th><th>Alterações</th><th>Log</th></tr></thead><tbody id="tbody-historico"><tr><td colspan="8" style="text-align:center;padding:30px"><span class="spinner" style="margin:0 auto"></span></td></tr></tbody></table></div></div>
+
+            {% elif active_page == 'scheduler' %}
+            <!-- ═══ CONFIGURAR SCHEDULER ═══ -->
+            <div class="section-header"><div class="section-title">Configurar Scheduler</div><div style="font-size:12px;color:var(--muted)">Controle do agendamento automático do monitoramento</div></div>
+            <div class="card" style="padding:20px">
+                <div id="sched-page-info" style="margin-bottom:20px">
+                    <div style="font-size:14px;margin-bottom:12px" id="sched-page-status">Carregando...</div>
+                </div>
+                <div class="form-group" style="max-width:300px">
+                    <label>Horário de Execução Diária</label>
+                    <input type="time" id="sched-page-horario" value="02:00">
+                    <small style="color:var(--muted)">O monitoramento será executado automaticamente neste horário todos os dias.</small>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
+                    <button class="btn btn-primary btn-sm" onclick="salvarSchedulerPage()">💾 Salvar Horário</button>
+                    <button class="btn btn-amber btn-sm" onclick="pausarSchedulerPage()">⏸ Pausar Scheduler</button>
+                    <button class="btn btn-primary btn-sm" style="background:var(--accent);color:#000" onclick="retomarSchedulerPage()">▶ Retomar Scheduler</button>
+                </div>
+                <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:16px">
+                    <div style="font-size:13px;font-weight:600;margin-bottom:12px">📊 Últimas Execuções</div>
+                    <div id="sched-page-ultimas" style="max-height:300px;overflow-y:auto">Carregando...</div>
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -251,9 +288,23 @@ async function executarMunicipio(){
     if(!_perfilAtualMid)return;
     var btn=document.getElementById('btn-exec-municipio');btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Executando...';
     var r=await api('POST','/api/monitor/municipios/'+_perfilAtualMid+'/executar');
-    btn.disabled=false;btn.innerHTML='⚡ Executar Agora';
-    if(r.success){toast('Monitoramento iniciado para este município!');setTimeout(function(){carregarPerfilHistorico(_perfilAtualMid);carregarMunicipios()},10000)}
-    else toast(r.error||r.message||'Erro ao executar','error');
+    if(r.success){
+        toast(r.message||'Monitoramento iniciado!');
+        btn.innerHTML='<span class="spinner"></span> Processando…';
+        // Atualizar histórico progressivamente a cada 5s por 2min
+        var _pollCount=0;
+        var _pollInterval=setInterval(function(){
+            _pollCount++;
+            carregarPerfilHistorico(_perfilAtualMid);
+            carregarPerfilLegislacoes(_perfilAtualMid);
+            if(_pollCount>=24){clearInterval(_pollInterval);btn.disabled=false;btn.innerHTML='⚡ Executar Agora'}
+        },5000);
+        // Liberar botão após 2min
+        setTimeout(function(){clearInterval(_pollInterval);btn.disabled=false;btn.innerHTML='⚡ Executar Agora';carregarPerfilHistorico(_perfilAtualMid);carregarMunicipios()},120000);
+    }else{
+        btn.disabled=false;btn.innerHTML='⚡ Executar Agora';
+        toast(r.error||r.message||'Erro ao executar','error');
+    }
 }
 
 async function redetectarPerfil(){if(!_perfilAtualMid)return;var btn=document.getElementById('btn-redetectar');btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Detectando…';var r=await api('POST','/api/monitor/municipios/'+_perfilAtualMid+'/detectar',{forcar:true});btn.disabled=false;btn.innerHTML='🔄 Re-detectar Perfil';toast(r.message||(r.success?'Detecção iniciada!':'Erro'),r.success?'success':'error');if(r.success)setTimeout(function(){verPerfil(_perfilAtualMid,document.getElementById('perfil-municipio-nome').textContent);carregarMunicipios()},8000)}
@@ -384,7 +435,78 @@ async function salvarScheduler(){var horario=document.getElementById('sched-hora
 async function pausarScheduler(){var r=await api('POST','/api/monitor/scheduler',{acao:'pausar'});if(r.success){toast('Scheduler pausado','warning');carregarSchedulerInfo()}else toast(r.error||'Erro','error')}
 async function retomarScheduler(){var r=await api('POST','/api/monitor/scheduler',{acao:'retomar'});if(r.success){toast('Scheduler retomado');carregarSchedulerInfo()}else toast(r.error||'Erro','error')}
 
-carregarSchedulerInfo();carregarMunicipios();carregarAlteracoes();carregarHistorico();
+// Scheduler page functions
+async function salvarSchedulerPage(){
+    var horario=document.getElementById('sched-page-horario').value;
+    if(!horario){toast('Informe o horário','error');return}
+    var r=await api('POST','/api/monitor/scheduler',{acao:'salvar_horario',horario:horario});
+    if(r.success){toast('Horário salvo!');carregarSchedulerPage()}else toast(r.error||'Erro','error');
+}
+async function pausarSchedulerPage(){var r=await api('POST','/api/monitor/scheduler',{acao:'pausar'});if(r.success){toast('Scheduler pausado','warning');carregarSchedulerPage()}else toast(r.error||'Erro','error')}
+async function retomarSchedulerPage(){var r=await api('POST','/api/monitor/scheduler',{acao:'retomar'});if(r.success){toast('Scheduler retomado');carregarSchedulerPage()}else toast(r.error||'Erro','error')}
+
+async function carregarSchedulerPage(){
+    var el=document.getElementById('sched-page-status');if(!el)return;
+    var r=await api('GET','/api/monitor/scheduler');
+    if(!r.success)return;
+    var d=r.data||r;
+    var statusLabel=d.status==='ativo'?'🟢 Ativo':d.status==='pausado'?'🟡 Pausado':'🔴 Parado';
+    el.innerHTML='<span style="font-size:16px;font-weight:600">'+statusLabel+'</span>'
+        +' <span style="color:var(--muted);font-size:13px">· Execução diária às <strong>'+(d.horario_execucao||'02:00')+'</strong></span>';
+    var inp=document.getElementById('sched-page-horario');if(inp&&d.horario_execucao)inp.value=d.horario_execucao;
+    // Últimas execuções
+    var ul=document.getElementById('sched-page-ultimas');if(!ul)return;
+    var rh=await api('GET','/api/monitor/historico');
+    if(!rh.success||!rh.data||!rh.data.length){ul.innerHTML='<div style="color:var(--muted);font-size:12px;padding:8px">Nenhuma execução registrada.</div>';return}
+    ul.innerHTML=rh.data.slice(0,10).map(function(h){
+        var icon=h.status==='concluido'?'✅':h.status==='erro'?'❌':'⏳';
+        var dur='—';if(h.iniciada_em&&h.finalizada_em){var seg=Math.round((new Date(h.finalizada_em)-new Date(h.iniciada_em))/1000);dur=seg<60?seg+'s':Math.floor(seg/60)+'m'+seg%60+'s'}
+        return'<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">'
+            +'<span>'+icon+'</span>'
+            +'<span style="font-family:var(--font-mono);color:var(--muted);min-width:120px">'+fmtData(h.iniciada_em)+'</span>'
+            +'<span style="flex:1">Mun: '+(h.municipios_processados||0)+' · Alt: '+(h.alteracoes_detectadas||0)+' · Erros: '+(h.municipios_erro||0)+'</span>'
+            +'<span style="font-family:var(--font-mono);color:var(--muted)">'+dur+'</span>'
+            +'<button class="btn btn-sm btn-ghost" onclick="verDebug('+h.id+')" title="Ver log">🔍</button>'
+            +'</div>';
+    }).join('');
+}
+
+// Alterações — update for 7 columns
+async function carregarAlteracoesV2(){
+    var tbody=document.getElementById('tbody-alteracoes');if(!tbody)return;
+    var r=await api('GET','/api/monitor/alteracoes');
+    if(!r.success||!r.data||!r.data.length){
+        tbody.innerHTML='<tr><td colspan="7"><div style="text-align:center;padding:40px"><div style="font-size:32px;margin-bottom:8px">🚨</div><div style="color:var(--muted);font-size:13px">Nenhuma alteração detectada ainda</div><div style="color:var(--muted);font-size:11px;margin-top:4px">Execute o monitoramento para buscar alterações nos diários oficiais</div></div></td></tr>';
+        return;
+    }
+    tbody.innerHTML=r.data.map(function(a){
+        var leg=a.legislacao_titulo||'—';
+        var desc=(a.descricao||'—').substring(0,120);
+        // Extract lei alteradora from descricao if present
+        var alteradora='—';
+        if(desc.indexOf(' altera ')>-1||desc.indexOf(' revoga ')>-1||desc.indexOf(' regulamenta ')>-1){
+            alteradora=desc.split(/altera|revoga|regulamenta/)[0].trim();
+            if(alteradora.length>60)alteradora=alteradora.substring(0,60)+'…';
+        }
+        return '<tr>'
+            +'<td>'+(a.municipio||'—')+'</td>'
+            +'<td style="font-size:11px">'+leg+'</td>'
+            +'<td><span class="badge badge-amber">'+(a.tipo_alteracao||'—')+'</span></td>'
+            +'<td style="font-size:11px">'+alteradora+'</td>'
+            +'<td style="font-size:12px;max-width:250px">'+desc+'</td>'
+            +'<td style="font-size:11px;font-family:var(--font-mono)">'+fmtData(a.data_deteccao||a.detectada_em)+'</td>'
+            +'<td>'+(a.aprovado||a.status==='aprovado'?'<span class="badge badge-green">Aprovada</span>':'<span class="badge badge-amber">Pendente</span>')+'</td>'
+            +'</tr>';
+    }).join('');
+}
+
+// === PAGE INIT — carregar dados conforme a página ativa ===
+carregarSchedulerInfo();
+var _activePage='{{ active_page|default("municipios") }}';
+if(_activePage==='municipios'||!_activePage){carregarMunicipios()}
+else if(_activePage==='alteracoes'){carregarAlteracoesV2()}
+else if(_activePage==='historico'){carregarHistorico()}
+else if(_activePage==='scheduler'){carregarSchedulerPage()}
 </script>
 </body>
 </html>
