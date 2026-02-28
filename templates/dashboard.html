@@ -221,7 +221,7 @@ async function carregarFeed() {
         el.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">Nenhuma atividade recente</div><div class="empty-sub">O sistema registrará eventos aqui</div></div>`;
         return;
     }
-    const tipoIcon = { legislacao_adicionada:'📚', alteracao_detectada:'🔔', aprovacao:'✅', rejeicao:'❌', execucao_robo:'🤖', usuario_cadastrado:'👤' };
+    const tipoIcon = { legislacao_adicionada:'📚', alteracao_detectada:'🔔', aprovacao:'✅', rejeicao:'❌', execucao_robo:'🤖', usuario_cadastrado:'👤', municipio_novo:'📍', legislacao_descoberta:'📜', revogacao_detectada:'🚫', ciclo_monitoramento:'⚙️', nova_legislacao_detectada:'📝', erro_integracao:'⚠️', municipio_novo_sem_legislacao:'📍' };
     el.innerHTML = r.data.map(f => `
         <div style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
             <div style="font-size:18px;flex-shrink:0;width:28px;text-align:center">${tipoIcon[f.tipo] || '•'}</div>

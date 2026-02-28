@@ -545,6 +545,17 @@ function limparBusca() {
 }
 
 // ── Incluir Legislação ────────────────────────────────────────
+function edToggleMonPanel() {
+    const on = document.getElementById('ed-monitor').checked;
+    document.getElementById('ed-mon-panel').style.display = on ? 'block' : 'none';
+    document.getElementById('ed-mon-label').textContent = on ? 'Ativo' : 'Inativo';
+}
+function edToggleMonFim() {
+    const ateHoje = document.getElementById('ed-mon-ate-hoje').checked;
+    const inp = document.getElementById('ed-mon-fim');
+    inp.disabled = ateHoje; inp.style.opacity = ateHoje ? '0.4' : '1';
+    if (ateHoje) inp.value = '';
+}
 function atualizarCamposEsfera() {
     const esfera = document.getElementById('inc-esfera').value;
     document.getElementById('grp-estado').style.display = esfera === 'federal' ? 'none' : '';
@@ -747,6 +758,16 @@ async function verLegislacao(id) {
                 <div><div class="text-mono text-muted mb-2">Assunto</div><div>${l.assunto_nome||'—'}</div></div>
                 <div><div class="text-mono text-muted mb-2">Status</div><div>${l.status==='vigente'?'<span class="badge badge-green">Vigente</span>':'<span class="badge badge-muted">'+(l.status||'—')+'</span>'}</div></div>
             </div>
+            <div style="border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:16px;background:var(--surface2);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                <span style="font-weight:600;font-size:13px">📡 Monitoramento:</span>
+                ${l.em_monitoramento
+                    ? '<span class="badge badge-green">Ativo</span>'
+                      + (l.data_inicio_monitoramento ? '<span style="font-size:12px;color:var(--muted);font-family:var(--font-mono)">De: '+l.data_inicio_monitoramento.substring(0,10)+'</span>' : '')
+                      + (l.data_fim_monitoramento ? '<span style="font-size:12px;color:var(--muted);font-family:var(--font-mono)">Até: '+l.data_fim_monitoramento.substring(0,10)+'</span>' : '<span style="font-size:11px;color:var(--muted)">Até hoje (contínuo)</span>')
+                      + (l.ultima_verificacao_monitoramento ? '<span style="font-size:11px;color:var(--muted);font-family:var(--font-mono)">· Verificado: '+l.ultima_verificacao_monitoramento.substring(0,10)+'</span>' : '')
+                    : '<span class="badge badge-muted">Inativo</span>'
+                }
+            </div>
             ${l.ementa?`<div style="margin-bottom:16px"><div class="text-mono text-muted mb-2">Ementa</div><div style="font-size:13px;line-height:1.7;background:var(--surface2);padding:12px;border-radius:var(--radius);border:1px solid var(--border)">${l.ementa}</div></div>`:''}
             ${l.palavras_chave?`<div style="margin-bottom:16px"><div class="text-mono text-muted mb-2">Palavras-chave</div><div>${JSON.parse(l.palavras_chave||'[]').map(k=>`<span class="tag" style="margin-right:4px">${k}</span>`).join('')}</div></div>`:''}
             ${arquivosHtml}
@@ -823,11 +844,33 @@ async function iniciarEdicaoModal() {
                 <div class="form-group"><label>URL Original</label>
                     <input type="text" id="ed-url" value="${l.url_original||''}" placeholder="https://...">
                 </div>
-                <div class="form-group"><label>Monitoramento</label>
-                    <select id="ed-monitor">
-                        <option value="true" ${l.em_monitoramento?'selected':''}>Sim</option>
-                        <option value="false" ${!l.em_monitoramento?'selected':''}>Não</option>
-                    </select>
+            </div>
+            <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:8px;background:var(--surface2)">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                    <label style="margin:0;font-weight:600;display:flex;align-items:center;gap:6px">
+                        📡 Monitoramento
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;font-size:13px">
+                        <input type="checkbox" id="ed-monitor" ${l.em_monitoramento?'checked':''} onchange="edToggleMonPanel()">
+                        <span id="ed-mon-label">${l.em_monitoramento ? 'Ativo' : 'Inativo'}</span>
+                    </label>
+                </div>
+                <div id="ed-mon-panel" style="display:${l.em_monitoramento?'block':'none'}">
+                    <div class="form-row" style="margin-bottom:0">
+                        <div class="form-group" style="margin-bottom:6px">
+                            <label style="font-size:12px">De: (data início) *</label>
+                            <input type="date" id="ed-mon-inicio" value="${l.data_inicio_monitoramento?l.data_inicio_monitoramento.substring(0,10):''}">
+                            <small style="color:var(--muted);font-size:10px">Normalmente a data de publicação da lei</small>
+                        </div>
+                        <div class="form-group" style="margin-bottom:6px">
+                            <label style="font-size:12px">Até:</label>
+                            <input type="date" id="ed-mon-fim" value="${l.data_fim_monitoramento?l.data_fim_monitoramento.substring(0,10):''}" ${!l.data_fim_monitoramento?'disabled style=\"opacity:0.4\"':''}>
+                            <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);cursor:pointer;margin-top:4px">
+                                <input type="checkbox" id="ed-mon-ate-hoje" ${!l.data_fim_monitoramento?'checked':''} onchange="edToggleMonFim()"> Até hoje (contínuo)
+                            </label>
+                        </div>
+                    </div>
+                    ${l.ultima_verificacao_monitoramento ? '<div style=\"font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-top:4px\">Última verificação: '+l.ultima_verificacao_monitoramento.substring(0,10)+'</div>' : ''}
                 </div>
             </div>
             <div class="form-group"><label>Observações</label>
@@ -865,9 +908,24 @@ async function salvarEdicaoModal() {
         ementa: document.getElementById('ed-ementa').value || null,
         palavras_chave: kw ? kw.split(',').map(k=>k.trim()).filter(Boolean) : null,
         url_original: document.getElementById('ed-url').value || null,
-        em_monitoramento: document.getElementById('ed-monitor').value === 'true',
+        em_monitoramento: document.getElementById('ed-monitor').checked,
         observacoes: document.getElementById('ed-obs').value || null
     };
+
+    // Campos de monitoramento (datas)
+    if (payload.em_monitoramento) {
+        const dtInicio = document.getElementById('ed-mon-inicio').value;
+        if (!dtInicio) { toast('Informe a data de início do monitoramento', 'error'); return; }
+        payload.data_inicio_monitoramento = dtInicio;
+        const ateHoje = document.getElementById('ed-mon-ate-hoje').checked;
+        payload.data_fim_monitoramento = ateHoje ? null : (document.getElementById('ed-mon-fim').value || null);
+        if (!ateHoje && payload.data_fim_monitoramento && payload.data_fim_monitoramento < dtInicio) {
+            toast('Data final deve ser posterior à data de início', 'error'); return;
+        }
+    } else {
+        payload.data_inicio_monitoramento = null;
+        payload.data_fim_monitoramento = null;
+    }
 
     const btn = document.getElementById('btn-editar-modal');
     btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Salvando...';
