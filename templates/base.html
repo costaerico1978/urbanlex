@@ -439,6 +439,29 @@
                 </div>
             </div>
 
+            <!-- Buscador de Legislações -->
+            <div class="nav-group {% if active_group == 'buscador' %}open{% endif %}" id="grp-buscador">
+                <div class="nav-group-header {% if active_group == 'buscador' %}active-group{% endif %}" onclick="toggleGroup('grp-buscador')">
+                    <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/>
+                    </svg>
+                    <span class="nav-label">Buscador</span>
+                    <span class="nav-badge hidden" id="badge-buscador">0</span>
+                    <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2l4 4-4 4"/></svg>
+                </div>
+                <div class="nav-submenu">
+                    <a href="/buscador" class="nav-sub-item {% if active_page == 'buscador-painel' %}active{% endif %}">
+                        <span class="sub-dot"></span> Painel de Buscas
+                    </a>
+                    <a href="/buscador/manual" class="nav-sub-item {% if active_page == 'buscador-manual' %}active{% endif %}">
+                        <span class="sub-dot"></span> Busca Manual
+                    </a>
+                    <a href="/buscador/historico" class="nav-sub-item {% if active_page == 'buscador-historico' %}active{% endif %}">
+                        <span class="sub-dot"></span> Histórico de Buscas
+                    </a>
+                </div>
+            </div>
+
             <!-- Integrações -->
             <div class="nav-group {% if active_group == 'integracoes' %}open{% endif %}" id="grp-integ">
                 <div class="nav-group-header {% if active_group == 'integracoes' %}active-group{% endif %}" onclick="toggleGroup('grp-integ')">
