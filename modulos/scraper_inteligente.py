@@ -132,7 +132,165 @@ def _montar_termos_busca(leg_info: dict) -> List[str]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ESTRATÉGIA 0: API do Querido Diário (OKBR) — REST puro, sem JS
+# ESTRATÉGIA 1: Busca direta na API interna do site (doweb, etc.)
+# Tenta descobrir e chamar o endpoint Elasticsearch/API do diário
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _buscar_api_direta(url_base: str, termo: str,
+                        data_inicio: date, data_fim: date) -> dict:
+    """
+    Tenta descobrir e usar a API interna do diário oficial.
+    Sites doweb (e similares) usam Elasticsearch por trás do Angular.
+    """
+    url_base = url_base.rstrip('/')
+    headers = {
+        'User-Agent': 'Mozilla/5.0 Chrome/120',
+        'Accept': 'application/json, text/html, */*',
+    }
+
+    # Lista de endpoints comuns em plataformas de diário oficial
+    endpoints_busca = [
+        # doweb padrão
+        (f"{url_base}/apifront/portal/edicoes/pesquisar_materias",
+         {'termo': termo}, 'GET'),
+        (f"{url_base}/apifront/portal/edicoes/pesquisar",
+         {'termo': termo}, 'GET'),
+        (f"{url_base}/apifront/portal/busca",
+         {'termo': termo, 'pagina': '0', 'quantidade': '20'}, 'GET'),
+        (f"{url_base}/apifront/portal/edicoes/buscar_por_texto",
+         {'texto': termo, 'dataInicial': data_inicio.strftime('%d/%m/%Y'),
+          'dataFinal': data_fim.strftime('%d/%m/%Y')}, 'GET'),
+        # Elasticsearch proxy comum
+        (f"{url_base}/elasticsearch/_search",
+         None, 'POST_ES'),
+        # Variações com query string simples
+        (f"{url_base}/api/busca",
+         {'q': termo}, 'GET'),
+        (f"{url_base}/api/search",
+         {'q': termo}, 'GET'),
+    ]
+
+    for url_ep, params, metodo in endpoints_busca:
+        try:
+            if metodo == 'POST_ES':
+                # Tentar query Elasticsearch direta
+                es_body = {
+                    "query": {
+                        "query_string": {
+                            "query": f'"{termo}"'
+                        }
+                    },
+                    "size": 20,
+                    "sort": [{"_score": "desc"}]
+                }
+                resp = requests.post(url_ep, json=es_body, headers={
+                    **headers, 'Content-Type': 'application/json'
+                }, timeout=10)
+            else:
+                resp = requests.get(url_ep, params=params,
+                                    headers=headers, timeout=10)
+
+            if resp.status_code == 404 or resp.status_code == 405:
+                continue
+
+            if resp.status_code == 200:
+                ct = resp.headers.get('content-type', '')
+                texto = resp.text.strip()
+
+                # Verificar se retornou JSON válido
+                if 'json' in ct or (texto.startswith('{') or texto.startswith('[')):
+                    try:
+                        dados = resp.json()
+                        pubs = _parsear_resposta_api(dados, url_base, termo)
+                        if pubs is not None:  # None = formato não reconhecido
+                            logger.info(f"  ✓ API direta OK: {url_ep} → {len(pubs)} resultados")
+                            return {
+                                'sucesso': True,
+                                'publicacoes': pubs,
+                                'total': len(pubs),
+                                'endpoint': url_ep,
+                                'mensagem': f'API direta: {len(pubs)} resultado(s)',
+                            }
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+
+        except requests.exceptions.ConnectionError:
+            continue
+        except requests.exceptions.Timeout:
+            continue
+        except Exception:
+            continue
+
+    return {'sucesso': False, 'publicacoes': [], 'total': 0,
+            'mensagem': 'Nenhum endpoint de API interna encontrado'}
+
+
+def _parsear_resposta_api(dados: dict, url_base: str, termo: str) -> list:
+    """
+    Tenta interpretar a resposta JSON de diferentes formatos de API.
+    Retorna lista de pubs ou None se o formato não for reconhecido.
+    """
+    pubs = []
+
+    # Formato Elasticsearch direto: {hits: {total: N, hits: [{_source: {...}}]}}
+    if isinstance(dados, dict) and 'hits' in dados:
+        hits = dados['hits']
+        if isinstance(hits, dict) and 'hits' in hits:
+            for hit in hits['hits']:
+                src = hit.get('_source', {})
+                dia = src.get('day', '')
+                mes = src.get('month', '')
+                ano = src.get('year', '')
+                data_pub = f"{ano}-{str(mes).zfill(2)}-{str(dia).zfill(2)}" if ano else ''
+
+                # Tentar montar URL da matéria
+                materia_id = src.get('id_materia') or src.get('materia') or ''
+                edicao_id = src.get('id_edicao') or src.get('edicao') or ''
+                url_mat = ''
+                if materia_id and edicao_id:
+                    url_mat = f"{url_base}/apifront/portal/edicoes/imprimir_materia/{materia_id}/{edicao_id}"
+
+                texto = src.get('texto', '') or src.get('conteudo', '') or ''
+                titulo = src.get('titulo', '') or f"Diário {data_pub}"
+
+                pubs.append({
+                    'titulo': titulo[:200],
+                    'data': data_pub,
+                    'url': url_mat,
+                    'conteudo': texto[:50000],
+                    'tipo': 'materia',
+                })
+            return pubs
+
+    # Formato lista simples: [{titulo, data, url, ...}]
+    if isinstance(dados, list):
+        for item in dados[:20]:
+            if isinstance(item, dict) and ('titulo' in item or 'data' in item):
+                pubs.append({
+                    'titulo': item.get('titulo', '')[:200],
+                    'data': item.get('data', '') or item.get('date', ''),
+                    'url': item.get('url', '') or item.get('link', ''),
+                    'conteudo': item.get('conteudo', '') or item.get('texto', ''),
+                    'tipo': 'materia',
+                })
+        return pubs if pubs else None
+
+    # Formato com campo 'resultados', 'items', 'data'
+    for campo in ['resultados', 'items', 'data', 'materias', 'publicacoes']:
+        if isinstance(dados, dict) and campo in dados:
+            items = dados[campo]
+            if isinstance(items, list) and items:
+                return _parsear_resposta_api(items, url_base, termo)
+
+    # Formato com campo 'total' indicando que houve busca mas 0 resultados
+    if isinstance(dados, dict) and 'total' in dados:
+        total = dados.get('total', 0)
+        if isinstance(total, int) and total == 0:
+            return []  # Busca funcionou, mas 0 resultados
+
+    return None  # Formato não reconhecido
+
+
 # Cobre 5500+ municípios brasileiros. API gratuita e aberta.
 # https://queridodiario.ok.org.br/api/docs
 # ─────────────────────────────────────────────────────────────────────────────
@@ -529,7 +687,7 @@ def _extrair_publicacoes_com_ia(html: str, url_base: str,
     try:
         import google.generativeai as genai
         genai.configure(api_key=gemini_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
 
         prompt = f"""Analise o HTML abaixo de um sistema de busca de Diário Oficial.
 O termo buscado foi: "{termo_busca}"
@@ -821,7 +979,7 @@ def _inferir_url_diario(nome_municipio: str, estado: str) -> dict:
     try:
         import google.generativeai as genai
         genai.configure(api_key=gemini_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
 
         prompt = f"""Você é especialista em legislação municipal brasileira.
 Preciso da URL oficial do Diário Oficial de: {nome_municipio} - {estado} - Brasil
@@ -878,7 +1036,7 @@ def _analisar_screenshot_com_ia(screenshot_bytes: bytes, url: str,
     try:
         import google.generativeai as genai
         genai.configure(api_key=gemini_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
 
         img_b64 = base64.b64encode(screenshot_bytes).decode()
         img_part = {'mime_type': 'image/png', 'data': img_b64}
@@ -911,7 +1069,7 @@ def _extrair_perfil_do_html(html: str, url: str, nome_municipio: str) -> dict:
     try:
         import google.generativeai as genai
         genai.configure(api_key=gemini_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         html_t = html[:12000]
         prompt = f"""Analise o HTML do Diário Oficial de {nome_municipio} ({url}).
 Extraia o perfil de navegação em JSON (sem markdown):
