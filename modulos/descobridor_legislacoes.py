@@ -138,7 +138,7 @@ def _descobrir_via_llm(municipio: str, estado: str) -> List[dict]:
     try:
         import google.generativeai as genai
         genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
 
         prompt = f"""Identifique as principais legislações urbanísticas VIGENTES do município
 de {municipio}, estado {estado}, Brasil.
