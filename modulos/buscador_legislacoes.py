@@ -425,6 +425,7 @@ def _buscar_diario_oficial(url_diario: str, tipo_lei: str, numero_lei: str,
     try:
         from playwright.sync_api import sync_playwright
         import fitz as _fitz_do
+        import time as _time
     except (ImportError, Exception) as e:
         logs.append({'nivel': 'aviso', 'msg': f'{label}: Dependência faltando: {str(e)[:60]}'})
         return []
