@@ -809,7 +809,6 @@ def navegar_como_humano(
                 pdf_path = exec_resultado.split(': ', 1)[1]
                 resultado['pdf_path'] = pdf_path
                 resultado['encontrada'] = True
-                resultado['url'] = pdf_path
                 resultado['confirmacao'] = 'PDF baixado com sucesso'
                 logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ PDF baixado — encerrando navegação'})
                 break
