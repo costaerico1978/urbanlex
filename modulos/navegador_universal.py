@@ -804,10 +804,15 @@ def navegar_como_humano(
                         logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ Legislação encontrada via navegação: {nav_url[:80]}'})
                         break
 
-            # 12. Download?
+            # 12. Download? Marcar como encontrado e parar
             if exec_resultado.startswith('Download:'):
                 pdf_path = exec_resultado.split(': ', 1)[1]
                 resultado['pdf_path'] = pdf_path
+                resultado['encontrada'] = True
+                resultado['url'] = pdf_path
+                resultado['confirmacao'] = 'PDF baixado com sucesso'
+                logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ PDF baixado — encerrando navegação'})
+                break
 
         except Exception as e:
             err_msg = str(e)[:80]
