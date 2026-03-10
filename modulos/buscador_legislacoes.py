@@ -411,6 +411,22 @@ def _pesquisar_web(query: str, logs: list, label: str, max_results: int = 5) -> 
     return resultados
 
 
+def _flaresolverr_get(url: str, logs: list = None) -> tuple:
+    """Tenta acessar URL via FlareSolverr local. Retorna (status_code, html)."""
+    import requests as _req
+    try:
+        r = _req.post('http://localhost:8191/v1',
+            json={'cmd': 'request.get', 'url': url, 'maxTimeout': 60000},
+            timeout=70)
+        d = r.json()
+        if d.get('status') == 'ok':
+            sol = d.get('solution', {})
+            return sol.get('status', 0), sol.get('response', '')
+    except Exception as e:
+        if logs is not None:
+            logs.append({'nivel': 'aviso', 'msg': f'FlareSolverr erro: {str(e)[:80]}'})
+    return 0, ''
+
 def _buscar_leismunicipais_direto(municipio: str, estado: str, tipo: str, numero: str, ano: str, logs: list) -> list:
     """
     Busca diretamente no LeisMunicipais.com.br sem depender de DuckDuckGo.
@@ -464,7 +480,14 @@ def _buscar_leismunicipais_direto(municipio: str, estado: str, tipo: str, numero
         _lm_preview = resp.text[:200].lower().replace('\n', ' ')
         _is_cf = any(p in _lm_preview for p in ['just a moment', 'checking your browser', 'challenge-platform', 'cloudflare'])
         logs.append({'nivel': 'info', 'msg': f'LeisMunicipais busca: status={resp.status_code} cf={_is_cf} preview={repr(resp.text[:120])}'})
-        if resp.status_code == 200 and not _is_cf and 'html' in resp.headers.get('Content-Type', '').lower():
+        if _is_cf or resp.status_code == 403:
+            logs.append({'nivel': 'info', 'msg': 'LeisMunicipais: Cloudflare — tentando FlareSolverr...'})
+            _fs_status, _fs_html = _flaresolverr_get(url_busca, logs)
+            if _fs_status == 200 and len(_fs_html) > 500:
+                logs.append({'nivel': 'ok', 'msg': f'LeisMunicipais: FlareSolverr OK ({len(_fs_html)} chars)'})
+                resp = type('FakeResp', (), {'status_code': 200, 'text': _fs_html, 'headers': {'Content-Type': 'text/html'}})()
+                _is_cf = False
+        if resp.status_code == 200 and not _is_cf and 'html' in (resp.headers.get('Content-Type', '') if hasattr(resp.headers, 'get') else resp.headers.get('Content-Type', '')).lower():
             html = resp.text
             # Extrair links de resultados
             links = re.findall(r'<a\s[^>]*href=["\']([^"\']*leismunicipais\.com\.br[^"\']*)["\'][^>]*>(.*?)</a>',
