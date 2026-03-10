@@ -16,7 +16,10 @@ CORRECOES APLICADAS (25/02/2026):
   BUG 11: Rota re-upload de arquivo adicionada
 """
 
-import os, io, sys, json, hashlib, threading, time
+import os
+from dotenv import load_dotenv
+load_dotenv()
+import io, sys, json, hashlib, threading, time
 from pathlib import Path
 from datetime import datetime, timedelta
 from functools import wraps
