@@ -544,7 +544,21 @@ def _buscar_leismunicipais_direto(municipio: str, estado: str, tipo: str, numero
         for r in resultados[:3]:
             logs.append({'nivel': 'info', 'msg': f'  → {r["titulo"][:60]} ({r["url"][:60]})'})
     else:
-        logs.append({'nivel': 'info', 'msg': '📖 LeisMunicipais: acesso direto sem resultados — usando DuckDuckGo...'})
+        logs.append({'nivel': 'info', 'msg': '\U0001f4d6 LeisMunicipais: acesso direto sem resultados — tentando FlareSolverr...'})
+        try:
+            from modulos.navegador_universal import navegar_via_flaresolverr
+            url_fs = f'https://leismunicipais.com.br/pesquisa/{estado_slug}/{mun_slug}?q={quote_plus(termos)}'
+            leg_dict = {'tipo': tipo, 'numero': numero, 'ano': ano, 'municipio': municipio}
+            fs_result = navegar_via_flaresolverr(url_fs, leg_dict, logs, label='LeisMunicipais-FS')
+            if fs_result.get('encontrada') and fs_result.get('url'):
+                resultados.append({
+                    'url': fs_result['url'],
+                    'titulo': f'{tipo} {numero}/{ano} - LeisMunicipais (FlareSolverr)',
+                    'snippet': fs_result.get('confirmacao', 'Encontrado via FlareSolverr'),
+                })
+                logs.append({'nivel': 'ok', 'msg': f'\U0001f4d6 LeisMunicipais (FlareSolverr): {fs_result["url"][:80]}'})
+        except Exception as e_fs:
+            logs.append({'nivel': 'aviso', 'msg': f'\U0001f4d6 LeisMunicipais FlareSolverr erro: {str(e_fs)[:80]}'})
 
     return resultados
 

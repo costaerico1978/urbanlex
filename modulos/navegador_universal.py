@@ -2487,6 +2487,222 @@ def _executar_acao(page, acao: dict, logs: list, label: str) -> str:
         return f'Acao desconhecida: {tipo}'
 
 
+
+def _montar_prompt_html(legislacao: dict, historico: list, passo: int, url_atual: str, html_resumo: str) -> str:
+    """Prompt para navegação via HTML (FlareSolverr) — sem screenshot."""
+    tipo = legislacao.get('tipo', 'Lei Complementar')
+    numero = legislacao.get('numero', '')
+    ano = legislacao.get('ano', '')
+    municipio = legislacao.get('municipio', '')
+    historico_txt = ''
+    if historico:
+        historico_txt = '\n'.join([
+            f"  Passo {h['passo']}: {h['acao']} -> {h['resultado']}"
+            for h in historico[-5:]
+        ])
+        historico_txt = f"\n\nHISTORICO:\n{historico_txt}"
+    return f"""Voce esta navegando via HTML para encontrar: {tipo} nº {numero}/{ano} — {municipio}.
+URL ATUAL: {url_atual} | PASSO: {passo}{historico_txt}
+
+HTML RESUMIDO DA PAGINA:
+{html_resumo[:8000]}
+
+Analise o HTML e decida a proxima acao para encontrar a legislacao correta.
+REGRAS:
+1. Procure links que contenham o tipo e numero da legislacao nos resultados.
+2. Se houver paginacao e nao encontrou, va para proxima pagina.
+3. Quando encontrar o link correto, retorne a URL completa.
+4. Se a pagina mostra o texto da lei diretamente, marque como concluido.
+5. NUNCA invente URLs — use apenas URLs que aparecem no HTML.
+
+Responda APENAS com JSON:
+{{
+    "o_que_vejo": "descricao breve do conteudo da pagina",
+    "decisao": "o que vou fazer e por que",
+    "acao": {{
+        "tipo": "navegar|concluido|desistir",
+        "url": "URL completa para navegar (so para navegar)",
+        "motivo": "porque escolheu esta URL"
+    }},
+    "legislacao_encontrada": {{
+        "encontrada": false,
+        "url": "",
+        "confirmacao": ""
+    }}
+}}"""
+
+
+def _chamar_gemini_texto(prompt: str, logs: list, label: str) -> str:
+    """Chama Gemini com texto puro (sem imagem)."""
+    import google.generativeai as genai
+    api_key = os.getenv('GEMINI_API_KEY', '')
+    if not api_key:
+        logs.append({'nivel': 'erro', 'msg': f'{label}: GEMINI_API_KEY nao configurada'})
+        return ''
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel('gemini-2.5-flash')
+    for tentativa in range(3):
+        if tentativa > 0:
+            time.sleep(tentativa * 3)
+        try:
+            response = model.generate_content(prompt)
+            return response.text.strip()
+        except Exception as e:
+            err = str(e)[:120]
+            logs.append({'nivel': 'aviso', 'msg': f'{label}: Gemini texto falhou: {err}'})
+            if '429' not in err and 'quota' not in err.lower():
+                break
+    return ''
+
+
+def _extrair_html_resumido(html: str) -> str:
+    """Extrai texto relevante do HTML removendo scripts, estilos e tags desnecessarias."""
+    import re as _re
+    # Remover scripts e estilos
+    html = _re.sub(r'<script[^>]*>[\s\S]*?</script>', '', html, flags=_re.IGNORECASE)
+    html = _re.sub(r'<style[^>]*>[\s\S]*?</style>', '', html, flags=_re.IGNORECASE)
+    # Preservar href dos links — substituir <a href="URL">TEXTO</a> por [TEXTO](URL)
+    html = _re.sub(r'<a[^>]*href=["\']([^"\']+)["\'][^>]*>([\s\S]*?)</a>',
+                   lambda m: '[' + _re.sub('<[^>]+>', '', m.group(2)).strip() + '](' + m.group(1) + ')',
+                   html, flags=_re.IGNORECASE)
+    # Remover todas as outras tags
+    html = _re.sub(r'<[^>]+>', ' ', html)
+    # Limpar espacos
+    html = _re.sub(r'\s+', ' ', html).strip()
+    return html
+
+
+def navegar_via_flaresolverr(
+    url_inicial: str,
+    legislacao: dict,
+    logs: list,
+    label: str = '',
+    max_passos: int = 15
+) -> dict:
+    """
+    Navega um site usando FlareSolverr (bypass Cloudflare) + Gemini analisa HTML.
+    Alternativa ao Playwright quando Cloudflare bloqueia.
+    """
+    import requests as _req
+    import re as _re
+    import json as _json
+
+    resultado = {
+        'encontrada': False,
+        'url': '',
+        'status': '',
+        'confirmacao': '',
+        'pdf_path': None,
+    }
+    historico = []
+    url_atual = url_inicial
+
+    def _flare_get(url):
+        try:
+            r = _req.post('http://localhost:8191/v1',
+                json={'cmd': 'request.get', 'url': url, 'maxTimeout': 60000},
+                timeout=70)
+            d = r.json()
+            if d.get('status') == 'ok':
+                sol = d.get('solution', {})
+                return sol.get('status', 0), sol.get('response', ''), sol.get('url', url)
+        except Exception as e:
+            logs.append({'nivel': 'aviso', 'msg': f'{label}: FlareSolverr erro: {str(e)[:80]}'})
+        return 0, '', url
+
+    logs.append({'nivel': 'info', 'msg': f'{label}: 🌐 Iniciando navegação via FlareSolverr: {url_inicial[:80]}'})
+
+    for passo in range(1, max_passos + 1):
+        # 1. Buscar página via FlareSolverr
+        status, html, url_real = _flare_get(url_atual)
+        if status != 200 or len(html) < 200:
+            logs.append({'nivel': 'aviso', 'msg': f'{label}: Passo {passo}: FlareSolverr retornou status={status} len={len(html)}'})
+            break
+        url_atual = url_real
+        logs.append({'nivel': 'info', 'msg': f'{label}: Passo {passo}: HTML obtido ({len(html)} chars) de {url_atual[:60]}'})
+
+        # 2. Resumir HTML para o Gemini
+        html_resumido = _extrair_html_resumido(html)
+
+        # 3. Montar prompt e chamar Gemini
+        prompt = _montar_prompt_html(legislacao, historico, passo, url_atual, html_resumido)
+        resp = _chamar_gemini_texto(prompt, logs, f'{label} passo {passo}')
+        if not resp:
+            logs.append({'nivel': 'aviso', 'msg': f'{label}: Passo {passo}: Gemini sem resposta'})
+            break
+
+        # 4. Parsear JSON
+        decisao = None
+        try:
+            resp_clean = resp.strip()
+            if '```' in resp_clean:
+                m = _re.search(r'```(?:json)?\s*\n?([\s\S]*?)\n?\s*```', resp_clean)
+                resp_clean = m.group(1).strip() if m else resp_clean.replace('```', '')
+            decisao = _json.loads(resp_clean)
+        except Exception:
+            brace_count = 0
+            start = None
+            for i, ch in enumerate(resp):
+                if ch == '{':
+                    if brace_count == 0: start = i
+                    brace_count += 1
+                elif ch == '}':
+                    brace_count -= 1
+                    if brace_count == 0 and start is not None:
+                        try:
+                            decisao = _json.loads(resp[start:i+1])
+                        except Exception:
+                            pass
+                        break
+
+        if not decisao:
+            logs.append({'nivel': 'aviso', 'msg': f'{label}: Passo {passo}: JSON invalido'})
+            break
+
+        o_que_vejo = decisao.get('o_que_vejo', '')
+        acao = decisao.get('acao', {}) or {}
+        tipo_acao = acao.get('tipo', '')
+        logs.append({'nivel': 'info', 'msg': f'{label}: 👁️ Passo {passo}: {o_que_vejo[:200]}'})
+        logs.append({'nivel': 'info', 'msg': f'{label}: 🧠 Decisão: {tipo_acao} — {decisao.get("decisao","")[:200]}'})
+
+        # 5. Legislação encontrada?
+        leg = decisao.get('legislacao_encontrada', {}) or {}
+        leg_url = (leg.get('url', '') or '').strip()
+        if leg.get('encontrada') and leg_url and leg_url.startswith('http'):
+            resultado['encontrada'] = True
+            resultado['url'] = leg_url
+            resultado['confirmacao'] = leg.get('confirmacao', '')
+            logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ Encontrada via FlareSolverr! {leg_url[:80]}'})
+            break
+
+        # 6. Executar ação
+        if tipo_acao == 'concluido':
+            if leg_url and leg_url.startswith('http'):
+                resultado['encontrada'] = True
+                resultado['url'] = leg_url
+                logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ Concluído: {leg_url[:80]}'})
+            break
+        elif tipo_acao == 'desistir':
+            logs.append({'nivel': 'aviso', 'msg': f'{label}: ❌ Gemini desistiu na passo {passo}'})
+            historico.append({'passo': passo, 'acao': 'desistir', 'resultado': decisao.get('decisao','')[:100]})
+            break
+        elif tipo_acao == 'navegar':
+            prox_url = (acao.get('url', '') or '').strip()
+            if not prox_url or not prox_url.startswith('http'):
+                logs.append({'nivel': 'aviso', 'msg': f'{label}: URL inválida para navegar: {prox_url[:60]}'})
+                break
+            if prox_url == url_atual:
+                logs.append({'nivel': 'aviso', 'msg': f'{label}: Loop detectado — mesma URL'})
+                break
+            historico.append({'passo': passo, 'acao': f'navegar', 'resultado': prox_url[:80]})
+            logs.append({'nivel': 'info', 'msg': f'{label}: 🔗 Navegando para: {prox_url[:80]}'})
+            url_atual = prox_url
+        else:
+            logs.append({'nivel': 'aviso', 'msg': f'{label}: Ação desconhecida: {tipo_acao}'})
+            break
+
+    return resultado
+
 def navegar_como_humano(
     page,
     frame,
