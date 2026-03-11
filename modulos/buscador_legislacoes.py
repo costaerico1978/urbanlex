@@ -3152,6 +3152,18 @@ Se não encontrar data exata, retorne {{"data_publicacao": ""}}. NÃO invente.""
     if municipio and numero:
         lm_results = _buscar_leismunicipais_direto(municipio, estado, tipo_inferido or tipo, numero, ano, logs)
         for lm in lm_results[:2]:
+            # Se já tem texto extraído (ex: via FlareSolverr), usar diretamente
+            if lm.get('texto') and len(lm['texto']) > 200:
+                textos_extraidos.append({
+                    'url': lm['url'],
+                    'texto': lm['texto'],
+                    'nome': '📖 LeisMunicipais',
+                    'relevancia': 0.85,
+                    '_fonte': 'leismunicipais',
+                })
+                fontes_status.append({'nome': '📖 LeisMunicipais', 'url': lm['url'], 'encontrou': True})
+                logs.append({'nivel': 'ok', 'msg': f'📖 LeisMunicipais: ✅ texto pre-extraido usado ({len(lm["texto"])} chars)'})
+                break
             result = _acessar_pagina(lm['url'], termos_busca, headers_http, logs, '📖 LeisMunicipais',
                                      tipo_lei=tipo_inferido or tipo, numero_lei=numero, ano=ano)
             if result:
