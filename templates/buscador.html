@@ -311,7 +311,7 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
         </div>
         <div>
             <div class="field-label">Data de Publicação</div>
-            <input type="date" class="field-input" id="bm-data-pub">
+            <input type="text" class="field-input" id="bm-data-pub" placeholder="dd/mm/aaaa" maxlength="10" inputmode="numeric">
         </div>
         <div>
             <div class="field-label">Assunto / Categoria</div>
@@ -601,7 +601,7 @@ async function executarBuscaManual() {
         tipo: document.getElementById('bm-tipo').value,
         numero: document.getElementById('bm-numero').value,
         ano: document.getElementById('bm-ano').value,
-        data_publicacao: document.getElementById('bm-data-pub').value,
+        data_publicacao: (function(v){ if(!v) return ''; var p=v.split('/'); return p.length===3 ? p[2]+'-'+p[1]+'-'+p[0] : v; })(document.getElementById('bm-data-pub').value),
         assunto: document.getElementById('bm-assunto').value,
         palavras_chave: document.getElementById('bm-palavras').value,
         fontes_prioritarias: fontes,
