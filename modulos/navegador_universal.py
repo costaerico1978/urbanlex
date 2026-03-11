@@ -2705,151 +2705,73 @@ def navegar_via_flaresolverr(
 
     return resultado
 
+
 def navegar_com_cookies_flaresolverr(
     url_inicial: str,
     legislacao: dict,
     logs: list,
-    label: str = '',
+    label: str = "",
     chamar_llm=None,
     executable_path: str = None,
     max_passos: int = 20
 ) -> dict:
-    """
-    Usa FlareSolverr apenas para obter cookies/user-agent que bypassam Cloudflare,
-    depois abre um contexto Playwright com esses cookies e navega normalmente via
-    navegar_como_humano (com JS, formularios, screenshots).
-    """
     import requests as _req
     from playwright.sync_api import sync_playwright
 
-    resultado = {
-        'encontrada': False,
-        'url': '',
-        'status': '',
-        'confirmacao': '',
-        'pdf_path': None,
-    }
+    resultado = {"encontrada": False, "url": "", "status": "", "confirmacao": "", "pdf_path": None}
 
-    logs.append({'nivel': 'info', 'msg': f'{label}: 🍪 Obtendo cookies via FlareSolverr: {url_inicial[:80]}'})
+    logs.append({"nivel": "info", "msg": f"{label}: Obtendo cookies via FlareSolverr: {url_inicial[:80]}"})
     try:
-        r = _req.post('http://localhost:8191/v1',
-            json={'cmd': 'request.get', 'url': url_inicial, 'maxTimeout': 60000},
+        r = _req.post("http://localhost:8191/v1",
+            json={"cmd": "request.get", "url": url_inicial, "maxTimeout": 60000},
             timeout=70)
         d = r.json()
-        if d.get('status') != 'ok':
-            logs.append({'nivel': 'aviso', 'msg': f'{label}: FlareSolverr falhou: {d.get("message", "")[:80]}'})
+        if d.get("status") != "ok":
+            logs.append({"nivel": "aviso", "msg": f"{label}: FlareSolverr falhou"})
             return resultado
-        sol = d.get('solution', {})
-        fs_cookies = sol.get('cookies', [])
-        fs_user_agent = sol.get('userAgent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-        logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ FlareSolverr: {len(fs_cookies)} cookies obtidos'})
+        sol = d.get("solution", {})
+        fs_cookies = sol.get("cookies", [])
+        fs_user_agent = sol.get("userAgent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        logs.append({"nivel": "ok", "msg": f"{label}: FlareSolverr: {len(fs_cookies)} cookies obtidos"})
     except Exception as e:
-        logs.append({'nivel': 'aviso', 'msg': f'{label}: FlareSolverr erro: {str(e)[:80]}'})
+        logs.append({"nivel": "aviso", "msg": f"{label}: FlareSolverr erro: {str(e)[:80]}"})
         return resultado
 
     if not fs_cookies:
-        logs.append({'nivel': 'aviso', 'msg': f'{label}: Nenhum cookie obtido — Cloudflare nao bypassado'})
+        logs.append({"nivel": "aviso", "msg": f"{label}: Nenhum cookie obtido"})
         return resultado
 
     llm_func = chamar_llm or _chamar_gemini_visao
 
     if not executable_path:
-        _chromium_paths = ['/usr/bin/chromium-browser', '/usr/bin/chromium', '/usr/bin/google-chrome']
-        for _p in _chromium_paths:
+        for _p in ["/usr/bin/chromium-browser", "/usr/bin/chromium", "/usr/bin/google-chrome"]:
             if os.path.exists(_p):
                 executable_path = _p
                 break
         if not executable_path:
             import glob as _glob
-            _nix = _glob.glob('/root/.cache/ms-playwright/chromium-*/chrome-linux/chrome')
+            _nix = _glob.glob("/root/.cache/ms-playwright/chromium-*/chrome-linux/chrome")
             if _nix:
                 executable_path = _nix[0]
 
     launch_args = {
-        'headless': True,
-        'args': ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process', '--no-zygote']
+        "headless": True,
+        "args": ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--single-process", "--no-zygote"]
     }
     if executable_path:
-        launch_args['executable_path'] = executable_path
+        launch_args["executable_path"] = executable_path
 
     try:
         with sync_playwright() as pw:
             try:
                 browser = pw.chromium.launch(**launch_args)
             except Exception:
-                if 'executable_path' in launch_args: del launch_args['executable_path']
-                browser = pw.chromium.launch(**launch_args)
-
-            ctx = browser.new_conte
-) -> dict:
-    """
-    Usa FlareSolverr apenas para obter cookies/user-agent que bypassam Cloudflare,
-    depois abre um contexto Playwright com esses cookies e navega normalmente via
-    navegar_como_humano (com JS, formularios, screenshots).
-    """
-    import requests as _req
-    from playwright.sync_api import sync_playwright
-
-    resultado = {
-        'encontrada': False,
-        'url': '',
-        'status': '',
-        'confirmacao': '',
-        'pdf_path': None,
-    }
-
-    logs.append({'nivel': 'info', 'msg': f'{label}: 🍪 Obtendo cookies via FlareSolverr: {url_inicial[:80]}'})
-    try:
-        r = _req.post('http://localhost:8191/v1',
-            json={'cmd': 'request.get', 'url': url_inicial, 'maxTimeout': 60000},
-            timeout=70)
-        d = r.json()
-        if d.get('status') != 'ok':
-            logs.append({'nivel': 'aviso', 'msg': f'{label}: FlareSolverr falhou: {d.get("message", "")[:80]}'})
-            return resultado
-        sol = d.get('solution', {})
-        fs_cookies = sol.get('cookies', [])
-        fs_user_agent = sol.get('userAgent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-        logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ FlareSolverr: {len(fs_cookies)} cookies obtidos'})
-    except Exception as e:
-        logs.append({'nivel': 'aviso', 'msg': f'{label}: FlareSolverr erro: {str(e)[:80]}'})
-        return resultado
-
-    if not fs_cookies:
-        logs.append({'nivel': 'aviso', 'msg': f'{label}: Nenhum cookie obtido — Cloudflare nao bypassado'})
-        return resultado
-
-    llm_func = chamar_llm or _chamar_gemini_visao
-
-    if not executable_path:
-        _chromium_paths = ['/usr/bin/chromium-browser', '/usr/bin/chromium', '/usr/bin/google-chrome']
-        for _p in _chromium_paths:
-            if os.path.exists(_p):
-                executable_path = _p
-                break
-        if not executable_path:
-            import glob as _glob
-            _nix = _glob.glob('/root/.cache/ms-playwright/chromium-*/chrome-linux/chrome')
-            if _nix:
-                executable_path = _nix[0]
-
-    launch_args = {
-        'headless': True,
-        'args': ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process', '--no-zygote']
-    }
-    if executable_path:
-        launch_args['executable_path'] = executable_path
-
-    try:
-        with sync_playwright() as pw:
-            try:
-                browser = pw.chromium.launch(**launch_args)
-            except Exception:
-                if 'executable_path' in launch_args: del launch_args['executable_path']
+                if "executable_path" in launch_args:
+                    del launch_args["executable_path"]
                 browser = pw.chromium.launch(**launch_args)
 
             ctx = browser.new_context(
-                viewport={'width': 1280, 'height': 900},
+                viewport={"width": 1280, "height": 900},
                 user_agent=fs_user_agent,
                 accept_downloads=True
             )
@@ -2858,22 +2780,22 @@ def navegar_com_cookies_flaresolverr(
                 pw_cookies = []
                 for c in fs_cookies:
                     pw_cookie = {
-                        'name': c.get('name', ''),
-                        'value': c.get('value', ''),
-                        'domain': c.get('domain', '.leismunicipais.com.br'),
-                        'path': c.get('path', '/'),
+                        "name": c.get("name", ""),
+                        "value": c.get("value", ""),
+                        "domain": c.get("domain", ".leismunicipais.com.br"),
+                        "path": c.get("path", "/"),
                     }
-                    if c.get('expires'):
-                        pw_cookie['expires'] = int(c['expires'])
-                    if c.get('httpOnly') is not None:
-                        pw_cookie['httpOnly'] = c['httpOnly']
-                    if c.get('secure') is not None:
-                        pw_cookie['secure'] = c['secure']
+                    if c.get("expires"):
+                        pw_cookie["expires"] = int(c["expires"])
+                    if c.get("httpOnly") is not None:
+                        pw_cookie["httpOnly"] = c["httpOnly"]
+                    if c.get("secure") is not None:
+                        pw_cookie["secure"] = c["secure"]
                     pw_cookies.append(pw_cookie)
                 ctx.add_cookies(pw_cookies)
-                logs.append({'nivel': 'info', 'msg': f'{label}: 🍪 {len(pw_cookies)} cookies injetados no Playwright'})
+                logs.append({"nivel": "info", "msg": f"{label}: {len(pw_cookies)} cookies injetados no Playwright"})
             except Exception as e_ck:
-                logs.append({'nivel': 'aviso', 'msg': f'{label}: Erro ao injetar cookies: {str(e_ck)[:80]}'})
+                logs.append({"nivel": "aviso", "msg": f"{label}: Erro ao injetar cookies: {str(e_ck)[:80]}"})
 
             page = ctx.new_page()
             try:
@@ -2890,26 +2812,26 @@ def navegar_com_cookies_flaresolverr(
                 except Exception:
                     pass
 
-            logs.append({'nivel': 'info', 'msg': f'{label}: 🌐 Abrindo {url_inicial[:80]} com cookies do FlareSolverr'})
+            logs.append({"nivel": "info", "msg": f"{label}: Abrindo {url_inicial[:80]} com cookies do FlareSolverr"})
             try:
-                page.goto(url_inicial, wait_until='networkidle', timeout=20000)
+                page.goto(url_inicial, wait_until="networkidle", timeout=20000)
             except Exception:
                 try:
-                    page.goto(url_inicial, wait_until='domcontentloaded', timeout=15000)
+                    page.goto(url_inicial, wait_until="domcontentloaded", timeout=15000)
                 except Exception as e_goto:
-                    logs.append({'nivel': 'aviso', 'msg': f'{label}: Erro ao abrir pagina: {str(e_goto)[:80]}'})
+                    logs.append({"nivel": "aviso", "msg": f"{label}: Erro ao abrir pagina: {str(e_goto)[:80]}"})
                     browser.close()
                     return resultado
 
             import time as _time
             _time.sleep(2)
             titulo = page.title()
-            if 'just a moment' in titulo.lower() or 'cloudflare' in titulo.lower():
-                logs.append({'nivel': 'aviso', 'msg': f'{label}: ⚠️ Ainda bloqueado pelo Cloudflare apos cookies'})
+            if "just a moment" in titulo.lower() or "cloudflare" in titulo.lower():
+                logs.append({"nivel": "aviso", "msg": f"{label}: Ainda bloqueado pelo Cloudflare apos cookies"})
                 browser.close()
                 return resultado
 
-            logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ Pagina aberta: {titulo[:60]}'})
+            logs.append({"nivel": "ok", "msg": f"{label}: Pagina aberta: {titulo[:60]}"})
 
             resultado = navegar_como_humano(
                 page=page,
@@ -2924,174 +2846,7 @@ def navegar_com_cookies_flaresolverr(
             browser.close()
 
     except Exception as e_pw:
-        logs.append({'nivel': 'aviso', 'msg': f'{label}: Erro Playwright: {str(e_pw)[:120]}'})
-
-    return resultado
-
-
-def navegar_com_cookies_flaresolverr(
-    url_inicial: str,
-    legislacao: dict,
-    logs: list,
-    label: str = '',
-    chamar_llm=None,
-    executable_path: str = None,
-    max_passos: int = 20
-) -> dict:
-    """
-    Usa FlareSolverr apenas para obter cookies/user-agent que bypassam Cloudflare,
-    depois abre um contexto Playwright com esses cookies e navega normalmente via
-    navegar_como_humano (com JS, formularios, screenshots).
-    """
-    import requests as _req
-    from playwright.sync_api import sync_playwright
-
-    resultado = {
-        'encontrada': False,
-        'url': '',
-        'status': '',
-        'confirmacao': '',
-        'pdf_path': None,
-    }
-
-    # 1. Chamar FlareSolverr so para obter cookies + user-agent
-    logs.append({'nivel': 'info', 'msg': f'{label}: 🍪 Obtendo cookies via FlareSolverr: {url_inicial[:80]}'})
-    try:
-        r = _req.post('http://localhost:8191/v1',
-            json={'cmd': 'request.get', 'url': url_inicial, 'maxTimeout': 60000},
-            timeout=70)
-        d = r.json()
-        if d.get('status') != 'ok':
-            logs.append({'nivel': 'aviso', 'msg': f'{label}: FlareSolverr falhou: {d.get("message", "")[:80]}'})
-            return resultado
-        sol = d.get('solution', {})
-        fs_cookies = sol.get('cookies', [])
-        fs_user_agent = sol.get('userAgent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-        logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ FlareSolverr: {len(fs_cookies)} cookies obtidos'})
-    except Exception as e:
-        logs.append({'nivel': 'aviso', 'msg': f'{label}: FlareSolverr erro: {str(e)[:80]}'})
-        return resultado
-
-    if not fs_cookies:
-        logs.append({'nivel': 'aviso', 'msg': f'{label}: Nenhum cookie obtido — Cloudflare nao bypassado'})
-        return resultado
-
-    llm_func = chamar_llm or _chamar_gemini_visao
-
-    # Auto-detectar Chromium se nao fornecido
-    if not executable_path:
-        _chromium_paths = [
-            '/usr/bin/chromium-browser', '/usr/bin/chromium',
-            '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable',
-        ]
-        for _p in _chromium_paths:
-            if os.path.exists(_p):
-                executable_path = _p
-                break
-        if not executable_path:
-            import glob as _glob
-            _nix = _glob.glob('/root/.cache/ms-playwright/chromium-*/chrome-linux/chrome')
-            if _nix:
-                executable_path = _nix[0]
-
-    launch_args = {
-        'headless': True,
-        'args': ['--no-sandbox', '--disable-dev-shm-usage',
-                 '--disable-gpu', '--single-process', '--no-zygote']
-    }
-    if executable_path:
-        launch_args['executable_path'] = executable_path
-
-    try:
-        with sync_playwright() as pw:
-            try:
-                browser = pw.chromium.launch(**launch_args)
-            except Exception:
-                if 'executable_path' in launch_args: del launch_args['executable_path']
-                browser = pw.chromium.launch(**launch_args)
-
-            ctx = browser.new_context(
-                viewport={'width': 1280, 'height': 900},
-                user_agent=fs_user_agent,
-                accept_downloads=True
-            )
-
-            # 2. Injetar cookies do FlareSolverr
-            try:
-                pw_cookies = []
-                for c in fs_cookies:
-                    pw_cookie = {
-                        'name': c.get('name', ''),
-                        'value': c.get('value', ''),
-                        'domain': c.get('domain', '.leismunicipais.com.br'),
-                        'path': c.get('path', '/'),
-                    }
-                    if c.get('expires'):
-                        pw_cookie['expires'] = int(c['expires'])
-                    if c.get('httpOnly') is not None:
-                        pw_cookie['httpOnly'] = c['httpOnly']
-                    if c.get('secure') is not None:
-                        pw_cookie['secure'] = c['secure']
-                    pw_cookies.append(pw_cookie)
-                ctx.add_cookies(pw_cookies)
-                logs.append({'nivel': 'info', 'msg': f'{label}: 🍪 {len(pw_cookies)} cookies injetados no Playwright'})
-            except Exception as e_ck:
-                logs.append({'nivel': 'aviso', 'msg': f'{label}: Erro ao injetar cookies: {str(e_ck)[:80]}'})
-
-            page = ctx.new_page()
-
-            # Stealth
-            try:
-                from playwright_stealth import stealth_sync
-                stealth_sync(page)
-            except Exception:
-                try:
-                    page.add_init_script("""
-                        Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-                        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-                        Object.defineProperty(navigator, 'languages', { get: () => ['pt-BR', 'pt', 'en-US', 'en'] });
-                        window.chrome = { runtime: {} };
-                    """)
-                except Exception:
-                    pass
-
-            # 3. Navegar para URL inicial com cookies
-            logs.append({'nivel': 'info', 'msg': f'{label}: 🌐 Abrindo {url_inicial[:80]} com cookies do FlareSolverr'})
-            try:
-                page.goto(url_inicial, wait_until='networkidle', timeout=20000)
-            except Exception:
-                try:
-                    page.goto(url_inicial, wait_until='domcontentloaded', timeout=15000)
-                except Exception as e_goto:
-                    logs.append({'nivel': 'aviso', 'msg': f'{label}: Erro ao abrir pagina: {str(e_goto)[:80]}'})
-                    browser.close()
-                    return resultado
-
-            import time as _time
-            _time.sleep(2)
-            titulo = page.title()
-            if 'just a moment' in titulo.lower() or 'cloudflare' in titulo.lower():
-                logs.append({'nivel': 'aviso', 'msg': f'{label}: ⚠️ Ainda bloqueado pelo Cloudflare apos cookies'})
-                browser.close()
-                return resultado
-
-            logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ Pagina aberta: {titulo[:60]}'})
-
-            # 4. navegar_como_humano assume o controle
-            resultado = navegar_como_humano(
-                page=page,
-                frame=page,
-                legislacao=legislacao,
-                chamar_llm=llm_func,
-                logs=logs,
-                label=label,
-                max_passos=max_passos
-            )
-
-            browser.close()
-
-    except Exception as e_pw:
-        logs.append({'nivel': 'aviso', 'msg': f'{label}: Erro Playwright: {str(e_pw)[:120]}'})
+        logs.append({"nivel": "aviso", "msg": f"{label}: Erro Playwright: {str(e_pw)[:120]}"})
 
     return resultado
 
@@ -3446,11 +3201,16 @@ TEXTO DO PDF:
                                     json_m = _re_v.search(r'\{.*?\}', resp_v, _re_v.DOTALL)
                                     verif = json.loads(json_m.group()) if json_m else {}
                                 legislacao_no_pdf = bool(verif.get('encontrada', False))
-                                motivo = str(verif.get('motivo', ''))[:120]
-                                if legislacao_no_pdf:
+                                motivo = str(verif.get('motivo', ''))[:200]
+                                # Salvaguarda: motivo menciona cabecalho formal + artigos mas encontrada=false
+                                _motivo_lower = motivo.lower()
+                                if not legislacao_no_pdf and ('cabe' in _motivo_lower and 'formal' in _motivo_lower and 'art' in _motivo_lower):
+                                    legislacao_no_pdf = True
+                                    logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ IA confirmou (salvaguarda): {motivo}'})
+                                elif legislacao_no_pdf:
                                     logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ IA confirmou: {motivo}'})
                                 else:
-                                    logs.append({'nivel': 'info', 'msg': f'{label}: ❌ IA disse não: {motivo}'})
+                                    logs.append({'nivel': 'info', 'msg': f'{label}: ❌ IA disse nao: {motivo}'})
                             except Exception as _e_parse:
                                 # JSON parse falhou — tentar heurística no texto bruto
                                 _rv_lower = resp_verif.lower()
