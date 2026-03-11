@@ -2509,11 +2509,13 @@ HTML RESUMIDO DA PAGINA:
 
 Analise o HTML e decida a proxima acao para encontrar a legislacao correta.
 REGRAS:
-1. Procure links que contenham o tipo e numero da legislacao nos resultados.
-2. Se houver paginacao e nao encontrou, va para proxima pagina.
-3. Quando encontrar o link correto, retorne a URL completa.
-4. Se a pagina mostra o texto da lei diretamente, marque como concluido.
-5. NUNCA invente URLs — use apenas URLs que aparecem no HTML.
+1. PRIORIDADE MAXIMA: Se a pagina tiver campo de busca/pesquisa, USE-O imediatamente — preencha com tipo, numero e municipio da legislacao e submeta. Nao navegue por links genericos quando houver campo de busca disponivel.
+2. Procure links que contenham o tipo e numero da legislacao nos resultados.
+3. Se houver paginacao e nao encontrou, va para proxima pagina.
+4. Quando encontrar o link correto, retorne a URL completa.
+5. Se a pagina mostra o texto da lei diretamente, marque como concluido.
+6. NUNCA invente URLs — use apenas URLs que aparecem no HTML.
+7. Se ja tentou a mesma URL mais de uma vez sem progresso, mude de estrategia — nao repita a mesma navegacao.
 
 Responda APENAS com JSON:
 {{
