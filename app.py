@@ -2403,8 +2403,43 @@ def api_buscador_manual_start():
                         except Exception as e_cp:
                             job['logs'].append({'nivel': 'aviso', 'msg': f'⚠️ Erro ao copiar PDF: {str(e_cp)[:40]}'})
 
+                # Gerar PDF a partir do texto para fontes sem pdf_path (ex: LeisMunicipais)
+                for tf in textos_completos:
+                    if tf.get('_fonte') == 'leismunicipais' and tf.get('texto') and not tf.get('pdf_path'):
+                        try:
+                            from reportlab.lib.pagesizes import A4
+                            from reportlab.lib.styles import getSampleStyleSheet
+                            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+                            from reportlab.lib.units import mm
+                            pdf_dir = os.path.join(os.path.dirname(__file__), 'static', 'downloads')
+                            os.makedirs(pdf_dir, exist_ok=True)
+                            nome_pdf = f'{job_id}_LeisMunicipais.pdf'
+                            dest = os.path.join(pdf_dir, nome_pdf)
+                            doc_rl = SimpleDocTemplate(dest, pagesize=A4,
+                                leftMargin=15*mm, rightMargin=15*mm, topMargin=15*mm, bottomMargin=15*mm)
+                            styles = getSampleStyleSheet()
+                            story = []
+                            leg_info = result.get('legislacoes', [{}])[0] if result.get('legislacoes') else {}
+                            titulo = str(leg_info.get('tipo_legislacao', '')) + ' N. ' + str(leg_info.get('numero', '')) + '/' + str(leg_info.get('ano', ''))
+                            if titulo.strip('N. /'):
+                                story.append(Paragraph('<b>' + titulo.strip() + '</b>', styles['Title']))
+                                story.append(Spacer(1, 6*mm))
+                            story.append(Paragraph('<i>Fonte: LeisMunicipais.com.br (texto consolidado)</i>', styles['Normal']))
+                            story.append(Spacer(1, 4*mm))
+                            linhas = [l.strip() for l in tf['texto'].splitlines() if l.strip()]
+                            for linha in linhas:
+                                safe = linha.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
+                                story.append(Paragraph(safe, styles['Normal']))
+                            doc_rl.build(story)
+                            tf['pdf_path'] = dest
+                            tf['pdf_download_url'] = f'/static/downloads/{nome_pdf}'
+                            pdf_downloads.append({'nome': '\U0001f4d6 LeisMunicipais (texto)', 'url': tf['pdf_download_url']})
+                            job['logs'].append({'nivel': 'ok', 'msg': f'\U0001f4c4 LeisMunicipais: PDF gerado ({len(linhas)} linhas)'})
+                        except Exception as e_rl:
+                            job['logs'].append({'nivel': 'aviso', 'msg': f'\u26a0\ufe0f Erro ao gerar PDF LeisMunicipais: {str(e_rl)[:80]}'})
+
                 if pdf_downloads:
-                    job['logs'].append({'nivel': 'ok', 'msg': f'📥 {len(pdf_downloads)} PDF(s) disponível(is) para download'})
+                    job['logs'].append({'nivel': 'ok', 'msg': f'\U0001f4e5 {len(pdf_downloads)} PDF(s) disponivel(is) para download'})
 
                 # Truncar textos para preview no frontend (5000 chars)
                 textos_preview = []
