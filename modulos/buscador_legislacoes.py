@@ -557,6 +557,26 @@ def _buscar_leismunicipais_direto(municipio: str, estado: str, tipo: str, numero
                     'snippet': fs_result.get('confirmacao', 'Encontrado via FlareSolverr'),
                 })
                 logs.append({'nivel': 'ok', 'msg': f'\U0001f4d6 LeisMunicipais (FlareSolverr): {fs_result["url"][:80]}'})
+                # Tentar extrair conteudo da URL via FlareSolverr (renderiza JS)
+                try:
+                    import requests as _req_lm
+                    _lei_url = fs_result["url"]
+                    logs.append({"nivel": "info", "msg": f"\U0001f4d6 LeisMunicipais: buscando conteudo via FlareSolverr: {_lei_url[:80]}"})
+                    _r_lei = _req_lm.post("http://localhost:8191/v1",
+                        json={"cmd": "request.get", "url": _lei_url, "maxTimeout": 60000},
+                        timeout=70)
+                    _d_lei = _r_lei.json()
+                    if _d_lei.get("status") == "ok":
+                        _html_lei = _d_lei.get("solution", {}).get("response", "")
+                        _texto_lei = _extrair_texto_html(_html_lei) if _html_lei else ""
+                        if _texto_lei and len(_texto_lei) > 200:
+                            resultados[-1]["texto"] = _texto_lei
+                            resultados[-1]["snippet"] = _texto_lei[:300]
+                            logs.append({"nivel": "ok", "msg": f"\U0001f4d6 LeisMunicipais: conteudo extraido ({len(_texto_lei)} chars)"})
+                        else:
+                            logs.append({"nivel": "aviso", "msg": "\U0001f4d6 LeisMunicipais: FlareSolverr retornou conteudo vazio"})
+                except Exception as e_lm_texto:
+                    logs.append({"nivel": "aviso", "msg": f"\U0001f4d6 LeisMunicipais: erro ao extrair conteudo: {str(e_lm_texto)[:80]}"})
         except Exception as e_fs:
             logs.append({'nivel': 'aviso', 'msg': f'\U0001f4d6 LeisMunicipais FlareSolverr erro: {str(e_fs)[:80]}'})
 
