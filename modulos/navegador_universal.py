@@ -2686,8 +2686,14 @@ def navegar_via_flaresolverr(
                 logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ Concluído: {leg_url[:80]}'})
             break
         elif tipo_acao == 'desistir':
+            pensamento = decisao.get('decisao', '')
             logs.append({'nivel': 'aviso', 'msg': f'{label}: ❌ Gemini desistiu na passo {passo}'})
-            historico.append({'passo': passo, 'acao': 'desistir', 'resultado': decisao.get('decisao','')[:100]})
+            historico.append({'passo': passo, 'acao': 'desistir', 'resultado': pensamento[:100]})
+            # Antes de desistir: verificar se URL já foi capturada
+            if resultado.get('url') and resultado['url'].startswith('http'):
+                resultado['encontrada'] = True
+                resultado['confirmacao'] = resultado.get('confirmacao', '') or 'URL capturada antes da desistencia'
+                logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ IA desistiu mas URL ja capturada: {resultado["url"][:80]}'})
             break
         elif tipo_acao == 'navegar':
             prox_url = (acao.get('url', '') or '').strip()
