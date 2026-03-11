@@ -3004,7 +3004,9 @@ def navegar_como_humano(
             leg = decisao.get('legislacao_encontrada', {}) or {}
             leg_url = (leg.get('url', '') or '').strip()
 
-            if leg.get('encontrada') and leg_url and leg_url != '#' and leg_url.startswith('http'):
+            # Rejeitar URLs encurtadas (leis.org, bit.ly etc)
+            _url_ok = leg_url and leg_url != '#' and leg_url.startswith('http') and not any(d in leg_url for d in ['leis.org', 'bit.ly', 'tinyurl', 'goo.gl', 'ow.ly'])
+            if leg.get('encontrada') and _url_ok:
                 if tipo_acao in ('concluido', ''):
                     resultado['encontrada'] = True
                     resultado['url'] = leg_url
