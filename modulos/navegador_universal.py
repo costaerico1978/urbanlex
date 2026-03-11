@@ -127,7 +127,7 @@ REGRAS:
 5. Icone na coluna "Arquivo" = link para o documento.
 6. So marque "encontrada" com URL real (http...).
 7. Cloudflare/CAPTCHA: desista.
-8. Formularios com dropdowns simples: use "preencher_formulario". Datepickers: use "clicar"/"digitar".
+8. Formularios com dropdowns simples (tag <select> padrao): use "preencher_formulario". Datepickers: use "clicar"/"digitar". Dropdowns CUSTOMIZADOS (botoes que abrem listas, checkboxes flutuantes, componentes JS): use "clicar" no botao do dropdown e depois "clicar" na opcao desejada — NUNCA use preencher_formulario nesses casos.
 9. Se a pagina ja mostra o conteudo (edicao carregada, preview visivel), clique em DOWNLOAD (PDF), nao em buscar de novo.
 10. Sempre prefira baixar PDF.
 11. SITES DE BUSCA DE LEGISLACAO (NAO diarios oficiais): preencha APENAS Esfera, Tipo de Ato e Numero. NAO preencha campos de data — deixe-os vazios. A busca retornara resultados e voce identifica a legislacao correta pela descricao (tipo, numero, ano, ementa). Se houver varias paginas de resultados, navegue ate encontrar. EXCECAO: se o formulario EXIGIR data (campo obrigatorio, erro ao submeter sem data), use a data de ASSINATURA da legislacao (a data informada no prompt) como Data Inicial, e +5 dias como Data Final. A data de assinatura e diferente da data de publicacao no diario oficial. MUITO IMPORTANTE: a data exibida ao lado do resultado num site de busca e a data de ASSINATURA da lei, nao de publicacao. A data no prompt pode estar errada. NUNCA rejeite um resultado correto (tipo + numero + ano batem) por causa de diferenca de data — clique no icone Arquivo imediatamente.
@@ -2332,7 +2332,7 @@ def _executar_acao(page, acao: dict, logs: list, label: str) -> str:
                         opt_text = (opt.text_content() or '').strip()
                         if valor.lower() in opt_text.lower():
                             opt_val = opt.get_attribute('value')
-                            el.select_option(value=opt_val)
+                            el.select_option(value=opt_val, timeout=5000)
                             selected = True
                             logs.append({'nivel': 'info', 'msg': f'{label}: ✏️ {label_campo} = "{opt_text}"'})
                             preenchidos.append(label_campo)
@@ -2380,7 +2380,7 @@ def _executar_acao(page, acao: dict, logs: list, label: str) -> str:
                             el.fill(valor)
                         except Exception:
                             # Fallback: limpar e digitar
-                            el.click()
+                            el.click(timeout=5000)
                             page.keyboard.press('Control+a')
                             page.keyboard.type(valor, delay=30)
                         logs.append({'nivel': 'info', 'msg': f'{label}: ✏️ {label_campo} = "{valor}"'})
