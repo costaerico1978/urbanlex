@@ -3280,7 +3280,12 @@ TEXTO DO PDF:
             logs.append({'nivel': 'aviso', 'msg': f'{label}: Passo {passo} erro: {err_msg}'})
             historico.append({'passo': passo, 'acao': 'erro', 'resultado': err_msg})
 
-    if not resultado['encontrada']:
+    # Salvaguarda final: se URL foi capturada mas encontrada=False, marcar como encontrada
+    if not resultado['encontrada'] and resultado.get('url') and resultado['url'].startswith('http'):
+        resultado['encontrada'] = True
+        resultado['confirmacao'] = resultado.get('confirmacao', '') or 'URL capturada durante navegacao'
+        logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ URL capturada ao encerrar: {resultado["url"][:80]}'})
+    elif not resultado['encontrada']:
         logs.append({'nivel': 'aviso', 'msg': f'{label}: Navegação encerrada após {len(historico)} passos sem encontrar'})
 
     return resultado
