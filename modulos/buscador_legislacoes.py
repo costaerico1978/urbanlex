@@ -544,12 +544,12 @@ def _buscar_leismunicipais_direto(municipio: str, estado: str, tipo: str, numero
         for r in resultados[:3]:
             logs.append({'nivel': 'info', 'msg': f'  → {r["titulo"][:60]} ({r["url"][:60]})'})
     else:
-        logs.append({'nivel': 'info', 'msg': '\U0001f4d6 LeisMunicipais: acesso direto sem resultados — tentando FlareSolverr...'})
+        logs.append({'nivel': 'info', 'msg': '\U0001f4d6 LeisMunicipais: acesso direto sem resultados — tentando FlareSolverr+Playwright...'})
         try:
-            from modulos.navegador_universal import navegar_via_flaresolverr
+            from modulos.navegador_universal import navegar_com_cookies_flaresolverr
             url_fs = 'https://leismunicipais.com.br'
             leg_dict = {'tipo': tipo, 'numero': numero, 'ano': ano, 'municipio': municipio}
-            fs_result = navegar_via_flaresolverr(url_fs, leg_dict, logs, label='LeisMunicipais-FS')
+            fs_result = navegar_com_cookies_flaresolverr(url_fs, leg_dict, logs, label='LeisMunicipais-FS', chamar_llm=_chamar_llm)
             if fs_result.get('encontrada') and fs_result.get('url'):
                 resultados.append({
                     'url': fs_result['url'],
