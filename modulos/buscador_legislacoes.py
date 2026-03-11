@@ -3153,7 +3153,9 @@ Se não encontrar data exata, retorne {{"data_publicacao": ""}}. NÃO invente.""
         lm_results = _buscar_leismunicipais_direto(municipio, estado, tipo_inferido or tipo, numero, ano, logs)
         for lm in lm_results[:2]:
             # Se já tem texto extraído (ex: via FlareSolverr), usar diretamente
-            if lm.get('texto') and len(lm['texto']) > 200:
+            _lm_txt = lm.get('texto', '')
+            _lm_invalido = any(s in _lm_txt for s in ['norma requisitada está sendo carregada', 'Por favor, aguarde', 'javascript está habilitado'])
+            if _lm_txt and len(_lm_txt) > 200 and not _lm_invalido:
                 textos_extraidos.append({
                     'url': lm['url'],
                     'texto': lm['texto'],
