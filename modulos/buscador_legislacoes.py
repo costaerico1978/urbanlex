@@ -1580,7 +1580,7 @@ def _navegar_formulario_com_ia(url_base: str, tipo_lei: str, numero_lei: str,
                 chamar_llm=_chamar_llm,
                 logs=logs,
                 label=label,
-                max_passos=20
+                max_passos=35
             )
             
             if nav_resultado.get('encontrada'):
