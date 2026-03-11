@@ -311,7 +311,7 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
         </div>
         <div>
             <div class="field-label">Data de Publicação</div>
-            <input type="text" class="field-input" id="bm-data-pub" placeholder="dd/mm/aaaa" maxlength="10" inputmode="numeric">
+            <input type="text" class="field-input" id="bm-data-pub" placeholder="dd/mm/aaaa" maxlength="10" inputmode="numeric" oninput="var v=this.value.replace(/\D/g,'');if(v.length>4)v=v.slice(0,2)+'/'+v.slice(2,4)+'/'+v.slice(4,8);else if(v.length>2)v=v.slice(0,2)+'/'+v.slice(2);this.value=v;">
         </div>
         <div>
             <div class="field-label">Assunto / Categoria</div>
