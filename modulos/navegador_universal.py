@@ -2852,6 +2852,23 @@ def navegar_com_cookies_flaresolverr(
 
             logs.append({"nivel": "ok", "msg": f"{label}: Pagina aberta: {titulo[:60]}"})
 
+            # Login no LeisMunicipais se for esse site
+            if 'leismunicipais.com.br' in url_inicial:
+                try:
+                    import time as _tl
+                    logs.append({'nivel': 'info', 'msg': f'{label}: Fazendo login no LeisMunicipais...'})
+                    page.goto('https://leismunicipais.com.br/login', wait_until='domcontentloaded', timeout=20000)
+                    _tl.sleep(2)
+                    page.fill('input[type=email], input[name=email], input[id*=email]', 'sistemaurbanlex@gmail.com')
+                    page.fill('input[type=password], input[name=password], input[name=senha]', '04leismunicipais04')
+                    page.click('button[type=submit], input[type=submit], button:has-text("Entrar"), button:has-text("Login")')
+                    _tl.sleep(3)
+                    titulo_login = page.title()
+                    logs.append({'nivel': 'ok', 'msg': f'{label}: Login realizado: {titulo_login[:60]}'})
+                    page.goto(url_inicial, wait_until='domcontentloaded', timeout=20000)
+                    _tl.sleep(2)
+                except Exception as e_login:
+                    logs.append({'nivel': 'aviso', 'msg': f'{label}: Erro no login: {str(e_login)[:80]}'})
             resultado = navegar_como_humano(
                 page=page,
                 frame=page,
