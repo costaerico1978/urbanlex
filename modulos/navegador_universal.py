@@ -2874,7 +2874,10 @@ def navegar_com_cookies_flaresolverr(
                             _pg2.goto(_lei_url, wait_until='domcontentloaded', timeout=60000)
                         except Exception:
                             pass
-                    _t2.sleep(15)
+                    try:
+                        _pg2.wait_for_selector('div.law-container', timeout=60000)
+                    except Exception:
+                        _t2.sleep(5)
                     _html_sessao = _pg2.content()
                     if _html_sessao and len(_html_sessao) > 10000:
                         resultado['html'] = _html_sessao
