@@ -2108,8 +2108,10 @@ def _clicar_por_texto(page, texto_elemento: str, logs: list, label: str) -> str:
             logs.append({'nivel': 'ok', 'msg': f'{label}: 🪟 Nova aba: {nova.url[:60]}'})
             return f'Nova aba: {nova.url}'
     except Exception:
-        # Browser pode ter morrido — usar URL interceptada (melhor que href estático)
-        _real_url = _nav_url_real[0] or _pdf_response_url[0] or (href_extraido if href_extraido and href_extraido.startswith('http') else None)
+        # Browser pode ter morrido — preferir href com slug completo se disponivel
+        _interceptada = _nav_url_real[0] or _pdf_response_url[0]
+        _href_ok = href_extraido if href_extraido and href_extraido.startswith('http') else None
+        _real_url = (_href_ok if _href_ok and _interceptada and len(_href_ok) > len(_interceptada) else _interceptada) or _href_ok
         if _real_url:
             logs.append({'nivel': 'info', 'msg': f'{label}: 🔄 Browser morreu — URL real interceptada: {_real_url[:80]}'})
             return f'Navegou: {_real_url}'
@@ -2119,11 +2121,13 @@ def _clicar_por_texto(page, texto_elemento: str, logs: list, label: str) -> str:
         page.wait_for_load_state('networkidle', timeout=5000)
         if page.url != url_antes:
             logs.append({'nivel': 'info', 'msg': f'{label}: 🖱️ Navegou para: {page.url[:60]}'})
-            return f'Navegou: {page.url}'
     except Exception:
-        _real_url = _nav_url_real[0] or _pdf_response_url[0] or (href_extraido if href_extraido and href_extraido.startswith('http') else None)
+        _interceptada = _nav_url_real[0] or _pdf_response_url[0]
+        _href_ok = href_extraido if href_extraido and href_extraido.startswith('http') else None
+        _real_url = (_href_ok if _href_ok and _interceptada and len(_href_ok) > len(_interceptada) else _interceptada) or _href_ok
         if _real_url:
             logs.append({'nivel': 'info', 'msg': f'{label}: 🔄 Browser morreu — URL real interceptada: {_real_url[:80]}'})
+            return f'Navegou: {_real_url}'
             return f'Navegou: {_real_url}'
     
     # Cleanup response listener
