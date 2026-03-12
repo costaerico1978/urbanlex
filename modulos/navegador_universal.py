@@ -131,6 +131,13 @@ REGRAS:
 9. Se a pagina ja mostra o conteudo (edicao carregada, preview visivel), clique em DOWNLOAD (PDF), nao em buscar de novo.
 10. Sempre prefira baixar PDF.
 11. SITES DE BUSCA DE LEGISLACAO (NAO diarios oficiais): preencha APENAS Esfera, Tipo de Ato e Numero. NAO preencha campos de data — deixe-os vazios. A busca retornara resultados e voce identifica a legislacao correta pela descricao (tipo, numero, ano, ementa). Se houver varias paginas de resultados, navegue ate encontrar. EXCECAO: se o formulario EXIGIR data (campo obrigatorio, erro ao submeter sem data), use a data de ASSINATURA da legislacao (a data informada no prompt) como Data Inicial, e +5 dias como Data Final. A data de assinatura e diferente da data de publicacao no diario oficial. MUITO IMPORTANTE: a data exibida ao lado do resultado num site de busca e a data de ASSINATURA da lei, nao de publicacao. A data no prompt pode estar errada. NUNCA rejeite um resultado correto (tipo + numero + ano batem) por causa de diferenca de data — clique no icone Arquivo imediatamente.
+13. LEISMUNICIPAIS.COM.BR — siga EXATAMENTE esta sequencia, sem pular passos:
+    (a) Clicar em "Mais opcoes" para expandir o formulario avancado.
+    (b) Digitar o nome do municipio no campo de cidade e aguardar autocomplete — selecionar da lista (regra 12).
+    (c) Clicar no dropdown "Todos os Atos" e selecionar o tipo correto (ex: "Leis Complementares").
+    (d) Digitar apenas o NUMERO da lei no campo de numero/palavra-chave.
+    (e) Clicar em "Pesquisar".
+    (f) Nos resultados, clicar SOMENTE no TITULO da legislacao (texto em vermelho). NUNCA clique em links encurtados como "http://leis.org/..." ou "bit.ly/..." — ignorar completamente.
 12. CAMPOS COM AUTOCOMPLETE (campo de cidade/municipio): NUNCA use preencher_formulario nesses campos. Use a sequencia: (a) "digitar" no campo; (b) aguarde a lista de sugestoes aparecer (ela aparece abaixo do campo); (c) "clicar" na primeira sugestao da lista. Se nao aparecer lista imediatamente e a pagina mostrar "Pesquisando..." isso significa que a lista AINDA ESTA CARREGANDO — tire outro screenshot para ver se ela ja apareceu. Tente tambem digitar so as primeiras 3 letras para forcar o autocomplete. O sistema REJEITA o municipio se voce nao SELECIONAR da lista — digitar sem clicar na sugestao nunca funciona. Somente desista se apos multiplas tentativas a lista realmente nao aparecer.
 12. TEXTO DO ELEMENTO: copie o texto EXATO como aparece na tela. Exemplos:
     - Botao "OK" -> texto_elemento: "OK"
