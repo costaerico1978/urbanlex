@@ -568,7 +568,20 @@ def _buscar_leismunicipais_direto(municipio: str, estado: str, tipo: str, numero
                     _d_lei = _r_lei.json()
                     if _d_lei.get("status") == "ok":
                         _html_lei = _d_lei.get("solution", {}).get("response", "")
-                        _texto_lei = _extrair_texto_html(_html_lei) if _html_lei else ""
+                        # Extrair só o texto da lei (div.law-container), sem menu/rodapé
+                        if _html_lei:
+                            try:
+                                from bs4 import BeautifulSoup as _BS
+                                _soup_lm = _BS(_html_lei, 'html.parser')
+                                _law_div = _soup_lm.select_one('div.law-container')
+                                if _law_div:
+                                    _texto_lei = re.sub(r'\s+', ' ', _law_div.get_text(separator=' ', strip=True)).strip()
+                                else:
+                                    _texto_lei = _extrair_texto_html(_html_lei)
+                            except Exception:
+                                _texto_lei = _extrair_texto_html(_html_lei)
+                        else:
+                            _texto_lei = ""
                         if _texto_lei and len(_texto_lei) > 200:
                             resultados[-1]["texto"] = _texto_lei
                             resultados[-1]["snippet"] = _texto_lei[:300]
