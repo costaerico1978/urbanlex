@@ -588,6 +588,8 @@ def _buscar_leismunicipais_direto(municipio: str, estado: str, tipo: str, numero
                     if _texto_lei and len(_texto_lei) > 200:
                         resultados[-1]["texto"] = _texto_lei
                         resultados[-1]["snippet"] = _texto_lei[:300]
+                        if _law_div:
+                            resultados[-1]["html_lei"] = str(_law_div)
                         logs.append({"nivel": "ok", "msg": f"📖 LeisMunicipais: conteudo extraido ({len(_texto_lei)} chars)"})
                     else:
                         logs.append({"nivel": "aviso", "msg": "📖 LeisMunicipais: conteudo vazio apos extracao"})
@@ -3537,6 +3539,8 @@ Responda SOMENTE com JSON:
         }
         if t.get('pdf_path') and os.path.isfile(t['pdf_path']):
             tf['pdf_path'] = t['pdf_path']
+        if t.get('html_lei'):
+            tf['html_lei'] = t['html_lei']
         textos_fontes.append(tf)
 
     return {'legislacoes': legislacoes, 'sugestao': sugestao, 'fontes': fontes_status, 'textos_fontes': textos_fontes, 'logs': logs}
