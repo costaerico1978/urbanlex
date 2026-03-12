@@ -2269,7 +2269,32 @@ def _acessar_pagina(url: str, termos: str, headers: dict, logs: list, label: str
                             return None
                 except (ImportError, Exception) as e_pw:
                     logs.append({'nivel': 'aviso', 'msg': f'{label}: HTTP {resp.status_code} em {url[:60]}'})
-                    return None
+                    # Fallback FlareSolverr para leismunicipais
+                    if 'leismunicipais.com.br' in url:
+                        try:
+                            logs.append({'nivel': 'info', 'msg': f'{label}: 🔄 Tentando FlareSolverr para leismunicipais...'})
+                            _fs_status, _fs_html = _flaresolverr_get(url, logs)
+                            if _fs_html and len(_fs_html) > 10000:
+                                from bs4 import BeautifulSoup as _BS_fw
+                                _soup_fw = _BS_fw(_fs_html, 'html.parser')
+                                _law_fw = _soup_fw.select_one('div.law-container')
+                                if _law_fw:
+                                    texto = re.sub(r'\s+', ' ', _law_fw.get_text(separator=' ', strip=True)).strip()
+                                else:
+                                    texto = _extrair_texto_html(_fs_html)
+                                if texto and len(texto) > 500:
+                                    logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ FlareSolverr leismunicipais OK ({len(texto)} chars)'})
+                                    _playwright_ok = True
+                                    _pagina1_texto = ''
+                                else:
+                                    return None
+                            else:
+                                return None
+                        except Exception as _e_fw:
+                            logs.append({'nivel': 'aviso', 'msg': f'{label}: FlareSolverr falhou: {str(_e_fw)[:60]}'})
+                            return None
+                    else:
+                        return None
             else:
                 logs.append({'nivel': 'aviso', 'msg': f'{label}: HTTP {resp.status_code} em {url[:60]}'})
                 return None
