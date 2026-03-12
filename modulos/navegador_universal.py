@@ -2861,6 +2861,29 @@ def navegar_com_cookies_flaresolverr(
                 label=label,
                 max_passos=max_passos
             )
+            if resultado.get('encontrada') and resultado.get('url'):
+                try:
+                    import time as _t2
+                    _lei_url = resultado['url']
+                    logs.append({'nivel': 'info', 'msg': f'{label}: Extraindo HTML via sessao Playwright: {_lei_url[:80]}'})
+                    _pg2 = ctx.new_page()
+                    try:
+                        _pg2.goto(_lei_url, wait_until='networkidle', timeout=90000)
+                    except Exception:
+                        try:
+                            _pg2.goto(_lei_url, wait_until='domcontentloaded', timeout=60000)
+                        except Exception:
+                            pass
+                    _t2.sleep(5)
+                    _html_sessao = _pg2.content()
+                    if _html_sessao and len(_html_sessao) > 10000:
+                        resultado['html'] = _html_sessao
+                        logs.append({'nivel': 'ok', 'msg': f'{label}: HTML extraido via sessao ({len(_html_sessao)} chars)'})
+                    else:
+                        logs.append({'nivel': 'aviso', 'msg': f'{label}: HTML via sessao pequeno ({len(_html_sessao) if _html_sessao else 0} chars)'})
+                    _pg2.close()
+                except Exception as e_pg2:
+                    logs.append({'nivel': 'aviso', 'msg': f'{label}: Erro ao extrair HTML via sessao: {str(e_pg2)[:80]}'})
 
             browser.close()
 

@@ -557,40 +557,40 @@ def _buscar_leismunicipais_direto(municipio: str, estado: str, tipo: str, numero
                     'snippet': fs_result.get('confirmacao', 'Encontrado via FlareSolverr'),
                 })
                 logs.append({'nivel': 'ok', 'msg': f'\U0001f4d6 LeisMunicipais (FlareSolverr): {fs_result["url"][:80]}'})
-                # Tentar extrair conteudo da URL via FlareSolverr (renderiza JS)
-                try:
-                    import requests as _req_lm
-                    _lei_url = fs_result["url"]
-                    logs.append({"nivel": "info", "msg": f"\U0001f4d6 LeisMunicipais: buscando conteudo via FlareSolverr: {_lei_url[:80]}"})
-                    _r_lei = _req_lm.post("http://localhost:8191/v1",
-                        json={"cmd": "request.get", "url": _lei_url, "maxTimeout": 60000, "waitTime": 60000},
-                        timeout=70)
-                    _d_lei = _r_lei.json()
-                    if _d_lei.get("status") == "ok":
-                        _html_lei = _d_lei.get("solution", {}).get("response", "")
-                        # Extrair só o texto da lei (div.law-container), sem menu/rodapé
-                        if _html_lei:
-                            try:
-                                from bs4 import BeautifulSoup as _BS
-                                _soup_lm = _BS(_html_lei, 'html.parser')
-                                _law_div = _soup_lm.select_one('div.law-container')
-                                if _law_div:
-                                    _texto_lei = re.sub(r'\s+', ' ', _law_div.get_text(separator=' ', strip=True)).strip()
-                                else:
-                                    _texto_lei = _extrair_texto_html(_html_lei)
-                            except Exception:
-                                _texto_lei = _extrair_texto_html(_html_lei)
+                # Usar HTML da sessao Playwright se disponivel, senao FlareSolverr
+                _html_lei = fs_result.get('html', '')
+                if _html_lei:
+                    logs.append({"nivel": "info", "msg": "📖 LeisMunicipais: usando HTML da sessao Playwright"})
+                else:
+                    try:
+                        import requests as _req_lm
+                        _lei_url = fs_result["url"]
+                        logs.append({"nivel": "info", "msg": f"📖 LeisMunicipais: buscando conteudo via FlareSolverr: {_lei_url[:80]}"})
+                        _r_lei = _req_lm.post("http://localhost:8191/v1",
+                            json={"cmd": "request.get", "url": _lei_url, "maxTimeout": 60000, "waitTime": 60000},
+                            timeout=130)
+                        _d_lei = _r_lei.json()
+                        if _d_lei.get("status") == "ok":
+                            _html_lei = _d_lei.get("solution", {}).get("response", "")
+                    except Exception as e_lm_texto:
+                        logs.append({"nivel": "aviso", "msg": f"📖 LeisMunicipais: erro ao extrair conteudo: {str(e_lm_texto)[:80]}"})
+                if _html_lei:
+                    try:
+                        from bs4 import BeautifulSoup as _BS
+                        _soup_lm = _BS(_html_lei, 'html.parser')
+                        _law_div = _soup_lm.select_one('div.law-container')
+                        if _law_div:
+                            _texto_lei = re.sub(r'\s+', ' ', _law_div.get_text(separator=' ', strip=True)).strip()
                         else:
-                            _texto_lei = ""
-                        if _texto_lei and len(_texto_lei) > 200:
-                            resultados[-1]["texto"] = _texto_lei
-                            resultados[-1]["snippet"] = _texto_lei[:300]
-                            logs.append({"nivel": "ok", "msg": f"\U0001f4d6 LeisMunicipais: conteudo extraido ({len(_texto_lei)} chars)"})
-                        else:
-                            logs.append({"nivel": "aviso", "msg": "\U0001f4d6 LeisMunicipais: FlareSolverr retornou conteudo vazio"})
-                except Exception as e_lm_texto:
-                    logs.append({"nivel": "aviso", "msg": f"\U0001f4d6 LeisMunicipais: erro ao extrair conteudo: {str(e_lm_texto)[:80]}"})
-        except Exception as e_fs:
+                            _texto_lei = _extrair_texto_html(_html_lei)
+                    except Exception:
+                        _texto_lei = _extrair_texto_html(_html_lei)
+                    if _texto_lei and len(_texto_lei) > 200:
+                        resultados[-1]["texto"] = _texto_lei
+                        resultados[-1]["snippet"] = _texto_lei[:300]
+                        logs.append({"nivel": "ok", "msg": f"📖 LeisMunicipais: conteudo extraido ({len(_texto_lei)} chars)"})
+                    else:
+                        logs.append({"nivel": "aviso", "msg": "📖 LeisMunicipais: conteudo vazio apos extracao"})
             logs.append({'nivel': 'aviso', 'msg': f'\U0001f4d6 LeisMunicipais FlareSolverr erro: {str(e_fs)[:80]}'})
 
     return resultados
