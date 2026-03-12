@@ -3093,8 +3093,13 @@ def navegar_como_humano(
             if exec_resultado.startswith('Navegou:'):
                 nav_url = exec_resultado.split(': ', 1)[1] if ': ' in exec_resultado else ''
                 if nav_url and nav_url.startswith('http'):
-                    resultado['url'] = nav_url
-                    logs.append({'nivel': 'info', 'msg': f'{label}: 🔗 URL capturada: {nav_url[:80]}'})
+                    # Preferir URL anterior se for mais longa (tem slug) e começa com nav_url
+                    _url_anterior = resultado.get('url', '')
+                    if _url_anterior and _url_anterior.startswith(nav_url) and len(_url_anterior) > len(nav_url):
+                        logs.append({'nivel': 'info', 'msg': f'{label}: 🔗 URL com slug preservada: {_url_anterior[:80]}'})
+                    else:
+                        resultado['url'] = nav_url
+                        logs.append({'nivel': 'info', 'msg': f'{label}: 🔗 URL capturada: {nav_url[:80]}'})
                 try:
                     all_pages = page.context.pages
                     if all_pages:
