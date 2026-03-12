@@ -591,6 +591,7 @@ def _buscar_leismunicipais_direto(municipio: str, estado: str, tipo: str, numero
                         logs.append({"nivel": "ok", "msg": f"📖 LeisMunicipais: conteudo extraido ({len(_texto_lei)} chars)"})
                     else:
                         logs.append({"nivel": "aviso", "msg": "📖 LeisMunicipais: conteudo vazio apos extracao"})
+        except Exception as e_fs:
             logs.append({'nivel': 'aviso', 'msg': f'\U0001f4d6 LeisMunicipais FlareSolverr erro: {str(e_fs)[:80]}'})
 
     return resultados
