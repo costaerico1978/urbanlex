@@ -2867,6 +2867,10 @@ def navegar_com_cookies_flaresolverr(
                     logs.append({'nivel': 'ok', 'msg': f'{label}: Login realizado: {titulo_login[:60]}'})
                     page.goto(url_inicial, wait_until='domcontentloaded', timeout=20000)
                     _tl.sleep(2)
+                    try:
+                        page.evaluate("""() => { document.querySelectorAll('[class*=popup],[class*=modal],[class*=overlay],[class*=banner],[id*=popup],[id*=modal]').forEach(e => e.remove()); }""")
+                    except Exception:
+                        pass
                 except Exception as e_login:
                     logs.append({'nivel': 'aviso', 'msg': f'{label}: Erro no login: {str(e_login)[:80]}'})
             resultado = navegar_como_humano(
