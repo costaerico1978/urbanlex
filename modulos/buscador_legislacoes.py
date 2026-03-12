@@ -563,7 +563,7 @@ def _buscar_leismunicipais_direto(municipio: str, estado: str, tipo: str, numero
                     _lei_url = fs_result["url"]
                     logs.append({"nivel": "info", "msg": f"\U0001f4d6 LeisMunicipais: buscando conteudo via FlareSolverr: {_lei_url[:80]}"})
                     _r_lei = _req_lm.post("http://localhost:8191/v1",
-                        json={"cmd": "request.get", "url": _lei_url, "maxTimeout": 60000},
+                        json={"cmd": "request.get", "url": _lei_url, "maxTimeout": 60000, "waitTime": 8000},
                         timeout=70)
                     _d_lei = _r_lei.json()
                     if _d_lei.get("status") == "ok":
