@@ -3189,8 +3189,13 @@ Se não encontrar data exata, retorne {{"data_publicacao": ""}}. NÃO invente.""
     # ══════════════════════════════════════════════════════════════════
     logs.append({'nivel': 'info', 'msg': '📖 ETAPA 3: Fontes web complementares...'})
 
-    # 3A: LeisMunicipais
-    if municipio and numero:
+    # 3A: LeisMunicipais (pular se ja usada como fonte prioritaria)
+    _dominios_prio = set()
+    for _fp in fontes_prioritarias:
+        _dm = re.sub(r'https?://', '', _fp.rstrip('/')).split('/')[0].replace('www.', '')
+        _dominios_prio.add(_dm)
+    _lm_ja_prio = any('leismunicipais' in _d for _d in _dominios_prio)
+    if municipio and numero and not _lm_ja_prio:
         lm_results = _buscar_leismunicipais_direto(municipio, estado, tipo_inferido or tipo, numero, ano, logs)
         for lm in lm_results[:2]:
             # Se já tem texto extraído (ex: via FlareSolverr), usar diretamente
@@ -3233,7 +3238,9 @@ Se não encontrar data exata, retorne {{"data_publicacao": ""}}. NÃO invente.""
     urls_visitadas = {t['url'] for t in textos_extraidos}
     acessados = 0
     for wr in web_results:
-        if wr['url'] in urls_visitadas or acessados >= 3:
+        _wr_dm = re.sub(r'https?://', '', wr['url'].rstrip('/')).split('/')[0].replace('www.', '')
+        _wr_ja_prio = any(_wr_dm in _dp or _dp in _wr_dm for _dp in _dominios_prio)
+        if wr['url'] in urls_visitadas or acessados >= 3 or _wr_ja_prio:
             continue
         result = _acessar_pagina(wr['url'], termos_busca, headers_http, logs, '🔎 Web',
                                  tipo_lei=tipo_inferido or tipo, numero_lei=numero, ano=ano)

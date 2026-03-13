@@ -2898,13 +2898,17 @@ def navegar_com_cookies_flaresolverr(
                         except Exception:
                             pass
                     try:
-                        _pg2.wait_for_selector('div.law-container', timeout=60000)
+                        _pg2.wait_for_selector('div.law-container', timeout=120000)
                     except Exception:
                         _t2.sleep(5)
                     _html_sessao = _pg2.content()
-                    if _html_sessao and len(_html_sessao) > 10000:
+                    _lm_loading_kws = ['norma requisitada est', 'Por favor, aguarde', 'sendo carregada']
+                    _lm_loading = any(s in _html_sessao for s in _lm_loading_kws) if _html_sessao else True
+                    if _html_sessao and len(_html_sessao) > 10000 and not _lm_loading:
                         resultado['html'] = _html_sessao
                         logs.append({'nivel': 'ok', 'msg': f'{label}: HTML extraido via sessao ({len(_html_sessao)} chars)'})
+                    elif _lm_loading:
+                        logs.append({'nivel': 'aviso', 'msg': f'{label}: HTML sessao ainda em loading — descartando'})
                     else:
                         logs.append({'nivel': 'aviso', 'msg': f'{label}: HTML via sessao pequeno ({len(_html_sessao) if _html_sessao else 0} chars)'})
                     _pg2.close()
