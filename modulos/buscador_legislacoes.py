@@ -3197,13 +3197,16 @@ Se não encontrar data exata, retorne {{"data_publicacao": ""}}. NÃO invente.""
             _lm_txt = lm.get('texto', '')
             _lm_invalido = any(s in _lm_txt for s in ['norma requisitada está sendo carregada', 'Por favor, aguarde', 'javascript está habilitado'])
             if _lm_txt and len(_lm_txt) > 200 and not _lm_invalido:
-                textos_extraidos.append({
+                _lm_entry = {
                     'url': lm['url'],
                     'texto': lm['texto'],
                     'nome': '📖 LeisMunicipais',
                     'relevancia': 0.85,
                     '_fonte': 'leismunicipais',
-                })
+                }
+                if lm.get('html_lei'):
+                    _lm_entry['html_lei'] = lm['html_lei']
+                textos_extraidos.append(_lm_entry)
                 fontes_status.append({'nome': '📖 LeisMunicipais', 'url': lm['url'], 'encontrou': True})
                 logs.append({'nivel': 'ok', 'msg': f'📖 LeisMunicipais: ✅ texto pre-extraido usado ({len(lm["texto"])} chars)'})
                 break
