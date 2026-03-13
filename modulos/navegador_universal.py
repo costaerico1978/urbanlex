@@ -138,6 +138,7 @@ REGRAS:
     (d) Digitar apenas o NUMERO da lei no campo de numero/palavra-chave.
     (e) Clicar em "Pesquisar".
     (f) Nos resultados, clicar SOMENTE no TITULO da legislacao (texto em vermelho). NUNCA clique em links encurtados como "http://leis.org/..." ou "bit.ly/..." — ignorar completamente.
+    (g) Apos abrir a pagina da legislacao e ela carregar completamente (div com o texto da lei visivel), procure o botao de download do PDF original (pode aparecer como "PDF", "Baixar PDF", "Download PDF", icone de PDF, ou similar) e clique nele. So marque "concluido" DEPOIS de clicar no botao de download.
 12. CAMPOS COM AUTOCOMPLETE (campo de cidade/municipio): NUNCA use preencher_formulario nesses campos. Use a sequencia: (a) "digitar" no campo; (b) aguarde a lista de sugestoes aparecer (ela aparece abaixo do campo); (c) "clicar" na primeira sugestao da lista. Se nao aparecer lista imediatamente e a pagina mostrar "Pesquisando..." isso significa que a lista AINDA ESTA CARREGANDO — tire outro screenshot para ver se ela ja apareceu. Tente tambem digitar so as primeiras 3 letras para forcar o autocomplete. O sistema REJEITA o municipio se voce nao SELECIONAR da lista — digitar sem clicar na sugestao nunca funciona. Somente desista se apos multiplas tentativas a lista realmente nao aparecer.
 12. TEXTO DO ELEMENTO: copie o texto EXATO como aparece na tela. Exemplos:
     - Botao "OK" -> texto_elemento: "OK"
