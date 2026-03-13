@@ -3105,7 +3105,49 @@ def navegar_como_humano(
                         historico.append({'passo': passo, 'acao': 'desistir', 'resultado': pensamento[:100]})
                         break
                 else:
-                    logs.append({'nivel': 'aviso', 'msg': f'{label}: ❌ Passo {passo}: IA desistiu — {pensamento[:400]}'})
+                    _captcha_kws = ['captcha', 'recaptcha', 'motocicleta', 'selecionar imagens', 'selecione imagens']
+                    _captcha_detectado = any(kw in pensamento.lower() for kw in _captcha_kws)
+                    _2captcha_key = os.environ.get('TWOCAPTCHA_API_KEY', '')
+                    if _captcha_detectado and _2captcha_key and pagina_ativa:
+                        logs.append({'nivel': 'info', 'msg': f'{label}: [2C] CAPTCHA detectado - tentando 2Captcha...'})
+                        try:
+                            import base64 as _b64mod, requests as _req, time as _time
+                            _ss_bytes = pagina_ativa.screenshot(type='png')
+                            _b64str = _b64mod.b64encode(_ss_bytes).decode()
+                            _post_data = {'key': _2captcha_key, 'method': 'base64', 'body': _b64str, 'json': 1}
+                            _r = _req.post('http://2captcha.com/in.php', data=_post_data, timeout=30)
+                            _captcha_id = _r.json().get('request')
+                            _erros = ('ERROR_WRONG_USER_KEY', 'ERROR_KEY_DOES_NOT_EXIST', 'ERROR_ZERO_BALANCE')
+                            if _captcha_id and str(_captcha_id) not in _erros:
+                                logs.append({'nivel': 'info', 'msg': f'{label}: [2C] Aguardando (id={_captcha_id})...'})
+                                _sol = None
+                                for _ in range(24):
+                                    _time.sleep(5)
+                                    _url2 = f'http://2captcha.com/res.php?key={_2captcha_key}&action=get&id={_captcha_id}&json=1'
+                                    _r2 = _req.get(_url2, timeout=15)
+                                    _j2 = _r2.json()
+                                    if _j2.get('status') == 1:
+                                        _sol = _j2.get('request')
+                                        break
+                                    elif _j2.get('request') not in ('CAPCHA_NOT_READY', 'CAPTCHA_NOT_READY'):
+                                        break
+                                if _sol:
+                                    logs.append({'nivel': 'ok', 'msg': f'{label}: [2C] CAPTCHA resolvido!'})
+                                    try:
+                                        _js = "var el=document.getElementById('g-recaptcha-response');if(el)el.value='" + _sol + "';"
+                                        pagina_ativa.evaluate(_js)
+                                    except Exception:
+                                        pass
+                                    _time.sleep(3)
+                                    historico.append({'passo': passo, 'acao': 'captcha_resolvido', 'resultado': '2Captcha OK'})
+                                    continue
+                                else:
+                                    logs.append({'nivel': 'aviso', 'msg': f'{label}: [2C] Sem solucao'})
+                            else:
+                                logs.append({'nivel': 'aviso', 'msg': f'{label}: [2C] Erro: {_r.text[:80]}'})
+                        except Exception as _e2c:
+                            logs.append({'nivel': 'aviso', 'msg': f'{label}: [2C] Excecao: {str(_e2c)[:80]}'})
+                    logs.append({'nivel': 'aviso', 'msg': f'{label}: ❌  Passo {passo}: IA desistiu — {pensamento[:400]}'})
                     historico.append({'passo': passo, 'acao': 'desistir', 'resultado': pensamento[:100]})
                     break
 
