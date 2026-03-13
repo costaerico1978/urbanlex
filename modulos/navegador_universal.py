@@ -2944,6 +2944,7 @@ def navegar_com_cookies_flaresolverr(
                         _sem_rede_limite = 30
                         _reloads = 0
                         _max_reloads = 2
+                        _captcha_resolvido = False
                         _inicio = _t2.time()
                         while _t2.time() - _inicio < _max_espera:
                             try:
@@ -2955,12 +2956,63 @@ def navegar_com_cookies_flaresolverr(
                             _ainda_loading = any(s in _html_check for s in ['norma requisitada est', 'Por favor, aguarde', 'sendo carregada'])
                             if not _ainda_loading:
                                 break  # página mudou, sair
+                            # Resolver reCAPTCHA invisível que bloqueia o carregamento
+                            if not _captcha_resolvido:
+                                try:
+                                    import re as _re2, requests as _req2
+                                    _2ck = os.environ.get('TWOCAPTCHA_API_KEY', '')
+                                    _sk2 = None
+                                    _sk_m = _re2.search(r'["']([0-9A-Za-z_-]{40,})["']', _html_check)
+                                    if not _sk_m:
+                                        # sitekey conhecido do leismunicipais
+                                        if 'leismunicipais' in _lei_url:
+                                            _sk2 = '6Lcsu0AUAAAAAPGiUWm7uBfmctlz8sokhRldd3d6'
+                                    else:
+                                        _sk2 = _sk_m.group(1)
+                                    if _sk2 and _2ck:
+                                        logs.append({'nivel': 'info', 'msg': f'{label}: [2C] reCAPTCHA invisivel — resolvendo sitekey={_sk2[:20]}...'})
+                                        _r3 = _req2.post('http://2captcha.com/in.php', data={'key': _2ck, 'method': 'userrecaptcha', 'googlekey': _sk2, 'pageurl': _lei_url, 'invisible': 1, 'json': 1}, timeout=30)
+                                        _cid3 = _r3.json().get('request')
+                                        if _cid3 and str(_cid3) not in ('ERROR_WRONG_USER_KEY', 'ERROR_KEY_DOES_NOT_EXIST', 'ERROR_ZERO_BALANCE'):
+                                            logs.append({'nivel': 'info', 'msg': f'{label}: [2C] Aguardando solucao (id={_cid3})...'})
+                                            _sol3 = None
+                                            for _ in range(36):
+                                                _t2.sleep(5)
+                                                _r4 = _req2.get(f'http://2captcha.com/res.php?key={_2ck}&action=get&id={_cid3}&json=1', timeout=15)
+                                                _j4 = _r4.json()
+                                                if _j4.get('status') == 1:
+                                                    _sol3 = _j4.get('request')
+                                                    break
+                                                elif _j4.get('request') not in ('CAPCHA_NOT_READY', 'CAPTCHA_NOT_READY'):
+                                                    break
+                                            if _sol3:
+                                                logs.append({'nivel': 'ok', 'msg': f'{label}: [2C] Token obtido — injetando...'})
+                                                _pg2.evaluate(
+                                                    "function(token){"
+                                                    "var els=document.querySelectorAll('[name="g-recaptcha-response"],[id="g-recaptcha-response"]');"
+                                                    "els.forEach(function(el){"
+                                                    "try{Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value').set.call(el,token);}catch(e){el.value=token;}"
+                                                    "el.dispatchEvent(new Event('change',{bubbles:true}));"
+                                                    "});"
+                                                    "try{var cb=document.querySelector('[data-callback]');if(cb){var fn=cb.getAttribute('data-callback');if(window[fn])window[fn](token);}}catch(e){}"
+                                                    "try{if(window.grecaptcha){var grc=window.grecaptcha.enterprise||window.grecaptcha;if(grc.getResponse){}}}catch(e){}"
+                                                    "}",
+                                                    _sol3
+                                                )
+                                                _ultima_req[0] = _t2.time()
+                                                _captcha_resolvido = True
+                                                _t2.sleep(3)
+                                            else:
+                                                logs.append({'nivel': 'aviso', 'msg': f'{label}: [2C] Sem solucao para reCAPTCHA invisivel'})
+                                except Exception as e_cap:
+                                    logs.append({'nivel': 'aviso', 'msg': f'{label}: [2C] Erro reCAPTCHA: {str(e_cap)[:60]}'})
                             _sem_rede = _t2.time() - _ultima_req[0]
                             if _sem_rede > _sem_rede_limite and _reloads < _max_reloads:
                                 logs.append({'nivel': 'info', 'msg': f'{label}: Spinner sem atividade de rede por {int(_sem_rede)}s — recarregando...'})
                                 try:
                                     _pg2.reload(wait_until='domcontentloaded', timeout=30000)
                                     _ultima_req[0] = _t2.time()
+                                    _captcha_resolvido = False
                                     _reloads += 1
                                 except Exception:
                                     pass
