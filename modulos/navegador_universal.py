@@ -147,7 +147,8 @@ REGRAS:
     - Link "Download da Edição nº 200" -> texto_elemento: "Download da Edição nº 200"
     - Se o elemento nao tem texto (icone puro), descreva: "icone coluna Arquivo linha 1"
 
-CRITICO: Responda SOMENTE com o objeto JSON abaixo. Nenhum texto antes, nenhum texto depois, nenhum markdown, nenhuma explicacao. Se a pagina estiver carregando ou em transicao, ainda assim responda com JSON — use decisao "scroll" ou "clicar" no botao mais relevante visivel.
+14. PAGINA CARREGANDO (leismunicipais.com.br): Se a pagina mostrar mensagem "Por favor, aguarde", spinner de carregamento, ou "A norma requisitada esta sendo carregada" — NAO faca scroll, NAO clique em nada. Use acao "screenshot" para aguardar o carregamento completar. Somente desista se aparecer CAPTCHA.
+CRITICO: Responda SOMENTE com o objeto JSON abaixo. Nenhum texto antes, nenhum texto depois, nenhum markdown, nenhuma explicacao. Se a pagina estiver carregando ou em transicao, ainda assim responda com JSON — use decisao "screenshot" para aguardar.
 JSON:
 {{{{
     "o_que_vejo": "...",
