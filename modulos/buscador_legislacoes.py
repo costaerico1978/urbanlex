@@ -1332,7 +1332,7 @@ def _navegar_formulario_com_ia(url_base: str, tipo_lei: str, numero_lei: str,
                     _body_lower = body_text.lower()
                     _titulo_lower = titulo_pagina.lower()
                     if any(p in _body_lower or p in _titulo_lower for p in _cf_patterns):
-                        logs.append({'nivel': 'info', 'msg': f'{label}: ⏳ Verificação de segurança — aguardando até 15s...'})
+                        logs.append({'nivel': 'info', 'msg': f'{label}: ⏳ Verificação de segurança — aguardando até 30s...'})
                         _cf_resolveu = False
                         for _cf_wait in range(15):
                             _time.sleep(1)
@@ -1350,7 +1350,7 @@ def _navegar_formulario_com_ia(url_base: str, tipo_lei: str, numero_lei: str,
                             except Exception:
                                 pass
                         if not _cf_resolveu:
-                            logs.append({'nivel': 'aviso', 'msg': f'{label}: ⏳ Verificação não resolveu em 15s'})
+                            logs.append({'nivel': 'aviso', 'msg': f'{label}: ⏳ Verificação não resolveu em 30s'})
                             _bloqueado = True
 
             # ── RETRY COM PROXY se bloqueado ──
