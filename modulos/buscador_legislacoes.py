@@ -2565,6 +2565,11 @@ onde NNN é o número da ÚLTIMA página que ainda faz parte da legislação (in
         matches = sum(1 for t in lista_termos if t in texto.lower())
         relevancia = matches / max(len(lista_termos), 1)
 
+        # Rejeitar paginas de loading/spinner antes de chamar a IA
+        _loading_kws = ['norma requisitada está sendo carregada', 'por favor, aguarde', 'javascript está habilitado', 'just a moment', 'checking your browser', 'enable javascript and cookies']
+        if any(kw in texto.lower() for kw in _loading_kws):
+            logs.append({'nivel': 'aviso', 'msg': f'{label}: ❌ Descartado — página ainda em loading/spinner'})
+            return None
         # ── VALIDAÇÃO POR IA: a IA lê o documento e decide se é a legislação ──
         if tipo_lei and numero_lei:
             validacao = _ia_validar_documento(texto, tipo_lei, numero_lei, ano, logs, label)
