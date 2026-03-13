@@ -2905,6 +2905,31 @@ def navegar_com_cookies_flaresolverr(
                 try:
                     import time as _t2
                     _lei_url = resultado['url']
+                    # Tentar FlareSolverr diretamente na URL da lei antes do Playwright
+                    # FlareSolverr usa Chrome real com score alto no reCAPTCHA
+                    _fs_html_lei = ''
+                    try:
+                        import requests as _req_fs
+                        logs.append({'nivel': 'info', 'msg': f'{label}: [FS] Tentando FlareSolverr direto na URL da lei...'})
+                        _r_fs = _req_fs.post('http://localhost:8191/v1',
+                            json={'cmd': 'request.get', 'url': _lei_url, 'maxTimeout': 90000},
+                            timeout=100)
+                        _d_fs = _r_fs.json()
+                        if _d_fs.get('status') == 'ok':
+                            _fs_html_lei = _d_fs.get('solution', {}).get('response', '')
+                            _lm_loading_kws2 = ['norma requisitada est', 'Por favor, aguarde', 'sendo carregada', 'just a moment']
+                            _fs_loading = any(s in _fs_html_lei.lower() for s in _lm_loading_kws2)
+                            if _fs_html_lei and len(_fs_html_lei) > 10000 and not _fs_loading:
+                                logs.append({'nivel': 'ok', 'msg': f'{label}: [FS] Conteudo obtido via FlareSolverr ({len(_fs_html_lei)} chars)'})
+                                resultado['html'] = _fs_html_lei
+                            else:
+                                logs.append({'nivel': 'aviso', 'msg': f'{label}: [FS] FlareSolverr retornou loading/vazio ({len(_fs_html_lei)} chars) — tentando Playwright'})
+                                _fs_html_lei = ''
+                    except Exception as e_fs:
+                        logs.append({'nivel': 'aviso', 'msg': f'{label}: [FS] Erro FlareSolverr lei: {str(e_fs)[:60]}'})
+                    if _fs_html_lei:
+                        browser.close()
+                        return resultado
                     logs.append({'nivel': 'info', 'msg': f'{label}: Extraindo HTML via sessao Playwright: {_lei_url[:80]}'})
                     _pg2 = ctx.new_page()
                     # Bloquear ads tambem nesta pagina
