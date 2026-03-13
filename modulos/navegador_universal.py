@@ -3136,6 +3136,20 @@ def navegar_como_humano(
                                     try:
                                         _js = "var el=document.getElementById('g-recaptcha-response');if(el)el.value='" + _sol + "';"
                                         pagina_ativa.evaluate(_js)
+                                        # Fallback: tentar preencher campo visivel de captcha
+                                        try:
+                                            _sels = ['input[name*="captcha"]', 'input[id*="captcha"]', 'input[placeholder*="captcha" i]', 'input[type="text"]:visible']
+                                            for _sel in _sels:
+                                                try:
+                                                    _el = pagina_ativa.query_selector(_sel)
+                                                    if _el:
+                                                        _el.click()
+                                                        _el.fill(_sol)
+                                                        break
+                                                except Exception:
+                                                    pass
+                                        except Exception:
+                                            pass
                                     except Exception:
                                         pass
                                     _time.sleep(3)
