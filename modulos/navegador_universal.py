@@ -3145,10 +3145,26 @@ def navegar_como_humano(
                     if _captcha_detectado and _2captcha_key and pagina_ativa:
                         logs.append({'nivel': 'info', 'msg': f'{label}: [2C] CAPTCHA detectado - tentando 2Captcha...'})
                         try:
-                            import base64 as _b64mod, requests as _req, time as _time
-                            _ss_bytes = pagina_ativa.screenshot(type='png')
-                            _b64str = _b64mod.b64encode(_ss_bytes).decode()
-                            _post_data = {'key': _2captcha_key, 'method': 'base64', 'body': _b64str, 'json': 1}
+                            import base64 as _b64mod, requests as _req, time as _time, re as _re
+                            _sitekey = None
+                            _page_url = pagina_ativa.url
+                            try:
+                                _html_cap = pagina_ativa.content()
+                                _sk_match = _re.search(r'data-sitekey=["\'\']([0-9A-Za-z_-]{20,})["\'\']', _html_cap)
+                                if not _sk_match:
+                                    _sk_match = _re.search(r'"sitekey"\s*:\s*"([0-9A-Za-z_-]{20,})"', _html_cap)
+                                if _sk_match:
+                                    _sitekey = _sk_match.group(1)
+                            except Exception:
+                                pass
+                            if _sitekey:
+                                logs.append({'nivel': 'info', 'msg': f'{label}: [2C] reCAPTCHA v2 — sitekey={_sitekey[:20]}...'})
+                                _post_data = {'key': _2captcha_key, 'method': 'userrecaptcha', 'googlekey': _sitekey, 'pageurl': _page_url, 'json': 1}
+                            else:
+                                logs.append({'nivel': 'info', 'msg': f'{label}: [2C] Sem sitekey — usando OCR (base64)'})
+                                _ss_bytes = pagina_ativa.screenshot(type='png')
+                                _b64str = _b64mod.b64encode(_ss_bytes).decode()
+                                _post_data = {'key': _2captcha_key, 'method': 'base64', 'body': _b64str, 'json': 1}
                             _r = _req.post('http://2captcha.com/in.php', data=_post_data, timeout=30)
                             _captcha_id = _r.json().get('request')
                             _erros = ('ERROR_WRONG_USER_KEY', 'ERROR_KEY_DOES_NOT_EXIST', 'ERROR_ZERO_BALANCE')
@@ -3168,22 +3184,18 @@ def navegar_como_humano(
                                 if _sol:
                                     logs.append({'nivel': 'ok', 'msg': f'{label}: [2C] CAPTCHA resolvido!'})
                                     try:
-                                        _js = "var el=document.getElementById('g-recaptcha-response');if(el)el.value='" + _sol + "';"
-                                        pagina_ativa.evaluate(_js)
-                                        # Fallback: tentar preencher campo visivel de captcha
-                                        try:
-                                            _sels = ['input[name*="captcha"]', 'input[id*="captcha"]', 'input[placeholder*="captcha" i]', 'input[type="text"]:visible']
-                                            for _sel in _sels:
-                                                try:
-                                                    _el = pagina_ativa.query_selector(_sel)
-                                                    if _el:
-                                                        _el.click()
-                                                        _el.fill(_sol)
-                                                        break
-                                                except Exception:
-                                                    pass
-                                        except Exception:
-                                            pass
+                                        _js_inject = (
+                                            "var els=document.querySelectorAll('[name=\"g-recaptcha-response\"],[id=\"g-recaptcha-response\"]');"
+                                            "els.forEach(function(el){"
+                                            "try{Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value').set.call(el,'" + _sol + "');}catch(e){el.value='" + _sol + "';}"
+                                            "el.dispatchEvent(new Event('change',{bubbles:true}));"
+                                            "});"
+                                            "try{"
+                                            "var cb=document.querySelector('[data-callback]');"
+                                            "if(cb){var fn=cb.getAttribute('data-callback');if(window[fn])window[fn]('" + _sol + "');}"
+                                            "}catch(e){}"
+                                        )
+                                        pagina_ativa.evaluate(_js_inject)
                                     except Exception:
                                         pass
                                     _time.sleep(3)
