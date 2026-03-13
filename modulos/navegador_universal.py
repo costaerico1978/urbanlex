@@ -3223,6 +3223,23 @@ def navegar_como_humano(
                     # Executar a ação primeiro — o resultado será avaliado no próximo passo
                     logs.append({'nivel': 'info', 'msg': f'{label}: 🔍 IA disse encontrada mas quer {tipo_acao} primeiro — executando...'})
 
+            # 6b. Spinner LeisMunicipais — sair do loop sem screenshot
+            if tipo_acao == 'screenshot' and 'leismunicipais' in (pagina_ativa.url if pagina_ativa else ''):
+                try:
+                    _html_spinner = pagina_ativa.content()
+                    _is_spinner = any(s in _html_spinner for s in ['norma requisitada est', 'Por favor, aguarde', 'sendo carregada'])
+                    if _is_spinner:
+                        # Capturar URL e sair — _pg2 vai resolver o reCAPTCHA invisivel
+                        _url_spinner = pagina_ativa.url
+                        if not resultado.get('url') and _url_spinner.startswith('http'):
+                            resultado['url'] = _url_spinner
+                            resultado['encontrada'] = True
+                            resultado['confirmacao'] = 'URL capturada no spinner'
+                        logs.append({'nivel': 'info', 'msg': f'{label}: ⏳ Spinner detectado — saindo do loop para resolver via _pg2 sem screenshots'})
+                        historico.append({'passo': passo, 'acao': 'screenshot', 'resultado': 'spinner_saindo'})
+                        break
+                except Exception:
+                    pass
             # 7. Desistiu?
             _skip_exec = False
             if tipo_acao == 'desistir':
