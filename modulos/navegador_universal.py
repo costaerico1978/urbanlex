@@ -3300,6 +3300,50 @@ def navegar_como_humano(
                 if all(t == tipo_acao for t in tipos_recentes):
                     resultados_recentes = [h['resultado'] for h in historico[-2:]]
                     if len(set(resultados_recentes)) == 1:
+                        # Spinner do LeisMunicipais — tentar 2Captcha antes de desistir
+                        _is_lm_spinner = (
+                            pagina_ativa and
+                            'leismunicipais' in (pagina_ativa.url or '') and
+                            any(s in (pagina_ativa.content() if pagina_ativa else '') for s in ['norma requisitada est', 'Por favor, aguarde'])
+                        )
+                        if _is_lm_spinner:
+                            try:
+                                import requests as _req_lm, time as _t_lm
+                                _2ck_lm = os.environ.get('TWOCAPTCHA_API_KEY', '')
+                                _sk_lm = '6Lcsu0AUAAAAAPGiUWm7uBfmctlz8sokhRldd3d6'
+                                if _2ck_lm:
+                                    logs.append({'nivel': 'info', 'msg': f'{label}: [2C] Spinner LM — resolvendo reCAPTCHA invisivel...'})
+                                    _r_lm = _req_lm.post('http://2captcha.com/in.php', data={'key': _2ck_lm, 'method': 'userrecaptcha', 'googlekey': _sk_lm, 'pageurl': pagina_ativa.url, 'invisible': 1, 'json': 1}, timeout=30)
+                                    _cid_lm = _r_lm.json().get('request')
+                                    if _cid_lm and str(_cid_lm) not in ('ERROR_WRONG_USER_KEY', 'ERROR_KEY_DOES_NOT_EXIST', 'ERROR_ZERO_BALANCE'):
+                                        logs.append({'nivel': 'info', 'msg': f'{label}: [2C] Aguardando (id={_cid_lm})...'})
+                                        _sol_lm = None
+                                        for _ in range(36):
+                                            _t_lm.sleep(5)
+                                            _r2_lm = _req_lm.get(f'http://2captcha.com/res.php?key={_2ck_lm}&action=get&id={_cid_lm}&json=1', timeout=15)
+                                            _j_lm = _r2_lm.json()
+                                            if _j_lm.get('status') == 1:
+                                                _sol_lm = _j_lm.get('request')
+                                                break
+                                            elif _j_lm.get('request') not in ('CAPCHA_NOT_READY', 'CAPTCHA_NOT_READY'):
+                                                break
+                                        if _sol_lm:
+                                            logs.append({'nivel': 'ok', 'msg': f'{label}: [2C] Token obtido — injetando no spinner...'})
+                                            pagina_ativa.evaluate(
+                                                "(function(t){"
+                                                "var els=document.querySelectorAll('[name=g-recaptcha-response],[id=g-recaptcha-response]');"
+                                                "els.forEach(function(el){try{Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value').set.call(el,t);}catch(e){el.value=t;}"
+                                                "el.dispatchEvent(new Event('change',{bubbles:true}));});"
+                                                "try{var cb=document.querySelector('[data-callback]');if(cb){var fn=cb.getAttribute('data-callback');if(window[fn])window[fn](t);}}catch(e){}"
+                                                "})(arguments[0])",
+                                                _sol_lm
+                                            )
+                                            _t_lm.sleep(5)
+                                            continue  # voltar ao loop principal
+                                        else:
+                                            logs.append({'nivel': 'aviso', 'msg': f'{label}: [2C] Sem solucao para spinner LM'})
+                            except Exception as e_lm:
+                                logs.append({'nivel': 'aviso', 'msg': f'{label}: [2C] Erro spinner LM: {str(e_lm)[:60]}'})
                         logs.append({'nivel': 'aviso', 'msg': f'{label}: ⚠️ Loop detectado — {tipo_acao} repetido 3x sem mudança.'})
                         historico.append({'passo': passo, 'acao': 'loop', 'resultado': 'Mesma ação repetida'})
                         break
