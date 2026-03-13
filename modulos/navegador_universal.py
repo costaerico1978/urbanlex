@@ -2961,14 +2961,8 @@ def navegar_com_cookies_flaresolverr(
                                 try:
                                     import re as _re2, requests as _req2
                                     _2ck = os.environ.get('TWOCAPTCHA_API_KEY', '')
-                                    _sk2 = None
-                                    _sk_m = _re2.search(r'["']([0-9A-Za-z_-]{40,})["']', _html_check)
-                                    if not _sk_m:
-                                        # sitekey conhecido do leismunicipais
-                                        if 'leismunicipais' in _lei_url:
-                                            _sk2 = '6Lcsu0AUAAAAAPGiUWm7uBfmctlz8sokhRldd3d6'
-                                    else:
-                                        _sk2 = _sk_m.group(1)
+                                    # sitekey fixo do leismunicipais (reCAPTCHA invisivel)
+                                    _sk2 = "6Lcsu0AUAAAAAPGiUWm7uBfmctlz8sokhRldd3d6" if "leismunicipais" in _lei_url else None
                                     if _sk2 and _2ck:
                                         logs.append({'nivel': 'info', 'msg': f'{label}: [2C] reCAPTCHA invisivel — resolvendo sitekey={_sk2[:20]}...'})
                                         _r3 = _req2.post('http://2captcha.com/in.php', data={'key': _2ck, 'method': 'userrecaptcha', 'googlekey': _sk2, 'pageurl': _lei_url, 'invisible': 1, 'json': 1}, timeout=30)
@@ -2989,7 +2983,7 @@ def navegar_com_cookies_flaresolverr(
                                                 logs.append({'nivel': 'ok', 'msg': f'{label}: [2C] Token obtido — injetando...'})
                                                 _pg2.evaluate(
                                                     "function(token){"
-                                                    "var els=document.querySelectorAll('[name="g-recaptcha-response"],[id="g-recaptcha-response"]');"
+                                                    'var els=document.querySelectorAll(\'[name=g-recaptcha-response],[id=g-recaptcha-response]\');'
                                                     "els.forEach(function(el){"
                                                     "try{Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value').set.call(el,token);}catch(e){el.value=token;}"
                                                     "el.dispatchEvent(new Event('change',{bubbles:true}));"
