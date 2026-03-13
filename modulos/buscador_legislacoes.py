@@ -1475,7 +1475,7 @@ def _navegar_formulario_com_ia(url_base: str, tipo_lei: str, numero_lei: str,
                     logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ Proxy funcionou — página carregada'})
                     _bloqueado = False
                 else:
-                    logs.append({'nivel': 'aviso', 'msg': f'{label}: 🔒 Bloqueado (configure PROXY_URL no Railway para contornar)'})
+                    logs.append({'nivel': 'aviso', 'msg': f'{label}: 🔒 Bloqueado por Cloudflare — FlareSolverr será usado na ETAPA 3'})
                     browser.close()
                     return []
 
