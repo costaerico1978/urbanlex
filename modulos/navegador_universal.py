@@ -3105,7 +3105,7 @@ def navegar_como_humano(
                         historico.append({'passo': passo, 'acao': 'desistir', 'resultado': pensamento[:100]})
                         break
                 else:
-                    _captcha_kws = ['captcha', 'recaptcha', 'motocicleta', 'selecionar imagens', 'selecione imagens']
+                    _captcha_kws = ['captcha', 'recaptcha', 'motocicleta', 'selecionar imagens', 'selecione imagens', 'verificar que voce', 'desafio visual', 'selecione todas', 'nao sou um robo', 'prove que e humano']
                     _captcha_detectado = any(kw in pensamento.lower() for kw in _captcha_kws)
                     _2captcha_key = os.environ.get('TWOCAPTCHA_API_KEY', '')
                     if _captcha_detectado and _2captcha_key and pagina_ativa:
