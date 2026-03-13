@@ -2907,6 +2907,19 @@ def navegar_com_cookies_flaresolverr(
                     _lei_url = resultado['url']
                     logs.append({'nivel': 'info', 'msg': f'{label}: Extraindo HTML via sessao Playwright: {_lei_url[:80]}'})
                     _pg2 = ctx.new_page()
+                    # Bloquear ads tambem nesta pagina
+                    _ad_domains2 = ['doubleclick.net','googlesyndication.com','googletagmanager.com','adtrafficquality.google','viralize.tv','sodar']
+                    def _bloquear_ads2(route, request):
+                        if any(d in request.url.lower() for d in _ad_domains2): route.abort()
+                        else: route.continue_()
+                    _pg2.route('**/*', _bloquear_ads2)
+                    # Injetar cookies da sessao FlareSolverr para que o AJAX funcione
+                    try:
+                        _cookies_ctx = ctx.cookies()
+                        if _cookies_ctx:
+                            _pg2.context.add_cookies(_cookies_ctx)
+                    except Exception:
+                        pass
                     try:
                         _pg2.goto(_lei_url, wait_until='networkidle', timeout=90000)
                     except Exception:
@@ -2917,8 +2930,16 @@ def navegar_com_cookies_flaresolverr(
                     try:
                         # Monitorar atividade de rede — detectar se spinner travou
                         _ultima_req = [_t2.time()]
-                        def _on_req(req): _ultima_req[0] = _t2.time()
+                        _ajax_reqs = []
+                        def _on_req(req):
+                            _ultima_req[0] = _t2.time()
+                            if req.resource_type in ('xhr', 'fetch'):
+                                _ajax_reqs.append(req.url[:120])
+                        def _on_resp(resp):
+                            if resp.request.resource_type in ('xhr', 'fetch'):
+                                logs.append({'nivel': 'info', 'msg': f'{label}: [AJAX] {resp.status} {resp.url[:100]}'})
                         _pg2.on('request', _on_req)
+                        _pg2.on('response', _on_resp)
                         _max_espera = 120
                         _sem_rede_limite = 30
                         _reloads = 0
