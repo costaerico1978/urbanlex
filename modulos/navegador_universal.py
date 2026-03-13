@@ -3240,6 +3240,9 @@ def navegar_como_humano(
                                     _sitekey = _sk_match.group(1)
                             except Exception:
                                 pass
+                            # Fallback: sitekey conhecido do leismunicipais
+                            if not _sitekey and 'leismunicipais' in _page_url:
+                                _sitekey = '6Lcsu0AUAAAAAPGiUWm7uBfmctlz8sokhRldd3d6'
                             if _sitekey:
                                 logs.append({'nivel': 'info', 'msg': f'{label}: [2C] reCAPTCHA v2 — sitekey={_sitekey[:20]}...'})
                                 _post_data = {'key': _2captcha_key, 'method': 'userrecaptcha', 'googlekey': _sitekey, 'pageurl': _page_url, 'json': 1}
