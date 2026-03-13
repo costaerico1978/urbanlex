@@ -3329,15 +3329,15 @@ def navegar_como_humano(
                                                 break
                                         if _sol_lm:
                                             logs.append({'nivel': 'ok', 'msg': f'{label}: [2C] Token obtido — injetando no spinner...'})
-                                            pagina_ativa.evaluate(
+                                            _js_lm = (
                                                 "(function(t){"
                                                 "var els=document.querySelectorAll('[name=g-recaptcha-response],[id=g-recaptcha-response]');"
                                                 "els.forEach(function(el){try{Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value').set.call(el,t);}catch(e){el.value=t;}"
                                                 "el.dispatchEvent(new Event('change',{bubbles:true}));});"
                                                 "try{var cb=document.querySelector('[data-callback]');if(cb){var fn=cb.getAttribute('data-callback');if(window[fn])window[fn](t);}}catch(e){}"
-                                                "})(arguments[0])",
-                                                _sol_lm
+                                                "})('%s')" % _sol_lm
                                             )
+                                            pagina_ativa.evaluate(_js_lm)
                                             _t_lm.sleep(5)
                                             continue  # voltar ao loop principal
                                         else:
