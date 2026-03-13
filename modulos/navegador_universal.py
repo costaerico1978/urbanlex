@@ -2899,7 +2899,35 @@ def navegar_com_cookies_flaresolverr(
                         except Exception:
                             pass
                     try:
-                        _pg2.wait_for_selector('div.law-container', timeout=120000)
+                        # Monitorar atividade de rede — detectar se spinner travou
+                        _ultima_req = [_t2.time()]
+                        def _on_req(req): _ultima_req[0] = _t2.time()
+                        _pg2.on('request', _on_req)
+                        _max_espera = 120
+                        _sem_rede_limite = 30
+                        _reloads = 0
+                        _max_reloads = 2
+                        _inicio = _t2.time()
+                        while _t2.time() - _inicio < _max_espera:
+                            try:
+                                _pg2.wait_for_selector('div.law-container', timeout=3000)
+                                break  # encontrou!
+                            except Exception:
+                                pass
+                            _html_check = _pg2.content() if _pg2 else ''
+                            _ainda_loading = any(s in _html_check for s in ['norma requisitada est', 'Por favor, aguarde', 'sendo carregada'])
+                            if not _ainda_loading:
+                                break  # página mudou, sair
+                            _sem_rede = _t2.time() - _ultima_req[0]
+                            if _sem_rede > _sem_rede_limite and _reloads < _max_reloads:
+                                logs.append({'nivel': 'info', 'msg': f'{label}: Spinner sem atividade de rede por {int(_sem_rede)}s — recarregando...'})
+                                try:
+                                    _pg2.reload(wait_until='domcontentloaded', timeout=30000)
+                                    _ultima_req[0] = _t2.time()
+                                    _reloads += 1
+                                except Exception:
+                                    pass
+                        _pg2.remove_listener('request', _on_req)
                     except Exception:
                         _t2.sleep(5)
                     _html_sessao = _pg2.content()
