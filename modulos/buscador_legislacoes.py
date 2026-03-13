@@ -3189,13 +3189,13 @@ Se não encontrar data exata, retorne {{"data_publicacao": ""}}. NÃO invente.""
     # ══════════════════════════════════════════════════════════════════
     logs.append({'nivel': 'info', 'msg': '📖 ETAPA 3: Fontes web complementares...'})
 
-    # 3A: LeisMunicipais (pular se ja usada como fonte prioritaria)
+    # 3A: LeisMunicipais (pular se ja tem texto extraido com sucesso)
     _dominios_prio = set()
     for _fp in fontes_prioritarias:
         _dm = re.sub(r'https?://', '', _fp.rstrip('/')).split('/')[0].replace('www.', '')
         _dominios_prio.add(_dm)
-    _lm_ja_prio = any('leismunicipais' in _d for _d in _dominios_prio)
-    if municipio and numero and not _lm_ja_prio:
+    _lm_ja_extraido = any('leismunicipais' in t.get('url','') for t in textos_extraidos)
+    if municipio and numero and not _lm_ja_extraido:
         lm_results = _buscar_leismunicipais_direto(municipio, estado, tipo_inferido or tipo, numero, ano, logs)
         for lm in lm_results[:2]:
             # Se já tem texto extraído (ex: via FlareSolverr), usar diretamente
