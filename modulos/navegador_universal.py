@@ -2820,6 +2820,22 @@ def navegar_com_cookies_flaresolverr(
                 logs.append({"nivel": "aviso", "msg": f"{label}: Erro ao injetar cookies: {str(e_ck)[:80]}"})
 
             page = ctx.new_page()
+            # Bloquear anuncios e trackers para evitar sobreposicao de elementos
+            _ad_domains = [
+                'doubleclick.net', 'googlesyndication.com', 'googletagmanager.com',
+                'googletagservices.com', 'adtrafficquality.google', 'adservice.google.com',
+                'amazon-adsystem.com', 'ads.yahoo.com', 'outbrain.com', 'taboola.com',
+                'criteo.com', 'pubmatic.com', 'rubiconproject.com', 'openx.net',
+                'adnxs.com', 'moatads.com', 'viralize.tv', 'sodar', 'pagead2.googlesyndication',
+                'tpc.googlesyndication', 'securepubads.g.doubleclick'
+            ]
+            def _bloquear_ads(route, request):
+                url_req = request.url.lower()
+                if any(d in url_req for d in _ad_domains):
+                    route.abort()
+                else:
+                    route.continue_()
+            page.route('**/*', _bloquear_ads)
             try:
                 from playwright_stealth import stealth_sync
                 stealth_sync(page)
