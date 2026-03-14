@@ -3090,17 +3090,16 @@ def navegar_como_humano(
     for passo in range(1, max_passos + 1):
         try:
             # 0. Verificar spinner LeisMunicipais ANTES de tirar screenshot
+            # Paginas de lei (/a/...) sempre iniciam com spinner — sair imediatamente
             try:
                 _url_pre = pagina_ativa.url if pagina_ativa else ''
-                if 'leismunicipais' in _url_pre:
-                    _html_pre = pagina_ativa.content()
-                    if any(s in _html_pre for s in ['norma requisitada est', 'Por favor, aguarde', 'sendo carregada']):
-                        if not resultado.get('url') and _url_pre.startswith('http'):
-                            resultado['url'] = _url_pre
-                            resultado['encontrada'] = True
-                            resultado['confirmacao'] = 'URL capturada no spinner'
-                        logs.append({'nivel': 'info', 'msg': f'{label}: ⏳ Spinner LM — saindo sem screenshot'})
-                        break
+                if 'leismunicipais.com.br/a/' in _url_pre:
+                    if not resultado.get('url') and _url_pre.startswith('http'):
+                        resultado['url'] = _url_pre
+                        resultado['encontrada'] = True
+                        resultado['confirmacao'] = 'URL capturada no spinner'
+                    logs.append({'nivel': 'info', 'msg': f'{label}: Pagina de lei LM — saindo sem screenshot'})
+                    break
             except Exception:
                 pass
             # 1. Screenshot
