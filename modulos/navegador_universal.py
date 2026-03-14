@@ -2151,6 +2151,11 @@ def _clicar_por_texto(page, texto_elemento: str, logs: list, label: str) -> str:
         logs.append({'nivel': 'info', 'msg': f'{label}: 📄 PDF detectado via response: {_pdf_response_url[0][:80]}'})
         return f'Navegou: {_pdf_response_url[0]}'
     
+    # Se href é página /a/ LeisMunicipais com slug — retornar direto como Href:
+    if (href_extraido and href_extraido.startswith("http") and
+            "leismunicipais.com.br/a/" in href_extraido):
+        logs.append({"nivel": "info", "msg": f"{label}: Href LM com slug — retornando direto: {href_extraido[:100]}"})
+        return f"Href: {href_extraido}"
     # Se interceptou navegação real, retornar — preferir href com slug completo
     if _nav_url_real[0]:
         _nav_best = _nav_url_real[0]
