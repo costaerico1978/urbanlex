@@ -2990,7 +2990,7 @@ def navegar_com_cookies_flaresolverr(
                         _pg2.on('request', _on_req)
                         _pg2.on('response', _on_resp)
                         _max_espera = 120
-                        _sem_rede_limite = 30
+                        _sem_rede_limite = 180  # aguardar 2Captcha resolver
                         _reloads = 0
                         _max_reloads = 2
                         _captcha_resolvido = False
