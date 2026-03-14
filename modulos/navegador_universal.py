@@ -3132,11 +3132,17 @@ def navegar_como_humano(
             try:
                 _url_pre = pagina_ativa.url if pagina_ativa else ''
                 if 'leismunicipais.com.br/a/' in _url_pre:
-                    if not resultado.get('url') and _url_pre.startswith('http'):
+                    _url_existente = resultado.get('url', '')
+                    if not _url_existente and _url_pre.startswith('http'):
                         resultado['url'] = _url_pre
                         resultado['encontrada'] = True
                         resultado['confirmacao'] = 'URL capturada no spinner'
-                    logs.append({'nivel': 'info', 'msg': f'{label}: Pagina de lei LM — saindo sem screenshot'})
+                    elif _url_existente and _url_pre.startswith('http') and _url_pre.startswith(_url_existente) and len(_url_pre) > len(_url_existente):
+                        # _url_pre tem slug mais completo — atualizar
+                        resultado['url'] = _url_pre
+                        resultado['encontrada'] = True
+                        resultado['confirmacao'] = 'URL capturada no spinner (slug)'
+                    logs.append({'nivel': 'info', 'msg': f'{label}: Pagina de lei LM — saindo sem screenshot (url={resultado["url"][:80]})'})
                     break
             except Exception:
                 pass
