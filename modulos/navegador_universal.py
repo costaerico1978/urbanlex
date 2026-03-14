@@ -2923,7 +2923,14 @@ def navegar_com_cookies_flaresolverr(
                                 logs.append({'nivel': 'ok', 'msg': f'{label}: [FS] Conteudo obtido via FlareSolverr ({len(_fs_html_lei)} chars)'})
                                 resultado['html'] = _fs_html_lei
                             else:
-                                logs.append({'nivel': 'aviso', 'msg': f'{label}: [FS] FlareSolverr retornou loading/vazio ({len(_fs_html_lei)} chars) — tentando Playwright'})
+                                # Logar preview para debug
+                                from bs4 import BeautifulSoup as _BS
+                                try:
+                                    _soup_fs = _BS(_fs_html_lei, 'html.parser')
+                                    _txt_fs = _soup_fs.get_text()[:300].strip()
+                                except Exception:
+                                    _txt_fs = _fs_html_lei[:300]
+                                logs.append({'nivel': 'aviso', 'msg': f'{label}: [FS] FlareSolverr retornou loading/vazio ({len(_fs_html_lei)} chars) preview: {_txt_fs[:200]}'})
                                 _fs_html_lei = ''
                     except Exception as e_fs:
                         logs.append({'nivel': 'aviso', 'msg': f'{label}: [FS] Erro FlareSolverr lei: {str(e_fs)[:60]}'})
@@ -3014,7 +3021,13 @@ def navegar_com_cookies_flaresolverr(
                                                     "el.dispatchEvent(new Event('change',{bubbles:true}));"
                                                     "});"
                                                     "try{var cb=document.querySelector('[data-callback]');if(cb){var fn=cb.getAttribute('data-callback');if(window[fn])window[fn](token);}}catch(e){}"
-                                                    "try{if(window.grecaptcha){var grc=window.grecaptcha.enterprise||window.grecaptcha;if(grc.getResponse){}}}catch(e){}"
+                                                    "try{"
+                                                    "var cfg=window.___grecaptcha_cfg||window.___grecaptcha_cfg_enterprise;"
+                                                    "if(cfg&&cfg.clients){var cks=Object.keys(cfg.clients);"
+                                                    "for(var ci=0;ci<cks.length;ci++){var cl=cfg.clients[cks[ci]];var iks=Object.keys(cl);"
+                                                    "for(var ii=0;ii<iks.length;ii++){var obj=cl[iks[ii]];"
+                                                    "if(obj&&typeof obj.callback==='function'){obj.callback(token);}}}}"
+                                                    "}catch(e2){}"
                                                     "}",
                                                     _sol3
                                                 )
@@ -3335,6 +3348,13 @@ def navegar_como_humano(
                                             "var cb=document.querySelector('[data-callback]');"
                                             "if(cb){var fn=cb.getAttribute('data-callback');if(window[fn])window[fn]('" + _sol + "');}"
                                             "}catch(e){}"
+                                            "try{"
+                                            "var cfg=window.___grecaptcha_cfg||window.___grecaptcha_cfg_enterprise;"
+                                            "if(cfg&&cfg.clients){var cks=Object.keys(cfg.clients);"
+                                            "for(var ci=0;ci<cks.length;ci++){var cl=cfg.clients[cks[ci]];var iks=Object.keys(cl);"
+                                            "for(var ii=0;ii<iks.length;ii++){var obj=cl[iks[ii]];"
+                                            "if(obj&&typeof obj.callback==='function'){obj.callback('" + _sol + "');}}}}"
+                                            "}catch(e2){}"
                                         )
                                         pagina_ativa.evaluate(_js_inject)
                                     except Exception:
@@ -3394,6 +3414,13 @@ def navegar_como_humano(
                                                 "els.forEach(function(el){try{Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value').set.call(el,t);}catch(e){el.value=t;}"
                                                 "el.dispatchEvent(new Event('change',{bubbles:true}));});"
                                                 "try{var cb=document.querySelector('[data-callback]');if(cb){var fn=cb.getAttribute('data-callback');if(window[fn])window[fn](t);}}catch(e){}"
+                                                "try{"
+                                                "var cfg=window.___grecaptcha_cfg||window.___grecaptcha_cfg_enterprise;"
+                                                "if(cfg&&cfg.clients){var cks=Object.keys(cfg.clients);"
+                                                "for(var ci=0;ci<cks.length;ci++){var cl=cfg.clients[cks[ci]];var iks=Object.keys(cl);"
+                                                "for(var ii=0;ii<iks.length;ii++){var obj=cl[iks[ii]];"
+                                                "if(obj&&typeof obj.callback==='function'){obj.callback(t);}}}}"
+                                                "}catch(e2){}"
                                                 "})()" % _sol_lm
                                             )
                                             pagina_ativa.evaluate(_js_lm)
