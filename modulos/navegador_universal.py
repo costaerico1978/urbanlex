@@ -3042,7 +3042,15 @@ def navegar_com_cookies_flaresolverr(
                                                             _pg2.goto(_pass_url, wait_until='domcontentloaded', timeout=20000)
                                                         except Exception:
                                                             pass
-                                                    _t2.sleep(5)
+                                                    # Aguardar law-container aparecer após o redirect
+                                                    _html_pass = ''
+                                                    for _wi in range(12):
+                                                        _t2.sleep(5)
+                                                        try:
+                                                            _pg2.wait_for_selector('div.law-container', timeout=4000)
+                                                            break
+                                                        except Exception:
+                                                            pass
                                                     _html_pass = _pg2.content()
                                                     _loading_pass = any(s in _html_pass for s in ['norma requisitada est', 'Por favor, aguarde', 'sendo carregada'])
                                                     _has_law = 'law-container' in _html_pass
