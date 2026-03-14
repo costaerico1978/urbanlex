@@ -2151,10 +2151,15 @@ def _clicar_por_texto(page, texto_elemento: str, logs: list, label: str) -> str:
         logs.append({'nivel': 'info', 'msg': f'{label}: 📄 PDF detectado via response: {_pdf_response_url[0][:80]}'})
         return f'Navegou: {_pdf_response_url[0]}'
     
-    # Se interceptou navegação real, retornar
+    # Se interceptou navegação real, retornar — preferir href com slug completo
     if _nav_url_real[0]:
-        logs.append({'nivel': 'info', 'msg': f'{label}: 🔗 Navegação real interceptada: {_nav_url_real[0][:80]}'})
-        return f'Navegou: {_nav_url_real[0]}'
+        _nav_best = _nav_url_real[0]
+        if (href_extraido and href_extraido.startswith("http") and
+                href_extraido.startswith(_nav_url_real[0]) and
+                len(href_extraido) > len(_nav_url_real[0])):
+            _nav_best = href_extraido
+        logs.append({'nivel': 'info', 'msg': f'{label}: 🔗 Navegação real interceptada: {_nav_best[:80]}'})
+        return f'Navegou: {_nav_best}'
     
     # Fallback: href estático
     if href_extraido and href_extraido.startswith('http'):
@@ -3013,6 +3018,17 @@ def navegar_com_cookies_flaresolverr(
                                                     break
                                             if _sol3:
                                                 logs.append({'nivel': 'ok', 'msg': f'{label}: [2C] Token obtido — injetando...'})
+                                                # Diagnóstico: logar estrutura do grecaptcha
+                                                try:
+                                                    _gcfg_info = _pg2.evaluate(
+                                                        "JSON.stringify(Object.keys(window.___grecaptcha_cfg||{}))"
+                                                    )
+                                                    _gcfg_clients = _pg2.evaluate(
+                                                        "(function(){var c=window.___grecaptcha_cfg;if(!c||!c.clients)return 'NO_CFG';var cks=Object.keys(c.clients);var info=[];for(var i=0;i<cks.length;i++){var cl=c.clients[cks[i]];var cbs=[];var ks=Object.keys(cl);for(var j=0;j<ks.length;j++){if(cl[ks[j]]&&typeof cl[ks[j]].callback==='function')cbs.push(ks[j]);}info.push('client['+cks[i]+']:callbacks='+cbs.join(','));}return info.join('|');})()"
+                                                    )
+                                                    logs.append({'nivel': 'info', 'msg': f'{label}: [2C] grecaptcha_cfg keys={_gcfg_info} | {_gcfg_clients}'})
+                                                except Exception as _eg:
+                                                    logs.append({'nivel': 'info', 'msg': f'{label}: [2C] grecaptcha_cfg erro: {str(_eg)[:80]}'})
                                                 _pg2.evaluate(
                                                     "function(token){"
                                                     'var els=document.querySelectorAll(\'[name=g-recaptcha-response],[id=g-recaptcha-response]\');'
