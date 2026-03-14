@@ -2928,14 +2928,35 @@ def navegar_com_cookies_flaresolverr(
                     import time as _t2
                     _lei_url = resultado['url']
                     # Tentar FlareSolverr diretamente na URL da lei antes do Playwright
-                    # FlareSolverr usa Chrome real com score alto no reCAPTCHA
+                    # Login primeiro para evitar reCAPTCHA
                     _fs_html_lei = ''
                     try:
                         import requests as _req_fs
+                        _fs_sid = os.environ.get('FLARESOLVERR_SESSION', '')
+                        if _fs_sid and 'leismunicipais' in _lei_url:
+                            try:
+                                _req_fs.post('http://localhost:8191/v1', json={
+                                    'cmd': 'request.get', 'url': 'https://leismunicipais.com.br/login',
+                                    'session': _fs_sid, 'maxTimeout': 20000
+                                }, timeout=30)
+                                _req_fs.post('http://localhost:8191/v1', json={
+                                    'cmd': 'request.post', 'url': 'https://leismunicipais.com.br/login',
+                                    'session': _fs_sid, 'maxTimeout': 20000,
+                                    'postData': 'username=sistemaurbanlex%40gmail.com&password=04leismunicipais04&returnto=',
+                                    'headers': {'Content-Type': 'application/x-www-form-urlencoded',
+                                                'Referer': 'https://leismunicipais.com.br/login',
+                                                'Origin': 'https://leismunicipais.com.br'}
+                                }, timeout=30)
+                                logs.append({'nivel': 'info', 'msg': f'{label}: [FS] Login LeisMunicipais OK'})
+                            except Exception as _e_login:
+                                logs.append({'nivel': 'aviso', 'msg': f'{label}: [FS] Login falhou: {str(_e_login)[:60]}'})
                         logs.append({'nivel': 'info', 'msg': f'{label}: [FS] Tentando FlareSolverr direto na URL da lei...'})
+                        _fs_payload = {'cmd': 'request.get', 'url': _lei_url, 'maxTimeout': 90000, 'waitTime': 15000}
+                        if _fs_sid:
+                            _fs_payload['session'] = _fs_sid
                         _r_fs = _req_fs.post('http://localhost:8191/v1',
-                            json={'cmd': 'request.get', 'url': _lei_url, 'maxTimeout': 90000},
-                            timeout=100)
+                            json=_fs_payload,
+                            timeout=120)
                         _d_fs = _r_fs.json()
                         if _d_fs.get('status') == 'ok':
                             _fs_html_lei = _d_fs.get('solution', {}).get('response', '')
