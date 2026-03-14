@@ -3029,18 +3029,31 @@ def navegar_com_cookies_flaresolverr(
                                                 elif _j4.get('request') not in ('CAPCHA_NOT_READY', 'CAPTCHA_NOT_READY'):
                                                     break
                                             if _sol3:
-                                                logs.append({'nivel': 'ok', 'msg': f'{label}: [2C] Token obtido — injetando...'})
-                                                # Diagnóstico: logar estrutura do grecaptcha
+                                                logs.append({'nivel': 'ok', 'msg': f'{label}: [2C] Token obtido — navegando para ?pass=...'})
+                                                # Estratégia: navegar para ?pass=TOKEN como o callback validate() faz
                                                 try:
-                                                    _gcfg_info = _pg2.evaluate(
-                                                        "JSON.stringify(Object.keys(window.___grecaptcha_cfg||{}))"
-                                                    )
-                                                    _gcfg_clients = _pg2.evaluate(
-                                                        "(function(){var c=window.___grecaptcha_cfg;if(!c||!c.clients)return 'NO_CFG';var cl=c.clients[Object.keys(c.clients)[0]];var res=[];var fns=c.fns?'fns:'+JSON.stringify(c.fns).slice(0,80):'fns:none';res.push(fns);var ks=Object.keys(cl);for(var i=0;i<ks.length;i++){var v=cl[ks[i]];var t=typeof v;if(t==='function')res.push('cl.'+ks[i]+'=fn');else if(t==='string')res.push('cl.'+ks[i]+'=str:'+v.slice(0,20));else if(v&&t==='object'){var ks2=Object.keys(v);for(var j=0;j<Math.min(ks2.length,5);j++){var v2=v[ks2[j]];var t2=typeof v2;if(t2==='function')res.push('cl.'+ks[i]+'.'+ks2[j]+'=fn');else if(t2==='string')res.push('cl.'+ks[i]+'.'+ks2[j]+'=str:'+v2.slice(0,20));}}}return res.slice(0,25).join('|');})()"
-                                                    )
-                                                    logs.append({'nivel': 'info', 'msg': f'{label}: [2C] grecaptcha_cfg keys={_gcfg_info} | {_gcfg_clients}'})
-                                                except Exception as _eg:
-                                                    logs.append({'nivel': 'info', 'msg': f'{label}: [2C] grecaptcha_cfg erro: {str(_eg)[:80]}'})
+                                                    _cur_url = _pg2.url
+                                                    _pass_url = _cur_url + ('&' if '?' in _cur_url else '?') + 'pass=' + _sol3
+                                                    logs.append({'nivel': 'info', 'msg': f'{label}: [2C] Navegando: {_pass_url[:100]}'})
+                                                    try:
+                                                        _pg2.goto(_pass_url, wait_until='networkidle', timeout=30000)
+                                                    except Exception:
+                                                        try:
+                                                            _pg2.goto(_pass_url, wait_until='domcontentloaded', timeout=20000)
+                                                        except Exception:
+                                                            pass
+                                                    _t2.sleep(5)
+                                                    _html_pass = _pg2.content()
+                                                    _loading_pass = any(s in _html_pass for s in ['norma requisitada est', 'Por favor, aguarde', 'sendo carregada'])
+                                                    _has_law = 'law-container' in _html_pass
+                                                    logs.append({'nivel': 'info', 'msg': f'{label}: [2C] ?pass= resultado: {len(_html_pass)} chars | law={_has_law} | loading={_loading_pass}'})
+                                                    if _has_law or (len(_html_pass) > 10000 and not _loading_pass):
+                                                        resultado['html'] = _html_pass
+                                                        logs.append({'nivel': 'ok', 'msg': f'{label}: [2C] HTML obtido via ?pass= ({len(_html_pass)} chars)'})
+                                                        break
+                                                except Exception as _ep:
+                                                    logs.append({'nivel': 'aviso', 'msg': f'{label}: [2C] Erro ?pass=: {str(_ep)[:80]}'})
+                                                # Fallback: injeção direta (método antigo)
                                                 _pg2.evaluate(
                                                     "function(token){"
                                                     'var els=document.querySelectorAll(\'[name=g-recaptcha-response],[id=g-recaptcha-response]\');'
