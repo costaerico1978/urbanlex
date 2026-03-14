@@ -2761,8 +2761,13 @@ def navegar_com_cookies_flaresolverr(
 
     logs.append({"nivel": "info", "msg": f"{label}: Obtendo cookies via FlareSolverr: {url_inicial[:80]}"})
     try:
+        # Usar sessao persistente para acumular historico e melhorar score reCAPTCHA
+        _fs_session_id = os.environ.get("FLARESOLVERR_SESSION", "")
+        _fs_payload = {"cmd": "request.get", "url": url_inicial, "maxTimeout": 60000}
+        if _fs_session_id:
+            _fs_payload["session"] = _fs_session_id
         r = _req.post("http://localhost:8191/v1",
-            json={"cmd": "request.get", "url": url_inicial, "maxTimeout": 60000},
+            json=_fs_payload,
             timeout=70)
         d = r.json()
         if d.get("status") != "ok":
