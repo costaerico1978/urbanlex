@@ -1,0 +1,4 @@
+.env
+static/downloads/
+__pycache__/
+modulos/__pycache__/
