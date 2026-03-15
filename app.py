@@ -2377,6 +2377,22 @@ def api_buscador_manual_start():
                 job['done'] = True
                 return
 
+            # Renovar sessão FlareSolverr antes de cada busca
+            try:
+                import requests as _req_fs
+                _old_sid = os.environ.get('FLARESOLVERR_SESSION', '')
+                if _old_sid:
+                    _req_fs.post('http://localhost:8191/v1', json={'cmd': 'sessions.destroy', 'session': _old_sid}, timeout=10)
+                _r_new = _req_fs.post('http://localhost:8191/v1', json={'cmd': 'sessions.create'}, timeout=10)
+                _new_sid = _r_new.json().get('session', '')
+                if _new_sid:
+                    os.environ['FLARESOLVERR_SESSION'] = _new_sid
+                    import subprocess as _sp
+                    _sp.run(['sed', '-i', f's/FLARESOLVERR_SESSION=.*/FLARESOLVERR_SESSION={_new_sid}/', '/var/www/urbanlex/.env'], capture_output=True)
+                    job['logs'].append({'nivel': 'info', 'msg': f'🔄 Sessão FlareSolverr renovada: {_new_sid[:8]}...'})
+            except Exception as _e_fs:
+                job['logs'].append({'nivel': 'aviso', 'msg': f'⚠️ Erro ao renovar sessão FS: {str(_e_fs)[:60]}'})
+
             job['logs'].append({'nivel': 'info', 'msg': '🔧 Thread: chamando busca_manual...'})
             result = busca_manual(d, log_callback=log_cb)
             job['logs'].append({'nivel': 'info', 'msg': f'🔧 Thread: busca_manual retornou. Tipo: {type(result).__name__}, keys: {list(result.keys()) if isinstance(result, dict) else "N/A"}'})
