@@ -2960,9 +2960,11 @@ def navegar_com_cookies_flaresolverr(
                         _d_fs = _r_fs.json()
                         if _d_fs.get('status') == 'ok':
                             _fs_html_lei = _d_fs.get('solution', {}).get('response', '')
-                            _lm_loading_kws2 = ['norma requisitada est', 'Por favor, aguarde', 'sendo carregada', 'just a moment']
+                            _lm_loading_kws2 = ['norma requisitada est', 'Por favor, aguarde', 'sendo carregada', 'just a moment', 'security verification', 'cloudflare', 'enable javascript and cookies', 'ray id:', 'challenge-platform']
                             _fs_loading = any(s in _fs_html_lei.lower() for s in _lm_loading_kws2)
-                            if _fs_html_lei and len(_fs_html_lei) > 10000 and not _fs_loading:
+                            _has_law_fs = 'law-container' in _fs_html_lei
+                            logs.append({'nivel': 'info', 'msg': f'{label}: [FS] lei: {len(_fs_html_lei)} chars | law={_has_law_fs} | loading={_fs_loading}'})
+                            if (_fs_html_lei and len(_fs_html_lei) > 10000 and not _fs_loading) or _has_law_fs:
                                 logs.append({'nivel': 'ok', 'msg': f'{label}: [FS] Conteudo obtido via FlareSolverr ({len(_fs_html_lei)} chars)'})
                                 resultado['html'] = _fs_html_lei
                             else:
