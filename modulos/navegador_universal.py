@@ -3082,7 +3082,7 @@ def navegar_com_cookies_flaresolverr(
                                                     if _law_found:
                                                         # Aguardar texto estabilizar — AJAX carrega progressivamente
                                                         _prev_len = 0
-                                                        for _wi2 in range(30):
+                                                        for _wi2 in range(60):
                                                             _t2.sleep(10)
                                                             _cur_html = _pg2.content()
                                                             _cur_len = len(_cur_html)
