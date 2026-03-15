@@ -2426,6 +2426,8 @@ def api_buscador_manual_start():
                                 _html = '<html><head><meta charset="utf-8"><style>' + _css + '</style></head><body>' + _body + '</body></html>'
                                 _WH(string=_html).write_pdf(dest)
                             else:
+                                linhas = []
+                                linhas = []
                                 doc_rl = SimpleDocTemplate(dest, pagesize=A4,
                                     leftMargin=15*mm, rightMargin=15*mm, topMargin=15*mm, bottomMargin=15*mm)
                                 styles = getSampleStyleSheet()
