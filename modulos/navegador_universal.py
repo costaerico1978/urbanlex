@@ -3082,10 +3082,16 @@ def navegar_com_cookies_flaresolverr(
                                                     if _law_found:
                                                         # Aguardar texto estabilizar — AJAX carrega progressivamente
                                                         _prev_len = 0
-                                                        for _wi2 in range(8):
+                                                        _fim_kws = ["revogam-se as disposições", "esta lei entra em vigor", "rio de janeiro,", "prefeito da cidade", "secretário municipal"]
+                                                        for _wi2 in range(30):
                                                             _t2.sleep(5)
                                                             _cur_html = _pg2.content()
                                                             _cur_len = len(_cur_html)
+                                                            _cur_txt = _cur_html.lower()
+                                                            _fim_ok = any(k in _cur_txt[_cur_len//2:] for k in _fim_kws)
+                                                            if _fim_ok:
+                                                                logs.append({"nivel": "info", "msg": f"{label}: [2C] Assinatura/encerramento detectado — HTML completo ({_cur_len} chars)"})
+                                                                break
                                                             if _cur_len == _prev_len:
                                                                 break
                                                             _prev_len = _cur_len
