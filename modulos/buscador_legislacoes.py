@@ -559,6 +559,8 @@ def _buscar_leismunicipais_direto(municipio: str, estado: str, tipo: str, numero
                 logs.append({'nivel': 'ok', 'msg': f'\U0001f4d6 LeisMunicipais (FlareSolverr): {fs_result["url"][:80]}'})
                 # Usar HTML da sessao Playwright se disponivel, senao FlareSolverr
                 _html_lei = fs_result.get('html', '')
+                if fs_result.get('anexos_lm'):
+                    resultados[-1]['anexos_lm'] = fs_result['anexos_lm']
                 if _html_lei:
                     logs.append({"nivel": "info", "msg": "📖 LeisMunicipais: usando HTML da sessao Playwright"})
                 else:
