@@ -3224,70 +3224,76 @@ Se não encontrar data exata, retorne {{"data_publicacao": ""}}. NÃO invente.""
     # ══════════════════════════════════════════════════════════════════
     logs.append({'nivel': 'info', 'msg': '📖 ETAPA 3: Fontes web complementares...'})
 
-    # 3A: LeisMunicipais (pular se ja tem texto extraido com sucesso)
-    _dominios_prio = set()
-    for _fp in fontes_prioritarias:
-        _dm = re.sub(r'https?://', '', _fp.rstrip('/')).split('/')[0].replace('www.', '')
-        _dominios_prio.add(_dm)
-    _lm_ja_extraido = any('leismunicipais' in t.get('url','') for t in textos_extraidos)
-    if municipio and numero and not _lm_ja_extraido:
-        lm_results = _buscar_leismunicipais_direto(municipio, estado, tipo_inferido or tipo, numero, ano, logs)
-        for lm in lm_results[:2]:
-            # Se já tem texto extraído (ex: via FlareSolverr), usar diretamente
-            _lm_txt = lm.get('texto', '')
-            _lm_invalido = any(s in _lm_txt for s in ['norma requisitada está sendo carregada', 'Por favor, aguarde', 'javascript está habilitado'])
-            if _lm_txt and len(_lm_txt) > 200 and not _lm_invalido:
-                _lm_entry = {
-                    'url': lm['url'],
-                    'texto': lm['texto'],
-                    'nome': '📖 LeisMunicipais',
-                    'relevancia': 0.85,
-                    '_fonte': 'leismunicipais',
-                }
-                if lm.get('html_lei'):
-                    _lm_entry['html_lei'] = lm['html_lei']
-                if lm.get('anexos_lm'):
-                    _lm_entry['anexos_lm'] = lm['anexos_lm']
-                textos_extraidos.append(_lm_entry)
-                fontes_status.append({'nome': '📖 LeisMunicipais', 'url': lm['url'], 'encontrou': True})
-                logs.append({'nivel': 'ok', 'msg': f'📖 LeisMunicipais: ✅ texto pre-extraido usado ({len(lm["texto"])} chars)'})
-                break
-            result = _acessar_pagina(lm['url'], termos_busca, headers_http, logs, '📖 LeisMunicipais',
+    # Pular ETAPA 3 se ja temos 3 fontes validas das prioritarias
+    _fontes_validas = len([t for t in textos_extraidos if t.get('texto') and len(t.get('texto','')) > 200])
+    if _fontes_validas >= 3:
+        logs.append({'nivel': 'info', 'msg': f'📖 ETAPA 3: pulada — {_fontes_validas} fontes validas suficientes'})
+    else:
+
+        # 3A: LeisMunicipais (pular se ja tem texto extraido com sucesso)
+        _dominios_prio = set()
+        for _fp in fontes_prioritarias:
+            _dm = re.sub(r'https?://', '', _fp.rstrip('/')).split('/')[0].replace('www.', '')
+            _dominios_prio.add(_dm)
+        _lm_ja_extraido = any('leismunicipais' in t.get('url','') for t in textos_extraidos)
+        if municipio and numero and not _lm_ja_extraido:
+            lm_results = _buscar_leismunicipais_direto(municipio, estado, tipo_inferido or tipo, numero, ano, logs)
+            for lm in lm_results[:2]:
+                # Se já tem texto extraído (ex: via FlareSolverr), usar diretamente
+                _lm_txt = lm.get('texto', '')
+                _lm_invalido = any(s in _lm_txt for s in ['norma requisitada está sendo carregada', 'Por favor, aguarde', 'javascript está habilitado'])
+                if _lm_txt and len(_lm_txt) > 200 and not _lm_invalido:
+                    _lm_entry = {
+                        'url': lm['url'],
+                        'texto': lm['texto'],
+                        'nome': '📖 LeisMunicipais',
+                        'relevancia': 0.85,
+                        '_fonte': 'leismunicipais',
+                    }
+                    if lm.get('html_lei'):
+                        _lm_entry['html_lei'] = lm['html_lei']
+                    if lm.get('anexos_lm'):
+                        _lm_entry['anexos_lm'] = lm['anexos_lm']
+                    textos_extraidos.append(_lm_entry)
+                    fontes_status.append({'nome': '📖 LeisMunicipais', 'url': lm['url'], 'encontrou': True})
+                    logs.append({'nivel': 'ok', 'msg': f'📖 LeisMunicipais: ✅ texto pre-extraido usado ({len(lm["texto"])} chars)'})
+                    break
+                result = _acessar_pagina(lm['url'], termos_busca, headers_http, logs, '📖 LeisMunicipais',
+                                         tipo_lei=tipo_inferido or tipo, numero_lei=numero, ano=ano)
+                if result:
+                    result['_fonte'] = 'leismunicipais'
+                    if lm.get('anexos_lm'):
+                        result['anexos_lm'] = lm['anexos_lm']
+                    textos_extraidos.append(result)
+                    fontes_status.append({'nome': '📖 LeisMunicipais', 'url': lm['url'], 'encontrou': True})
+                    break
+
+        # 3B: Busca geral DuckDuckGo
+        query_web = f'"{tipo_inferido or tipo} {numero}" {ano} {municipio}'.strip()
+        if not query_web or len(query_web) < 5:
+            query_web = termos_busca
+        web_results = _pesquisar_web(query_web, logs, '🔎 Web', max_results=5)
+
+        # Adicionar snippets da ETAPA 1 que não vieram agora
+        urls_ja = {w['url'] for w in web_results}
+        for snp in snippets_web:
+            if snp['url'] not in urls_ja:
+                web_results.append(snp)
+
+        urls_visitadas = {t['url'] for t in textos_extraidos}
+        acessados = 0
+        for wr in web_results:
+            _wr_dm = re.sub(r'https?://', '', wr['url'].rstrip('/')).split('/')[0].replace('www.', '')
+            _wr_ja_prio = any(_wr_dm in _dp or _dp in _wr_dm for _dp in _dominios_prio)
+            if wr['url'] in urls_visitadas or acessados >= 3 or _wr_ja_prio:
+                continue
+            result = _acessar_pagina(wr['url'], termos_busca, headers_http, logs, '🔎 Web',
                                      tipo_lei=tipo_inferido or tipo, numero_lei=numero, ano=ano)
             if result:
-                result['_fonte'] = 'leismunicipais'
-                if lm.get('anexos_lm'):
-                    result['anexos_lm'] = lm['anexos_lm']
+                result['_fonte'] = 'google'
                 textos_extraidos.append(result)
-                fontes_status.append({'nome': '📖 LeisMunicipais', 'url': lm['url'], 'encontrou': True})
-                break
-
-    # 3B: Busca geral DuckDuckGo
-    query_web = f'"{tipo_inferido or tipo} {numero}" {ano} {municipio}'.strip()
-    if not query_web or len(query_web) < 5:
-        query_web = termos_busca
-    web_results = _pesquisar_web(query_web, logs, '🔎 Web', max_results=5)
-
-    # Adicionar snippets da ETAPA 1 que não vieram agora
-    urls_ja = {w['url'] for w in web_results}
-    for snp in snippets_web:
-        if snp['url'] not in urls_ja:
-            web_results.append(snp)
-
-    urls_visitadas = {t['url'] for t in textos_extraidos}
-    acessados = 0
-    for wr in web_results:
-        _wr_dm = re.sub(r'https?://', '', wr['url'].rstrip('/')).split('/')[0].replace('www.', '')
-        _wr_ja_prio = any(_wr_dm in _dp or _dp in _wr_dm for _dp in _dominios_prio)
-        if wr['url'] in urls_visitadas or acessados >= 3 or _wr_ja_prio:
-            continue
-        result = _acessar_pagina(wr['url'], termos_busca, headers_http, logs, '🔎 Web',
-                                 tipo_lei=tipo_inferido or tipo, numero_lei=numero, ano=ano)
-        if result:
-            result['_fonte'] = 'google'
-            textos_extraidos.append(result)
-            fontes_status.append({'nome': '🔎 Web', 'url': wr['url'], 'encontrou': True})
-            acessados += 1
+                fontes_status.append({'nome': '🔎 Web', 'url': wr['url'], 'encontrou': True})
+                acessados += 1
 
     # 3C: DuckDuckGo nas fontes DO (se Playwright falhou E não temos fontes suficientes)
     ja_tem_fontes = len(textos_extraidos) > 0
