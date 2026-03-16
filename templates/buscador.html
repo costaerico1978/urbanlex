@@ -424,9 +424,7 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
                 </label>
                 <span style="font-size:11px;color:var(--muted2);" id="contagem-selecionados"></span>
             </div>
-            <button class="btn btn-primary btn-sm" onclick="cadastrarSelecionados()" id="btn-cadastrar-sel" style="display:none;">
-                📚 Cadastrar Selecionados na Biblioteca
-            </button>
+
         </div>
         <div id="bm-lista-resultados"></div>
     </div>
@@ -841,15 +839,7 @@ function renderizarResultadoBusca(r, duracao) {
                 </div>
             </div>`;
         });
-        html += `</div>`;
-    }
-
-    // ── Sugestão da IA (borda vermelha) ──
-    if (r.sugestao) {
-        html += `<div style="background:rgba(220,38,38,0.05);border:2px solid #dc2626;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
-            <div style="font-size:12px;font-weight:700;color:#dc2626;margin-bottom:6px;">🎯 Sugestão da IA — Justificativa</div>
-            <div style="font-size:13px;color:var(--text);line-height:1.6;">${r.sugestao}</div>
-        </div>`;
+        html += `</div><div style="margin-top:12px;text-align:right;"><button class="btn btn-primary" onclick="cadastrarSelecionados()" style="padding:10px 22px;font-size:13px;font-weight:700;">📚 Cadastrar na Biblioteca</button></div>`;
     }
 
     // Cards de legislação
@@ -863,37 +853,6 @@ function renderizarResultadoBusca(r, duracao) {
                         leg._fonte === 'google' ? '🔎 Google' :
                         leg._fonte || 'IA';
         logLine('📜', `${leg.tipo || ''} nº ${leg.numero || '?'}/${leg.ano || '?'} — ${fonteTag} — confiança ${(conf*100).toFixed(0)}%`, 'var(--text)');
-
-        // Montar seletor de fontes para o texto integral
-        let fonteSelectorHtml = '';
-        if (fontes.length > 0) {
-            fonteSelectorHtml = `
-            <div style="margin-top:10px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;">
-                <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">📎 Fonte do texto a salvar</div>
-                ${fontes.map((tf, fi) => {
-                    const fonteIcon = tf._fonte === 'diario_oficial' ? '🏛️' :
-                                      tf._fonte === 'site_informado' ? '🔗' :
-                                      tf._fonte === 'leismunicipais' ? '📖' : '🔎';
-                    const relPct = (tf.relevancia * 100).toFixed(0);
-                    const totalChars = tf.texto_chars || 0;
-                    const isDefault = (tf.url && leg.url_fonte && tf.url === leg.url_fonte) ||
-                                      (fi === 0 && !fontes.some(f => f.url === leg.url_fonte));
-                    const tfUrl = fixUrl(tf.url);
-                    return `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:12px;">
-                        <input type="radio" name="fonte-leg-${i}" value="${tf.url || ''}" ${isDefault ? 'checked' : ''} style="margin:0;">
-                        <span>${fonteIcon}</span>
-                        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${tfUrl || ''}">${tf.nome}</span>
-                        <span style="font-size:10px;color:var(--muted);">${totalChars.toLocaleString()} chars</span>
-                        <span style="font-size:10px;padding:1px 5px;border-radius:6px;background:${tf.relevancia>=0.5?'var(--accent)':tf.relevancia>=0.3?'var(--amber)':'var(--red)'}20;color:${tf.relevancia>=0.5?'var(--accent)':tf.relevancia>=0.3?'var(--amber)':'var(--red)'};">${relPct}%</span>
-                    </label>`;
-                }).join('')}
-                <label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:12px;color:var(--muted);">
-                    <input type="radio" name="fonte-leg-${i}" value="" style="margin:0;">
-                    <span>🚫</span>
-                    <span>Não salvar texto</span>
-                </label>
-            </div>`;
-        }
 
         return `<div class="resultado-card" style="position:relative;">
             <input type="checkbox" class="resultado-check" data-idx="${i}" checked>
@@ -959,6 +918,13 @@ async function cadastrarSelecionados() {
         monitorar: true,
         job_id: window._buscadorJobId || '',
     };
+    // Verificar duplicatas
+    const rCheck = await api('POST', '/api/buscador/verificar-duplicatas', body);
+    if (rCheck && rCheck.duplicatas && rCheck.duplicatas.length > 0) {
+        const nomes = rCheck.duplicatas.map(d => d.tipo + ' nº ' + d.numero + '/' + d.ano + ' — ' + d.municipio).join('\n');
+        const confirmar = confirm('As seguintes legislações já estão na biblioteca:\n\n' + nomes + '\n\nDeseja substituir pela versão encontrada agora?');
+        body.substituir = true;
+    }
     const r = await api('POST', '/api/buscador/cadastrar', body);
     if (r.success) {
         const txtMsg = fonteUrl ? ' (com texto integral da fonte selecionada)' : '';

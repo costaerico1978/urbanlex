@@ -2539,6 +2539,31 @@ def api_buscador_job_poll(job_id):
     return jsonify(resp)
 
 
+@app.route('/api/buscador/verificar-duplicatas', methods=['POST'])
+@editor_required
+def api_buscador_verificar_duplicatas():
+    d = request.json or {}
+    legislacoes = d.get('legislacoes', [])
+    municipio = d.get('municipio', '')
+    duplicatas = []
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        for leg in legislacoes:
+            tipo = (leg.get('tipo_legislacao') or leg.get('tipo') or '').strip()
+            numero = (leg.get('numero') or '').strip()
+            ano = str(leg.get('ano') or '').strip()
+            sql = 'SELECT id, tipo_legislacao, numero, ano, municipio_nome FROM legislacoes WHERE LOWER(tipo_legislacao)=LOWER(%s) AND numero=%s AND ano=%s AND LOWER(municipio_nome)=LOWER(%s) LIMIT 1'
+            cur.execute(sql, (tipo, numero, ano, municipio))
+            row = cur.fetchone()
+            if row:
+                duplicatas.append({'id': row[0], 'tipo': row[1], 'numero': row[2], 'ano': row[3], 'municipio': row[4]})
+        cur.close()
+        conn.close()
+    except Exception as e:
+        return jsonify({'duplicatas': [], 'error': str(e)[:200]})
+    return jsonify({'duplicatas': duplicatas})
+
 @app.route('/api/buscador/cadastrar', methods=['POST'])
 @editor_required
 def api_buscador_cadastrar():
