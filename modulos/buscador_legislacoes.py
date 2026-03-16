@@ -3280,522 +3280,526 @@ Se não encontrar data exata, retorne {{"data_publicacao": ""}}. NÃO invente.""
                         fontes_status.append({'nome': '📖 LeisMunicipais', 'url': lm['url'], 'encontrou': True})
                     break
 
-        # 3B: Busca geral DuckDuckGo
-        query_web = f'"{tipo_inferido or tipo} {numero}" {ano} {municipio}'.strip()
-        if not query_web or len(query_web) < 5:
-            query_web = termos_busca
-        web_results = _pesquisar_web(query_web, logs, '🔎 Web', max_results=5)
-
-        # Adicionar snippets da ETAPA 1 que não vieram agora
-        urls_ja = {w['url'] for w in web_results}
-        for snp in snippets_web:
-            if snp['url'] not in urls_ja:
-                web_results.append(snp)
-
-        urls_visitadas = {t['url'] for t in textos_extraidos}
-        acessados = 0
-        for wr in web_results:
-            _wr_dm = re.sub(r'https?://', '', wr['url'].rstrip('/')).split('/')[0].replace('www.', '')
-            _wr_ja_prio = any(_wr_dm in _dp or _dp in _wr_dm for _dp in _dominios_prio)
-            if wr['url'] in urls_visitadas or acessados >= 3 or _wr_ja_prio:
-                continue
-            result = _acessar_pagina(wr['url'], termos_busca, headers_http, logs, '🔎 Web',
-                                     tipo_lei=tipo_inferido or tipo, numero_lei=numero, ano=ano)
-            if result:
-                result['_fonte'] = 'google'
-                textos_extraidos.append(result)
-                fontes_status.append({'nome': '🔎 Web', 'url': wr['url'], 'encontrou': True})
-                acessados += 1
-
-    # 3C: DuckDuckGo nas fontes DO (se Playwright falhou E não temos fontes suficientes)
-    ja_tem_fontes = len(textos_extraidos) > 0
-    fontes_do = [f for f in fontes_prioritarias if _eh_diario_oficial(f)]
-    do_ja_achou = any(f.get('encontrou') and ('Fonte' in f.get('nome','') or '🏛️' in f.get('nome','')) for f in fontes_status
-                      if any(_eh_diario_oficial(fp) for fp in fontes_prioritarias))
-
-    if fontes_do and not do_ja_achou and not ja_tem_fontes:
-        dominio_do = re.sub(r'https?://', '', fontes_do[0].rstrip('/')).split('/')[0]
-        if data_descoberta:
-            logs.append({'nivel': 'info', 'msg': f'🏛️ DO: formulário falhou e sem fontes — DuckDuckGo por data...'})
-            from datetime import datetime, timedelta
-            try:
-                data_base = datetime.strptime(data_descoberta, '%Y-%m-%d')
-            except ValueError:
-                data_base = None
-
-            query_curta = ' '.join(filter(None, [tipo_inferido or tipo, numero, ano]))
-            if data_base:
-                encontrou_do_ddg = False
-                _urls_do_ddg_vistas = set()  # evitar baixar mesmo PDF múltiplas vezes
-                for delta in range(0, 8):
-                    if encontrou_do_ddg:
-                        break
-                    data_busca = data_base + timedelta(days=delta)
-                    data_fmt1 = data_busca.strftime('%d/%m/%Y')
-                    meses_pt = ['','janeiro','fevereiro','março','abril','maio','junho',
-                                'julho','agosto','setembro','outubro','novembro','dezembro']
-                    data_fmt3 = f'{data_busca.day} de {meses_pt[data_busca.month]} de {data_busca.year}'
-
-                    ddg_do = _pesquisar_web(f'site:{dominio_do} {query_curta} "{data_fmt1}"', logs, f'🏛️ DO {data_fmt1}', max_results=3)
-                    if not ddg_do:
-                        ddg_do = _pesquisar_web(f'site:{dominio_do} {query_curta} "{data_fmt3}"', logs, f'🏛️ DO {data_fmt3}', max_results=3)
-
-                    for ddg in ddg_do:
-                        titulo_l = (ddg.get('titulo','') or '').lower()
-                        tipo_b = (tipo_inferido or tipo or '').lower()
-                        if tipo_b and 'decreto' in titulo_l and 'decreto' not in tipo_b:
-                            logs.append({'nivel': 'aviso', 'msg': f'🏛️ DO ({data_fmt1}): título DECRETO — pulando'})
-                            continue
-                        # Pular URLs já visitadas (mesmo PDF reaparece em múltiplas buscas)
-                        _url_ddg = ddg.get('url', '')
-                        if _url_ddg in _urls_do_ddg_vistas:
-                            logs.append({'nivel': 'info', 'msg': f'🏛️ DO ({data_fmt1}): URL já processada — pulando'})
-                            continue
-                        _urls_do_ddg_vistas.add(_url_ddg)
-                        result = _acessar_pagina(_url_ddg, termos_busca, headers_http, logs, f'🏛️ DO ({data_fmt1})',
-                                                 tipo_lei=tipo_inferido or tipo, numero_lei=numero, ano=ano)
-                        if result:
-                            result['_fonte'] = 'diario_oficial'
-                            textos_extraidos.append(result)
-                            fontes_status.append({'nome': '🏛️ Diário Oficial', 'url': _url_ddg, 'encontrou': True})
-                            encontrou_do_ddg = True
-                            logs.append({'nivel': 'ok', 'msg': f'🏛️ ✅ Encontrado no DO de {data_fmt1}!'})
+        # 3B: Busca geral DuckDuckGo (pular se ja temos 3 fontes)
+        _fv3a = len([t for t in textos_extraidos if t.get('texto') and len(t.get('texto','')) > 200])
+        if _fv3a < 3:
+            # 3B: Busca geral DuckDuckGo
+            query_web = f'"{tipo_inferido or tipo} {numero}" {ano} {municipio}'.strip()
+            if not query_web or len(query_web) < 5:
+                query_web = termos_busca
+            web_results = _pesquisar_web(query_web, logs, '🔎 Web', max_results=5)
+    
+            # Adicionar snippets da ETAPA 1 que não vieram agora
+            urls_ja = {w['url'] for w in web_results}
+            for snp in snippets_web:
+                if snp['url'] not in urls_ja:
+                    web_results.append(snp)
+    
+            urls_visitadas = {t['url'] for t in textos_extraidos}
+            acessados = 0
+            for wr in web_results:
+                _wr_dm = re.sub(r'https?://', '', wr['url'].rstrip('/')).split('/')[0].replace('www.', '')
+                _wr_ja_prio = any(_wr_dm in _dp or _dp in _wr_dm for _dp in _dominios_prio)
+                if wr['url'] in urls_visitadas or acessados >= 3 or _wr_ja_prio:
+                    continue
+                result = _acessar_pagina(wr['url'], termos_busca, headers_http, logs, '🔎 Web',
+                                         tipo_lei=tipo_inferido or tipo, numero_lei=numero, ano=ano)
+                if result:
+                    result['_fonte'] = 'google'
+                    textos_extraidos.append(result)
+                    fontes_status.append({'nome': '🔎 Web', 'url': wr['url'], 'encontrou': True})
+                    acessados += 1
+    
+        # 3C: DuckDuckGo nas fontes DO (se Playwright falhou E não temos fontes suficientes)
+        ja_tem_fontes = len(textos_extraidos) > 0
+        fontes_do = [f for f in fontes_prioritarias if _eh_diario_oficial(f)]
+        do_ja_achou = any(f.get('encontrou') and ('Fonte' in f.get('nome','') or '🏛️' in f.get('nome','')) for f in fontes_status
+                          if any(_eh_diario_oficial(fp) for fp in fontes_prioritarias))
+    
+        if fontes_do and not do_ja_achou and not ja_tem_fontes:
+            dominio_do = re.sub(r'https?://', '', fontes_do[0].rstrip('/')).split('/')[0]
+            if data_descoberta:
+                logs.append({'nivel': 'info', 'msg': f'🏛️ DO: formulário falhou e sem fontes — DuckDuckGo por data...'})
+                from datetime import datetime, timedelta
+                try:
+                    data_base = datetime.strptime(data_descoberta, '%Y-%m-%d')
+                except ValueError:
+                    data_base = None
+    
+                query_curta = ' '.join(filter(None, [tipo_inferido or tipo, numero, ano]))
+                if data_base:
+                    encontrou_do_ddg = False
+                    _urls_do_ddg_vistas = set()  # evitar baixar mesmo PDF múltiplas vezes
+                    for delta in range(0, 8):
+                        if encontrou_do_ddg:
                             break
-
-    elif fontes_do and ja_tem_fontes and not do_ja_achou:
-        logs.append({'nivel': 'ok', 'msg': f'🏛️ DO: pulado (já encontrou {len(textos_extraidos)} fonte(s) em outros sites)'})
-
-    logs.append({'nivel': 'ok', 'msg': f'📄 {len(textos_extraidos)} fonte(s) com texto extraído'})
-
-    # ── Priorizar fontes: prioritárias primeiro, depois web ──
-    def _prioridade_fonte(t):
-        fonte = t.get('_fonte', '')
-        nome = t.get('nome', '')
-        # Fontes prioritárias (Fonte 1, 2, 3) → prioridade 0-2
-        for i, fp in enumerate(fontes_prioritarias):
-            dom_fp = re.sub(r'https?://', '', fp.rstrip('/')).split('/')[0].lower()
-            url_t = (t.get('url', '') or '').lower()
-            if dom_fp and dom_fp in url_t:
-                return i
-        # Web → prioridade 10
-        return 10
-
-    textos_extraidos.sort(key=_prioridade_fonte)
-
-    # Máximo 4 resultados — priorizando fontes prioritárias
-    if len(textos_extraidos) > 3:
-        logs.append({'nivel': 'info', 'msg': f'📄 Limitando a 3 melhores fontes (de {len(textos_extraidos)})'})
-        textos_extraidos = textos_extraidos[:3]
-
-    # ── Bypass pré-validado: se navegador já confirmou via IA, não chamar Gemini ──
-    _fonte_confirmada = next((t for t in textos_extraidos if t.get('_confirmada')), None)
-    if _fonte_confirmada:
-        logs.append({'nivel': 'ok', 'msg': f'✅ Fonte pré-validada pelo navegador — pulando análise IA (confiança 0.97)'})
-        _leg_direta = {
-            'tipo': tipo_inferido or tipo or 'Legislação',
-            'numero': numero or '',
-            'ano': ano or '',
-            'municipio': municipio or '',
-            'estado': estado or '',
-            'esfera': esfera or 'municipal',
-            'data_publicacao': data_descoberta or data_pub or '',
-            'assunto': assunto or '',
-            'ementa': assunto or '',
-            'texto': _fonte_confirmada['texto'],
-            'fonte_url': _fonte_confirmada['url'],
-            'confianca': 0.97,
-            'justificativa': f'PDF do Diário Oficial confirmado pela IA do navegador com cabeçalho formal da lei.',
-        }
-        for t in textos_extraidos:
-            if t.get('pdf_path'):
-                _leg_direta['pdf_path'] = t['pdf_path']
-                break
-        return {
-            'legislacoes': [_leg_direta],
-            'sugestao': '',
-            'fontes': fontes_status,
-            'textos_fontes': textos_extraidos,
-            'logs': logs,
-        }
-
-    # ══════════════════════════════════════════════════════════════════
-    # ETAPA 4: IA COMPARA, SUGERE E JUSTIFICA
-    # ══════════════════════════════════════════════════════════════════
-    descricao_busca = '\n'.join(filter(None, [
-        f"- Esfera: {esfera}" if esfera else None,
-        f"- Estado: {estado}" if estado else None,
-        f"- Município: {municipio}" if municipio else None,
-        f"- Tipo: {tipo_inferido or tipo}" if (tipo_inferido or tipo) else None,
-        f"- Número: {numero}" if numero else None,
-        f"- Ano: {ano}" if ano else None,
-        f"- Data publicação: {data_descoberta or data_pub}" if (data_descoberta or data_pub) else None,
-        f"- Assunto: {assunto}" if assunto else None,
-        f"- Palavras-chave: {palavras}" if palavras else None,
-    ]))
-
-    total_fontes = len(textos_extraidos)
-    _fontes_nomes = [t.get('nome', '?') for t in textos_extraidos]
-    _fontes_sizes = [len(t.get('texto', '')) for t in textos_extraidos]
-    logs.append({'nivel': 'info', 'msg': f'🤖 ETAPA 4: {total_fontes} fonte(s) → IA | fontes={_fontes_nomes} | chars={_fontes_sizes}'})
-
-    if total_fontes == 0:
-        logs.append({'nivel': 'aviso', 'msg': 'Nenhuma fonte encontrada na internet. LLM usará apenas conhecimento próprio (pode conter erros).'})
-
-    # Montar textos das fontes (truncamento inteligente: início + fim pra textos grandes)
-    def _truncar_inteligente(txt, limite=4000):
-        if len(txt) <= limite:
-            return txt
-        metade = limite // 2
-        return txt[:metade] + f'\n\n[... {len(txt) - limite} caracteres omitidos ...]\n\n' + txt[-metade:]
-
-    # Priorizar por relevância, máximo 4 fontes no prompt (economizar tokens)
-    fontes_para_llm = sorted(textos_extraidos, key=lambda x: x.get('relevancia', 0), reverse=True)[:4]
-
-    # Ajustar limite de truncamento: menos fontes = mais texto por fonte
-    _chars_por_fonte = 4000
-    if len(fontes_para_llm) == 1:
-        _chars_por_fonte = 8000  # fonte única: mais contexto
-    elif len(fontes_para_llm) == 2:
-        _chars_por_fonte = 6000
-
-    fontes_texto = '\n\n'.join([
-        f"=== FONTE {i+1}: {t['nome']} ({t['url'][:80]}) ===\nRelevância: {t['relevancia']:.0%}\nTamanho total: {len(t['texto'])} chars\n"
-        f"{'⚠️ FONTE PRÉ-VALIDADA: Texto extraído diretamente do Diário Oficial com cabeçalho formal confirmado. Esta fonte é altamente confiável.' if t.get('_fonte') == 'diario_oficial' else ''}\n"
-        f"{_truncar_inteligente(t['texto'], _chars_por_fonte)}"
-        for i, t in enumerate(fontes_para_llm)
-    ]) if fontes_para_llm else '(nenhuma fonte encontrada — use apenas seu conhecimento, mas AVISE que os dados podem conter erros)'
-
-    prompt = f"""Analise os textos extraídos de fontes reais da internet e identifique a legislação buscada.
-
-CRITÉRIOS DE BUSCA:
-{descricao_busca}
-
-TEXTOS DAS FONTES (em ordem de prioridade):
-{fontes_texto}
-
-INSTRUÇÕES:
-1. Identifique a legislação nos textos. Use APENAS informações presentes nas fontes.
-2. Se múltiplas fontes mencionam a mesma legislação, COMPARE os dados (ementa, data, assunto).
-3. Na sugestão, SEMPRE referencie as fontes pelo NÚMERO (ex: "A Fonte 1 é mais confiável porque..."). Explique divergências entre fontes.
-4. A ementa deve ser EXATAMENTE como aparece na fonte mais confiável.
-5. NÃO invente dados. Se um campo não aparece nas fontes, deixe vazio ("").
-6. Inclua justificativa em cada legislação referenciando o número da fonte.
-7. Fontes marcadas como PRÉ-VALIDADAS (ex: Diário Oficial com cabeçalho confirmado) são ALTAMENTE confiáveis. Se o texto truncado contém o cabeçalho formal da legislação buscada (tipo, número e ano), ACEITE como resultado válido com confiança alta. O texto completo já foi verificado pelo sistema.
-8. IMPORTANTE: Se o texto começa com ou contém o cabeçalho da legislação buscada (mesmo que truncado), é a legislação correta. NÃO rejeite apenas porque o texto está truncado.
-
-Responda SOMENTE com JSON:
-{{
-    "sugestao": "Referencie as fontes por número (Fonte 1, Fonte 2...). Explique qual é mais confiável e por quê. Cite divergências entre fontes se houver.",
-    "legislacoes": [
-        {{
-            "tipo": "Lei Complementar",
-            "numero": "198",
-            "ano": 2019,
-            "ementa": "(ementa EXATA da fonte mais confiável)",
-            "data_publicacao": "2019-12-20",
-            "assunto": "Código de Obras",
-            "esfera": "municipal",
-            "estado": "RJ",
-            "municipio": "Rio de Janeiro",
-            "url_fonte": "https://...(URL da fonte mais confiável)",
-            "confianca": 0.95,
-            "_fonte": "diario_oficial|site_informado|leismunicipais|google",
-            "justificativa": "Encontrada na Fonte X com ementa confirmada na Fonte Y..."
-        }}
-    ]
-}}"""
-
-    logs.append({'nivel': 'info', 'msg': f'Prompt montado: {len(prompt)} chars com {total_fontes} fonte(s)'})
-
-    # Chamar LLM com mais retries na etapa final (é a mais importante)
-    texto = _chamar_llm(prompt, logs, '🤖 Análise Final', max_retries=3)
-
-    if not texto:
-        # FALLBACK: montar resultado sem IA, usando os dados já extraídos
-        logs.append({'nivel': 'aviso', 'msg': '🤖 IA indisponível — montando resultado com os dados extraídos...'})
-        if textos_extraidos:
-            # Ordenar por relevância e pegar o melhor
-            textos_ordenados = sorted(textos_extraidos, key=lambda x: x.get('relevancia', 0), reverse=True)
-            melhor = textos_ordenados[0]
-            # Montar legislação a partir dos dados disponíveis
-            leg_fallback = {
-                'tipo': tipo_inferido or 'Legislação',
+                        data_busca = data_base + timedelta(days=delta)
+                        data_fmt1 = data_busca.strftime('%d/%m/%Y')
+                        meses_pt = ['','janeiro','fevereiro','março','abril','maio','junho',
+                                    'julho','agosto','setembro','outubro','novembro','dezembro']
+                        data_fmt3 = f'{data_busca.day} de {meses_pt[data_busca.month]} de {data_busca.year}'
+    
+                        ddg_do = _pesquisar_web(f'site:{dominio_do} {query_curta} "{data_fmt1}"', logs, f'🏛️ DO {data_fmt1}', max_results=3)
+                        if not ddg_do:
+                            ddg_do = _pesquisar_web(f'site:{dominio_do} {query_curta} "{data_fmt3}"', logs, f'🏛️ DO {data_fmt3}', max_results=3)
+    
+                        for ddg in ddg_do:
+                            titulo_l = (ddg.get('titulo','') or '').lower()
+                            tipo_b = (tipo_inferido or tipo or '').lower()
+                            if tipo_b and 'decreto' in titulo_l and 'decreto' not in tipo_b:
+                                logs.append({'nivel': 'aviso', 'msg': f'🏛️ DO ({data_fmt1}): título DECRETO — pulando'})
+                                continue
+                            # Pular URLs já visitadas (mesmo PDF reaparece em múltiplas buscas)
+                            _url_ddg = ddg.get('url', '')
+                            if _url_ddg in _urls_do_ddg_vistas:
+                                logs.append({'nivel': 'info', 'msg': f'🏛️ DO ({data_fmt1}): URL já processada — pulando'})
+                                continue
+                            _urls_do_ddg_vistas.add(_url_ddg)
+                            result = _acessar_pagina(_url_ddg, termos_busca, headers_http, logs, f'🏛️ DO ({data_fmt1})',
+                                                     tipo_lei=tipo_inferido or tipo, numero_lei=numero, ano=ano)
+                            if result:
+                                result['_fonte'] = 'diario_oficial'
+                                textos_extraidos.append(result)
+                                fontes_status.append({'nome': '🏛️ Diário Oficial', 'url': _url_ddg, 'encontrou': True})
+                                encontrou_do_ddg = True
+                                logs.append({'nivel': 'ok', 'msg': f'🏛️ ✅ Encontrado no DO de {data_fmt1}!'})
+                                break
+    
+        elif fontes_do and ja_tem_fontes and not do_ja_achou:
+            logs.append({'nivel': 'ok', 'msg': f'🏛️ DO: pulado (já encontrou {len(textos_extraidos)} fonte(s) em outros sites)'})
+    
+        logs.append({'nivel': 'ok', 'msg': f'📄 {len(textos_extraidos)} fonte(s) com texto extraído'})
+    
+        # ── Priorizar fontes: prioritárias primeiro, depois web ──
+        def _prioridade_fonte(t):
+            fonte = t.get('_fonte', '')
+            nome = t.get('nome', '')
+            # Fontes prioritárias (Fonte 1, 2, 3) → prioridade 0-2
+            for i, fp in enumerate(fontes_prioritarias):
+                dom_fp = re.sub(r'https?://', '', fp.rstrip('/')).split('/')[0].lower()
+                url_t = (t.get('url', '') or '').lower()
+                if dom_fp and dom_fp in url_t:
+                    return i
+            # Web → prioridade 10
+            return 10
+    
+        textos_extraidos.sort(key=_prioridade_fonte)
+    
+        # Máximo 4 resultados — priorizando fontes prioritárias
+        if len(textos_extraidos) > 3:
+            logs.append({'nivel': 'info', 'msg': f'📄 Limitando a 3 melhores fontes (de {len(textos_extraidos)})'})
+            textos_extraidos = textos_extraidos[:3]
+    
+        # ── Bypass pré-validado: se navegador já confirmou via IA, não chamar Gemini ──
+        _fonte_confirmada = next((t for t in textos_extraidos if t.get('_confirmada')), None)
+        if _fonte_confirmada:
+            logs.append({'nivel': 'ok', 'msg': f'✅ Fonte pré-validada pelo navegador — pulando análise IA (confiança 0.97)'})
+            _leg_direta = {
+                'tipo': tipo_inferido or tipo or 'Legislação',
                 'numero': numero or '',
                 'ano': ano or '',
-                'ementa': f'{tipo_inferido} nº {numero}/{ano}' if tipo_inferido and numero else 'Legislação encontrada',
-                'data_publicacao': data_descoberta or '',
-                'estado': estado or '',
                 'municipio': municipio or '',
-                'url_fonte': melhor['url'],
-                'confianca': melhor.get('relevancia', 0.7),
-                '_fonte': melhor.get('_fonte', 'google'),
-                'justificativa': f'⚠️ Análise automática (IA indisponível). Fonte: {melhor["nome"]} com {melhor.get("relevancia", 0):.0%} relevância.',
-                'texto': melhor.get('texto', '')[:30000],
+                'estado': estado or '',
+                'esfera': esfera or 'municipal',
+                'data_publicacao': data_descoberta or data_pub or '',
+                'assunto': assunto or '',
+                'ementa': assunto or '',
+                'texto': _fonte_confirmada['texto'],
+                'fonte_url': _fonte_confirmada['url'],
+                'confianca': 0.97,
+                'justificativa': f'PDF do Diário Oficial confirmado pela IA do navegador com cabeçalho formal da lei.',
             }
-            legislacoes_finais = [leg_fallback]
-            # Adicionar fontes extras como alternativas
-            for t in textos_ordenados[1:3]:
-                if t.get('relevancia', 0) >= 0.5:
-                    legislacoes_finais.append({
-                        'tipo': tipo_inferido or '', 'numero': numero or '', 'ano': ano or '',
-                        'ementa': f'{tipo_inferido} nº {numero}/{ano} (fonte alternativa)',
-                        'data_publicacao': data_descoberta or '',
-                        'estado': estado or '', 'municipio': municipio or '',
-                        'url_fonte': t['url'],
-                        'confianca': t.get('relevancia', 0.5),
-                        '_fonte': t.get('_fonte', 'google'),
-                        'justificativa': f'Fonte alternativa: {t["nome"]}',
-                        'texto': t.get('texto', '')[:30000],
-                    })
-            logs.append({'nivel': 'ok', 'msg': f'✅ Fallback: {len(legislacoes_finais)} resultado(s) montado(s) sem IA'})
+            for t in textos_extraidos:
+                if t.get('pdf_path'):
+                    _leg_direta['pdf_path'] = t['pdf_path']
+                    break
             return {
-                'legislacoes': legislacoes_finais,
-                'sugestao': '⚠️ Resultado montado automaticamente (IA indisponível por rate limit). As fontes foram encontradas mas não analisadas por IA.',
-                'logs': logs, 'fontes': fontes_status,
+                'legislacoes': [_leg_direta],
+                'sugestao': '',
+                'fontes': fontes_status,
+                'textos_fontes': textos_extraidos,
+                'logs': logs,
             }
-        return {'legislacoes': [], 'erro': 'Nenhum modelo de IA respondeu e nenhuma fonte foi encontrada.', 'logs': logs, 'fontes': fontes_status}
-
-    # Processar resposta
-    texto = re.sub(r'^```(?:json)?\s*', '', texto)
-    texto = re.sub(r'\s*```$', '', texto)
-    logs.append({'nivel': 'info', 'msg': f'Preview: {texto[:200]}...'})
-
-    match = re.search(r'\{.*\}', texto, re.DOTALL)
-    if not match:
-        logs.append({'nivel': 'erro', 'msg': 'JSON não encontrado na resposta'})
-        return {'legislacoes': [], 'erro': 'LLM não retornou JSON válido', 'logs': logs, 'fontes': fontes_status}
-
-    try:
-        data = json.loads(match.group())
-    except json.JSONDecodeError as e:
-        logs.append({'nivel': 'erro', 'msg': f'JSON inválido: {e}'})
-        return {'legislacoes': [], 'erro': 'JSON inválido', 'logs': logs, 'fontes': fontes_status}
-
-    legislacoes = data.get('legislacoes', [])
-    sugestao = data.get('sugestao', '')
-
-    # Filtrar confiança
-    antes = len(legislacoes)
-    legislacoes = [l for l in legislacoes if (l.get('confianca') or 0) >= 0.5]
-    if antes != len(legislacoes):
-        logs.append({'nivel': 'aviso', 'msg': f'{antes - len(legislacoes)} descartada(s) por confiança < 50%'})
-
-    logs.append({'nivel': 'ok', 'msg': f'✅ Resultado final: {len(legislacoes)} legislação(ões) de {total_fontes} fonte(s) real(is)'})
-
-    # Registrar
-    try:
-        _registrar_busca_fila(
-            tipo='busca_manual',
-            municipio=municipio or '—', estado=estado or '—',
-            legislacoes_encontradas=len(legislacoes),
-            status='concluido',
-            detalhes={'params': params, 'resultados': len(legislacoes), 'fontes': total_fontes},
-        )
-    except Exception:
-        pass
-
-    # Preparar textos das fontes (texto completo — app.py trunca para preview no frontend)
-    textos_fontes = []
-    for t in textos_extraidos:
-        tf = {
-            'nome': t.get('nome', ''),
-            'url': t.get('url', ''),
-            'relevancia': round(t.get('relevancia', 0), 2),
-            'texto': t.get('texto', ''),  # texto integral para salvar no DB via job cache
-            '_fonte': t.get('_fonte', ''),
-        }
-        if t.get('pdf_path') and os.path.isfile(t['pdf_path']):
-            tf['pdf_path'] = t['pdf_path']
-        if t.get('html_lei'):
-            tf['html_lei'] = t['html_lei']
-        if t.get('anexos_lm'):
-            tf['anexos_lm'] = t['anexos_lm']
-        textos_fontes.append(tf)
-
-    return {'legislacoes': legislacoes, 'sugestao': sugestao, 'fontes': fontes_status, 'textos_fontes': textos_fontes, 'logs': logs}
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 3. REFERÊNCIAS CRUZADAS
-# ─────────────────────────────────────────────────────────────────────────────
-
-# Padrões regex para encontrar referências a outras leis
-PADROES_REFERENCIA = [
-    # "Lei Complementar nº 270/2024" ou "LC 270/2024"
-    r'(?:Lei\s+Complementar|LC)\s+n[ºo°]?\s*(\d+)[/\s]*(\d{4})',
-    # "Lei nº 1234/2020" ou "Lei 1234/2020"
-    r'(?:Lei\s+(?:Ordinária\s+)?|Lei\s+)n[ºo°]?\s*(\d+)[/\s]*(\d{4})',
-    # "Decreto nº 456/2023"
-    r'Decreto\s+n[ºo°]?\s*(\d+)[/\s]*(\d{4})',
-    # "Resolução nº 78/2022"
-    r'Resolução\s+n[ºo°]?\s*(\d+)[/\s]*(\d{4})',
-    # "Portaria nº 12/2021"
-    r'Portaria\s+n[ºo°]?\s*(\d+)[/\s]*(\d{4})',
+    
+        # ══════════════════════════════════════════════════════════════════
+        # ETAPA 4: IA COMPARA, SUGERE E JUSTIFICA
+        # ══════════════════════════════════════════════════════════════════
+        descricao_busca = '\n'.join(filter(None, [
+            f"- Esfera: {esfera}" if esfera else None,
+            f"- Estado: {estado}" if estado else None,
+            f"- Município: {municipio}" if municipio else None,
+            f"- Tipo: {tipo_inferido or tipo}" if (tipo_inferido or tipo) else None,
+            f"- Número: {numero}" if numero else None,
+            f"- Ano: {ano}" if ano else None,
+            f"- Data publicação: {data_descoberta or data_pub}" if (data_descoberta or data_pub) else None,
+            f"- Assunto: {assunto}" if assunto else None,
+            f"- Palavras-chave: {palavras}" if palavras else None,
+        ]))
+    
+        total_fontes = len(textos_extraidos)
+        _fontes_nomes = [t.get('nome', '?') for t in textos_extraidos]
+        _fontes_sizes = [len(t.get('texto', '')) for t in textos_extraidos]
+        logs.append({'nivel': 'info', 'msg': f'🤖 ETAPA 4: {total_fontes} fonte(s) → IA | fontes={_fontes_nomes} | chars={_fontes_sizes}'})
+    
+        if total_fontes == 0:
+            logs.append({'nivel': 'aviso', 'msg': 'Nenhuma fonte encontrada na internet. LLM usará apenas conhecimento próprio (pode conter erros).'})
+    
+        # Montar textos das fontes (truncamento inteligente: início + fim pra textos grandes)
+        def _truncar_inteligente(txt, limite=4000):
+            if len(txt) <= limite:
+                return txt
+            metade = limite // 2
+            return txt[:metade] + f'\n\n[... {len(txt) - limite} caracteres omitidos ...]\n\n' + txt[-metade:]
+    
+        # Priorizar por relevância, máximo 4 fontes no prompt (economizar tokens)
+        fontes_para_llm = sorted(textos_extraidos, key=lambda x: x.get('relevancia', 0), reverse=True)[:4]
+    
+        # Ajustar limite de truncamento: menos fontes = mais texto por fonte
+        _chars_por_fonte = 4000
+        if len(fontes_para_llm) == 1:
+            _chars_por_fonte = 8000  # fonte única: mais contexto
+        elif len(fontes_para_llm) == 2:
+            _chars_por_fonte = 6000
+    
+        fontes_texto = '\n\n'.join([
+            f"=== FONTE {i+1}: {t['nome']} ({t['url'][:80]}) ===\nRelevância: {t['relevancia']:.0%}\nTamanho total: {len(t['texto'])} chars\n"
+            f"{'⚠️ FONTE PRÉ-VALIDADA: Texto extraído diretamente do Diário Oficial com cabeçalho formal confirmado. Esta fonte é altamente confiável.' if t.get('_fonte') == 'diario_oficial' else ''}\n"
+            f"{_truncar_inteligente(t['texto'], _chars_por_fonte)}"
+            for i, t in enumerate(fontes_para_llm)
+        ]) if fontes_para_llm else '(nenhuma fonte encontrada — use apenas seu conhecimento, mas AVISE que os dados podem conter erros)'
+    
+        prompt = f"""Analise os textos extraídos de fontes reais da internet e identifique a legislação buscada.
+    
+    CRITÉRIOS DE BUSCA:
+    {descricao_busca}
+    
+    TEXTOS DAS FONTES (em ordem de prioridade):
+    {fontes_texto}
+    
+    INSTRUÇÕES:
+    1. Identifique a legislação nos textos. Use APENAS informações presentes nas fontes.
+    2. Se múltiplas fontes mencionam a mesma legislação, COMPARE os dados (ementa, data, assunto).
+    3. Na sugestão, SEMPRE referencie as fontes pelo NÚMERO (ex: "A Fonte 1 é mais confiável porque..."). Explique divergências entre fontes.
+    4. A ementa deve ser EXATAMENTE como aparece na fonte mais confiável.
+    5. NÃO invente dados. Se um campo não aparece nas fontes, deixe vazio ("").
+    6. Inclua justificativa em cada legislação referenciando o número da fonte.
+    7. Fontes marcadas como PRÉ-VALIDADAS (ex: Diário Oficial com cabeçalho confirmado) são ALTAMENTE confiáveis. Se o texto truncado contém o cabeçalho formal da legislação buscada (tipo, número e ano), ACEITE como resultado válido com confiança alta. O texto completo já foi verificado pelo sistema.
+    8. IMPORTANTE: Se o texto começa com ou contém o cabeçalho da legislação buscada (mesmo que truncado), é a legislação correta. NÃO rejeite apenas porque o texto está truncado.
+    
+    Responda SOMENTE com JSON:
+    {{
+        "sugestao": "Referencie as fontes por número (Fonte 1, Fonte 2...). Explique qual é mais confiável e por quê. Cite divergências entre fontes se houver.",
+        "legislacoes": [
+            {{
+                "tipo": "Lei Complementar",
+                "numero": "198",
+                "ano": 2019,
+                "ementa": "(ementa EXATA da fonte mais confiável)",
+                "data_publicacao": "2019-12-20",
+                "assunto": "Código de Obras",
+                "esfera": "municipal",
+                "estado": "RJ",
+                "municipio": "Rio de Janeiro",
+                "url_fonte": "https://...(URL da fonte mais confiável)",
+                "confianca": 0.95,
+                "_fonte": "diario_oficial|site_informado|leismunicipais|google",
+                "justificativa": "Encontrada na Fonte X com ementa confirmada na Fonte Y..."
+            }}
+        ]
+    }}"""
+    
+        logs.append({'nivel': 'info', 'msg': f'Prompt montado: {len(prompt)} chars com {total_fontes} fonte(s)'})
+    
+        # Chamar LLM com mais retries na etapa final (é a mais importante)
+        texto = _chamar_llm(prompt, logs, '🤖 Análise Final', max_retries=3)
+    
+        if not texto:
+            # FALLBACK: montar resultado sem IA, usando os dados já extraídos
+            logs.append({'nivel': 'aviso', 'msg': '🤖 IA indisponível — montando resultado com os dados extraídos...'})
+            if textos_extraidos:
+                # Ordenar por relevância e pegar o melhor
+                textos_ordenados = sorted(textos_extraidos, key=lambda x: x.get('relevancia', 0), reverse=True)
+                melhor = textos_ordenados[0]
+                # Montar legislação a partir dos dados disponíveis
+                leg_fallback = {
+                    'tipo': tipo_inferido or 'Legislação',
+                    'numero': numero or '',
+                    'ano': ano or '',
+                    'ementa': f'{tipo_inferido} nº {numero}/{ano}' if tipo_inferido and numero else 'Legislação encontrada',
+                    'data_publicacao': data_descoberta or '',
+                    'estado': estado or '',
+                    'municipio': municipio or '',
+                    'url_fonte': melhor['url'],
+                    'confianca': melhor.get('relevancia', 0.7),
+                    '_fonte': melhor.get('_fonte', 'google'),
+                    'justificativa': f'⚠️ Análise automática (IA indisponível). Fonte: {melhor["nome"]} com {melhor.get("relevancia", 0):.0%} relevância.',
+                    'texto': melhor.get('texto', '')[:30000],
+                }
+                legislacoes_finais = [leg_fallback]
+                # Adicionar fontes extras como alternativas
+                for t in textos_ordenados[1:3]:
+                    if t.get('relevancia', 0) >= 0.5:
+                        legislacoes_finais.append({
+                            'tipo': tipo_inferido or '', 'numero': numero or '', 'ano': ano or '',
+                            'ementa': f'{tipo_inferido} nº {numero}/{ano} (fonte alternativa)',
+                            'data_publicacao': data_descoberta or '',
+                            'estado': estado or '', 'municipio': municipio or '',
+                            'url_fonte': t['url'],
+                            'confianca': t.get('relevancia', 0.5),
+                            '_fonte': t.get('_fonte', 'google'),
+                            'justificativa': f'Fonte alternativa: {t["nome"]}',
+                            'texto': t.get('texto', '')[:30000],
+                        })
+                logs.append({'nivel': 'ok', 'msg': f'✅ Fallback: {len(legislacoes_finais)} resultado(s) montado(s) sem IA'})
+                return {
+                    'legislacoes': legislacoes_finais,
+                    'sugestao': '⚠️ Resultado montado automaticamente (IA indisponível por rate limit). As fontes foram encontradas mas não analisadas por IA.',
+                    'logs': logs, 'fontes': fontes_status,
+                }
+            return {'legislacoes': [], 'erro': 'Nenhum modelo de IA respondeu e nenhuma fonte foi encontrada.', 'logs': logs, 'fontes': fontes_status}
+    
+        # Processar resposta
+        texto = re.sub(r'^```(?:json)?\s*', '', texto)
+        texto = re.sub(r'\s*```$', '', texto)
+        logs.append({'nivel': 'info', 'msg': f'Preview: {texto[:200]}...'})
+    
+        match = re.search(r'\{.*\}', texto, re.DOTALL)
+        if not match:
+            logs.append({'nivel': 'erro', 'msg': 'JSON não encontrado na resposta'})
+            return {'legislacoes': [], 'erro': 'LLM não retornou JSON válido', 'logs': logs, 'fontes': fontes_status}
+    
+        try:
+            data = json.loads(match.group())
+        except json.JSONDecodeError as e:
+            logs.append({'nivel': 'erro', 'msg': f'JSON inválido: {e}'})
+            return {'legislacoes': [], 'erro': 'JSON inválido', 'logs': logs, 'fontes': fontes_status}
+    
+        legislacoes = data.get('legislacoes', [])
+        sugestao = data.get('sugestao', '')
+    
+        # Filtrar confiança
+        antes = len(legislacoes)
+        legislacoes = [l for l in legislacoes if (l.get('confianca') or 0) >= 0.5]
+        if antes != len(legislacoes):
+            logs.append({'nivel': 'aviso', 'msg': f'{antes - len(legislacoes)} descartada(s) por confiança < 50%'})
+    
+        logs.append({'nivel': 'ok', 'msg': f'✅ Resultado final: {len(legislacoes)} legislação(ões) de {total_fontes} fonte(s) real(is)'})
+    
+        # Registrar
+        try:
+            _registrar_busca_fila(
+                tipo='busca_manual',
+                municipio=municipio or '—', estado=estado or '—',
+                legislacoes_encontradas=len(legislacoes),
+                status='concluido',
+                detalhes={'params': params, 'resultados': len(legislacoes), 'fontes': total_fontes},
+            )
+        except Exception:
+            pass
+    
+        # Preparar textos das fontes (texto completo — app.py trunca para preview no frontend)
+        textos_fontes = []
+        for t in textos_extraidos:
+            tf = {
+                'nome': t.get('nome', ''),
+                'url': t.get('url', ''),
+                'relevancia': round(t.get('relevancia', 0), 2),
+                'texto': t.get('texto', ''),  # texto integral para salvar no DB via job cache
+                '_fonte': t.get('_fonte', ''),
+            }
+            if t.get('pdf_path') and os.path.isfile(t['pdf_path']):
+                tf['pdf_path'] = t['pdf_path']
+            if t.get('html_lei'):
+                tf['html_lei'] = t['html_lei']
+            if t.get('anexos_lm'):
+                tf['anexos_lm'] = t['anexos_lm']
+            textos_fontes.append(tf)
+    
+        return {'legislacoes': legislacoes, 'sugestao': sugestao, 'fontes': fontes_status, 'textos_fontes': textos_fontes, 'logs': logs}
+    
+    
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 3. REFERÊNCIAS CRUZADAS
+    # ─────────────────────────────────────────────────────────────────────────────
+    
+    # Padrões regex para encontrar referências a outras leis
+    PADROES_REFERENCIA = [
+        # "Lei Complementar nº 270/2024" ou "LC 270/2024"
+        r'(?:Lei\s+Complementar|LC)\s+n[ºo°]?\s*(\d+)[/\s]*(\d{4})',
+        # "Lei nº 1234/2020" ou "Lei 1234/2020"
+        r'(?:Lei\s+(?:Ordinária\s+)?|Lei\s+)n[ºo°]?\s*(\d+)[/\s]*(\d{4})',
+        # "Decreto nº 456/2023"
+        r'Decreto\s+n[ºo°]?\s*(\d+)[/\s]*(\d{4})',
+        # "Resolução nº 78/2022"
+        r'Resolução\s+n[ºo°]?\s*(\d+)[/\s]*(\d{4})',
+        # "Portaria nº 12/2021"
+        r'Portaria\s+n[ºo°]?\s*(\d+)[/\s]*(\d{4})',
+    ]
+    
+    
+    def varrer_referencias() -> List[dict]:
+        """
+        Varre todas as legislações da biblioteca, detecta referências a outras
+        legislações que NÃO estão cadastradas.
+    
+        Returns:
+            Lista de referências não cadastradas:
+            [{tipo, numero, ano, referenciada_por, municipio, estado, esfera}]
+        """
+        # Buscar todas as legislações com ementa ou conteúdo
+        try:
+            legislacoes = _qry("""
+                SELECT id, tipo_nome, numero, ano, ementa, conteudo_texto,
+                       municipio_nome, estado, esfera
+                FROM legislacoes
+                WHERE pendente_aprovacao = FALSE
+            """)
+        except Exception as e:
+            logger.error(f"Erro ao buscar legislações: {e}")
+            return []
+    
+        if not legislacoes:
+            return []
+    
+        # Coletar todas as legislações existentes como set de (numero, ano)
+        existentes = set()
+        for leg in legislacoes:
+            num = str(leg.get('numero', '')).strip()
+            ano = str(leg.get('ano', '')).strip()
+            if num and ano:
+                existentes.add((num, ano))
+    
+        # Varrer textos procurando referências
+        referencias_encontradas = {}  # chave = (numero, ano), valor = dict
+    
+        for leg in legislacoes:
+            texto = (leg.get('ementa') or '') + ' ' + (leg.get('conteudo_texto') or '')
+            if not texto.strip():
+                continue
+    
+            leg_titulo = f"{leg.get('tipo_nome', '')} {leg.get('numero', '')}/{leg.get('ano', '')}"
+    
+            for padrao in PADROES_REFERENCIA:
+                matches = re.finditer(padrao, texto, re.IGNORECASE)
+                for m in matches:
+                    numero = m.group(1)
+                    ano = m.group(2)
+    
+                    # Pular auto-referência
+                    if str(leg.get('numero', '')) == numero and str(leg.get('ano', '')) == ano:
+                        continue
+    
+                    # Pular se já existe na biblioteca
+                    if (numero, ano) in existentes:
+                        continue
+    
+                    chave = (numero, ano)
+                    if chave not in referencias_encontradas:
+                        # Detectar tipo da referência pelo padrão
+                        texto_match = m.group(0)
+                        tipo = 'Lei'
+                        if 'complementar' in texto_match.lower() or texto_match.startswith('LC'):
+                            tipo = 'Lei Complementar'
+                        elif 'decreto' in texto_match.lower():
+                            tipo = 'Decreto'
+                        elif 'resolução' in texto_match.lower() or 'resolucao' in texto_match.lower():
+                            tipo = 'Resolução'
+                        elif 'portaria' in texto_match.lower():
+                            tipo = 'Portaria'
+    
+                        referencias_encontradas[chave] = {
+                            'tipo': tipo,
+                            'numero': numero,
+                            'ano': int(ano),
+                            'referenciada_por': leg_titulo,
+                            'referenciada_por_id': leg['id'],
+                            'municipio': leg.get('municipio_nome', ''),
+                            'estado': leg.get('estado', ''),
+                            'esfera': leg.get('esfera', 'municipal'),
+                        }
+    
+        resultado = list(referencias_encontradas.values())
+        logger.info(f"Varredura: {len(resultado)} referência(s) não cadastrada(s) encontrada(s)")
+    
+        if resultado:
+            _registrar_atividade(
+                'referencias_varridas',
+                f'Varredura encontrou {len(resultado)} legislação(ões) referenciada(s) não cadastrada(s)',
+                {'total': len(resultado), 'exemplos': [r['tipo'] + ' ' + r['numero'] + '/' + str(r['ano']) for r in resultado[:5]]}
+            )
+    
+        return resultado
+    
+    
+    # ─────────────────────────────────────────────────────────────────────────────
+    # CADASTRO DE RESULTADOS
+    # ─────────────────────────────────────────────────────────────────────────────
+    
+    def cadastrar_resultados(legislacoes: List[dict], municipio: str, estado: str,
+                              monitorar: bool = True) -> List[int]:
+        """Cadastra legislações encontradas pelo buscador na biblioteca."""
+        try:
+            from modulos.descobridor_legislacoes import cadastrar_legislacoes_descobertas
+            return cadastrar_legislacoes_descobertas(
+                legislacoes, municipio, estado,
+                ativar_monitoramento=monitorar
+            )
+        except Exception as e:
+            logger.error(f"Erro ao cadastrar: {e}")
+            return []
+    
+    
+    # ─────────────────────────────────────────────────────────────────────────────
+    # FILA DE BUSCAS
+    # ─────────────────────────────────────────────────────────────────────────────
+    
+    def _registrar_busca_fila(tipo, municipio, estado, legislacoes_encontradas=0,
+                               legislacoes_cadastradas=0, status='concluido',
+                               detalhes=None, mensagem=''):
+        """Registra busca no log/fila."""
+        try:
+            _qry("""INSERT INTO integracao_log
+                    (tipo, municipios_consultados, novos_detectados,
+                     legislacoes_cadastradas, detalhes, status, criado_em)
+                    VALUES (%s, 1, %s, %s, %s, %s, NOW())""",
+                 (tipo, legislacoes_encontradas, legislacoes_cadastradas,
+                  json.dumps({
+                      'municipio': municipio, 'estado': estado,
+                      'mensagem': mensagem,
+                      **(detalhes or {})
+                  }, default=str),
+                  status),
+                 commit=True, fetch=None)
+        except Exception:
+            pass
+    
+    
+    def listar_fila(limit=30) -> List[dict]:
+        """Retorna histórico de buscas."""
+        try:
+            rows = _qry("""SELECT id, tipo, municipios_consultados,
+                                  novos_detectados as legislacoes_encontradas,
+                                  legislacoes_cadastradas, detalhes, status, criado_em
+                           FROM integracao_log
+                           ORDER BY criado_em DESC LIMIT %s""", (limit,))
+            result = []
+            for r in (rows or []):
+                det = r.get('detalhes') or {}
+                if isinstance(det, str):
+                    try: det = json.loads(det)
+                    except: det = {}
+                result.append({
+                    'id': r['id'],
+                    'tipo': r['tipo'],
+                    'municipio': det.get('municipio', ''),
+                    'estado': det.get('estado', ''),
+                    'legislacoes_encontradas': r.get('legislacoes_encontradas', 0),
+                    'legislacoes_cadastradas': r.get('legislacoes_cadastradas', 0),
+                    'status': r.get('status', ''),
+                    'mensagem': det.get('mensagem', ''),
+                    'criado_em': r.get('criado_em'),
+                })
+            return result
+        except Exception:
+            return [
 ]
-
-
-def varrer_referencias() -> List[dict]:
-    """
-    Varre todas as legislações da biblioteca, detecta referências a outras
-    legislações que NÃO estão cadastradas.
-
-    Returns:
-        Lista de referências não cadastradas:
-        [{tipo, numero, ano, referenciada_por, municipio, estado, esfera}]
-    """
-    # Buscar todas as legislações com ementa ou conteúdo
-    try:
-        legislacoes = _qry("""
-            SELECT id, tipo_nome, numero, ano, ementa, conteudo_texto,
-                   municipio_nome, estado, esfera
-            FROM legislacoes
-            WHERE pendente_aprovacao = FALSE
-        """)
-    except Exception as e:
-        logger.error(f"Erro ao buscar legislações: {e}")
-        return []
-
-    if not legislacoes:
-        return []
-
-    # Coletar todas as legislações existentes como set de (numero, ano)
-    existentes = set()
-    for leg in legislacoes:
-        num = str(leg.get('numero', '')).strip()
-        ano = str(leg.get('ano', '')).strip()
-        if num and ano:
-            existentes.add((num, ano))
-
-    # Varrer textos procurando referências
-    referencias_encontradas = {}  # chave = (numero, ano), valor = dict
-
-    for leg in legislacoes:
-        texto = (leg.get('ementa') or '') + ' ' + (leg.get('conteudo_texto') or '')
-        if not texto.strip():
-            continue
-
-        leg_titulo = f"{leg.get('tipo_nome', '')} {leg.get('numero', '')}/{leg.get('ano', '')}"
-
-        for padrao in PADROES_REFERENCIA:
-            matches = re.finditer(padrao, texto, re.IGNORECASE)
-            for m in matches:
-                numero = m.group(1)
-                ano = m.group(2)
-
-                # Pular auto-referência
-                if str(leg.get('numero', '')) == numero and str(leg.get('ano', '')) == ano:
-                    continue
-
-                # Pular se já existe na biblioteca
-                if (numero, ano) in existentes:
-                    continue
-
-                chave = (numero, ano)
-                if chave not in referencias_encontradas:
-                    # Detectar tipo da referência pelo padrão
-                    texto_match = m.group(0)
-                    tipo = 'Lei'
-                    if 'complementar' in texto_match.lower() or texto_match.startswith('LC'):
-                        tipo = 'Lei Complementar'
-                    elif 'decreto' in texto_match.lower():
-                        tipo = 'Decreto'
-                    elif 'resolução' in texto_match.lower() or 'resolucao' in texto_match.lower():
-                        tipo = 'Resolução'
-                    elif 'portaria' in texto_match.lower():
-                        tipo = 'Portaria'
-
-                    referencias_encontradas[chave] = {
-                        'tipo': tipo,
-                        'numero': numero,
-                        'ano': int(ano),
-                        'referenciada_por': leg_titulo,
-                        'referenciada_por_id': leg['id'],
-                        'municipio': leg.get('municipio_nome', ''),
-                        'estado': leg.get('estado', ''),
-                        'esfera': leg.get('esfera', 'municipal'),
-                    }
-
-    resultado = list(referencias_encontradas.values())
-    logger.info(f"Varredura: {len(resultado)} referência(s) não cadastrada(s) encontrada(s)")
-
-    if resultado:
-        _registrar_atividade(
-            'referencias_varridas',
-            f'Varredura encontrou {len(resultado)} legislação(ões) referenciada(s) não cadastrada(s)',
-            {'total': len(resultado), 'exemplos': [r['tipo'] + ' ' + r['numero'] + '/' + str(r['ano']) for r in resultado[:5]]}
-        )
-
-    return resultado
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# CADASTRO DE RESULTADOS
-# ─────────────────────────────────────────────────────────────────────────────
-
-def cadastrar_resultados(legislacoes: List[dict], municipio: str, estado: str,
-                          monitorar: bool = True) -> List[int]:
-    """Cadastra legislações encontradas pelo buscador na biblioteca."""
-    try:
-        from modulos.descobridor_legislacoes import cadastrar_legislacoes_descobertas
-        return cadastrar_legislacoes_descobertas(
-            legislacoes, municipio, estado,
-            ativar_monitoramento=monitorar
-        )
-    except Exception as e:
-        logger.error(f"Erro ao cadastrar: {e}")
-        return []
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FILA DE BUSCAS
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _registrar_busca_fila(tipo, municipio, estado, legislacoes_encontradas=0,
-                           legislacoes_cadastradas=0, status='concluido',
-                           detalhes=None, mensagem=''):
-    """Registra busca no log/fila."""
-    try:
-        _qry("""INSERT INTO integracao_log
-                (tipo, municipios_consultados, novos_detectados,
-                 legislacoes_cadastradas, detalhes, status, criado_em)
-                VALUES (%s, 1, %s, %s, %s, %s, NOW())""",
-             (tipo, legislacoes_encontradas, legislacoes_cadastradas,
-              json.dumps({
-                  'municipio': municipio, 'estado': estado,
-                  'mensagem': mensagem,
-                  **(detalhes or {})
-              }, default=str),
-              status),
-             commit=True, fetch=None)
-    except Exception:
-        pass
-
-
-def listar_fila(limit=30) -> List[dict]:
-    """Retorna histórico de buscas."""
-    try:
-        rows = _qry("""SELECT id, tipo, municipios_consultados,
-                              novos_detectados as legislacoes_encontradas,
-                              legislacoes_cadastradas, detalhes, status, criado_em
-                       FROM integracao_log
-                       ORDER BY criado_em DESC LIMIT %s""", (limit,))
-        result = []
-        for r in (rows or []):
-            det = r.get('detalhes') or {}
-            if isinstance(det, str):
-                try: det = json.loads(det)
-                except: det = {}
-            result.append({
-                'id': r['id'],
-                'tipo': r['tipo'],
-                'municipio': det.get('municipio', ''),
-                'estado': det.get('estado', ''),
-                'legislacoes_encontradas': r.get('legislacoes_encontradas', 0),
-                'legislacoes_cadastradas': r.get('legislacoes_cadastradas', 0),
-                'status': r.get('status', ''),
-                'mensagem': det.get('mensagem', ''),
-                'criado_em': r.get('criado_em'),
-            })
-        return result
-    except Exception:
-        return []
