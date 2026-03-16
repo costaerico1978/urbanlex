@@ -2941,6 +2941,8 @@ Se não encontrar, deixe "". NÃO invente."""
                         logs.append({'nivel': 'ok', 'msg': f'📅 1B: Data confirmada em LeisMunicipais: {data_descoberta}'})
                         # Adicionar como fonte já extraída para ETAPA 3 não repetir
                         _res_lm['_fonte'] = 'leismunicipais'
+                        if _lm.get('anexos_lm'):
+                            _res_lm['anexos_lm'] = _lm['anexos_lm']
                         textos_extraidos.append(_res_lm)
                         fontes_status.append({'nome': '📖 LeisMunicipais', 'url': _lm['url'], 'encontrou': True})
                         break
@@ -3244,6 +3246,8 @@ Se não encontrar data exata, retorne {{"data_publicacao": ""}}. NÃO invente.""
                 }
                 if lm.get('html_lei'):
                     _lm_entry['html_lei'] = lm['html_lei']
+                if lm.get('anexos_lm'):
+                    _lm_entry['anexos_lm'] = lm['anexos_lm']
                 textos_extraidos.append(_lm_entry)
                 fontes_status.append({'nome': '📖 LeisMunicipais', 'url': lm['url'], 'encontrou': True})
                 logs.append({'nivel': 'ok', 'msg': f'📖 LeisMunicipais: ✅ texto pre-extraido usado ({len(lm["texto"])} chars)'})
@@ -3252,6 +3256,8 @@ Se não encontrar data exata, retorne {{"data_publicacao": ""}}. NÃO invente.""
                                      tipo_lei=tipo_inferido or tipo, numero_lei=numero, ano=ano)
             if result:
                 result['_fonte'] = 'leismunicipais'
+                if lm.get('anexos_lm'):
+                    result['anexos_lm'] = lm['anexos_lm']
                 textos_extraidos.append(result)
                 fontes_status.append({'nome': '📖 LeisMunicipais', 'url': lm['url'], 'encontrou': True})
                 break
