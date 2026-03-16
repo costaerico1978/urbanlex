@@ -699,7 +699,7 @@ async function executarBuscaManual() {
             document.getElementById('bm-lista-resultados').innerHTML = `<div class="empty-busca"><div class="empty-icon">⚠️</div>
                 <div class="empty-title">Sem resultado</div>
                 <div class="empty-sub">O servidor não retornou dados. Tente novamente.</div></div>`;
-            document.getElementById('btn-cadastrar-sel').style.display = 'none';
+            
             return;
         }
 
@@ -735,7 +735,7 @@ async function executarBuscaManual() {
             document.getElementById('bm-lista-resultados').innerHTML = `<div class="empty-busca"><div class="empty-icon">❌</div>
                 <div class="empty-title">Erro na busca</div>
                 <div class="empty-sub">${e2.message}</div></div>`;
-            document.getElementById('btn-cadastrar-sel').style.display = 'none';
+            
         }
     }
 }
@@ -749,7 +749,7 @@ function renderizarResultadoBusca(r, duracao) {
         el.innerHTML = `<div class="empty-busca"><div class="empty-icon">⚠️</div>
             <div class="empty-title">Erro na busca</div>
             <div class="empty-sub" style="color:var(--amber)">${r.erro}</div></div>`;
-        document.getElementById('btn-cadastrar-sel').style.display = 'none';
+        
         return;
     }
 
@@ -758,12 +758,12 @@ function renderizarResultadoBusca(r, duracao) {
         el.innerHTML = `<div class="empty-busca"><div class="empty-icon">🤷</div>
             <div class="empty-title">Nenhuma legislação encontrada</div>
             <div class="empty-sub">Tente termos diferentes, informe a URL do diário oficial, ou preencha menos campos</div></div>`;
-        document.getElementById('btn-cadastrar-sel').style.display = 'none';
+        
         return;
     }
 
     logLine('✅', `${r.legislacoes.length} legislação(ões) encontrada(s)!`, 'var(--accent)');
-    document.getElementById('btn-cadastrar-sel').style.display = '';
+    
 
     // Renderizar resultados
     let html = '';
