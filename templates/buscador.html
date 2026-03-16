@@ -869,7 +869,7 @@ function renderizarResultadoBusca(r, duracao) {
                     ${leg.url_fonte ? '<a href="'+leg.url_fonte+'" target="_blank" style="color:var(--blue)">🔗 Ver fonte original</a> · ' : ''}
                     Confiança: <span class="resultado-confianca ${confClass}">${(conf*100).toFixed(0)}%</span>
                 </div>
-                ${fonteSelectorHtml}
+
             </div>
         </div>`;
     }).join('');

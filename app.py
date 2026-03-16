@@ -2434,6 +2434,7 @@ def api_buscador_manual_start():
                             dest = os.path.join(pdf_dir, nome_pdf)
                             leg_info = result.get('legislacoes', [{}])[0] if result.get('legislacoes') else {}
                             titulo = str(leg_info.get('tipo_legislacao', '')) + ' N. ' + str(leg_info.get('numero', '')) + '/' + str(leg_info.get('ano', ''))
+                            linhas = []
                             if tf.get('html_lei'):
                                 _css = 'body{font-family:Arial,sans-serif;font-size:10pt;margin:20mm;} p{margin:4px 0;text-align:justify;}'
                                 _tit = titulo.strip()
@@ -2442,7 +2443,6 @@ def api_buscador_manual_start():
                                 _html = '<html><head><meta charset="utf-8"><style>' + _css + '</style></head><body>' + _body + '</body></html>'
                                 _WH(string=_html).write_pdf(dest)
                             else:
-                                linhas = []
                                 linhas = []
                                 doc_rl = SimpleDocTemplate(dest, pagesize=A4,
                                     leftMargin=15*mm, rightMargin=15*mm, topMargin=15*mm, bottomMargin=15*mm)
