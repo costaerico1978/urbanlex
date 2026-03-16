@@ -829,7 +829,7 @@ function renderizarResultadoBusca(r, duracao) {
                     </div>
                     <div style="display:flex;align-items:center;gap:8px;">
                         ${tfUrl ? '<a href="'+tfUrl+'" target="_blank" onclick="event.stopPropagation()" style="font-size:10px;color:var(--blue);white-space:nowrap;">↗ Abrir</a>' : ''}
-                        ${tf.pdf_download_url ? '<a href="'+tf.pdf_download_url+'" download onclick="event.stopPropagation()" style="font-size:10px;color:var(--accent);white-space:nowrap;font-weight:600;">📥 Baixar PDF</a>' : ''}
+                        ${tf.pdf_download_url ? '<a href="'+tf.pdf_download_url+'" download onclick="event.stopPropagation()" style="font-size:10px;color:var(--accent);white-space:nowrap;font-weight:600;">📥 Baixar PDF</a>' : ''}${tf.anexos_lm && tf.anexos_lm.length ? tf.anexos_lm.map(function(anx){ return '<a href="'+anx.url+'" target="_blank" onclick="event.stopPropagation()" style="font-size:10px;color:#f0a500;white-space:nowrap;font-weight:600;margin-left:6px;">📎 '+anx.nome+'</a>'; }).join('') : ''}
                         <span onclick="const p=this.closest('.fonte-card').querySelector('.fonte-preview');p.style.display=p.style.display==='none'?'block':'none';this.textContent=p.style.display==='none'?'▶ Ver texto':'▼ Ocultar';"
                               style="font-size:10px;color:var(--blue);cursor:pointer;white-space:nowrap;">▶ Ver texto</span>
                     </div>
