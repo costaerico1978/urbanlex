@@ -3255,7 +3255,13 @@ Se não encontrar data exata, retorne {{"data_publicacao": ""}}. NÃO invente.""
                     if lm.get('anexos_lm'):
                         _lm_entry['anexos_lm'] = lm['anexos_lm']
                     textos_extraidos.append(_lm_entry)
-                    fontes_status.append({'nome': '📖 LeisMunicipais', 'url': lm['url'], 'encontrou': True})
+                    # Atualizar entrada existente do leismunicipais se houver, senao adicionar
+                    _lm_fs_existente = next((f for f in fontes_status if 'leismunicipais' in f.get('url','').lower() or 'leismunicipais' in f.get('nome','').lower()), None)
+                    if _lm_fs_existente:
+                        _lm_fs_existente['encontrou'] = True
+                        _lm_fs_existente['url'] = lm['url']
+                    else:
+                        fontes_status.append({'nome': '📖 LeisMunicipais', 'url': lm['url'], 'encontrou': True})
                     logs.append({'nivel': 'ok', 'msg': f'📖 LeisMunicipais: ✅ texto pre-extraido usado ({len(lm["texto"])} chars)'})
                     break
                 result = _acessar_pagina(lm['url'], termos_busca, headers_http, logs, '📖 LeisMunicipais',
@@ -3265,7 +3271,13 @@ Se não encontrar data exata, retorne {{"data_publicacao": ""}}. NÃO invente.""
                     if lm.get('anexos_lm'):
                         result['anexos_lm'] = lm['anexos_lm']
                     textos_extraidos.append(result)
-                    fontes_status.append({'nome': '📖 LeisMunicipais', 'url': lm['url'], 'encontrou': True})
+                    # Atualizar entrada existente do leismunicipais se houver, senao adicionar
+                    _lm_fs_existente = next((f for f in fontes_status if 'leismunicipais' in f.get('url','').lower() or 'leismunicipais' in f.get('nome','').lower()), None)
+                    if _lm_fs_existente:
+                        _lm_fs_existente['encontrou'] = True
+                        _lm_fs_existente['url'] = lm['url']
+                    else:
+                        fontes_status.append({'nome': '📖 LeisMunicipais', 'url': lm['url'], 'encontrou': True})
                     break
 
         # 3B: Busca geral DuckDuckGo
