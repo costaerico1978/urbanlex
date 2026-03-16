@@ -3365,9 +3365,9 @@ Se não encontrar data exata, retorne {{"data_publicacao": ""}}. NÃO invente.""
     textos_extraidos.sort(key=_prioridade_fonte)
 
     # Máximo 4 resultados — priorizando fontes prioritárias
-    if len(textos_extraidos) > 4:
-        logs.append({'nivel': 'info', 'msg': f'📄 Limitando a 4 melhores fontes (de {len(textos_extraidos)})'})
-        textos_extraidos = textos_extraidos[:4]
+    if len(textos_extraidos) > 3:
+        logs.append({'nivel': 'info', 'msg': f'📄 Limitando a 3 melhores fontes (de {len(textos_extraidos)})'})
+        textos_extraidos = textos_extraidos[:3]
 
     # ── Bypass pré-validado: se navegador já confirmou via IA, não chamar Gemini ──
     _fonte_confirmada = next((t for t in textos_extraidos if t.get('_confirmada')), None)
