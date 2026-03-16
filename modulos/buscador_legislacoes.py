@@ -3582,6 +3582,8 @@ Responda SOMENTE com JSON:
             tf['pdf_path'] = t['pdf_path']
         if t.get('html_lei'):
             tf['html_lei'] = t['html_lei']
+        if t.get('anexos_lm'):
+            tf['anexos_lm'] = t['anexos_lm']
         textos_fontes.append(tf)
 
     return {'legislacoes': legislacoes, 'sugestao': sugestao, 'fontes': fontes_status, 'textos_fontes': textos_fontes, 'logs': logs}
