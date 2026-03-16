@@ -3097,6 +3097,33 @@ def navegar_com_cookies_flaresolverr(
                                                     if _has_law or (len(_html_pass) > 10000 and not _loading_pass):
                                                         resultado['html'] = _html_pass
                                                         logs.append({'nivel': 'ok', 'msg': f'{label}: [2C] HTML obtido via ?pass= ({len(_html_pass)} chars)'})
+                                                        try:
+                                                            import time as _t_anx, os as _os_anx, requests as _rq_anx
+                                                            from bs4 import BeautifulSoup as _BS_anx
+                                                            _soup_anx = _BS_anx(_html_pass, 'html.parser')
+                                                            _now_anx = int(_t_anx.time())
+                                                            _anexos_anx = []
+                                                            _pdf_dir_anx = _os_anx.path.join(_os_anx.path.dirname(_os_anx.path.dirname(__file__)), 'static', 'downloads')
+                                                            _os_anx.makedirs(_pdf_dir_anx, exist_ok=True)
+                                                            for _a_anx in _soup_anx.find_all('a', attrs={'data-s3-expires': True}):
+                                                                _exp_anx = int(_a_anx.get('data-s3-expires', 0))
+                                                                _href_anx = _a_anx.get('href', '')
+                                                                _txt_anx = _a_anx.get_text().strip() or 'Anexo'
+                                                                if not _href_anx or _exp_anx <= _now_anx:
+                                                                    continue
+                                                                _r_anx = _rq_anx.get(_href_anx, timeout=60)
+                                                                if _r_anx.status_code == 200:
+                                                                    _ext_anx = '.zip' if 'zip' in _href_anx.lower() else '.pdf'
+                                                                    _fname_anx = f'lm_anexo_{len(_anexos_anx)+1}{_ext_anx}'
+                                                                    open(_os_anx.path.join(_pdf_dir_anx, _fname_anx), 'wb').write(_r_anx.content)
+                                                                    _anexos_anx.append({'url': f'/static/downloads/{_fname_anx}', 'nome': _txt_anx})
+                                                                    logs.append({'nivel': 'ok', 'msg': f'{label}: 📎 Anexo "{_txt_anx}" baixado ({len(_r_anx.content)//1024}KB)'})
+                                                                else:
+                                                                    logs.append({'nivel': 'aviso', 'msg': f'{label}: 📎 Anexo status {_r_anx.status_code}'})
+                                                            if _anexos_anx:
+                                                                resultado['anexos_lm'] = _anexos_anx
+                                                        except Exception as _e_anx:
+                                                            logs.append({'nivel': 'aviso', 'msg': f'{label}: 📎 Erro anexos: {str(_e_anx)[:80]}'})
                                                         break
                                                 except Exception as _ep:
                                                     logs.append({'nivel': 'aviso', 'msg': f'{label}: [2C] Erro ?pass=: {str(_ep)[:80]}'})
