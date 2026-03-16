@@ -590,19 +590,32 @@ def _buscar_leismunicipais_direto(municipio: str, estado: str, tipo: str, numero
                         resultados[-1]["snippet"] = _texto_lei[:300]
                         if _law_div:
                             resultados[-1]["html_lei"] = str(_law_div)
-                        # Extrair links de anexos S3
-                        import time as _time_anx
+                        # Extrair e baixar anexos S3
+                        import time as _time_anx, os as _os_anx, requests as _req_anx
                         _now = int(_time_anx.time())
                         _anexos = []
+                        _pdf_dir_anx = _os_anx.path.join(_os_anx.path.dirname(_os_anx.path.dirname(__file__)), 'static', 'downloads')
+                        _os_anx.makedirs(_pdf_dir_anx, exist_ok=True)
                         for _a in _soup_lm.find_all('a', attrs={'data-s3-expires': True}):
-                            _exp = int(_a.get('data-s3-expires', 0))
                             _href = _a.get('href', '')
                             _txt = _a.get_text().strip() or 'Anexo'
-                            if _href and _exp > _now:
-                                _anexos.append({'url': _href, 'nome': _txt})
+                            if not _href:
+                                continue
+                            try:
+                                _r_anx = _req_anx.get(_href, timeout=60)
+                                if _r_anx.status_code == 200:
+                                    _ext = '.zip' if 'zip' in _href.lower() else '.pdf'
+                                    _fname = f'lm_anexo_{len(_anexos)+1}{_ext}'
+                                    _fpath = _os_anx.path.join(_pdf_dir_anx, _fname)
+                                    open(_fpath, 'wb').write(_r_anx.content)
+                                    _anexos.append({'url': f'/static/downloads/{_fname}', 'nome': _txt})
+                                    logs.append({"nivel": "ok", "msg": f"📎 LeisMunicipais: anexo '{_txt}' baixado ({len(_r_anx.content)//1024}KB)"})
+                                else:
+                                    logs.append({"nivel": "aviso", "msg": f"📎 LeisMunicipais: anexo '{_txt}' status {_r_anx.status_code}"})
+                            except Exception as _e_anx:
+                                logs.append({"nivel": "aviso", "msg": f"📎 LeisMunicipais: erro ao baixar anexo: {str(_e_anx)[:60]}"})
                         if _anexos:
                             resultados[-1]["anexos_lm"] = _anexos
-                            logs.append({"nivel": "ok", "msg": f"📎 LeisMunicipais: {len(_anexos)} anexo(s) encontrado(s)"})
                         logs.append({"nivel": "ok", "msg": f"📖 LeisMunicipais: conteudo extraido ({len(_texto_lei)} chars)"})
                     else:
                         logs.append({"nivel": "aviso", "msg": "📖 LeisMunicipais: conteudo vazio apos extracao"})
