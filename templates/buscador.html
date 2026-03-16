@@ -842,38 +842,6 @@ function renderizarResultadoBusca(r, duracao) {
         html += `</div><div style="margin-top:12px;text-align:right;"><button class="btn btn-primary" onclick="cadastrarSelecionados()" style="padding:10px 22px;font-size:13px;font-weight:700;">📚 Cadastrar na Biblioteca</button></div>`;
     }
 
-    // Cards de legislação
-    const fontes = r.textos_fontes || [];
-    html += r.legislacoes.map((leg, i) => {
-        const conf = leg.confianca || 0;
-        const confClass = conf >= 0.8 ? 'conf-alta' : conf >= 0.6 ? 'conf-media' : 'conf-baixa';
-        const fonteTag = leg._fonte === 'diario_oficial' ? '🏛️ Diário Oficial' :
-                        leg._fonte === 'site_informado' ? '🔗 Fonte Prioritária' :
-                        leg._fonte === 'leismunicipais' ? '📖 LeisMunicipais' :
-                        leg._fonte === 'google' ? '🔎 Google' :
-                        leg._fonte || 'IA';
-        logLine('📜', `${leg.tipo || ''} nº ${leg.numero || '?'}/${leg.ano || '?'} — ${fonteTag} — confiança ${(conf*100).toFixed(0)}%`, 'var(--text)');
-
-        return `<div class="resultado-card" style="position:relative;">
-            <input type="checkbox" class="resultado-check" data-idx="${i}" checked>
-            <div class="resultado-info">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-                    <div class="resultado-tipo">${leg.assunto || leg.tipo || 'Legislação'}</div>
-                    <span style="font-size:10px;padding:2px 8px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--muted);">${fonteTag}</span>
-                </div>
-                <div class="resultado-titulo">${leg.tipo || ''} nº ${leg.numero || '?'}/${leg.ano || '?'}</div>
-                <div class="resultado-ementa">${leg.ementa || ''}</div>
-                ${leg.justificativa ? '<div style="font-size:11px;color:var(--accent);margin-top:6px;padding:8px;background:rgba(0,200,150,0.05);border-radius:6px;">💬 ' + leg.justificativa + '</div>' : ''}
-                <div class="resultado-meta">
-                    ${leg.data_publicacao ? 'Publicação: ' + leg.data_publicacao + ' · ' : ''}
-                    ${leg.url_fonte ? '<a href="'+leg.url_fonte+'" target="_blank" style="color:var(--blue)">🔗 Ver fonte original</a> · ' : ''}
-                    Confiança: <span class="resultado-confianca ${confClass}">${(conf*100).toFixed(0)}%</span>
-                </div>
-
-            </div>
-        </div>`;
-    }).join('');
-
     el.innerHTML = html;
     window._resultadosBusca = r.legislacoes;
     atualizarContagemSelecionados();
