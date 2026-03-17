@@ -886,13 +886,15 @@ async function cadastrarSelecionados() {
     if (rCheck && rCheck.duplicatas && rCheck.duplicatas.length > 0) {
         const nomes = rCheck.duplicatas.map(d => d.tipo + ' nº ' + d.numero + '/' + d.ano + ' — ' + d.municipio).join('\n');
         const confirmar = confirm('As seguintes legislações já estão na biblioteca:\n\n' + nomes + '\n\nDeseja substituir pela versão encontrada agora?');
+        if (!confirmar) return;
         body.substituir = true;
     }
     const r = await api('POST', '/api/buscador/cadastrar', body);
     if (r.success) {
         const txtMsg = fonteUrl ? ' (com texto integral da fonte selecionada)' : '';
         alert(`${r.cadastradas || 0} legislação(ões) cadastrada(s) na biblioteca${txtMsg}!`);
-        document.getElementById('bm-resultados').style.display = 'none';
+        const resDiv = document.getElementById('bm-resultados');
+        if (resDiv) resDiv.style.opacity = '0.5';
     } else {
         alert('Erro: ' + (r.error || 'desconhecido'));
     }

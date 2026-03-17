@@ -2573,6 +2573,7 @@ def api_buscador_cadastrar():
     municipio = d.get('municipio', '')
     estado = d.get('estado', '')
     monitorar = d.get('monitorar', True)
+    substituir = d.get('substituir', False)
     job_id = d.get('job_id', '')
 
     if not legislacoes:
@@ -2594,6 +2595,10 @@ def api_buscador_cadastrar():
 
     try:
         from modulos.buscador_legislacoes import cadastrar_resultados
+        # Passar substituir para cada legislação
+        if substituir:
+            for leg in legislacoes:
+                leg['substituir'] = True
         ids = cadastrar_resultados(legislacoes, municipio, estado, monitorar)
         return jsonify({'success': True, 'cadastradas': len(ids), 'ids': ids})
     except Exception as e:
