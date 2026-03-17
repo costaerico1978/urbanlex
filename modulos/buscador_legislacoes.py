@@ -3793,8 +3793,11 @@ def cadastrar_resultados(legislacoes: List[dict], municipio: str, estado: str,
                 leg_id = row[0]
                 ids.append(leg_id)
                 # Inserir PDF na tabela legislacao_arquivos
-                if pdf_path and _os.path.isfile(pdf_path):
-                    _pdf_size = _os.path.getsize(pdf_path)
+                if pdf_path or pdf_dl_url:
+                    if pdf_path and _os.path.isfile(pdf_path):
+                        _pdf_size = _os.path.getsize(pdf_path)
+                    else:
+                        _pdf_size = 0
                     cur.execute(
                         """INSERT INTO legislacao_arquivos (legislacao_id, nome_arquivo, arquivo_tipo, arquivo_url, tamanho_bytes, conteudo_texto, criado_por)
                            VALUES (%s, %s, 'pdf', %s, %s, %s, 1) ON CONFLICT DO NOTHING""",
@@ -3806,6 +3809,10 @@ def cadastrar_resultados(legislacoes: List[dict], municipio: str, estado: str,
                     anx_url = anx.get('url', '')
                     anx_path = anx.get('path', '')
                     anx_size = _os.path.getsize(anx_path) if anx_path and _os.path.isfile(anx_path) else 0
+                    if not anx_size and anx_url and anx_url.startswith('/static/'):
+                        _anx_local = '/var/www/urbanlex' + anx_url
+                        if _os.path.isfile(_anx_local):
+                            anx_size = _os.path.getsize(_anx_local)
                     if anx_url:
                         cur.execute(
                             """INSERT INTO legislacao_arquivos (legislacao_id, nome_arquivo, arquivo_tipo, arquivo_url, tamanho_bytes, criado_por)
