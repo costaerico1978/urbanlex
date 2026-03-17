@@ -2553,7 +2553,7 @@ def api_buscador_verificar_duplicatas():
             tipo = (leg.get('tipo_legislacao') or leg.get('tipo') or '').strip()
             numero = (leg.get('numero') or '').strip()
             ano = str(leg.get('ano') or '').strip()
-            sql = 'SELECT id, tipo_legislacao, numero, ano, municipio_nome, url_original FROM legislacoes WHERE LOWER(tipo_legislacao)=LOWER(%s) AND numero=%s AND ano=%s AND LOWER(municipio_nome)=LOWER(%s) LIMIT 1'
+            sql = 'SELECT id, tipo_nome, numero, ano, municipio_nome, url_original FROM legislacoes WHERE LOWER(tipo_nome)=LOWER(%s) AND numero=%s AND ano=%s AND LOWER(municipio_nome)=LOWER(%s) LIMIT 1'
             cur.execute(sql, (tipo, numero, ano, municipio))
             row = cur.fetchone()
             if row:

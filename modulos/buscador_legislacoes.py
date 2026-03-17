@@ -3757,7 +3757,7 @@ def cadastrar_resultados(legislacoes: List[dict], municipio: str, estado: str,
             data_pub = leg.get('data_publicacao') or None
             # Verificar se já existe
             cur.execute(
-                'SELECT id FROM legislacoes WHERE LOWER(tipo_nome)=LOWER(%s) AND numero=%s AND ano=%s AND LOWER(municipio_nome)=LOWER(%s) LIMIT 1',
+                'SELECT id FROM legislacoes WHERE LOWER(tipo_nome)=LOWER(%s) AND numero=%s AND CAST(ano AS TEXT)=%s AND LOWER(municipio_nome)=LOWER(%s) LIMIT 1',
                 (tipo_nome, numero, str(ano) if ano else '', municipio)
             )
             existente = cur.fetchone()
