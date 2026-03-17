@@ -3735,24 +3735,24 @@ Se não encontrar data exata, retorne {{"data_publicacao": ""}}. NÃO invente.""
     # CADASTRO DE RESULTADOS
     # ─────────────────────────────────────────────────────────────────────────────
     
-    def cadastrar_resultados(legislacoes: List[dict], municipio: str, estado: str,
-                              monitorar: bool = True) -> List[int]:
-        """Cadastra legislações encontradas pelo buscador na biblioteca."""
-        try:
-            from modulos.descobridor_legislacoes import cadastrar_legislacoes_descobertas
-            return cadastrar_legislacoes_descobertas(
-                legislacoes, municipio, estado,
-                ativar_monitoramento=monitorar
-            )
-        except Exception as e:
-            logger.error(f"Erro ao cadastrar: {e}")
-            return []
-    
-    
-    # ─────────────────────────────────────────────────────────────────────────────
-    # FILA DE BUSCAS
-    # ─────────────────────────────────────────────────────────────────────────────
-    
+def cadastrar_resultados(legislacoes: List[dict], municipio: str, estado: str,
+                          monitorar: bool = True) -> List[int]:
+    """Cadastra legislações encontradas pelo buscador na biblioteca."""
+    try:
+        from modulos.descobridor_legislacoes import cadastrar_legislacoes_descobertas
+        return cadastrar_legislacoes_descobertas(
+            legislacoes, municipio, estado,
+            ativar_monitoramento=monitorar
+        )
+    except Exception as e:
+        logger.error(f"Erro ao cadastrar: {e}")
+        return []
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FILA DE BUSCAS
+# ─────────────────────────────────────────────────────────────────────────────
+
     def _registrar_busca_fila(tipo, municipio, estado, legislacoes_encontradas=0,
                                legislacoes_cadastradas=0, status='concluido',
                                detalhes=None, mensagem=''):
