@@ -434,13 +434,13 @@ const LegManager = (() => {
     const res = await API(`/api/legislacoes/${legId}/arquivos`);
     if (!res.success) return toast('Erro ao carregar anexos', 'error');
     const anexos = res.data.filter(a => a.arquivo_tipo === 'zip' || a.arquivo_tipo === 'pdf');
-    if (anexos.length === 1) {
-        window.open(`/api/legislacoes/${legId}/arquivos/${anexos[0].id}/download`, '_blank');
-    } else if (anexos.length > 1) {
-        // Abrir modal com lista de anexos para escolher
-        openFiles(legId);
-    } else {
+    if (anexos.length === 0) {
         toast('Nenhum anexo disponível', 'info');
+    } else {
+        // Baixar todos os anexos sequencialmente
+        for (const arq of anexos) {
+            window.open(`/api/legislacoes/${legId}/arquivos/${arq.id}/download`, '_blank');
+        }
     }
   };
 
