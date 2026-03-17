@@ -3776,7 +3776,9 @@ def cadastrar_resultados(legislacoes: List[dict], municipio: str, estado: str,
             pdf_dl_url = leg.get('pdf_download_url', '')
             anexos = leg.get('anexos_lm', [])
             import os as _os
-            arquivo_nome = _os.path.basename(pdf_path) if pdf_path else ''
+            # Usar nome significativo baseado na legislação
+            _ext = _os.path.splitext(pdf_path)[1] if pdf_path else '.pdf'
+            arquivo_nome = f'{tipo_nome}-{numero}-{ano}-{municipio}{_ext}'.replace(' ', '_').replace('/', '-') if pdf_path else ''
             cur.execute(
                 """INSERT INTO legislacoes (pais, esfera, estado, municipio_nome, tipo_nome, numero, ano,
                     data_publicacao, ementa, conteudo_texto, url_original, arquivo_url, arquivo_nome,
