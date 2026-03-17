@@ -79,6 +79,7 @@ const LegManager = (() => {
       .leg-actions button.leg-act-dl:hover     { color:#059669; background:#ecfdf5; }
       .leg-actions button.leg-act-files:hover  { color:#7c3aed; background:#f5f3ff; }
       .leg-actions button.leg-act-files.has-files  { color:#7c3aed; }
+      .leg-actions button.leg-act-upload:hover { color:#0284c7; background:#e0f2fe; }
       .leg-actions button.leg-act-save         { color:#059669; }
       .leg-actions button.leg-act-save:hover   { background:#ecfdf5; }
       .leg-actions button.leg-act-cancel       { color:#dc2626; }
@@ -234,6 +235,7 @@ const LegManager = (() => {
   const ICONS = {
     edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
     download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+    upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>',
     files: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>',
     save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
     cancel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
@@ -258,9 +260,13 @@ const LegManager = (() => {
                 ${!hasDoc && !hasFiles ? 'disabled style="opacity:.3;cursor:not-allowed"' : ''}>
           ${ICONS.download}
         </button>
-        <button class="leg-act-files${hasFiles ? ' has-files' : ''}" onclick="LegManager.openFiles(${legId})" title="Arquivos">
+        <button class="leg-act-files${hasFiles ? ' has-files' : ''}" onclick="LegManager.downloadAnexos(${legId})" title="Baixar Anexos"
+                ${!hasFiles ? 'disabled style="opacity:.3;cursor:not-allowed"' : ''}>
           ${ICONS.files}
           ${hasFiles ? `<span class="leg-file-badge">${opts.qtdArquivos}</span>` : ''}
+        </button>
+        <button class="leg-act-upload" onclick="LegManager.openFiles(${legId})" title="Gerenciar Arquivos">
+          ${ICONS.upload}
         </button>
       </div>`;
   };
@@ -422,6 +428,20 @@ const LegManager = (() => {
   const getFileIconLabel = (tipo) => {
     if (!tipo) return '?';
     return tipo.substring(0, 4).toUpperCase();
+  };
+
+  const downloadAnexos = async (legId) => {
+    const res = await API(`/api/legislacoes/${legId}/arquivos`);
+    if (!res.success) return toast('Erro ao carregar anexos', 'error');
+    const anexos = res.data.filter(a => a.arquivo_tipo === 'zip' || a.arquivo_tipo === 'pdf');
+    if (anexos.length === 1) {
+        window.open(`/api/legislacoes/${legId}/arquivos/${anexos[0].id}/download`, '_blank');
+    } else if (anexos.length > 1) {
+        // Abrir modal com lista de anexos para escolher
+        openFiles(legId);
+    } else {
+        toast('Nenhum anexo disponível', 'info');
+    }
   };
 
   const openFiles = async (legId) => {
@@ -652,6 +672,7 @@ const LegManager = (() => {
     download,
     downloadArquivo,
     openFiles,
+    downloadAnexos,
     closeModal,
     deleteFile,
   };
