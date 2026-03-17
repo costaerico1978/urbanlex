@@ -973,7 +973,7 @@ def _clicar_por_texto(page, texto_elemento: str, logs: list, label: str) -> str:
                                     if _proxy_url_curl:
                                         _curl_cmd += ['--proxy', _proxy_url_curl]
                                     logs.append({'nivel': 'info', 'msg': f'{label}: ℹ️ A0 curl: {_fetch_url_a0[:70]} proxy={bool(_proxy_url_curl)} cookies={len(_curl_cookies)}chars'})
-                                    _curl_result = _sp_curl.run(_curl_cmd, capture_output=True, timeout=70)
+                                    _curl_result = _sp_curl.run(_curl_cmd, capture_output=True, timeout=130)
                                     if os.path.exists(_dp_a0):
                                         _sz_curl = os.path.getsize(_dp_a0)
                                         _head_curl = open(_dp_a0,'rb').read(8)
@@ -1013,7 +1013,7 @@ def _clicar_por_texto(page, texto_elemento: str, logs: list, label: str) -> str:
                                                     _curl_cmd2 += ['--cookie', _curl_cookies]
                                                 if _proxy_url_curl:
                                                     _curl_cmd2 += ['--proxy', _proxy_url_curl]
-                                                _curl_result2 = _sp_curl.run(_curl_cmd2, capture_output=True, timeout=70)
+                                                _curl_result2 = _sp_curl.run(_curl_cmd2, capture_output=True, timeout=130)
                                                 if os.path.exists(_dp_a0):
                                                     _sz_curl2 = os.path.getsize(_dp_a0)
                                                     _head_curl2 = open(_dp_a0,'rb').read(8)
@@ -2635,8 +2635,8 @@ def navegar_via_flaresolverr(
     def _flare_get(url):
         try:
             r = _req.post('http://localhost:8191/v1',
-                json={'cmd': 'request.get', 'url': url, 'maxTimeout': 60000},
-                timeout=70)
+                json={'cmd': 'request.get', 'url': url, 'maxTimeout': 120000},
+                timeout=130)
             d = r.json()
             if d.get('status') == 'ok':
                 sol = d.get('solution', {})
@@ -2763,12 +2763,12 @@ def navegar_com_cookies_flaresolverr(
     try:
         # Usar sessao persistente para acumular historico e melhorar score reCAPTCHA
         _fs_session_id = os.environ.get("FLARESOLVERR_SESSION", "")
-        _fs_payload = {"cmd": "request.get", "url": url_inicial, "maxTimeout": 60000}
+        _fs_payload = {"cmd": "request.get", "url": url_inicial, "maxTimeout": 120000}
         if _fs_session_id:
             _fs_payload["session"] = _fs_session_id
         r = _req.post("http://localhost:8191/v1",
             json=_fs_payload,
-            timeout=70)
+            timeout=130)
         d = r.json()
         if d.get("status") != "ok":
             logs.append({"nivel": "aviso", "msg": f"{label}: FlareSolverr falhou"})
