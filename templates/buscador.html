@@ -853,6 +853,13 @@ function limparFormManual() {
     document.getElementById('bm-esfera').value = 'municipal';
     bmEsferaChanged();
     document.getElementById('bm-resultados').style.display = 'none';
+    // Limpar log
+    const logEl = document.getElementById('bm-log-lines');
+    if (logEl) logEl.innerHTML = '';
+    const logBox = document.getElementById('bm-log');
+    if (logBox) logBox.style.display = 'none';
+    window._resultadosBusca = null;
+    window._buscadorJobId = null;
 }
 
 async function cadastrarSelecionados() {
