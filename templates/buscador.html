@@ -856,22 +856,17 @@ function limparFormManual() {
 }
 
 async function cadastrarSelecionados() {
-    if (!window._resultadosBusca) return;
-    const checks = document.querySelectorAll('.resultado-check:checked');
-    const indices = Array.from(checks).map(c => parseInt(c.dataset.idx));
+    if (!window._resultadosBusca || !window._resultadosBusca.length) { alert('Nenhuma legislação encontrada.'); return; }
 
     // Obter fonte selecionada pelo rádio global
     const fonteRadio = document.querySelector('input[name="fonte-selecionada"]:checked');
     const fonteUrl = fonteRadio ? (fonteRadio.dataset.url || '') : '';
 
-    const selecionados = indices.map(i => {
-        const leg = {...window._resultadosBusca[i]};
-        if (fonteUrl) {
-            leg.fonte_selecionada_url = fonteUrl;
-        }
-        return leg;
-    }).filter(Boolean);
-    if (!selecionados.length) { alert('Selecione ao menos uma legislação.'); return; }
+    const selecionados = window._resultadosBusca.map(leg => {
+        const l = {...leg};
+        if (fonteUrl) l.fonte_selecionada_url = fonteUrl;
+        return l;
+    });
 
     const esf = document.getElementById('bm-esfera').value || 'municipal';
     const estado = document.getElementById('bm-estado').value;
