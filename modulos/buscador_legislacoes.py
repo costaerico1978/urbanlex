@@ -3761,24 +3761,24 @@ def cadastrar_resultados(legislacoes: List[dict], municipio: str, estado: str,
                 (tipo_nome, numero, str(ano) if ano else '', municipio)
             )
             existente = cur.fetchone()
+            # Calcular pdf e nome antes de qualquer branch
+            pdf_path = leg.get('pdf_path', '')
+            pdf_dl_url = leg.get('pdf_download_url', '')
+            anexos = leg.get('anexos_lm', [])
+            import os as _os
+            _ext = _os.path.splitext(pdf_path)[1] if pdf_path else '.pdf'
+            arquivo_nome = f'{tipo_nome}-{numero}-{ano}-{municipio}{_ext}'.replace(' ', '_').replace('/', '-') if pdf_path else ''
             if existente and not leg.get('substituir'):
                 ids.append(existente[0])
                 continue
             if existente and leg.get('substituir'):
                 cur.execute(
-                    'UPDATE legislacoes SET ementa=%s, conteudo_texto=%s, url_original=%s, em_monitoramento=%s WHERE id=%s',
-                    (ementa, texto, url, monitorar, existente[0])
+                    'UPDATE legislacoes SET ementa=%s, conteudo_texto=%s, url_original=%s, arquivo_url=%s, arquivo_nome=%s, em_monitoramento=%s WHERE id=%s',
+                    (ementa, texto, url, pdf_dl_url or None, arquivo_nome or None, monitorar, existente[0])
                 )
                 conn.commit()
                 ids.append(existente[0])
                 continue
-            pdf_path = leg.get('pdf_path', '')
-            pdf_dl_url = leg.get('pdf_download_url', '')
-            anexos = leg.get('anexos_lm', [])
-            import os as _os
-            # Usar nome significativo baseado na legislação
-            _ext = _os.path.splitext(pdf_path)[1] if pdf_path else '.pdf'
-            arquivo_nome = f'{tipo_nome}-{numero}-{ano}-{municipio}{_ext}'.replace(' ', '_').replace('/', '-') if pdf_path else ''
             cur.execute(
                 """INSERT INTO legislacoes (pais, esfera, estado, municipio_nome, tipo_nome, numero, ano,
                     data_publicacao, ementa, conteudo_texto, url_original, arquivo_url, arquivo_nome,
