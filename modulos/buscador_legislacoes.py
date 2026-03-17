@@ -3738,15 +3738,57 @@ Se não encontrar data exata, retorne {{"data_publicacao": ""}}. NÃO invente.""
 def cadastrar_resultados(legislacoes: List[dict], municipio: str, estado: str,
                           monitorar: bool = True) -> List[int]:
     """Cadastra legislações encontradas pelo buscador na biblioteca."""
+    import psycopg2, os, json as _json
+    db_url = os.environ.get('DATABASE_URL', '')
+    if not db_url:
+        logger.error('DATABASE_URL não configurada')
+        return []
+    ids = []
     try:
-        from modulos.descobridor_legislacoes import cadastrar_legislacoes_descobertas
-        return cadastrar_legislacoes_descobertas(
-            legislacoes, municipio, estado,
-            ativar_monitoramento=monitorar
-        )
+        conn = psycopg2.connect(db_url)
+        cur = conn.cursor()
+        for leg in legislacoes:
+            tipo_nome = (leg.get('tipo_legislacao') or leg.get('tipo') or '').strip()
+            numero = (leg.get('numero') or '').strip()
+            ano = leg.get('ano')
+            ementa = leg.get('ementa') or leg.get('assunto') or ''
+            texto = leg.get('texto_integral') or leg.get('texto') or ''
+            url = leg.get('url_texto_fonte') or leg.get('url_fonte') or leg.get('fonte_url') or ''
+            data_pub = leg.get('data_publicacao') or None
+            # Verificar se já existe
+            cur.execute(
+                'SELECT id FROM legislacoes WHERE LOWER(tipo_nome)=LOWER(%s) AND numero=%s AND ano=%s AND LOWER(municipio_nome)=LOWER(%s) LIMIT 1',
+                (tipo_nome, numero, str(ano) if ano else '', municipio)
+            )
+            existente = cur.fetchone()
+            if existente and not leg.get('substituir'):
+                ids.append(existente[0])
+                continue
+            if existente and leg.get('substituir'):
+                cur.execute(
+                    'UPDATE legislacoes SET ementa=%s, conteudo_texto=%s, url_original=%s, em_monitoramento=%s WHERE id=%s',
+                    (ementa, texto, url, monitorar, existente[0])
+                )
+                conn.commit()
+                ids.append(existente[0])
+                continue
+            cur.execute(
+                """INSERT INTO legislacoes (pais, esfera, estado, municipio_nome, tipo_nome, numero, ano,
+                    data_publicacao, ementa, conteudo_texto, url_original, em_monitoramento, origem, pendente_aprovacao, criado_em)
+                    VALUES ('BR', 'municipal', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'buscador', FALSE, NOW())
+                    RETURNING id""",
+                (estado, municipio, tipo_nome, numero, int(ano) if ano else None,
+                 data_pub, ementa, texto, url, monitorar)
+            )
+            row = cur.fetchone()
+            if row:
+                ids.append(row[0])
+        conn.commit()
+        cur.close()
+        conn.close()
     except Exception as e:
         logger.error(f"Erro ao cadastrar: {e}")
-        return []
+    return ids
 
 
 # ─────────────────────────────────────────────────────────────────────────────
