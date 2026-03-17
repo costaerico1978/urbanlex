@@ -3794,20 +3794,23 @@ def cadastrar_resultados(legislacoes: List[dict], municipio: str, estado: str,
                 ids.append(leg_id)
                 # Inserir PDF na tabela legislacao_arquivos
                 if pdf_path and _os.path.isfile(pdf_path):
+                    _pdf_size = _os.path.getsize(pdf_path)
                     cur.execute(
-                        """INSERT INTO legislacao_arquivos (legislacao_id, nome_arquivo, arquivo_tipo, arquivo_url, conteudo_texto, criado_por)
-                           VALUES (%s, %s, 'pdf', %s, %s, 1) ON CONFLICT DO NOTHING""",
-                        (leg_id, arquivo_nome, pdf_dl_url or None, texto[:5000] if texto else None)
+                        """INSERT INTO legislacao_arquivos (legislacao_id, nome_arquivo, arquivo_tipo, arquivo_url, tamanho_bytes, conteudo_texto, criado_por)
+                           VALUES (%s, %s, 'pdf', %s, %s, %s, 1) ON CONFLICT DO NOTHING""",
+                        (leg_id, arquivo_nome, pdf_dl_url or None, _pdf_size, texto[:5000] if texto else None)
                     )
                 # Inserir anexos
                 for anx in anexos:
                     anx_nome = anx.get('nome', 'Anexo')
                     anx_url = anx.get('url', '')
+                    anx_path = anx.get('path', '')
+                    anx_size = _os.path.getsize(anx_path) if anx_path and _os.path.isfile(anx_path) else 0
                     if anx_url:
                         cur.execute(
-                            """INSERT INTO legislacao_arquivos (legislacao_id, nome_arquivo, arquivo_tipo, arquivo_url, criado_por)
-                               VALUES (%s, %s, 'zip', %s, 1) ON CONFLICT DO NOTHING""",
-                            (leg_id, anx_nome, anx_url)
+                            """INSERT INTO legislacao_arquivos (legislacao_id, nome_arquivo, arquivo_tipo, arquivo_url, tamanho_bytes, criado_por)
+                               VALUES (%s, %s, 'zip', %s, %s, 1) ON CONFLICT DO NOTHING""",
+                            (leg_id, anx_nome, anx_url, anx_size)
                         )
         conn.commit()
         cur.close()

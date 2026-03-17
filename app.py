@@ -1058,6 +1058,13 @@ def api_download_arquivo(leg_id, arq_id):
         return jsonify({'error': 'Arquivo sem URL de acesso'}), 404
     if url.startswith('http'):
         return redirect(url)
+    if url.startswith('/static/'):
+        import os
+        file_path = os.path.join(os.path.dirname(__file__), url.lstrip('/'))
+        if os.path.isfile(file_path):
+            from flask import send_file
+            return send_file(file_path, as_attachment=True, download_name=arq.get('nome_arquivo') or os.path.basename(file_path))
+        return jsonify({'error': 'Arquivo local nao encontrado'}), 404
     if r2_disponivel():
         url_assinada = r2_url_assinada(url, expiracao_seg=3600)
         if url_assinada:
