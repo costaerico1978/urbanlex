@@ -2581,17 +2581,31 @@ def api_buscador_cadastrar():
 
     # Recuperar textos completos do cache do job (se disponível)
     textos_cache = {}
+    pdf_cache = {}
+    anexos_cache = {}
     if job_id and job_id in _buscador_jobs:
         job = _buscador_jobs[job_id]
         for tf in job.get('_textos_completos', []):
-            textos_cache[tf.get('url', '')] = tf.get('texto', '')
+            url = tf.get('url', '')
+            textos_cache[url] = tf.get('texto', '')
+            if tf.get('pdf_path'):
+                pdf_cache[url] = tf['pdf_path']
+            if tf.get('pdf_download_url'):
+                pdf_cache[url + '_dl'] = tf['pdf_download_url']
+            if tf.get('anexos_lm'):
+                anexos_cache[url] = tf['anexos_lm']
 
-    # Enriquecer cada legislação com o texto da fonte escolhida
+    # Enriquecer cada legislação com o texto e PDF da fonte escolhida
     for leg in legislacoes:
         fonte_url = leg.get('fonte_selecionada_url', '') or leg.get('url_fonte', '')
         if fonte_url and fonte_url in textos_cache:
             leg['texto_integral'] = textos_cache[fonte_url]
             leg['url_texto_fonte'] = fonte_url
+        if fonte_url and fonte_url in pdf_cache:
+            leg['pdf_path'] = pdf_cache[fonte_url]
+            leg['pdf_download_url'] = pdf_cache.get(fonte_url + '_dl', '')
+        if fonte_url and fonte_url in anexos_cache:
+            leg['anexos_lm'] = anexos_cache[fonte_url]
 
     try:
         from modulos.buscador_legislacoes import cadastrar_resultados

@@ -3772,17 +3772,41 @@ def cadastrar_resultados(legislacoes: List[dict], municipio: str, estado: str,
                 conn.commit()
                 ids.append(existente[0])
                 continue
+            pdf_path = leg.get('pdf_path', '')
+            pdf_dl_url = leg.get('pdf_download_url', '')
+            anexos = leg.get('anexos_lm', [])
+            import os as _os
+            arquivo_nome = _os.path.basename(pdf_path) if pdf_path else ''
             cur.execute(
                 """INSERT INTO legislacoes (pais, esfera, estado, municipio_nome, tipo_nome, numero, ano,
-                    data_publicacao, ementa, conteudo_texto, url_original, em_monitoramento, origem, pendente_aprovacao, criado_em)
-                    VALUES ('BR', 'municipal', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'buscador', FALSE, NOW())
+                    data_publicacao, ementa, conteudo_texto, url_original, arquivo_url, arquivo_nome,
+                    em_monitoramento, origem, pendente_aprovacao, criado_em)
+                    VALUES ('BR', 'municipal', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'buscador', FALSE, NOW())
                     RETURNING id""",
                 (estado, municipio, tipo_nome, numero, int(ano) if ano else None,
-                 data_pub, ementa, texto, url, monitorar)
+                 data_pub, ementa, texto, url, pdf_dl_url or None, arquivo_nome or None, monitorar)
             )
             row = cur.fetchone()
             if row:
-                ids.append(row[0])
+                leg_id = row[0]
+                ids.append(leg_id)
+                # Inserir PDF na tabela legislacao_arquivos
+                if pdf_path and _os.path.isfile(pdf_path):
+                    cur.execute(
+                        """INSERT INTO legislacao_arquivos (legislacao_id, nome_arquivo, arquivo_tipo, arquivo_url, conteudo_texto, criado_por)
+                           VALUES (%s, %s, 'pdf', %s, %s, 1) ON CONFLICT DO NOTHING""",
+                        (leg_id, arquivo_nome, pdf_dl_url or None, texto[:5000] if texto else None)
+                    )
+                # Inserir anexos
+                for anx in anexos:
+                    anx_nome = anx.get('nome', 'Anexo')
+                    anx_url = anx.get('url', '')
+                    if anx_url:
+                        cur.execute(
+                            """INSERT INTO legislacao_arquivos (legislacao_id, nome_arquivo, arquivo_tipo, arquivo_url, criado_por)
+                               VALUES (%s, %s, 'zip', %s, 1) ON CONFLICT DO NOTHING""",
+                            (leg_id, anx_nome, anx_url)
+                        )
         conn.commit()
         cur.close()
         conn.close()
