@@ -2384,12 +2384,6 @@ def api_buscador_manual_start():
                 job['done'] = True
                 return
 
-            # Matar processos Chromium órfãos antes de cada busca
-            try:
-                import subprocess as _sp_kill
-                _sp_kill.run(['pkill', '-9', '-f', 'chromium'], capture_output=True)
-            except Exception:
-                pass
             # Renovar sessão FlareSolverr antes de cada busca
             try:
                 import requests as _req_fs
