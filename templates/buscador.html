@@ -884,9 +884,20 @@ async function cadastrarSelecionados() {
     // Verificar duplicatas
     const rCheck = await api('POST', '/api/buscador/verificar-duplicatas', body);
     if (rCheck && rCheck.duplicatas && rCheck.duplicatas.length > 0) {
-        const nomes = rCheck.duplicatas.map(d => d.tipo + ' nº ' + d.numero + '/' + d.ano + ' — ' + d.municipio).join('\n');
-        const confirmar = confirm('As seguintes legislações já estão na biblioteca:\n\n' + nomes + '\n\nDeseja substituir pela versão encontrada agora?');
-        if (!confirmar) return;
+        for (const dup of rCheck.duplicatas) {
+            const mesmaFonte = fonteUrl && dup.url_cadastrada && dup.url_cadastrada === fonteUrl;
+            const nomeLeg = dup.tipo + ' nº ' + dup.numero + '/' + dup.ano + ' — ' + dup.municipio;
+            let msg, confirmar;
+            if (mesmaFonte) {
+                msg = nomeLeg + ' já está cadastrada na biblioteca com esta mesma fonte.\n\nDeseja recadastrá-la?';
+            } else if (dup.url_cadastrada) {
+                msg = nomeLeg + ' já está cadastrada na biblioteca com outra fonte.\n\nDeseja substituir pelo texto da nova fonte selecionada?';
+            } else {
+                msg = nomeLeg + ' já está cadastrada na biblioteca.\n\nDeseja substituí-la?';
+            }
+            confirmar = confirm(msg);
+            if (!confirmar) return;
+        }
         body.substituir = true;
     }
     const r = await api('POST', '/api/buscador/cadastrar', body);

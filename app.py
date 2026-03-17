@@ -2553,11 +2553,11 @@ def api_buscador_verificar_duplicatas():
             tipo = (leg.get('tipo_legislacao') or leg.get('tipo') or '').strip()
             numero = (leg.get('numero') or '').strip()
             ano = str(leg.get('ano') or '').strip()
-            sql = 'SELECT id, tipo_legislacao, numero, ano, municipio_nome FROM legislacoes WHERE LOWER(tipo_legislacao)=LOWER(%s) AND numero=%s AND ano=%s AND LOWER(municipio_nome)=LOWER(%s) LIMIT 1'
+            sql = 'SELECT id, tipo_legislacao, numero, ano, municipio_nome, url_original FROM legislacoes WHERE LOWER(tipo_legislacao)=LOWER(%s) AND numero=%s AND ano=%s AND LOWER(municipio_nome)=LOWER(%s) LIMIT 1'
             cur.execute(sql, (tipo, numero, ano, municipio))
             row = cur.fetchone()
             if row:
-                duplicatas.append({'id': row[0], 'tipo': row[1], 'numero': row[2], 'ano': row[3], 'municipio': row[4]})
+                duplicatas.append({'id': row[0], 'tipo': row[1], 'numero': row[2], 'ano': row[3], 'municipio': row[4], 'url_cadastrada': row[5] if len(row) > 5 else ''})
         cur.close()
         conn.close()
     except Exception as e:
