@@ -78,6 +78,7 @@ const LegManager = (() => {
       .leg-actions button.leg-act-edit:hover   { color:#2563eb; background:#eff6ff; }
       .leg-actions button.leg-act-dl:hover     { color:#059669; background:#ecfdf5; }
       .leg-actions button.leg-act-files:hover  { color:#7c3aed; background:#f5f3ff; }
+      .leg-actions button.leg-act-files.has-files  { color:#7c3aed; }
       .leg-actions button.leg-act-save         { color:#059669; }
       .leg-actions button.leg-act-save:hover   { background:#ecfdf5; }
       .leg-actions button.leg-act-cancel       { color:#dc2626; }
@@ -233,7 +234,7 @@ const LegManager = (() => {
   const ICONS = {
     edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
     download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
-    files: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
+    files: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>',
     save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
     cancel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
     close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
@@ -257,7 +258,7 @@ const LegManager = (() => {
                 ${!hasDoc && !hasFiles ? 'disabled style="opacity:.3;cursor:not-allowed"' : ''}>
           ${ICONS.download}
         </button>
-        <button class="leg-act-files" onclick="LegManager.openFiles(${legId})" title="Arquivos">
+        <button class="leg-act-files${hasFiles ? ' has-files' : ''}" onclick="LegManager.openFiles(${legId})" title="Arquivos">
           ${ICONS.files}
           ${hasFiles ? `<span class="leg-file-badge">${opts.qtdArquivos}</span>` : ''}
         </button>
