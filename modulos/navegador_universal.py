@@ -3168,6 +3168,20 @@ def navegar_com_cookies_flaresolverr(
                         _pg2.remove_listener('request', _on_req)
                     except Exception:
                         _t2.sleep(5)
+                    # Aguardar lazy loading do LeisMunicipais (30x10s = 300s max)
+                    try:
+                        _prev_len_sess = 0
+                        for _wi_sess in range(30):
+                            _t2.sleep(10)
+                            _html_tmp = _pg2.content()
+                            _cur_len_sess = len(_html_tmp)
+                            _has_law_sess = 'law-container' in _html_tmp
+                            if _cur_len_sess == _prev_len_sess and _has_law_sess:
+                                logs.append({"nivel": "info", "msg": f"{label}: [sessao] HTML estabilizado ({_cur_len_sess} chars, {_wi_sess+1} iter)"})
+                                break
+                            _prev_len_sess = _cur_len_sess
+                    except Exception:
+                        pass
                     _html_sessao = _pg2.content()
                     _lm_loading_kws = ['norma requisitada est', 'Por favor, aguarde', 'sendo carregada']
                     _lm_loading = any(s in _html_sessao for s in _lm_loading_kws) if _html_sessao else True
