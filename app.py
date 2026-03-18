@@ -637,7 +637,7 @@ def api_listar_legislacoes():
     where_sql = ' AND '.join(where)
     total = qry(f"SELECT COUNT(*) as n FROM legislacoes l WHERE {where_sql}", params, 'one')['n']
     order = 'l.criado_em DESC' if request.args.get('order') == 'recente' else 'l.estado, l.municipio_nome, l.ano DESC'
-    data = qry(f"""SELECT l.*, tl.nome as tipo_nome, al.nome as assunto_nome,
+    data = qry(f"""SELECT l.*, COALESCE(tl.nome, l.tipo_nome) as tipo_nome, COALESCE(al.nome, l.assunto_nome) as assunto_nome,
                    COALESCE(fa.qtd_arquivos, 0) as qtd_arquivos
                    FROM legislacoes l
                    LEFT JOIN tipos_legislacao tl ON l.tipo_id=tl.id
@@ -705,7 +705,7 @@ def api_criar_legislacao():
 @app.route('/api/legislacoes/<int:leg_id>', methods=['GET'])
 @login_required
 def api_get_legislacao(leg_id):
-    l = qry("SELECT l.*, tl.nome as tipo_nome, al.nome as assunto_nome FROM legislacoes l LEFT JOIN tipos_legislacao tl ON l.tipo_id=tl.id LEFT JOIN assuntos_legislacao al ON l.assunto_id=al.id WHERE l.id=%s", (leg_id,), 'one')
+    l = qry("SELECT l.*, COALESCE(tl.nome, l.tipo_nome) as tipo_nome, COALESCE(al.nome, l.assunto_nome) as assunto_nome FROM legislacoes l LEFT JOIN tipos_legislacao tl ON l.tipo_id=tl.id LEFT JOIN assuntos_legislacao al ON l.assunto_id=al.id WHERE l.id=%s", (leg_id,), 'one')
     if not l: return jsonify({'success':False,'error':'Nao encontrada'}), 404
     arquivos = qry("""SELECT id, nome_arquivo, arquivo_tipo, tamanho_bytes, criado_em
                       FROM legislacao_arquivos WHERE legislacao_id=%s ORDER BY criado_em""", (leg_id,))
@@ -932,7 +932,7 @@ def api_editar_legislacao(leg_id):
     all_vals = vals + extra_vals + [leg_id]
     qry(f"UPDATE legislacoes SET {set_sql} WHERE id=%s", all_vals, commit=True, fetch=None)
     # Retornar legislacao atualizada
-    updated = qry("SELECT l.*, tl.nome as tipo_nome, al.nome as assunto_nome FROM legislacoes l LEFT JOIN tipos_legislacao tl ON l.tipo_id=tl.id LEFT JOIN assuntos_legislacao al ON l.assunto_id=al.id WHERE l.id=%s", (leg_id,), 'one')
+    updated = qry("SELECT l.*, COALESCE(tl.nome, l.tipo_nome) as tipo_nome, COALESCE(al.nome, l.assunto_nome) as assunto_nome FROM legislacoes l LEFT JOIN tipos_legislacao tl ON l.tipo_id=tl.id LEFT JOIN assuntos_legislacao al ON l.assunto_id=al.id WHERE l.id=%s", (leg_id,), 'one')
     return jsonify({'success': True, 'data': updated})
 
 # -------------------------------------------------------------------
