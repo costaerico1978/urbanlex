@@ -3071,7 +3071,7 @@ def navegar_com_cookies_flaresolverr(
                                                     # Aguardar law-container aparecer após o redirect
                                                     _html_pass = ''
                                                     _law_found = False
-                                                    for _wi in range(12):
+                                                    for _wi in range(6):  # max 30s
                                                         _t2.sleep(5)
                                                         try:
                                                             _pg2.wait_for_selector('div.law-container', timeout=4000)
@@ -3082,8 +3082,8 @@ def navegar_com_cookies_flaresolverr(
                                                     if _law_found:
                                                         # Aguardar texto estabilizar — AJAX carrega progressivamente
                                                         _prev_len = 0
-                                                        for _wi2 in range(60):
-                                                            _t2.sleep(10)
+                                                        for _wi2 in range(8):  # max 40s
+                                                            _t2.sleep(5)
                                                             _cur_html = _pg2.content()
                                                             _cur_len = len(_cur_html)
                                                             if _cur_len == _prev_len:
