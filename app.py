@@ -2356,6 +2356,18 @@ def _cleanup_old_jobs():
     for k in expired:
         _buscador_jobs.pop(k, None)
 
+
+@app.route('/api/buscador/cancelar', methods=['POST'])
+@login_required
+def api_buscador_cancelar():
+    """Cancela um job de busca ativo."""
+    job_id = (request.json or {}).get('job_id', '')
+    job = _buscador_jobs.get(job_id)
+    if job and not job.get('done'):
+        job['cancelled'] = True
+        job['logs'].append({'nivel': 'aviso', 'msg': '⚠️ Busca cancelada pelo usuário'})
+    return jsonify({'success': True})
+
 @app.route('/api/buscador/manual-stream', methods=['POST'])
 @editor_required
 def api_buscador_manual_start():

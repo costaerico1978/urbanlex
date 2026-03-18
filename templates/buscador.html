@@ -629,6 +629,7 @@ async function executarBuscaManual() {
         }
         const jobId = startResp.job_id;
         window._buscadorJobId = jobId;
+        window._buscadorCancelado = false;
         logLine('🔗', 'Job iniciado — acompanhe o progresso em tempo real', 'var(--accent)');
         logSpinner('Aguardando primeiros resultados...');
 
@@ -640,6 +641,7 @@ async function executarBuscaManual() {
         let notFoundCount = 0; // contador de vezes que job não foi encontrado
 
         while (!done) {
+            if (window._buscadorCancelado) { done = true; break; }
             await new Promise(ok => setTimeout(ok, 1500));
 
             try {
@@ -855,7 +857,13 @@ function limparFormManual() {
     const logBox = document.getElementById('bm-log');
     if (logBox) logBox.style.display = 'none';
     window._resultadosBusca = null;
-    window._buscadorJobId = null;
+    // Cancelar job ativo no backend
+    if (window._buscadorJobId) {
+        window._buscadorCancelado = true;
+        fetch('/api/buscador/cancelar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({job_id: window._buscadorJobId})}).catch(()=>{});
+        window._buscadorJobId = null;
+    }
+    window._buscadorCancelado = true;
 }
 
 async function cadastrarSelecionados() {
