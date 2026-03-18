@@ -3082,7 +3082,7 @@ def navegar_com_cookies_flaresolverr(
                                                     if _law_found:
                                                         # Aguardar texto estabilizar — AJAX carrega progressivamente
                                                         _prev_len = 0
-                                                        for _wi2 in range(8):  # max 40s
+                                                        for _wi2 in range(18):  # max 90s
                                                             _t2.sleep(5)
                                                             _cur_html = _pg2.content()
                                                             _cur_len = len(_cur_html)
@@ -3174,6 +3174,32 @@ def navegar_com_cookies_flaresolverr(
                     if _html_sessao and len(_html_sessao) > 10000 and not _lm_loading:
                         resultado['html'] = _html_sessao
                         logs.append({'nivel': 'ok', 'msg': f'{label}: HTML extraido via sessao ({len(_html_sessao)} chars)'})
+                        # Extrair anexos S3 do HTML da sessão
+                        try:
+                            import time as _t_anx2, os as _os_anx2, requests as _rq_anx2
+                            from bs4 import BeautifulSoup as _BS_anx2
+                            _soup_anx2 = _BS_anx2(_html_sessao, 'html.parser')
+                            _now_anx2 = int(_t_anx2.time())
+                            _anexos_anx2 = []
+                            _pdf_dir_anx2 = _os_anx2.path.join(_os_anx2.path.dirname(_os_anx2.path.dirname(__file__)), 'static', 'downloads')
+                            _os_anx2.makedirs(_pdf_dir_anx2, exist_ok=True)
+                            for _a2 in _soup_anx2.find_all('a', attrs={'data-s3-expires': True}):
+                                _exp2 = int(_a2.get('data-s3-expires', 0))
+                                _href2 = _a2.get('href', '')
+                                _txt2 = _a2.get_text().strip() or 'Anexo'
+                                if not _href2 or _exp2 <= _now_anx2:
+                                    continue
+                                _r2 = _rq_anx2.get(_href2, timeout=60)
+                                if _r2.status_code == 200:
+                                    _ext2 = '.zip' if 'zip' in _href2.lower() else '.pdf'
+                                    _fname2 = f'lm_anexo_{len(_anexos_anx2)+1}{_ext2}'
+                                    open(_os_anx2.path.join(_pdf_dir_anx2, _fname2), 'wb').write(_r2.content)
+                                    _anexos_anx2.append({'url': f'/static/downloads/{_fname2}', 'nome': _txt2})
+                                    logs.append({'nivel': 'ok', 'msg': f'{label}: 📎 Anexo "{_txt2}" baixado ({len(_r2.content)//1024}KB)'})
+                            if _anexos_anx2:
+                                resultado['anexos_lm'] = _anexos_anx2
+                        except Exception as _e_anx2:
+                            logs.append({'nivel': 'aviso', 'msg': f'{label}: 📎 Erro anexos sessao: {str(_e_anx2)[:80]}'})
                     elif _lm_loading:
                         logs.append({'nivel': 'aviso', 'msg': f'{label}: HTML sessao ainda em loading — descartando'})
                     else:
