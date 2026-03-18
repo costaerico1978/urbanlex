@@ -2651,7 +2651,7 @@ def busca_manual(params: dict, log_callback=None) -> dict:
 
     try:
         return _busca_manual_core(params, logs, fontes_status)
-    except Exception as e:
+    except BaseException as e:
         import traceback
         tb = traceback.format_exc()
         logs.append({'nivel': 'erro', 'msg': f'❌  ERRO FATAL: {str(e)[:200]}'})
