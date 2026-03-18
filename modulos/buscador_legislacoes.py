@@ -569,9 +569,8 @@ def _buscar_leismunicipais_direto(municipio: str, estado: str, tipo: str, numero
                         _lei_url = fs_result["url"]
                         logs.append({"nivel": "info", "msg": f"📖 LeisMunicipais: buscando conteudo via FlareSolverr: {_lei_url[:80]}"})
                         _r_lei = _req_lm.post("http://localhost:8191/v1",
-                            json={"cmd": "request.get", "url": _lei_url, "maxTimeout": 60000, "waitTime": 60000},
-                            timeout=130)
-                        _d_lei = _r_lei.json()
+                            json={"cmd": "request.get", "url": _lei_url, "maxTimeout": 60000},
+                            timeout=75)
                         if _d_lei.get("status") == "ok":
                             _html_lei = _d_lei.get("solution", {}).get("response", "")
                     except Exception as e_lm_texto:
