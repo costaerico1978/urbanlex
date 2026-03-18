@@ -3852,53 +3852,53 @@ def cadastrar_resultados(legislacoes: List[dict], municipio: str, estado: str,
 # FILA DE BUSCAS
 # ─────────────────────────────────────────────────────────────────────────────
 
-    def _registrar_busca_fila(tipo, municipio, estado, legislacoes_encontradas=0,
-                               legislacoes_cadastradas=0, status='concluido',
-                               detalhes=None, mensagem=''):
-        """Registra busca no log/fila."""
-        try:
-            _qry("""INSERT INTO integracao_log
-                    (tipo, municipios_consultados, novos_detectados,
-                     legislacoes_cadastradas, detalhes, status, criado_em)
-                    VALUES (%s, 1, %s, %s, %s, %s, NOW())""",
-                 (tipo, legislacoes_encontradas, legislacoes_cadastradas,
-                  json.dumps({
-                      'municipio': municipio, 'estado': estado,
-                      'mensagem': mensagem,
-                      **(detalhes or {})
-                  }, default=str),
-                  status),
-                 commit=True, fetch=None)
-        except Exception:
-            pass
-    
-    
-    def listar_fila(limit=30) -> List[dict]:
-        """Retorna histórico de buscas."""
-        try:
-            rows = _qry("""SELECT id, tipo, municipios_consultados,
-                                  novos_detectados as legislacoes_encontradas,
-                                  legislacoes_cadastradas, detalhes, status, criado_em
-                           FROM integracao_log
-                           ORDER BY criado_em DESC LIMIT %s""", (limit,))
-            result = []
-            for r in (rows or []):
-                det = r.get('detalhes') or {}
-                if isinstance(det, str):
-                    try: det = json.loads(det)
-                    except: det = {}
-                result.append({
-                    'id': r['id'],
-                    'tipo': r['tipo'],
-                    'municipio': det.get('municipio', ''),
-                    'estado': det.get('estado', ''),
-                    'legislacoes_encontradas': r.get('legislacoes_encontradas', 0),
-                    'legislacoes_cadastradas': r.get('legislacoes_cadastradas', 0),
-                    'status': r.get('status', ''),
-                    'mensagem': det.get('mensagem', ''),
-                    'criado_em': r.get('criado_em'),
-                })
-            return result
-        except Exception:
+def _registrar_busca_fila(tipo, municipio, estado, legislacoes_encontradas=0,
+                           legislacoes_cadastradas=0, status='concluido',
+                           detalhes=None, mensagem=''):
+    """Registra busca no log/fila."""
+    try:
+        _qry("""INSERT INTO integracao_log
+                (tipo, municipios_consultados, novos_detectados,
+                 legislacoes_cadastradas, detalhes, status, criado_em)
+                VALUES (%s, 1, %s, %s, %s, %s, NOW())""",
+             (tipo, legislacoes_encontradas, legislacoes_cadastradas,
+              json.dumps({
+                  'municipio': municipio, 'estado': estado,
+                  'mensagem': mensagem,
+                  **(detalhes or {})
+              }, default=str),
+              status),
+             commit=True, fetch=None)
+    except Exception:
+        pass
+
+
+def listar_fila(limit=30) -> List[dict]:
+    """Retorna histórico de buscas."""
+    try:
+        rows = _qry("""SELECT id, tipo, municipios_consultados,
+                              novos_detectados as legislacoes_encontradas,
+                              legislacoes_cadastradas, detalhes, status, criado_em
+                       FROM integracao_log
+                       ORDER BY criado_em DESC LIMIT %s""", (limit,))
+        result = []
+        for r in (rows or []):
+            det = r.get('detalhes') or {}
+            if isinstance(det, str):
+                try: det = json.loads(det)
+                except: det = {}
+            result.append({
+                'id': r['id'],
+                'tipo': r['tipo'],
+                'municipio': det.get('municipio', ''),
+                'estado': det.get('estado', ''),
+                'legislacoes_encontradas': r.get('legislacoes_encontradas', 0),
+                'legislacoes_cadastradas': r.get('legislacoes_cadastradas', 0),
+                'status': r.get('status', ''),
+                'mensagem': det.get('mensagem', ''),
+                'criado_em': r.get('criado_em'),
+            })
+        return result
+    except Exception:
             return [
 ]
