@@ -2639,14 +2639,36 @@ def busca_manual(params: dict, log_callback=None) -> dict:
     logs.append({'nivel': 'info', 'msg': f'🔧 busca_manual v3 iniciou. Params: {list(params.keys())}'})
     fontes_status = []
 
+    import subprocess as _sp, os as _os
+
+    def _chromium_pids():
+        try:
+            out = _sp.check_output(['pgrep', '-f', 'chromium'], text=True)
+            return set(out.split())
+        except Exception:
+            return set()
+
+    _pids_antes = _chromium_pids()
+
     try:
         return _busca_manual_core(params, logs, fontes_status)
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
-        logs.append({'nivel': 'erro', 'msg': f'❌ ERRO FATAL: {str(e)[:200]}'})
+        logs.append({'nivel': 'erro', 'msg': f'❌  ERRO FATAL: {str(e)[:200]}'})
         logs.append({'nivel': 'erro', 'msg': f'Traceback: {tb[-500:]}'})
         return {'legislacoes': [], 'erro': str(e)[:300], 'logs': logs, 'fontes': fontes_status}
+    finally:
+        import time as _time
+        _time.sleep(2)  # aguarda Playwright fechar graciosamente
+        _pids_depois = _chromium_pids()
+        _orfaos = _pids_depois - _pids_antes
+        for _pid in _orfaos:
+            try:
+                _os.kill(int(_pid), 9)
+                logger.info(f'🧹 Chromium órfão eliminado: PID {_pid}')
+            except Exception:
+                pass
 
 
 def _busca_manual_core(params, logs, fontes_status):
