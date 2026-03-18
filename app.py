@@ -2363,13 +2363,23 @@ def api_buscador_manual_start():
     import uuid
     _cleanup_old_jobs()
 
+    # Cancelar jobs ativos anteriores
+    for _jid, _jv in list(_buscador_jobs.items()):
+        if not _jv.get('done') and not _jv.get('cancelled'):
+            _jv['cancelled'] = True
+            _jv['logs'].append({'nivel': 'aviso', 'msg': '⚠️ Busca cancelada — nova busca iniciada'})
+
+
     d = request.json or {}
     job_id = str(uuid.uuid4())[:12]
-    job = {'logs': [], 'result': None, 'done': False, 'ts': time.time(), 'log_cursor': 0}
+    job = {'logs': [], 'result': None, 'done': False, 'ts': time.time(), 'log_cursor': 0, 'cancelled': False}
     _buscador_jobs[job_id] = job
 
     def log_cb(entry):
         job['logs'].append(entry)
+        # Interromper thread se job foi cancelado
+        if job.get('cancelled'):
+            raise InterruptedError('Job cancelado')
         # Se a IA confirmou um PDF, salvar resultado parcial imediatamente
         # Isso garante que mesmo se o worker reiniciar após, o resultado já está no job
         msg = entry.get('msg', '')
