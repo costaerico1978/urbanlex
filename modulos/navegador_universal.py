@@ -3186,7 +3186,9 @@ def navegar_com_cookies_flaresolverr(
                     _lm_loading_kws = ['norma requisitada est', 'Por favor, aguarde', 'sendo carregada']
                     _lm_loading = any(s in _html_sessao for s in _lm_loading_kws) if _html_sessao else True
                     if _html_sessao and len(_html_sessao) > 10000 and not _lm_loading:
-                        resultado['html'] = _html_sessao
+                        # Só usar HTML da sessão se ?pass= não capturou law-container
+                        if not resultado.get('html') or 'law-container' not in resultado.get('html', ''):
+                            resultado['html'] = _html_sessao
                         logs.append({'nivel': 'ok', 'msg': f'{label}: HTML extraido via sessao ({len(_html_sessao)} chars)'})
                         # Extrair anexos S3 do HTML da sessão
                         try:
