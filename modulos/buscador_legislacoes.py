@@ -561,6 +561,9 @@ def _buscar_leismunicipais_direto(municipio: str, estado: str, tipo: str, numero
                 _html_lei = fs_result.get('html', '')
                 if fs_result.get('anexos_lm'):
                     resultados[-1]['anexos_lm'] = fs_result['anexos_lm']
+                if fs_result.get('pdf_nativo_s3'):
+                    resultados[-1]['pdf_nativo_s3'] = fs_result['pdf_nativo_s3']
+                    resultados[-1]['pdf_nativo_s3_path'] = fs_result.get('pdf_nativo_s3_path', '')
                 if _html_lei:
                     logs.append({"nivel": "info", "msg": "📖 LeisMunicipais: usando HTML da sessao Playwright"})
                 else:
@@ -3634,6 +3637,9 @@ Se não encontrar data exata, retorne {{"data_publicacao": ""}}. NÃO invente.""
                 tf['html_lei'] = t['html_lei']
             if t.get('anexos_lm'):
                 tf['anexos_lm'] = t['anexos_lm']
+            if t.get('pdf_nativo_s3'):
+                tf['pdf_nativo_s3'] = t['pdf_nativo_s3']
+                tf['pdf_nativo_s3_path'] = t.get('pdf_nativo_s3_path', '')
             textos_fontes.append(tf)
     
         return {'legislacoes': legislacoes, 'sugestao': sugestao, 'fontes': fontes_status, 'textos_fontes': textos_fontes, 'logs': logs}

@@ -2457,6 +2457,12 @@ def api_buscador_manual_start():
 
                 # Gerar PDF a partir do texto para fontes sem pdf_path (ex: LeisMunicipais)
                 for tf in textos_completos:
+                    # Usar PDF nativo S3 se disponível
+                    if tf.get('_fonte') == 'leismunicipais' and tf.get('pdf_nativo_s3_path') and os.path.isfile(tf['pdf_nativo_s3_path']):
+                        tf['pdf_path'] = tf['pdf_nativo_s3_path']
+                        tf['pdf_download_url'] = tf['pdf_nativo_s3']
+                        job['logs'].append({'nivel': 'ok', 'msg': '🎯 LeisMunicipais: usando PDF nativo S3'})
+                        continue
                     if tf.get('_fonte') == 'leismunicipais' and tf.get('texto') and not tf.get('pdf_path'):
                         try:
                             from weasyprint import HTML as _WH
