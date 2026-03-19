@@ -3109,7 +3109,8 @@ def navegar_com_cookies_flaresolverr(
                                                     if _has_law or (len(_html_pass) > 10000 and not _loading_pass):
                                                         resultado['html'] = _html_pass
                                                         # Baixar PDF nativo do S3 se interceptado
-                                                        if _pdf_s3_url:
+                                                        if locals().get('_pdf_s3_url') or globals().get('_pdf_s3_url'):
+                                                            _pdf_s3_url = locals().get('_pdf_s3_url') or globals().get('_pdf_s3_url') or []
                                                             try:
                                                                 import requests as _rq_s3, os as _os_s3
                                                                 _s3_url = _pdf_s3_url[0]
