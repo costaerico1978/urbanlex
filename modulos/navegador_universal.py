@@ -3195,13 +3195,38 @@ def navegar_com_cookies_flaresolverr(
                                     _reloads += 1
                                 except Exception:
                                     pass
-                        _pg2.remove_listener('request', _on_req)
                     except Exception:
                         _t2.sleep(5)
-                    # Aguardar lazy loading do LeisMunicipais (30x10s = 300s max)
+                    # Baixar PDF S3 se já capturado (evita loop de estabilização)
+                    if _pdf_s3_url:
+                        try:
+                            import requests as _rq_s3e, os as _os_s3e
+                            _s3_url_e = _pdf_s3_url[0]
+                            _pdf_dir_s3e = _os_s3e.path.join(_os_s3e.path.dirname(_os_s3e.path.dirname(__file__)), 'static', 'downloads')
+                            _os_s3e.makedirs(_pdf_dir_s3e, exist_ok=True)
+                            _fname_s3e = 'lm_pdf_nativo.pdf'
+                            _fpath_s3e = _os_s3e.path.join(_pdf_dir_s3e, _fname_s3e)
+                            _r_s3e = _rq_s3e.get(_s3_url_e, timeout=120, stream=True)
+                            _s3e_size = 0
+                            if _r_s3e.status_code == 200:
+                                with open(_fpath_s3e, 'wb') as _f_s3e:
+                                    for _chunk in _r_s3e.iter_content(chunk_size=65536):
+                                        if _chunk:
+                                            _f_s3e.write(_chunk)
+                                            _s3e_size += len(_chunk)
+                            if _s3e_size > 10000:
+                                resultado['pdf_nativo_s3'] = f'/static/downloads/{_fname_s3e}'
+                                resultado['pdf_nativo_s3_path'] = _fpath_s3e
+                                logs.append({'nivel': 'ok', 'msg': f'{label}: 🎯 PDF nativo S3 baixado ({_s3e_size//1024}KB) — pulando loop estabilização'})
+                        except Exception as _e_s3e:
+                            logs.append({'nivel': 'aviso', 'msg': f'{label}: PDF S3 erro: {str(_e_s3e)[:80]}'})
+                    # Aguardar lazy loading do LeisMunicipais (30x10s = 300s max) — só se não tiver PDF S3
                     try:
                         _prev_len_sess = 0
                         for _wi_sess in range(30):
+                            if _pdf_s3_url:  # PDF S3 já capturado — encerrar loop
+                                logs.append({"nivel": "info", "msg": f"{label}: [sessao] PDF S3 disponível — encerrando loop"})
+                                break
                             _t2.sleep(15)
                             _html_tmp = _pg2.content()
                             _cur_len_sess = len(_html_tmp)
