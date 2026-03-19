@@ -3050,6 +3050,7 @@ def navegar_com_cookies_flaresolverr(
                                     # sitekey fixo do leismunicipais (reCAPTCHA invisivel)
                                     _sk2 = "6Lcsu0AUAAAAAPGiUWm7uBfmctlz8sokhRldd3d6" if "leismunicipais" in _lei_url else None
                                     if _sk2 and _2ck:
+                    _pdf_s3_url = [] if '_pdf_s3_url' not in dir() else _pdf_s3_url
                                         logs.append({'nivel': 'info', 'msg': f'{label}: [2C] reCAPTCHA invisivel — resolvendo sitekey={_sk2[:20]}...'})
                                         _r3 = _req2.post('http://2captcha.com/in.php', data={'key': _2ck, 'method': 'userrecaptcha', 'googlekey': _sk2, 'pageurl': _lei_url, 'invisible': 1, 'json': 1}, timeout=30)
                                         _cid3 = _r3.json().get('request')
