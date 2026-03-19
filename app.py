@@ -2498,9 +2498,7 @@ def api_buscador_manual_start():
                                     import re as _re
                                     _txt = tf['texto']
                                     # Inserir quebras antes de marcadores legais
-                                    _txt = _re.sub(r'(?<!
-)(Art\. ?\d+|§ ?\d+|CAPÍTULO|TÍTULO|Seção|Subseção|ANEXO)', r'
-', _txt)
+                                    _txt = _re.sub(r'(Art[.]|CAPITULO|TITULO|SECAO|ANEXO)', lambda m: '\n' + m.group(0), _txt)
                                     linhas = [l.strip() for l in _txt.splitlines() if l.strip()]
                                 for linha in linhas:
                                     safe = linha.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
