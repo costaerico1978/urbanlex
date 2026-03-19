@@ -2661,7 +2661,7 @@ def busca_manual(params: dict, log_callback=None) -> dict:
         import time as _time
         _time.sleep(2)  # aguarda Playwright fechar graciosamente
         _pids_depois = _chromium_pids()
-        _orfaos = _pids_depois - _pids_antes
+        _orfaos = _pids_depois  # matar todos — 1 worker, sem busca paralela
         for _pid in _orfaos:
             try:
                 _os.kill(int(_pid), 9)
