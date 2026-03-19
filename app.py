@@ -2488,14 +2488,20 @@ def api_buscador_manual_start():
                                         from bs4 import BeautifulSoup as _BS
                                         _soup = _BS(tf['html_lei'], 'html.parser')
                                         _raw = []
-                                        for _el in _soup.find_all(['p','div','br','h1','h2','h3','h4','li','article']):
+                                        for _el in _soup.find_all(['p','h1','h2','h3','h4','li','span']):
                                             _t = _el.get_text(separator=' ').strip()
                                             if _t: _raw.append(_t)
                                         linhas = _raw if _raw else [l.strip() for l in tf['texto'].splitlines() if l.strip()]
                                     except Exception:
                                         linhas = [l.strip() for l in tf['texto'].splitlines() if l.strip()]
                                 else:
-                                    linhas = [l.strip() for l in tf['texto'].splitlines() if l.strip()]
+                                    import re as _re
+                                    _txt = tf['texto']
+                                    # Inserir quebras antes de marcadores legais
+                                    _txt = _re.sub(r'(?<!
+)(Art\. ?\d+|§ ?\d+|CAPÍTULO|TÍTULO|Seção|Subseção|ANEXO)', r'
+', _txt)
+                                    linhas = [l.strip() for l in _txt.splitlines() if l.strip()]
                                 for linha in linhas:
                                     safe = linha.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
                                     story.append(Paragraph(safe, styles['Normal']))
