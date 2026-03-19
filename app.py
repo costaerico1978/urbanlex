@@ -2642,6 +2642,12 @@ def api_buscador_cadastrar():
             leg['pdf_download_url'] = pdf_cache.get(fonte_url + '_dl', '')
         if fonte_url and fonte_url in anexos_cache:
             leg['anexos_lm'] = anexos_cache[fonte_url]
+        # Incluir anexos LeisMunicipais independente da fonte selecionada
+        if not leg.get('anexos_lm') and anexos_cache:
+            for _anx_list in anexos_cache.values():
+                if _anx_list:
+                    leg['anexos_lm'] = _anx_list
+                    break
 
     try:
         from modulos.buscador_legislacoes import cadastrar_resultados
