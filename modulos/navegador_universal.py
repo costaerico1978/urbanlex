@@ -3180,8 +3180,8 @@ def navegar_com_cookies_flaresolverr(
                                 logs.append({"nivel": "info", "msg": f"{label}: [sessao] HTML estabilizado ({_cur_len_sess} chars, {_wi_sess+1} iter)"})
                                 break
                             _prev_len_sess = _cur_len_sess
-                    except Exception:
-                        pass
+                    except Exception as _e_sess:
+                        logs.append({'nivel': 'aviso', 'msg': f'{label}: [sessao] Erro no loop de estabilizacao: {str(_e_sess)[:80]}'})
                     _html_sessao = _pg2.content()
                     _lm_loading_kws = ['norma requisitada est', 'Por favor, aguarde', 'sendo carregada']
                     _lm_loading = any(s in _html_sessao for s in _lm_loading_kws) if _html_sessao else True
