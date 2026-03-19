@@ -481,7 +481,7 @@ async function carregarLegislacoes(pag = pagAtual) {
             <td><span class="badge badge-muted">${l.pais || 'BR'}</span></td>
             <td data-field="estado">${l.estado || 'N/A'}</td>
             <td data-field="municipio_nome">${l.municipio_nome || 'N/A'}</td>
-            <td data-field="tipo_id"><span class="tag">${l.tipo_nome || '—'}</span></td>
+            <td data-field="tipo_id">${l.tipo_nome || '—'}</td>
             <td data-field="numero" style="font-family:var(--font-mono);font-size:11px">${l.numero || '—'}</td>
             <td data-field="ano">${l.ano || '—'}</td>
             <td data-field="assunto_id" style="font-size:12px">${l.assunto_nome || '—'}</td>
@@ -551,7 +551,7 @@ async function executarBusca() {
         const e = (l.ementa||'—').length>50?l.ementa.substring(0,50)+'...':(l.ementa||'—');
         return `<tr data-leg-id="${l.id}">
             <td>${l.pais||'BR'}</td><td data-field="estado">${l.estado||'N/A'}</td><td data-field="municipio_nome">${l.municipio_nome||'N/A'}</td>
-            <td data-field="tipo_id"><span class="tag">${l.tipo_nome||'—'}</span></td>
+            <td data-field="tipo_id">${l.tipo_nome||'—'}</td>
             <td data-field="numero" style="font-family:var(--font-mono);font-size:11px">${l.numero||'—'}</td>
             <td data-field="ano">${l.ano||'—'}</td><td data-field="assunto_id" style="font-size:12px">${l.assunto_nome||'—'}</td>
             <td data-field="ementa" style="font-size:12px;max-width:180px" title="${l.ementa||''}">${e}</td>
