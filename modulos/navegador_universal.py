@@ -3109,25 +3109,7 @@ def navegar_com_cookies_flaresolverr(
                                                     logs.append({'nivel': 'info', 'msg': f'{label}: [2C] ?pass= resultado: {len(_html_pass)} chars | law={_has_law} | loading={_loading_pass}'})
                                                     if _has_law or (len(_html_pass) > 10000 and not _loading_pass):
                                                         resultado['html'] = _html_pass
-                                                        # Baixar PDF nativo do S3 se interceptado
-                                                        if locals().get('_pdf_s3_url') or globals().get('_pdf_s3_url'):
-                                                            _pdf_s3_url = locals().get('_pdf_s3_url') or globals().get('_pdf_s3_url') or []
-                                                            try:
-                                                                import requests as _rq_s3, os as _os_s3
-                                                                _s3_url = _pdf_s3_url[0]
-                                                                _pdf_dir_s3 = _os_s3.path.join(_os_s3.path.dirname(_os_s3.path.dirname(__file__)), 'static', 'downloads')
-                                                                _os_s3.makedirs(_pdf_dir_s3, exist_ok=True)
-                                                                _r_s3 = _rq_s3.get(_s3_url, timeout=120)
-                                                                if _r_s3.status_code == 200 and len(_r_s3.content) > 10000:
-                                                                    _fname_s3 = 'lm_pdf_nativo.pdf'
-                                                                    _fpath_s3 = _os_s3.path.join(_pdf_dir_s3, _fname_s3)
-                                                                    open(_fpath_s3, 'wb').write(_r_s3.content)
-                                                                    resultado['pdf_nativo_s3'] = f'/static/downloads/{_fname_s3}'
-                                                                    resultado['pdf_nativo_s3_path'] = _fpath_s3
-                                                                    logs.append({'nivel': 'ok', 'msg': f'{label}: PDF nativo S3 baixado ({len(_r_s3.content)//1024}KB)'})
-                                                            except Exception as _e_s3:
-                                                                logs.append({'nivel': 'aviso', 'msg': f'{label}: PDF S3 erro: {str(_e_s3)[:80]}'})
-                                                        logs.append({'nivel': 'ok', 'msg': f'{label}: [2C] HTML obtido via ?pass= ({len(_html_pass)} chars)'})
+                                                        logs.append({"nivel": "ok", "msg": f"{label}: [2C] HTML obtido via ?pass= ({len(_html_pass)} chars)"})
                                                         try:
                                                             import time as _t_anx, os as _os_anx, requests as _rq_anx
                                                             from bs4 import BeautifulSoup as _BS_anx
