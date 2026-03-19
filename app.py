@@ -2471,8 +2471,17 @@ def api_buscador_manual_start():
                             leg_info = result.get('legislacoes', [{}])[0] if result.get('legislacoes') else {}
                             titulo = str(leg_info.get('tipo_legislacao', '')) + ' N. ' + str(leg_info.get('numero', '')) + '/' + str(leg_info.get('ano', ''))
                             linhas = []
-                            if True:  # sempre ReportLab
-                                linhas = []
+                            if tf.get('html_lei'):
+                                # WeasyPrint: renderiza HTML com formatação completa
+                                from weasyprint import HTML as _WH
+                                _css = 'body{font-family:Arial,sans-serif;font-size:10pt;margin:20mm;} p{margin:4px 0;text-align:justify;}'
+                                _body = '<h2>' + titulo.strip() + '</h2><p><i>Fonte: LeisMunicipais.com.br (texto consolidado)</i></p>' + tf['html_lei']
+                                _html = '<html><head><meta charset="utf-8"><style>' + _css + '</style></head><body>' + _body + '</body></html>'
+                                _WH(string=_html).write_pdf(dest)
+                                linhas = ['html_lei']
+                            else:
+                                # ReportLab: texto puro com quebras por marcadores legais
+                                import re as _re
                                 doc_rl = SimpleDocTemplate(dest, pagesize=A4,
                                     leftMargin=15*mm, rightMargin=15*mm, topMargin=15*mm, bottomMargin=15*mm)
                                 styles = getSampleStyleSheet()
@@ -2482,24 +2491,9 @@ def api_buscador_manual_start():
                                     story.append(Spacer(1, 6*mm))
                                 story.append(Paragraph('<i>Fonte: LeisMunicipais.com.br (texto consolidado)</i>', styles['Normal']))
                                 story.append(Spacer(1, 4*mm))
-                                # Usar html_lei para preservar parágrafos, senão usar texto puro
-                                if tf.get('html_lei'):
-                                    try:
-                                        from bs4 import BeautifulSoup as _BS
-                                        _soup = _BS(tf['html_lei'], 'html.parser')
-                                        _raw = []
-                                        for _el in _soup.find_all(['p','h1','h2','h3','h4','li','span']):
-                                            _t = _el.get_text(separator=' ').strip()
-                                            if _t: _raw.append(_t)
-                                        linhas = _raw if _raw else [l.strip() for l in tf['texto'].splitlines() if l.strip()]
-                                    except Exception:
-                                        linhas = [l.strip() for l in tf['texto'].splitlines() if l.strip()]
-                                else:
-                                    import re as _re
-                                    _txt = tf['texto']
-                                    # Inserir quebras antes de marcadores legais
-                                    _txt = _re.sub(r'(Art[.]|CAPITULO|TITULO|SECAO|ANEXO)', lambda m: '\n' + m.group(0), _txt)
-                                    linhas = [l.strip() for l in _txt.splitlines() if l.strip()]
+                                _txt = tf['texto']
+                                _txt = _re.sub(r'(Art[.]|CAPITULO|TITULO|SECAO|ANEXO)', lambda m: '\n' + m.group(0), _txt)
+                                linhas = [l.strip() for l in _txt.splitlines() if l.strip()]
                                 for linha in linhas:
                                     safe = linha.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
                                     story.append(Paragraph(safe, styles['Normal']))
