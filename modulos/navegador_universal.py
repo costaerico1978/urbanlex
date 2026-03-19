@@ -3180,17 +3180,7 @@ def navegar_com_cookies_flaresolverr(
                                     pass
                     except Exception:
                         _t2.sleep(5)
-                    # Extrair URL do PDF S3 do HTML da sessão (URL limpa sem assinatura)
-                    if not _pdf_s3_url:
-                        try:
-                            import re as _re_s3
-                            _html_tmp2 = _pg2.content()
-                            _s3_matches = _re_s3.findall(r"https?://s3\.amazonaws\.com/originais/[^\s\"<&]+\.pdf", _html_tmp2)
-                            for _sm in _s3_matches:
-                                if _sm not in _pdf_s3_url:
-                                    _pdf_s3_url.append(_sm)
-                                    logs.append({'nivel': 'ok', 'msg': f'{label}: 🎯 URL PDF S3 extraída do HTML ({_sm[-50:]})'})
-                        except Exception: pass
+
                     # Baixar PDF S3 se capturado
                     if _pdf_s3_url:
                         try:
@@ -3225,6 +3215,14 @@ def navegar_com_cookies_flaresolverr(
                             _html_tmp = _pg2.content()
                             _cur_len_sess = len(_html_tmp)
                             _has_law_sess = 'law-container' in _html_tmp
+                            # Verificar se URL S3 apareceu no HTML
+                            if not _pdf_s3_url:
+                                import re as _re_s3
+                                _s3_matches = _re_s3.findall(r"https?://s3\.amazonaws\.com/originais/[^\s\"<&]+\.pdf", _html_tmp)
+                                for _sm in _s3_matches:
+                                    if _sm not in _pdf_s3_url:
+                                        _pdf_s3_url.append(_sm)
+                                        logs.append({'nivel': 'ok', 'msg': f'{label}: 🎯 URL PDF S3 encontrada ({_sm[-50:]})'})
                             if _cur_len_sess == _prev_len_sess and _has_law_sess:
                                 logs.append({"nivel": "info", "msg": f"{label}: [sessao] HTML estabilizado ({_cur_len_sess} chars, {_wi_sess+1} iter)"})
                                 break
