@@ -3197,7 +3197,18 @@ def navegar_com_cookies_flaresolverr(
                                     pass
                     except Exception:
                         _t2.sleep(5)
-                    # Baixar PDF S3 se já capturado (evita loop de estabilização)
+                    # Extrair URL do PDF S3 do HTML da sessão (URL limpa sem assinatura)
+                    if not _pdf_s3_url:
+                        try:
+                            import re as _re_s3
+                            _html_tmp2 = _pg2.content()
+                            _s3_matches = _re_s3.findall(r'https?://s3\.amazonaws\.com/originais/[^\s"'<&]+\.pdf', _html_tmp2)
+                            for _sm in _s3_matches:
+                                if _sm not in _pdf_s3_url:
+                                    _pdf_s3_url.append(_sm)
+                                    logs.append({'nivel': 'ok', 'msg': f'{label}: 🎯 URL PDF S3 extraída do HTML ({_sm[-50:]})'})
+                        except Exception: pass
+                    # Baixar PDF S3 se capturado
                     if _pdf_s3_url:
                         try:
                             import requests as _rq_s3e, os as _os_s3e
