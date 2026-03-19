@@ -10,7 +10,7 @@ def deploy():
     mac = 'sha256=' + hmac.new(SECRET.encode(), request.data, hashlib.sha256).hexdigest()
     if not hmac.compare_digest(sig, mac):
         abort(403)
-    subprocess.Popen(['bash', '-c', 'cd /var/www/urbanlex && git pull && systemctl restart urbanlex'])
+    subprocess.Popen(['bash', '-c', 'cd /var/www/urbanlex && git pull && pkill -9 -f chromium; pkill -9 -f gunicorn; sleep 2 && systemctl start urbanlex'])
     return 'OK', 200
 
 if __name__ == '__main__':
