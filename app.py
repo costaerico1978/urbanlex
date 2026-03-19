@@ -2482,7 +2482,20 @@ def api_buscador_manual_start():
                                     story.append(Spacer(1, 6*mm))
                                 story.append(Paragraph('<i>Fonte: LeisMunicipais.com.br (texto consolidado)</i>', styles['Normal']))
                                 story.append(Spacer(1, 4*mm))
-                                linhas = [l.strip() for l in tf['texto'].splitlines() if l.strip()]
+                                # Usar html_lei para preservar parágrafos, senão usar texto puro
+                                if tf.get('html_lei'):
+                                    try:
+                                        from bs4 import BeautifulSoup as _BS
+                                        _soup = _BS(tf['html_lei'], 'html.parser')
+                                        _raw = []
+                                        for _el in _soup.find_all(['p','div','br','h1','h2','h3','h4','li','article']):
+                                            _t = _el.get_text(separator=' ').strip()
+                                            if _t: _raw.append(_t)
+                                        linhas = _raw if _raw else [l.strip() for l in tf['texto'].splitlines() if l.strip()]
+                                    except Exception:
+                                        linhas = [l.strip() for l in tf['texto'].splitlines() if l.strip()]
+                                else:
+                                    linhas = [l.strip() for l in tf['texto'].splitlines() if l.strip()]
                                 for linha in linhas:
                                     safe = linha.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
                                     story.append(Paragraph(safe, styles['Normal']))
