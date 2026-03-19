@@ -3006,10 +3006,21 @@ def navegar_com_cookies_flaresolverr(
                         # Monitorar atividade de rede — detectar se spinner travou
                         _ultima_req = [_t2.time()]
                         _ajax_reqs = []
+                        _pdf_s3_url = []
                         def _on_req(req):
                             _ultima_req[0] = _t2.time()
                             if req.resource_type in ('xhr', 'fetch'):
                                 _ajax_reqs.append(req.url[:120])
+                            # Capturar URL do PDF S3 via Google Docs Viewer
+                            try:
+                                if 'gview' in req.url and 's3.amazonaws' in req.url:
+                                    from urllib.parse import urlparse, parse_qs
+                                    _qs = parse_qs(urlparse(req.url).query)
+                                    _s3 = _qs.get('url', [''])[0]
+                                    if _s3 and _s3 not in _pdf_s3_url:
+                                        _pdf_s3_url.append(_s3)
+                                        logs.append({'nivel': 'ok', 'msg': f'{label}: 🎯 URL PDF S3 capturada'})
+                            except Exception: pass
                         def _on_resp(resp):
                             if resp.request.resource_type in ('xhr', 'fetch'):
                                 logs.append({'nivel': 'info', 'msg': f'{label}: [AJAX] {resp.status} {resp.url[:100]}'})
