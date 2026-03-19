@@ -2982,6 +2982,7 @@ def navegar_com_cookies_flaresolverr(
                         return resultado
                     logs.append({'nivel': 'info', 'msg': f'{label}: Extraindo HTML via sessao Playwright: {_lei_url[:80]}'})
                     _pg2 = ctx.new_page()
+                    _pdf_s3_url = []
                     # Bloquear ads tambem nesta pagina
                     _ad_domains2 = ['doubleclick.net','googlesyndication.com','googletagmanager.com','adtrafficquality.google','viralize.tv','sodar']
                     def _bloquear_ads2(route, request):
