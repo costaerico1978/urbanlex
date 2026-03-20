@@ -2357,6 +2357,21 @@ def _cleanup_old_jobs():
         _buscador_jobs.pop(k, None)
 
 
+
+@app.route('/api/admin/reiniciar-worker', methods=['POST'])
+@login_required
+def api_reiniciar_worker():
+    import subprocess, threading
+    def _restart():
+        import time
+        time.sleep(1)
+        subprocess.run(['pkill', '-9', '-f', 'chromium'], capture_output=True)
+        subprocess.run(['pkill', '-9', '-f', 'gunicorn'], capture_output=True)
+        time.sleep(2)
+        subprocess.run(['systemctl', 'start', 'urbanlex'])
+    threading.Thread(target=_restart, daemon=True).start()
+    return jsonify({'success': True, 'msg': 'Worker reiniciando em 1s...'})
+
 @app.route('/api/buscador/cancelar', methods=['POST'])
 @login_required
 def api_buscador_cancelar():

@@ -546,6 +546,12 @@
 
         </div>
 
+        <div style="padding: 8px 10px;">
+            <button onclick="reiniciarWorker()" title="Reiniciar Worker" style="width:100%;display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(255,80,80,0.08);border:1px solid rgba(255,80,80,0.2);border-radius:8px;color:#ff6b6b;font-size:12px;cursor:pointer;font-family:inherit;">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 2.5A7 7 0 1 0 14 8"/><polyline points="14 2 14 6 10 6"/></svg>
+                Reiniciar Worker
+            </button>
+        </div>
         <div class="sidebar-footer">
             <div class="user-chip">
                 <div class="user-avatar" id="user-avatar">A</div>
@@ -611,6 +617,17 @@ async function apiForm(url, formData) {
 }
 
 // ── Auth ─────────────────────────────────────────────────────
+async function reiniciarWorker() {
+    if (!confirm('Reiniciar o worker? Buscas em andamento serão interrompidas.')) return;
+    const btn = document.querySelector('[onclick="reiniciarWorker()"]');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Reiniciando...'; }
+    try {
+        const r = await fetch('/api/admin/reiniciar-worker', {method: 'POST'});
+        const d = await r.json();
+        alert(d.msg || 'Worker reiniciado!');
+    } catch(e) { alert('Erro: ' + e); }
+    finally { if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 2.5A7 7 0 1 0 14 8"/><polyline points="14 2 14 6 10 6"/></svg> Reiniciar Worker'; } }
+}
 function logout() { api('POST','/api/auth/logout').then(()=>location.href='/login'); }
 
 // ── Avatar ───────────────────────────────────────────────────
