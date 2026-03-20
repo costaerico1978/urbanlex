@@ -3278,6 +3278,9 @@ Se não encontrar data exata, retorne {{"data_publicacao": ""}}. NÃO invente.""
                         _lm_entry['html_lei'] = lm['html_lei']
                     if lm.get('anexos_lm'):
                         _lm_entry['anexos_lm'] = lm['anexos_lm']
+                    if lm.get('pdf_nativo_s3'):
+                        _lm_entry['pdf_nativo_s3'] = lm['pdf_nativo_s3']
+                        _lm_entry['pdf_nativo_s3_path'] = lm.get('pdf_nativo_s3_path', '')
                     textos_extraidos.append(_lm_entry)
                     # Atualizar entrada existente do leismunicipais se houver, senao adicionar
                     _lm_fs_existente = next((f for f in fontes_status if 'leismunicipais' in f.get('url','').lower() or 'leismunicipais' in f.get('nome','').lower()), None)
