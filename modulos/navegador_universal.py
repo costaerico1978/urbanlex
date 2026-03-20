@@ -2965,6 +2965,30 @@ def navegar_com_cookies_flaresolverr(
                             if _fs_html_lei and len(_fs_html_lei) > 10000 and not _fs_loading:
                                 logs.append({'nivel': 'ok', 'msg': f'{label}: [FS] Conteudo obtido via FlareSolverr ({len(_fs_html_lei)} chars)'})
                                 resultado['html'] = _fs_html_lei
+                                # Extrair URL S3 do HTML FlareSolverr e baixar PDF
+                                import re as _re_fs_s3
+                                _fs_s3_matches = _re_fs_s3.findall(r"https?://s3\.amazonaws\.com/originais/[^\s\"<&]+\.pdf", _fs_html_lei)
+                                if _fs_s3_matches:
+                                    try:
+                                        import requests as _rq_fs, os as _os_fs
+                                        _fname_fs = 'lm_pdf_nativo.pdf'
+                                        _pdf_dir_fs = _os_fs.path.join(_os_fs.path.dirname(_os_fs.path.dirname(__file__)), 'static', 'downloads')
+                                        _os_fs.makedirs(_pdf_dir_fs, exist_ok=True)
+                                        _fpath_fs = _os_fs.path.join(_pdf_dir_fs, _fname_fs)
+                                        _r_fs = _rq_fs.get(_fs_s3_matches[0], timeout=120, stream=True)
+                                        _fs_size = 0
+                                        if _r_fs.status_code == 200:
+                                            with open(_fpath_fs, 'wb') as _f_fs:
+                                                for _chunk in _r_fs.iter_content(chunk_size=65536):
+                                                    if _chunk:
+                                                        _f_fs.write(_chunk)
+                                                        _fs_size += len(_chunk)
+                                        if _fs_size > 10000:
+                                            resultado['pdf_nativo_s3'] = f'/static/downloads/{_fname_fs}'
+                                            resultado['pdf_nativo_s3_path'] = _fpath_fs
+                                            logs.append({'nivel': 'ok', 'msg': f'{label}: 🎯 PDF nativo S3 baixado via FS ({_fs_size//1024}KB)'})
+                                    except Exception as _e_fs:
+                                        logs.append({'nivel': 'aviso', 'msg': f'{label}: PDF S3 erro FS: {str(_e_fs)[:80]}'})
                             else:
                                 # Logar preview para debug
                                 from bs4 import BeautifulSoup as _BS
