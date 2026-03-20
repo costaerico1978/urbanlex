@@ -1111,6 +1111,7 @@ Responda SOMENTE com JSON:
                                 'titulo': f'{tipo_desc} nº {num} — DO {data_dia}',
                                 'snippet': f'Diário Oficial de {data_dia}, págs {pags[0]}-{pags[-1]}',
                                 '_texto_direto': texto_final,
+                            })
                             # Recortar PDF — só as páginas da legislação
                             _pdf_recortado = None
                             try:
@@ -1131,7 +1132,6 @@ Responda SOMENTE com JSON:
                                 logs.append({'nivel': 'aviso', 'msg': f'{label}: Recorte PDF erro: {str(_e_rec)[:80]}'})
                             if _pdf_recortado:
                                 resultados[-1]['pdf_path'] = _pdf_recortado
-                            })
 
                             # Encontrou! Fechar browser e retornar
                             browser.close()
