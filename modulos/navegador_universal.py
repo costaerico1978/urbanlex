@@ -3233,7 +3233,27 @@ def navegar_com_cookies_flaresolverr(
                     try:
                         _prev_len_sess = 0
                         for _wi_sess in range(30):
-                            if _pdf_s3_url:  # PDF S3 já capturado — encerrar loop
+                            if _pdf_s3_url and not resultado.get('pdf_nativo_s3'):
+                                try:
+                                    import requests as _rq_s3l, os as _os_s3l
+                                    _fname_s3l = 'lm_pdf_nativo.pdf'
+                                    _pdf_dir_s3l = _os_s3l.path.join(_os_s3l.path.dirname(_os_s3l.path.dirname(__file__)), 'static', 'downloads')
+                                    _os_s3l.makedirs(_pdf_dir_s3l, exist_ok=True)
+                                    _fpath_s3l = _os_s3l.path.join(_pdf_dir_s3l, _fname_s3l)
+                                    _r_s3l = _rq_s3l.get(_pdf_s3_url[0], timeout=120, stream=True)
+                                    _s3l_size = 0
+                                    if _r_s3l.status_code == 200:
+                                        with open(_fpath_s3l, 'wb') as _f_s3l:
+                                            for _chunk in _r_s3l.iter_content(chunk_size=65536):
+                                                if _chunk:
+                                                    _f_s3l.write(_chunk)
+                                                    _s3l_size += len(_chunk)
+                                    if _s3l_size > 10000:
+                                        resultado['pdf_nativo_s3'] = f'/static/downloads/{_fname_s3l}'
+                                        resultado['pdf_nativo_s3_path'] = _fpath_s3l
+                                        logs.append({'nivel': 'ok', 'msg': f'{label}: 🎯 PDF nativo S3 baixado ({_s3l_size//1024}KB)'})
+                                except Exception as _e_s3l:
+                                    logs.append({'nivel': 'aviso', 'msg': f'{label}: PDF S3 erro: {str(_e_s3l)[:80]}'})
                                 logs.append({"nivel": "info", "msg": f"{label}: [sessao] PDF S3 disponível — encerrando loop"})
                                 break
                             _t2.sleep(15)
