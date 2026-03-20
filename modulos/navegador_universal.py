@@ -3109,6 +3109,28 @@ def navegar_com_cookies_flaresolverr(
                                                     logs.append({'nivel': 'info', 'msg': f'{label}: [2C] ?pass= resultado: {len(_html_pass)} chars | law={_has_law} | loading={_loading_pass}'})
                                                     if _has_law or (len(_html_pass) > 10000 and not _loading_pass):
                                                         resultado['html'] = _html_pass
+                                                        # Baixar PDF S3 se capturado durante ?pass=
+                                                        if _pdf_s3_url:
+                                                            try:
+                                                                import requests as _rq_s3p, os as _os_s3p
+                                                                _fname_s3p = 'lm_pdf_nativo.pdf'
+                                                                _pdf_dir_s3p = _os_s3p.path.join(_os_s3p.path.dirname(_os_s3p.path.dirname(__file__)), 'static', 'downloads')
+                                                                _os_s3p.makedirs(_pdf_dir_s3p, exist_ok=True)
+                                                                _fpath_s3p = _os_s3p.path.join(_pdf_dir_s3p, _fname_s3p)
+                                                                _r_s3p = _rq_s3p.get(_pdf_s3_url[0], timeout=120, stream=True)
+                                                                _s3p_size = 0
+                                                                if _r_s3p.status_code == 200:
+                                                                    with open(_fpath_s3p, 'wb') as _f_s3p:
+                                                                        for _chunk in _r_s3p.iter_content(chunk_size=65536):
+                                                                            if _chunk:
+                                                                                _f_s3p.write(_chunk)
+                                                                                _s3p_size += len(_chunk)
+                                                                if _s3p_size > 10000:
+                                                                    resultado['pdf_nativo_s3'] = f'/static/downloads/{_fname_s3p}'
+                                                                    resultado['pdf_nativo_s3_path'] = _fpath_s3p
+                                                                    logs.append({'nivel': 'ok', 'msg': f'{label}: PDF nativo S3 baixado ({_s3p_size//1024}KB)'})
+                                                            except Exception as _e_s3p:
+                                                                logs.append({'nivel': 'aviso', 'msg': f'{label}: PDF S3 erro: {str(_e_s3p)[:80]}'})
                                                         logs.append({"nivel": "ok", "msg": f"{label}: [2C] HTML obtido via ?pass= ({len(_html_pass)} chars)"})
                                                         try:
                                                             import time as _t_anx, os as _os_anx, requests as _rq_anx
