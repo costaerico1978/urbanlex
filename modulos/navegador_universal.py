@@ -3107,6 +3107,9 @@ def navegar_com_cookies_flaresolverr(
                                                     _loading_pass = any(s in _html_pass for s in ['norma requisitada est', 'Por favor, aguarde', 'sendo carregada'])
                                                     _has_law = 'law-container' in _html_pass
                                                     logs.append({'nivel': 'info', 'msg': f'{label}: [2C] ?pass= resultado: {len(_html_pass)} chars | law={_has_law} | loading={_loading_pass}'})
+                                                    import re as _re_s3_check
+                                                    _s3_check = _re_s3_check.findall(r'https?://s3\.amazonaws\.com/originais/[^\s"<&]+\.pdf', _html_pass)
+                                                    logs.append({'nivel': 'info', 'msg': f'{label}: [DEBUG] URL S3 no ?pass= HTML: {len(_s3_check)} encontradas'})
                                                     if _has_law or (len(_html_pass) > 10000 and not _loading_pass):
                                                         resultado['html'] = _html_pass
                                                         # Baixar PDF S3 se capturado durante ?pass=
