@@ -1111,6 +1111,26 @@ Responda SOMENTE com JSON:
                                 'titulo': f'{tipo_desc} nº {num} — DO {data_dia}',
                                 'snippet': f'Diário Oficial de {data_dia}, págs {pags[0]}-{pags[-1]}',
                                 '_texto_direto': texto_final,
+                            # Recortar PDF — só as páginas da legislação
+                            _pdf_recortado = None
+                            try:
+                                import pypdf as _pypdf, os as _os_pdf
+                                _reader = _pypdf.PdfReader(dl_path)
+                                _writer = _pypdf.PdfWriter()
+                                for _p in paginas_lei:
+                                    _writer.add_page(_reader.pages[_p[0]])
+                                _pdf_dir_do = _os_pdf.path.join(_os_pdf.path.dirname(_os_pdf.path.dirname(__file__)), 'static', 'downloads')
+                                _os_pdf.makedirs(_pdf_dir_do, exist_ok=True)
+                                _fname_do = f'do_{tipo_desc.lower().replace(" ","_")}_{num}_{ano}.pdf'
+                                _fpath_do = _os_pdf.path.join(_pdf_dir_do, _fname_do)
+                                with open(_fpath_do, 'wb') as _f_do:
+                                    _writer.write(_f_do)
+                                _pdf_recortado = _fpath_do
+                                logs.append({'nivel': 'ok', 'msg': f'{label}: ✂️ PDF recortado ({len(pags)} págs) salvo'})
+                            except Exception as _e_rec:
+                                logs.append({'nivel': 'aviso', 'msg': f'{label}: Recorte PDF erro: {str(_e_rec)[:80]}'})
+                            if _pdf_recortado:
+                                resultados[-1]['pdf_path'] = _pdf_recortado
                             })
 
                             # Encontrou! Fechar browser e retornar
