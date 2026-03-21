@@ -3913,12 +3913,21 @@ TEXTO DO PDF:
                             for _pi2x in range(max(_pag_inicio2, _bi2 - 3), min(_bi2 + 3, _total2)):
                                 _ultimas2.append('--- PAGINA ' + str(_pi2x+1) + ' ---\n' + _doc2[_pi2x].get_text()[:800])
                             _resumo2 = '\n\n'.join(_ultimas2)
-                            _prompt2 = ('Estou recortando "' + tipo_lei + ' n ' + numero_lei + '/' + ano_lei + '" de um Diario Oficial.'
-                                + ' A lei comeca na pag ' + str(_pag_inicio2+1) + '. Analise as paginas abaixo (em torno da pag ' + str(_bi2+1) + '):\n\n'
+                            _prompt2 = (
+                                'Voce esta ajudando a recortar "' + tipo_lei + ' n ' + numero_lei + '/' + ano_lei + '" de um Diario Oficial.\n'
+                                + 'A legislacao comeca na pagina ' + str(_pag_inicio2+1) + '.\n'
+                                + 'Analise o conteudo das paginas abaixo (em torno da pagina ' + str(_bi2+1) + '):\n\n'
                                 + _resumo2
-                                + '\n\nEstas paginas ainda fazem parte da mesma legislacao (artigos, paragrafos, anexos, tabelas, mapas)?'
-                                + ' Ou ja comecou outro ato completamente diferente?'
-                                + ' Responda APENAS com JSON: {"status": "continua"} ou {"status": "terminou", "ultima_pagina": NNN}')
+                                + '\n\nREGRAS PARA DECIDIR:\n'
+                                + '- CONTINUA se: artigos, paragrafos, incisos, alineas, tabelas, mapas, plantas, quadros, anexos, apendices ou qualquer conteudo que PERTENCA a esta legislacao\n'
+                                + '- CONTINUA se: a pagina tem APENAS assinaturas/data de sancao da lei (ainda faz parte)\n'
+                                + '- CONTINUA se: houver duvida sobre se o conteudo pertence a esta lei ou a seus anexos\n'
+                                + '- TERMINOU se: comecou CLARAMENTE outro ato legislativo completamente diferente (outro decreto, outra lei, outra portaria) SEM relacao com esta lei\n'
+                                + '- TERMINOU se: comecou secao de nomeacoes, licitacoes, atos administrativos rotineiros sem relacao com esta lei\n'
+                                + 'EM CASO DE DUVIDA: sempre responda CONTINUA\n'
+                                + 'Se terminou, informe a ULTIMA pagina que ainda pertence a esta legislacao (inclusive anexos).\n'
+                                + 'Responda APENAS com JSON: {"status": "continua"} ou {"status": "terminou", "ultima_pagina": NNN}'
+                            )
                             _resp2 = chamar_llm(_prompt2, logs, 'Recorte pag ' + str(_bi2), max_retries=0)
                             if _resp2:
                                 try:
