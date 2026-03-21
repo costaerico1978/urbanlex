@@ -3906,12 +3906,31 @@ TEXTO DO PDF:
                         _doc2 = _fitz2.open(pdf_path)
                         _total2 = len(_doc2)
                         _pag_inicio2 = paginas_relevantes[0][0] - 1
-                        _pag_fim2 = _pag_inicio2
-                        for _pi in range(_pag_inicio2, min(_pag_inicio2 + 100, _total2)):
-                            _txt_pi = _doc2[_pi].get_text().lower()
-                            if _pi > _pag_inicio2 + 2 and any(kw in _txt_pi for kw in ['decreto n', 'portaria n', 'lei n', 'resolucao n']) and numero_lei not in _doc2[_pi].get_text():
-                                break
-                            _pag_fim2 = _pi
+                        _pag_fim2 = min(_pag_inicio2 + 99, _total2 - 1)
+                        _chunk2 = 20
+                        for _bi2 in range(_pag_inicio2 + _chunk2, min(_pag_inicio2 + 200, _total2), _chunk2):
+                            _ultimas2 = []
+                            for _pi2x in range(max(_pag_inicio2, _bi2 - 3), min(_bi2 + 3, _total2)):
+                                _ultimas2.append('--- PAGINA ' + str(_pi2x+1) + ' ---\n' + _doc2[_pi2x].get_text()[:800])
+                            _resumo2 = '\n\n'.join(_ultimas2)
+                            _prompt2 = ('Estou recortando "' + tipo_lei + ' n ' + numero_lei + '/' + ano_lei + '" de um Diario Oficial.'
+                                + ' A lei comeca na pag ' + str(_pag_inicio2+1) + '. Analise as paginas abaixo (em torno da pag ' + str(_bi2+1) + '):\n\n'
+                                + _resumo2
+                                + '\n\nEstas paginas ainda fazem parte da mesma legislacao (artigos, paragrafos, anexos, tabelas, mapas)?'
+                                + ' Ou ja comecou outro ato completamente diferente?'
+                                + ' Responda APENAS com JSON: {"status": "continua"} ou {"status": "terminou", "ultima_pagina": NNN}')
+                            _resp2 = chamar_llm(_prompt2, logs, 'Recorte pag ' + str(_bi2), max_retries=0)
+                            if _resp2:
+                                try:
+                                    import re as _re2, json as _json2
+                                    _resp2c = _re2.sub(r'^```json\s*|\s*```$', '', _resp2.strip())
+                                    _dados2 = _json2.loads(_resp2c)
+                                    if _dados2.get('status') == 'terminou':
+                                        _pag_fim2 = min(_dados2.get('ultima_pagina', _bi2) - 1, _total2 - 1)
+                                        logs.append({'nivel': 'ok', 'msg': label + ': ✂️ IA: lei termina na pag ' + str(_pag_fim2+1)})
+                                        break
+                                except Exception:
+                                    pass
                         _doc2.close()
                         _reader2 = _pypdf2.PdfReader(pdf_path)
                         _writer2 = _pypdf2.PdfWriter()
