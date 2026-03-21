@@ -2361,20 +2361,37 @@ def _cleanup_old_jobs():
 @app.route('/api/admin/info-sistema')
 @login_required
 def api_info_sistema():
-    import subprocess
+    import subprocess, requests as _req_gh
     from datetime import datetime
     import pytz
     try:
-        commit = subprocess.check_output(['git', 'log', '--oneline', '-1'], cwd='/var/www/urbanlex').decode().strip()
+        commit_local = subprocess.check_output(['git', 'log', '--oneline', '-1'], cwd='/var/www/urbanlex').decode().strip()
         since_raw = subprocess.check_output(['systemctl', 'show', 'urbanlex', '--property=ActiveEnterTimestamp']).decode().strip().replace('ActiveEnterTimestamp=','')
-        # Converter para São Paulo
         sp_tz = pytz.timezone('America/Sao_Paulo')
         since_dt = datetime.strptime(since_raw, '%a %Y-%m-%d %H:%M:%S %Z')
         since_sp = since_dt.replace(tzinfo=pytz.utc).astimezone(sp_tz).strftime('%d/%m %H:%M')
-    except Exception as e:
-        commit = 'desconhecido'
+    except:
+        commit_local = 'desconhecido'
         since_sp = 'desconhecido'
-    return jsonify({'commit': commit, 'since': since_sp})
+    try:
+        gh = _req_gh.get('https://api.github.com/repos/costaerico1978/urbanlex/commits/main', timeout=5).json()
+        commit_remote = gh['sha'][:7] + ' ' + gh['commit']['message'].split('\n')[0]
+        atualizado = commit_local.split(' ')[0] == gh['sha'][:7]
+    except:
+        commit_remote = 'desconhecido'
+        atualizado = True
+    return jsonify({'commit': commit_local, 'since': since_sp, 'commit_remoto': commit_remote, 'atualizado': atualizado})
+
+@app.route('/api/admin/atualizar-worker', methods=['POST'])
+@login_required
+def api_atualizar_worker():
+    import subprocess, threading
+    def _update():
+        import time
+        time.sleep(1)
+        subprocess.run(['bash', '-c', 'cd /var/www/urbanlex && git pull && systemctl restart urbanlex'])
+    threading.Thread(target=_update, daemon=True).start()
+    return jsonify({'success': True, 'msg': 'Atualizando e reiniciando em 1s...'})
 
 @app.route('/api/admin/reiniciar-worker', methods=['POST'])
 @login_required

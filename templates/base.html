@@ -548,12 +548,16 @@
 
         <div id="sys-info" style="padding: 4px 12px; font-size:10px; color:#666; font-family:monospace; line-height:1.4;">
             <span id="sys-commit">...</span><br>
-            <span id="sys-since"></span>
+            <span id="sys-since"></span><br>
+            <span id="sys-remoto">...</span>
         </div>
         <div style="padding: 8px 10px;">
             <button onclick="reiniciarWorker()" title="Reiniciar Worker" style="width:100%;display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(255,80,80,0.08);border:1px solid rgba(255,80,80,0.2);border-radius:8px;color:#ff6b6b;font-size:12px;cursor:pointer;font-family:inherit;">
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 2.5A7 7 0 1 0 14 8"/><polyline points="14 2 14 6 10 6"/></svg>
                 Reiniciar Worker
+            </button>
+            <button onclick="atualizarWorker()" style="width:100%;margin-top:4px;display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(80,180,255,0.08);border:1px solid rgba(80,180,255,0.2);border-radius:8px;color:#4fc3f7;font-size:12px;cursor:pointer;font-family:inherit;">
+                ⬆️ Atualizar Worker
             </button>
         </div>
         <div class="sidebar-footer">
@@ -626,12 +630,32 @@ async function carregarInfoSistema() {
         const r = await fetch('/api/admin/info-sistema');
         const d = await r.json();
         const hash = d.commit ? d.commit.split(' ')[0] : '';
-        const msg = d.commit ? d.commit.substring(8, 45) : '';
-        document.getElementById('sys-commit').textContent = '🔀 ' + hash + ' ' + msg + '...';
+        const msg = d.commit ? d.commit.substring(8, 40) : '';
+        document.getElementById('sys-commit').textContent = '✅ ' + hash + ' ' + msg;
         document.getElementById('sys-since').textContent = '⏱ desde ' + (d.since || '');
+        const remoto = document.getElementById('sys-remoto');
+        if (!d.atualizado) {
+            remoto.textContent = '⚠️ Desatualizado: ' + (d.commit_remoto || '').substring(0, 35);
+            remoto.style.color = '#ff6b6b';
+        } else {
+            remoto.textContent = '✅ Worker atualizado';
+            remoto.style.color = '#4fc3f7';
+        }
     } catch(e) {}
 }
 carregarInfoSistema();
+async function atualizarWorker() {
+    if (!confirm('Fazer git pull e reiniciar o worker?')) return;
+    const btn = document.querySelector('[onclick="atualizarWorker()"]');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Atualizando...'; }
+    try {
+        const r = await fetch('/api/admin/atualizar-worker', {method: 'POST'});
+        const d = await r.json();
+        alert(d.msg || 'Worker atualizado!');
+        carregarInfoSistema();
+    } catch(e) { alert('Erro: ' + e); }
+    finally { if (btn) { btn.disabled = false; btn.textContent = '⬆️ Atualizar Worker'; } }
+}
 async function reiniciarWorker() {
     if (!confirm('Reiniciar o worker? Buscas em andamento serão interrompidas.')) return;
     const btn = document.querySelector('[onclick="reiniciarWorker()"]');
