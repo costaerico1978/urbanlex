@@ -3901,16 +3901,21 @@ TEXTO DO PDF:
                     resultado['confirmacao'] = 'Legislação confirmada no PDF pela IA'
                     logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ PDF confirmado — encerrando navegação'})
                     # Verificar se PDF e Diario Oficial pela primeira pagina
-                    _is_do = False
+                    _is_do = True
                     try:
                         import fitz as _fitz_chk
                         _doc_chk = _fitz_chk.open(pdf_path)
-                        _pag1_chk = (_doc_chk[0].get_text() + _doc_chk[1].get_text() if len(_doc_chk) > 1 else _doc_chk[0].get_text()).lower()
+                        _pag1_chk = _doc_chk[0].get_text()[:2000] if len(_doc_chk) > 0 else ''
                         _doc_chk.close()
-                        _do_kws = ["diario oficial", "d.o.m.", "d.o.e.", "d.o.u.", "diario do municipio", "diario do estado", "orgao oficial", "imprensa oficial", "edicao n", "edicao no", "pagina oficial"]
-                        _is_do = any(kw in _pag1_chk for kw in _do_kws)
-                    except Exception:
-                        _is_do = len(paginas_relevantes) < len(doc.pages) // 3 if False else True
+                        _p = ('Leia a primeira pagina abaixo.\nEste PDF e um Diario Oficial (multiplos atos diferentes)?\nOu ja e a lei especifica?\n\n' + _pag1_chk + '\n\nJSON: {"eh_diario_oficial": true/false}')
+                        _r = chamar_llm(_p, logs, label + ' verif DO', max_retries=0)
+                        if _r:
+                            import re as _re2, json as _j2
+                            _r2 = _re2.sub(r'^```json\s*|\s*```$', '', _r.strip())
+                            _is_do = _j2.loads(_r2).get('eh_diario_oficial', True)
+                            logs.append({'nivel': 'info', 'msg': label + ': eh DO: ' + str(_is_do)})
+                    except Exception as _ec:
+                        logs.append({'nivel': 'aviso', 'msg': label + ': verif DO err: ' + str(_ec)[:50]})
                     if not _is_do:
                         resultado["pdf_path"] = pdf_path
                         logs.append({"nivel": "info", "msg": label + ": PDF especifico — sem recorte"})
