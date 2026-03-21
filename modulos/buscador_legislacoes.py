@@ -1122,7 +1122,9 @@ Responda SOMENTE com JSON:
                                     _writer.add_page(_reader.pages[_p[0]])
                                 _pdf_dir_do = _os_pdf.path.join(_os_pdf.path.dirname(_os_pdf.path.dirname(__file__)), 'static', 'downloads')
                                 _os_pdf.makedirs(_pdf_dir_do, exist_ok=True)
-                                _fname_do = f'do_{tipo_desc.lower().replace(" ","_")}_{num}_{ano}.pdf'
+                                import hashlib as _h_do
+                                _hash_do = _h_do.md5(dl_path.encode()).hexdigest()[:8]
+                                _fname_do = f'do_{tipo_desc.lower().replace(" ","_")}_{num}_{ano}_{_hash_do}.pdf'
                                 _fpath_do = _os_pdf.path.join(_pdf_dir_do, _fname_do)
                                 with open(_fpath_do, 'wb') as _f_do:
                                     _writer.write(_f_do)

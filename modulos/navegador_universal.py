@@ -3920,7 +3920,9 @@ TEXTO DO PDF:
                         import os as _os2
                         _pdf_dir2 = _os2.path.join(_os2.path.dirname(_os2.path.dirname(__file__)), 'static', 'downloads')
                         _os2.makedirs(_pdf_dir2, exist_ok=True)
-                        _fname2 = f'do_{tipo_lei.lower().replace(" ","_")}_{numero_lei}_{ano_lei}.pdf'
+                        import hashlib as _h2
+                        _hash2 = _h2.md5(pdf_path.encode()).hexdigest()[:8]
+                        _fname2 = f'do_{tipo_lei.lower().replace(" ","_")}_{numero_lei}_{ano_lei}_{_hash2}.pdf'
                         _fpath2 = _os2.path.join(_pdf_dir2, _fname2)
                         with open(_fpath2, 'wb') as _f2:
                             _writer2.write(_f2)
