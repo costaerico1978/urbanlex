@@ -10,7 +10,15 @@ def deploy():
     mac = 'sha256=' + hmac.new(SECRET.encode(), request.data, hashlib.sha256).hexdigest()
     if not hmac.compare_digest(sig, mac):
         abort(403)
-    subprocess.Popen(['bash', '-c', 'cd /var/www/urbanlex && git pull && pkill -9 -f chromium; pkill -9 -f gunicorn; sleep 2 && systemctl restart urbanlex'])
+    import threading
+    if getattr(deploy, '_lock', None) is None:
+        deploy._lock = threading.Lock()
+    if deploy._lock.locked():
+        return 'Deploy em andamento', 200
+    def _run():
+        with deploy._lock:
+            subprocess.run(['bash', '-c', 'cd /var/www/urbanlex && git pull && pkill -9 -f chromium; pkill -9 -f gunicorn; sleep 3 && systemctl restart urbanlex'])
+    threading.Thread(target=_run, daemon=True).start()
     return 'OK', 200
 
 if __name__ == '__main__':
