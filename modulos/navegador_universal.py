@@ -3900,57 +3900,72 @@ TEXTO DO PDF:
                     resultado['encontrada'] = True
                     resultado['confirmacao'] = 'Legislação confirmada no PDF pela IA'
                     logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ PDF confirmado — encerrando navegação'})
-                    # Recortar PDF — páginas da legislação
+                    # Verificar se PDF e Diario Oficial pela primeira pagina
+                    _is_do = False
                     try:
-                        import pypdf as _pypdf2, fitz as _fitz2
-                        _doc2 = _fitz2.open(pdf_path)
-                        _total2 = len(_doc2)
-                        _pag_inicio2 = paginas_relevantes[0][0] - 1
-                        _pag_fim2 = min(_pag_inicio2 + 199, _total2 - 1)
-                        for _pi2 in range(_pag_inicio2 + 1, min(_pag_inicio2 + 200, _total2)):
-                            _txt_pi2 = _doc2[_pi2].get_text()[:1200]
-                            _prompt2 = (
-                                'Voce esta recortando "' + tipo_lei + ' n ' + numero_lei + '/' + ano_lei + '" de um Diario Oficial.\n'
-                                + 'A lei comeca na pagina ' + str(_pag_inicio2+1) + '.\n'
-                                + 'Analise o conteudo da pagina ' + str(_pi2+1) + ' abaixo:\n\n'
-                                + '--- PAGINA ' + str(_pi2+1) + ' ---\n' + _txt_pi2
-                                + '\n\nREGRAS:\n'
-                                + '- CONTINUA se: artigos, paragrafos, incisos, tabelas, mapas, plantas, quadros, anexos, apendices, assinaturas da lei\n'
-                                + '- TERMINOU se: claramente outro ato legislativo diferente (outro decreto/lei/portaria sem relacao com esta lei), ou nomeacoes/licitacoes rotineiras\n'
-                                + 'EM CASO DE DUVIDA: sempre CONTINUA\n'
-                                + 'Responda APENAS com JSON: {"status": "continua"} ou {"status": "terminou"}'
-                            )
-                            _resp2 = chamar_llm(_prompt2, logs, 'Recorte pag ' + str(_pi2+1), max_retries=0)
-                            if _resp2:
-                                try:
-                                    import re as _re2, json as _json2
-                                    _resp2c = _re2.sub(r'^```json\s*|\s*```$', '', _resp2.strip())
-                                    _dados2 = _json2.loads(_resp2c)
-                                    if _dados2.get('status') == 'terminou':
-                                        _pag_fim2 = _pi2 - 1
-                                        logs.append({'nivel': 'ok', 'msg': label + ': ✂️ IA: lei termina na pag ' + str(_pag_fim2+1)})
-                                        break
-                                except Exception:
-                                    pass
-                        _doc2.close()
-                        _reader2 = _pypdf2.PdfReader(pdf_path)
-                        _writer2 = _pypdf2.PdfWriter()
-                        for _pi2 in range(_pag_inicio2, _pag_fim2 + 1):
-                            _writer2.add_page(_reader2.pages[_pi2])
-                        import os as _os2
-                        _pdf_dir2 = _os2.path.join(_os2.path.dirname(_os2.path.dirname(__file__)), 'static', 'downloads')
-                        _os2.makedirs(_pdf_dir2, exist_ok=True)
-                        import hashlib as _h2
-                        _hash2 = _h2.md5(pdf_path.encode()).hexdigest()[:8]
-                        _fname2 = f'do_{tipo_lei.lower().replace(" ","_")}_{numero_lei}_{ano_lei}_{_hash2}.pdf'
-                        _fpath2 = _os2.path.join(_pdf_dir2, _fname2)
-                        with open(_fpath2, 'wb') as _f2:
-                            _writer2.write(_f2)
-                        resultado['pdf_path'] = _fpath2
-                        logs.append({'nivel': 'ok', 'msg': f'{label}: ✂️ PDF recortado ({_pag_fim2 - _pag_inicio2 + 1} págs de {_total2})'})
-                    except Exception as _e_rec2:
-                        logs.append({'nivel': 'aviso', 'msg': f'{label}: Recorte PDF erro: {str(_e_rec2)[:80]}'})
-                    break
+                        import fitz as _fitz_chk
+                        _doc_chk = _fitz_chk.open(pdf_path)
+                        _pag1_chk = (_doc_chk[0].get_text() + _doc_chk[1].get_text() if len(_doc_chk) > 1 else _doc_chk[0].get_text()).lower()
+                        _doc_chk.close()
+                        _do_kws = ["diario oficial", "d.o.m.", "d.o.e.", "d.o.u.", "diario do municipio", "diario do estado", "orgao oficial", "imprensa oficial", "edicao n", "edicao no", "pagina oficial"]
+                        _is_do = any(kw in _pag1_chk for kw in _do_kws)
+                    except Exception:
+                        _is_do = len(paginas_relevantes) < len(doc.pages) // 3 if False else True
+                    if not _is_do:
+                        resultado["pdf_path"] = pdf_path
+                        logs.append({"nivel": "info", "msg": label + ": PDF especifico — sem recorte"})
+                    if _is_do:
+                        # Recortar PDF — páginas da legislação
+                        try:
+                            import pypdf as _pypdf2, fitz as _fitz2
+                            _doc2 = _fitz2.open(pdf_path)
+                            _total2 = len(_doc2)
+                            _pag_inicio2 = paginas_relevantes[0][0] - 1
+                            _pag_fim2 = min(_pag_inicio2 + 199, _total2 - 1)
+                            for _pi2 in range(_pag_inicio2 + 1, min(_pag_inicio2 + 200, _total2)):
+                                _txt_pi2 = _doc2[_pi2].get_text()[:1200]
+                                _prompt2 = (
+                                    'Voce esta recortando "' + tipo_lei + ' n ' + numero_lei + '/' + ano_lei + '" de um Diario Oficial.\n'
+                                    + 'A lei comeca na pagina ' + str(_pag_inicio2+1) + '.\n'
+                                    + 'Analise o conteudo da pagina ' + str(_pi2+1) + ' abaixo:\n\n'
+                                    + '--- PAGINA ' + str(_pi2+1) + ' ---\n' + _txt_pi2
+                                    + '\n\nREGRAS:\n'
+                                    + '- CONTINUA se: artigos, paragrafos, incisos, tabelas, mapas, plantas, quadros, anexos, apendices, assinaturas da lei\n'
+                                    + '- TERMINOU se: claramente outro ato legislativo diferente (outro decreto/lei/portaria sem relacao com esta lei), ou nomeacoes/licitacoes rotineiras\n'
+                                    + 'EM CASO DE DUVIDA: sempre CONTINUA\n'
+                                    + 'Responda APENAS com JSON: {"status": "continua"} ou {"status": "terminou"}'
+                                )
+                                _resp2 = chamar_llm(_prompt2, logs, 'Recorte pag ' + str(_pi2+1), max_retries=0)
+                                if _resp2:
+                                    try:
+                                        import re as _re2, json as _json2
+                                        _resp2c = _re2.sub(r'^```json\s*|\s*```$', '', _resp2.strip())
+                                        _dados2 = _json2.loads(_resp2c)
+                                        if _dados2.get('status') == 'terminou':
+                                            _pag_fim2 = _pi2 - 1
+                                            logs.append({'nivel': 'ok', 'msg': label + ': ✂️ IA: lei termina na pag ' + str(_pag_fim2+1)})
+                                            break
+                                    except Exception:
+                                        pass
+                            _doc2.close()
+                            _reader2 = _pypdf2.PdfReader(pdf_path)
+                            _writer2 = _pypdf2.PdfWriter()
+                            for _pi2 in range(_pag_inicio2, _pag_fim2 + 1):
+                                _writer2.add_page(_reader2.pages[_pi2])
+                            import os as _os2
+                            _pdf_dir2 = _os2.path.join(_os2.path.dirname(_os2.path.dirname(__file__)), 'static', 'downloads')
+                            _os2.makedirs(_pdf_dir2, exist_ok=True)
+                            import hashlib as _h2
+                            _hash2 = _h2.md5(pdf_path.encode()).hexdigest()[:8]
+                            _fname2 = f'do_{tipo_lei.lower().replace(" ","_")}_{numero_lei}_{ano_lei}_{_hash2}.pdf'
+                            _fpath2 = _os2.path.join(_pdf_dir2, _fname2)
+                            with open(_fpath2, 'wb') as _f2:
+                                _writer2.write(_f2)
+                            resultado['pdf_path'] = _fpath2
+                            logs.append({'nivel': 'ok', 'msg': f'{label}: ✂️ PDF recortado ({_pag_fim2 - _pag_inicio2 + 1} págs de {_total2})'})
+                        except Exception as _e_rec2:
+                            logs.append({'nivel': 'aviso', 'msg': f'{label}: Recorte PDF erro: {str(_e_rec2)[:80]}'})
+                        break
                 else:
                     _edicoes_sem_lei += 1
                     if _edicoes_sem_lei >= _MAX_EDICOES:
