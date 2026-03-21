@@ -2358,6 +2358,24 @@ def _cleanup_old_jobs():
 
 
 
+@app.route('/api/admin/info-sistema')
+@login_required
+def api_info_sistema():
+    import subprocess
+    from datetime import datetime
+    import pytz
+    try:
+        commit = subprocess.check_output(['git', 'log', '--oneline', '-1'], cwd='/var/www/urbanlex').decode().strip()
+        since_raw = subprocess.check_output(['systemctl', 'show', 'urbanlex', '--property=ActiveEnterTimestamp']).decode().strip().replace('ActiveEnterTimestamp=','')
+        # Converter para São Paulo
+        sp_tz = pytz.timezone('America/Sao_Paulo')
+        since_dt = datetime.strptime(since_raw, '%a %Y-%m-%d %H:%M:%S %Z')
+        since_sp = since_dt.replace(tzinfo=pytz.utc).astimezone(sp_tz).strftime('%d/%m %H:%M')
+    except Exception as e:
+        commit = 'desconhecido'
+        since_sp = 'desconhecido'
+    return jsonify({'commit': commit, 'since': since_sp})
+
 @app.route('/api/admin/reiniciar-worker', methods=['POST'])
 @login_required
 def api_reiniciar_worker():
