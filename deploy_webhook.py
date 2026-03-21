@@ -17,9 +17,9 @@ def deploy():
         return 'Deploy em andamento', 200
     def _run():
         with deploy._lock:
-            subprocess.run(['bash', '-c', 'cd /var/www/urbanlex && git pull && pkill -9 -f chromium; pkill -9 -f gunicorn; sleep 3 && systemctl restart urbanlex'])
+            subprocess.run(['bash', '-c', 'cd /var/www/urbanlex && git pull && systemctl restart urbanlex'])
     threading.Thread(target=_run, daemon=True).start()
     return 'OK', 200
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001)
+    app.run(host='0.0.0.0', port=5001, use_reloader=False)
