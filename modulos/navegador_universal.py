@@ -3900,6 +3900,34 @@ TEXTO DO PDF:
                     resultado['encontrada'] = True
                     resultado['confirmacao'] = 'Legislação confirmada no PDF pela IA'
                     logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ PDF confirmado — encerrando navegação'})
+                    # Recortar PDF — páginas da legislação
+                    try:
+                        import pypdf as _pypdf2, fitz as _fitz2
+                        _doc2 = _fitz2.open(pdf_path)
+                        _total2 = len(_doc2)
+                        _pag_inicio2 = paginas_relevantes[0][0] - 1
+                        _pag_fim2 = _pag_inicio2
+                        for _pi in range(_pag_inicio2, min(_pag_inicio2 + 100, _total2)):
+                            _txt_pi = _doc2[_pi].get_text().lower()
+                            if _pi > _pag_inicio2 + 2 and any(kw in _txt_pi for kw in ['decreto n', 'portaria n', 'lei n', 'resolucao n']) and numero_lei not in _doc2[_pi].get_text():
+                                break
+                            _pag_fim2 = _pi
+                        _doc2.close()
+                        _reader2 = _pypdf2.PdfReader(pdf_path)
+                        _writer2 = _pypdf2.PdfWriter()
+                        for _pi2 in range(_pag_inicio2, _pag_fim2 + 1):
+                            _writer2.add_page(_reader2.pages[_pi2])
+                        import os as _os2
+                        _pdf_dir2 = _os2.path.join(_os2.path.dirname(_os2.path.dirname(__file__)), 'static', 'downloads')
+                        _os2.makedirs(_pdf_dir2, exist_ok=True)
+                        _fname2 = f'do_{tipo_lei.lower().replace(" ","_")}_{numero_lei}_{ano_lei}.pdf'
+                        _fpath2 = _os2.path.join(_pdf_dir2, _fname2)
+                        with open(_fpath2, 'wb') as _f2:
+                            _writer2.write(_f2)
+                        resultado['pdf_path'] = _fpath2
+                        logs.append({'nivel': 'ok', 'msg': f'{label}: ✂️ PDF recortado ({_pag_fim2 - _pag_inicio2 + 1} págs de {_total2})'})
+                    except Exception as _e_rec2:
+                        logs.append({'nivel': 'aviso', 'msg': f'{label}: Recorte PDF erro: {str(_e_rec2)[:80]}'})
                     break
                 else:
                     _edicoes_sem_lei += 1
