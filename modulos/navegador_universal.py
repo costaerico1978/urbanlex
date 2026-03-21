@@ -3906,36 +3906,28 @@ TEXTO DO PDF:
                         _doc2 = _fitz2.open(pdf_path)
                         _total2 = len(_doc2)
                         _pag_inicio2 = paginas_relevantes[0][0] - 1
-                        _pag_fim2 = min(_pag_inicio2 + 99, _total2 - 1)
-                        _chunk2 = 20
-                        for _bi2 in range(_pag_inicio2 + _chunk2, min(_pag_inicio2 + 200, _total2), _chunk2):
-                            _ultimas2 = []
-                            for _pi2x in range(max(_pag_inicio2, _bi2 - 3), min(_bi2 + 3, _total2)):
-                                _ultimas2.append('--- PAGINA ' + str(_pi2x+1) + ' ---\n' + _doc2[_pi2x].get_text()[:800])
-                            _resumo2 = '\n\n'.join(_ultimas2)
+                        _pag_fim2 = min(_pag_inicio2 + 199, _total2 - 1)
+                        for _pi2 in range(_pag_inicio2 + 1, min(_pag_inicio2 + 200, _total2)):
+                            _txt_pi2 = _doc2[_pi2].get_text()[:1200]
                             _prompt2 = (
-                                'Voce esta ajudando a recortar "' + tipo_lei + ' n ' + numero_lei + '/' + ano_lei + '" de um Diario Oficial.\n'
-                                + 'A legislacao comeca na pagina ' + str(_pag_inicio2+1) + '.\n'
-                                + 'Analise o conteudo das paginas abaixo (em torno da pagina ' + str(_bi2+1) + '):\n\n'
-                                + _resumo2
-                                + '\n\nREGRAS PARA DECIDIR:\n'
-                                + '- CONTINUA se: artigos, paragrafos, incisos, alineas, tabelas, mapas, plantas, quadros, anexos, apendices ou qualquer conteudo que PERTENCA a esta legislacao\n'
-                                + '- CONTINUA se: a pagina tem APENAS assinaturas/data de sancao da lei (ainda faz parte)\n'
-                                + '- CONTINUA se: houver duvida sobre se o conteudo pertence a esta lei ou a seus anexos\n'
-                                + '- TERMINOU se: comecou CLARAMENTE outro ato legislativo completamente diferente (outro decreto, outra lei, outra portaria) SEM relacao com esta lei\n'
-                                + '- TERMINOU se: comecou secao de nomeacoes, licitacoes, atos administrativos rotineiros sem relacao com esta lei\n'
-                                + 'EM CASO DE DUVIDA: sempre responda CONTINUA\n'
-                                + 'Se terminou, informe a ULTIMA pagina que ainda pertence a esta legislacao (inclusive anexos).\n'
-                                + 'Responda APENAS com JSON: {"status": "continua"} ou {"status": "terminou", "ultima_pagina": NNN}'
+                                'Voce esta recortando "' + tipo_lei + ' n ' + numero_lei + '/' + ano_lei + '" de um Diario Oficial.\n'
+                                + 'A lei comeca na pagina ' + str(_pag_inicio2+1) + '.\n'
+                                + 'Analise o conteudo da pagina ' + str(_pi2+1) + ' abaixo:\n\n'
+                                + '--- PAGINA ' + str(_pi2+1) + ' ---\n' + _txt_pi2
+                                + '\n\nREGRAS:\n'
+                                + '- CONTINUA se: artigos, paragrafos, incisos, tabelas, mapas, plantas, quadros, anexos, apendices, assinaturas da lei\n'
+                                + '- TERMINOU se: claramente outro ato legislativo diferente (outro decreto/lei/portaria sem relacao com esta lei), ou nomeacoes/licitacoes rotineiras\n'
+                                + 'EM CASO DE DUVIDA: sempre CONTINUA\n'
+                                + 'Responda APENAS com JSON: {"status": "continua"} ou {"status": "terminou"}'
                             )
-                            _resp2 = chamar_llm(_prompt2, logs, 'Recorte pag ' + str(_bi2), max_retries=0)
+                            _resp2 = chamar_llm(_prompt2, logs, 'Recorte pag ' + str(_pi2+1), max_retries=0)
                             if _resp2:
                                 try:
                                     import re as _re2, json as _json2
                                     _resp2c = _re2.sub(r'^```json\s*|\s*```$', '', _resp2.strip())
                                     _dados2 = _json2.loads(_resp2c)
                                     if _dados2.get('status') == 'terminou':
-                                        _pag_fim2 = min(_dados2.get('ultima_pagina', _bi2) - 1, _total2 - 1)
+                                        _pag_fim2 = _pi2 - 1
                                         logs.append({'nivel': 'ok', 'msg': label + ': ✂️ IA: lei termina na pag ' + str(_pag_fim2+1)})
                                         break
                                 except Exception:
