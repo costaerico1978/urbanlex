@@ -3110,25 +3110,9 @@ Se não encontrar data exata, retorne {{"data_publicacao": ""}}. NÃO invente.""
                         doc = fitz.open(nav_r['pdf_path'])
 
                         # ── Extração inteligente de páginas ───────────────────
-                        # Para PDFs grandes (DOs de 300+ págs), filtrar apenas
-                        # as páginas que contêm tipo + número da lei buscada.
-                        # Isso evita o truncamento na ETAPA 4 que omite o texto.
-                        _tipo_busca  = (tipo_inferido or tipo or '').lower()
-                        _num_busca   = str(numero or '').strip()
-                        _paginas_rel = []
                         _paginas_all = [pg.get_text() for pg in doc]
                         doc.close()
-
-                        if _tipo_busca and _num_busca:
-                            for _ptxt in _paginas_all:
-                                if (_num_busca in _ptxt and
-                                        _tipo_busca in _ptxt.lower()):
-                                    _paginas_rel.append(_ptxt)
-                            if not _paginas_rel:
-                                _paginas_rel = _paginas_all  # fallback: tudo
-                        else:
-                            _paginas_rel = _paginas_all
-
+                        _paginas_rel = _paginas_all
                         texto_pdf = '\n'.join(_paginas_rel)
 
                         # Marcar se o navegador já confirmou via IA
