@@ -366,7 +366,7 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
                 🔎 Buscar na Internet
             </button>
             <button class="btn btn-secondary" onclick="limparFormManual()">
-                Limpar
+                Nova Busca
             </button>
         </div>
     </div>
@@ -858,7 +858,7 @@ function limparFormManual() {
     document.getElementById('bm-esfera').value = 'municipal';
     bmEsferaChanged();
     document.getElementById('bm-resultados').style.display = 'none';
-    // Limpar log
+    // Nova Busca log
     const logEl = document.getElementById('bm-log-lines');
     if (logEl) logEl.innerHTML = '';
     const logBox = document.getElementById('bm-log');
