@@ -3912,7 +3912,15 @@ TEXTO DO PDF:
                         if _r:
                             import re as _re2, json as _j2
                             _r2 = _re2.sub(r'^```json\s*|\s*```$', '', _r.strip())
-                            _is_do = _j2.loads(_r2).get('eh_diario_oficial', True)
+                            # Tentar JSON, depois heurística no texto
+                            try:
+                                _is_do = _j2.loads(_r2).get('eh_diario_oficial', True)
+                            except:
+                                _rl = _r.lower()
+                                if 'false' in _rl or 'nao' in _rl or 'específico' in _rl or 'documento específico' in _rl:
+                                    _is_do = False
+                                else:
+                                    _is_do = True
                             _msg_do = '📰 PDF é Diário Oficial — aplicando recorte' if _is_do else '📄 PDF é documento específico — sem recorte'
                             logs.append({'nivel': 'info', 'msg': label + ': ' + _msg_do})
                     except Exception as _ec:
