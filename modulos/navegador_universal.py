@@ -3928,7 +3928,7 @@ TEXTO DO PDF:
                     if not _is_do:
                         resultado["pdf_path"] = pdf_path
                         logs.append({"nivel": "info", "msg": label + ": PDF especifico — sem recorte"})
-                    break
+                        break
                     if _is_do:
                         # Recortar PDF — páginas da legislação
                         try:
