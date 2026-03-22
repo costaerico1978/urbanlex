@@ -3110,7 +3110,13 @@ Se não encontrar data exata, retorne {{"data_publicacao": ""}}. NÃO invente.""
                         doc = fitz.open(nav_r['pdf_path'])
 
                         # ── Extração inteligente de páginas ───────────────────
-                        _paginas_all = [pg.get_text() for pg in doc]
+                        _total_pags = len(doc)
+                        # PDF recortado ou pequeno: ler tudo; PDF especifico grande: so primeiras 30 pags
+                        if _total_pags <= 100 or nav_r.get("_confirmada"):
+                            _paginas_all = [pg.get_text() for pg in doc]
+                        else:
+                            _paginas_all = [doc[j].get_text() for j in range(min(30, _total_pags))]
+                            logs.append({"nivel": "info", "msg": site["label"] + ": PDF grande — lendo primeiras 30 pags para analise"})
                         doc.close()
                         _paginas_rel = _paginas_all
                         texto_pdf = '\n'.join(_paginas_rel)
