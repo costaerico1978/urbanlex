@@ -692,6 +692,9 @@ async function executarBuscaManual() {
         const duracao = ((Date.now() - t0) / 1000).toFixed(1);
 
         document.getElementById('bm-loading').style.display = 'none';
+        sessionStorage.removeItem('buscador_job_id');
+        sessionStorage.removeItem('buscador_campos');
+        history.replaceState({}, '', '/buscador');
         document.getElementById('bm-resultados').style.display = 'block';
 
         logLine('⏱️', `Tempo total: ${duracao}s (${logCount} etapas)`, 'var(--muted)');
