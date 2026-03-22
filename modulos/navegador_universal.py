@@ -3925,6 +3925,7 @@ TEXTO DO PDF:
                             logs.append({'nivel': 'info', 'msg': label + ': ' + _msg_do})
                     except Exception as _ec:
                         logs.append({'nivel': 'aviso', 'msg': label + ': verif DO err: ' + str(_ec)[:50]})
+                    resultado['_is_do'] = _is_do
                     if not _is_do:
                         resultado["pdf_path"] = pdf_path
                         logs.append({"nivel": "info", "msg": label + ": PDF especifico — sem recorte"})

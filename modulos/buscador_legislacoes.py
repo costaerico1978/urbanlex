@@ -1682,6 +1682,7 @@ def _navegar_formulario_com_ia(url_base: str, tipo_lei: str, numero_lei: str,
                 # Se baixou PDF, guardar caminho
                 if nav_resultado.get('pdf_path'):
                     resultado_item['pdf_path'] = nav_resultado['pdf_path']
+                    resultado_item['_is_do'] = nav_resultado.get('_is_do', False)
                     if nav_resultado.get('pagina_pdf'):
                         resultado_item['pagina_pdf'] = nav_resultado['pagina_pdf']
                 
@@ -3127,13 +3128,16 @@ Se não encontrar data exata, retorne {{"data_publicacao": ""}}. NÃO invente.""
 
                         # ── Extração inteligente de páginas ───────────────────
                         _total_pags = len(doc)
-                        # PDF recortado ou pequeno: ler tudo; PDF especifico grande: so primeiras 30 pags
-                        if _total_pags <= 100 or nav_r.get("_confirmada"):
+                        # Se PDF foi confirmado e nao e DO: ler so primeira pagina
+                        _confirmada_nav = bool(nav_r.get("encontrada") and nav_r.get("confirmacao"))
+                        _is_do_pdf = nav_r.get("_is_do", False)
+                        if _confirmada_nav and not _is_do_pdf:
+                            _paginas_all = [doc[0].get_text()]
+                            logs.append({"nivel": "info", "msg": site["label"] + ": PDF confirmado nao-DO — usando apenas primeira pagina"})
+                        elif _total_pags <= 100:
                             _paginas_all = [pg.get_text() for pg in doc]
                         else:
-                            _paginas_all = [doc[j].get_text() for j in range(min(30, _total_pags))]
-                            logs.append({"nivel": "info", "msg": site["label"] + ": PDF grande — lendo primeiras 30 pags para analise"})
-                        doc.close()
+                            _paginas_all = [doc[j].get_text() for j in range(min(5, _total_pags))]
                         _paginas_rel = _paginas_all
                         texto_pdf = '\n'.join(_paginas_rel)
 
