@@ -425,6 +425,22 @@ def _flaresolverr_get(url: str, logs: list = None) -> tuple:
     except Exception as e:
         if logs is not None:
             logs.append({'nivel': 'aviso', 'msg': f'FlareSolverr erro: {str(e)[:80]}'})
+        # Reiniciar FlareSolverr e aguardar
+        try:
+            import subprocess as _sp_fs, time as _time_fs
+            if logs: logs.append({'nivel': 'aviso', 'msg': 'FlareSolverr: reiniciando Docker...'})
+            _sp_fs.run(['docker', 'restart', 'flaresolverr'], timeout=30)
+            _time_fs.sleep(15)  # aguardar FlareSolverr subir
+            if logs: logs.append({'nivel': 'ok', 'msg': 'FlareSolverr: reiniciado — tentando novamente'})
+            r2 = _req.post('http://localhost:8191/v1',
+                json={'cmd': 'request.get', 'url': url, 'maxTimeout': 60000},
+                timeout=70)
+            d2 = r2.json()
+            if d2.get('status') == 'ok':
+                sol2 = d2.get('solution', {})
+                return sol2.get('status', 0), sol2.get('response', '')
+        except Exception as _e2:
+            if logs: logs.append({'nivel': 'aviso', 'msg': 'FlareSolverr: falhou após restart: ' + str(_e2)[:60]})
     return 0, ''
 
 def _buscar_leismunicipais_direto(municipio: str, estado: str, tipo: str, numero: str, ano: str, logs: list) -> list:
