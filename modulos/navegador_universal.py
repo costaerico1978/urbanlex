@@ -3913,7 +3913,8 @@ TEXTO DO PDF:
                             import re as _re2, json as _j2
                             _r2 = _re2.sub(r'^```json\s*|\s*```$', '', _r.strip())
                             _is_do = _j2.loads(_r2).get('eh_diario_oficial', True)
-                            logs.append({'nivel': 'info', 'msg': label + ': eh DO: ' + str(_is_do)})
+                            _msg_do = '📰 PDF é Diário Oficial — aplicando recorte' if _is_do else '📄 PDF é documento específico — sem recorte'
+                            logs.append({'nivel': 'info', 'msg': label + ': ' + _msg_do})
                     except Exception as _ec:
                         logs.append({'nivel': 'aviso', 'msg': label + ': verif DO err: ' + str(_ec)[:50]})
                     if not _is_do:
