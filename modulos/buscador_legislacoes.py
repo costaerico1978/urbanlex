@@ -3829,7 +3829,12 @@ def cadastrar_resultados(legislacoes: List[dict], municipio: str, estado: str,
             anexos = leg.get('anexos_lm', [])
             import os as _os
             _ext = _os.path.splitext(pdf_path)[1] if pdf_path else '.pdf'
-            arquivo_nome = f'{tipo_nome}-{numero}-{ano}-{municipio}{_ext}'.replace(' ', '_').replace('/', '-') if pdf_path else ''
+            # Abreviação do tipo de ato
+            _tipo_abrev = {'Lei Complementar': 'LC', 'Lei Ordinária': 'LO', 'Decreto': 'Dec',
+                           'Resolução': 'Res', 'Portaria': 'Port', 'Emenda': 'EC'}.get(tipo_nome, tipo_nome.replace(' ','_'))
+            _estado_f = (estado or '').upper().replace(' ', '_')
+            _municipio_f = (municipio or '').replace(' ', '_').replace('/', '-')
+            arquivo_nome = f'{_estado_f}_{_municipio_f}_{_tipo_abrev}_{numero}_{ano}{_ext}' if pdf_path else ''
             if existente and not leg.get('substituir'):
                 ids.append(existente[0])
                 continue
