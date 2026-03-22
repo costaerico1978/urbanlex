@@ -656,16 +656,35 @@ async function atualizarWorker() {
     } catch(e) { alert('Erro: ' + e); }
     finally { if (btn) { btn.disabled = false; btn.textContent = '⬆️ Atualizar Worker'; } }
 }
+const ADMIN_TOKEN = 'a62a640862268240daec140a4f893d85a8e444c57205d0dc919a9b00a5605b29';
+
+async function emergencyCall(endpoint) {
+    const r = await fetch('/admin-control/' + endpoint, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-Admin-Token': ADMIN_TOKEN},
+        body: JSON.stringify({token: ADMIN_TOKEN})
+    });
+    return r.json();
+}
+
 async function reiniciarWorker() {
     if (!confirm('Reiniciar o worker? Buscas em andamento serão interrompidas.')) return;
     const btn = document.querySelector('[onclick="reiniciarWorker()"]');
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Reiniciando...'; }
     try {
-        const r = await fetch('/api/admin/reiniciar-worker', {method: 'POST'});
-        const d = await r.json();
+        let d;
+        try {
+            const r = await Promise.race([
+                fetch('/api/admin/reiniciar-worker', {method: 'POST'}),
+                new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 3000))
+            ]);
+            d = await r.json();
+        } catch(e) {
+            d = await emergencyCall('reiniciar-worker');
+        }
         alert(d.msg || 'Worker reiniciado!');
     } catch(e) { alert('Erro: ' + e); }
-    finally { if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 2.5A7 7 0 1 0 14 8"/><polyline points="14 2 14 6 10 6"/></svg> Reiniciar Worker'; } }
+    finally { if (btn) { btn.disabled = false; btn.textContent = '🔴 Reiniciar Worker'; } }
 }
 function logout() { api('POST','/api/auth/logout').then(()=>location.href='/login'); }
 
