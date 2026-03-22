@@ -3907,7 +3907,7 @@ TEXTO DO PDF:
                         _doc_chk = _fitz_chk.open(pdf_path)
                         _pag1_chk = _doc_chk[0].get_text()[:2000] if len(_doc_chk) > 0 else ''
                         _doc_chk.close()
-                        _p = ('Leia a primeira pagina abaixo.\nEste PDF e um Diario Oficial (multiplos atos diferentes)?\nOu ja e a lei especifica?\n\n' + _pag1_chk + '\n\nJSON: {"eh_diario_oficial": true/false}')
+                        _p = ('Responda APENAS com JSON valido, sem explicacoes. Analise a primeira pagina abaixo e determine se este PDF e um Diario Oficial (publicacao periodica com multiplos atos de tipos diferentes como decretos, leis, portarias, nomeacoes) ou um documento especifico de uma unica legislacao.\n\n' + _pag1_chk + '\n\nResposta obrigatoria em JSON puro: {"eh_diario_oficial": true} ou {"eh_diario_oficial": false}')
                         _r = chamar_llm(_p, logs, label + ' verif DO', max_retries=0)
                         if _r:
                             import re as _re2, json as _j2
