@@ -1357,8 +1357,11 @@ carregarFila();
         window._buscadorJobId = jobId;
         window._buscadorCancelado = false;
         history.replaceState({jobId}, '', '?job=' + jobId);
-        // Retomar polling
-        let cursor = 0;
+        // Buscar TODOS os logs desde o início
+        const allLogs = await api('GET', `/api/buscador/job/${jobId}?cursor=0&limit=9999`);
+        logClear();
+        (allLogs.logs || []).forEach(l => logLine('🔹', l.msg, 'var(--muted)'));
+        let cursor = (allLogs.logs || []).length;
         let done = false;
         while (!done && !window._buscadorCancelado) {
             await new Promise(r => setTimeout(r, 1500));
