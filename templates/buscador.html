@@ -871,6 +871,9 @@ function limparFormManual() {
         window._buscadorJobId = null;
     }
     window._buscadorCancelado = true;
+    sessionStorage.removeItem('buscador_job_id');
+    sessionStorage.removeItem('buscador_campos');
+    history.replaceState({}, '', '/buscador');
 }
 
 async function cadastrarSelecionados() {

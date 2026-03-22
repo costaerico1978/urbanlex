@@ -2415,7 +2415,11 @@ def api_buscador_cancelar():
     job = _buscador_jobs.get(job_id)
     if job and not job.get('done'):
         job['cancelled'] = True
+        job['done'] = True
         job['logs'].append({'nivel': 'aviso', 'msg': '⚠️ Busca cancelada pelo usuário'})
+        # Matar processos Chromium para liberar recursos
+        import subprocess
+        subprocess.run(['pkill', '-9', '-f', 'chromium'], capture_output=True)
     return jsonify({'success': True})
 
 @app.route('/api/buscador/manual-stream', methods=['POST'])
