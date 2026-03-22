@@ -630,6 +630,10 @@ async function executarBuscaManual() {
         const jobId = startResp.job_id;
         window._buscadorJobId = jobId;
         window._buscadorCancelado = false;
+        // Salvar estado no sessionStorage e atualizar URL
+        sessionStorage.setItem('buscador_job_id', jobId);
+        sessionStorage.setItem('buscador_campos', JSON.stringify(body));
+        history.pushState({jobId}, '', '?job=' + jobId);
         logLine('🔗', 'Job iniciado — acompanhe o progresso em tempo real', 'var(--accent)');
         logSpinner('Aguardando primeiros resultados...');
 
@@ -1323,6 +1327,52 @@ async function carregarHistorico() {
 // ── Init ──
 carregarStatusPlataforma();
 carregarFila();
+
+// Reconectar job ativo ao carregar a página
+(async function reconectarJob() {
+    const params = new URLSearchParams(window.location.search);
+    const jobId = params.get('job') || sessionStorage.getItem('buscador_job_id');
+    if (!jobId) return;
+    // Verificar se job ainda existe e está ativo
+    try {
+        const poll = await api('GET', `/api/buscador/job/${jobId}?cursor=0`);
+        if (!poll || poll.status === 'not_found') {
+            sessionStorage.removeItem('buscador_job_id');
+            sessionStorage.removeItem('buscador_campos');
+            return;
+        }
+        // Restaurar campos
+        const camposSalvos = sessionStorage.getItem('buscador_campos');
+        if (camposSalvos) {
+            const campos = JSON.parse(camposSalvos);
+            if (campos.municipio) document.getElementById('bm-municipio').value = campos.municipio;
+            if (campos.tipo) document.getElementById('bm-tipo').value = campos.tipo;
+            if (campos.numero) document.getElementById('bm-numero').value = campos.numero;
+            if (campos.ano) document.getElementById('bm-ano').value = campos.ano;
+        }
+        mudarTab('manual');
+        logClear();
+        logLine('🔄', 'Reconectando busca em andamento...', 'var(--accent)');
+        document.getElementById('bm-loading').style.display = 'block';
+        window._buscadorJobId = jobId;
+        window._buscadorCancelado = false;
+        history.replaceState({jobId}, '', '?job=' + jobId);
+        // Retomar polling
+        let cursor = 0;
+        let done = false;
+        while (!done && !window._buscadorCancelado) {
+            await new Promise(r => setTimeout(r, 1500));
+            try {
+                const p = await api('GET', `/api/buscador/job/${jobId}?cursor=${cursor}`);
+                if (!p) continue;
+                (p.logs || []).forEach(l => { logLine('🔹', l.msg, 'var(--muted)'); cursor++; });
+                if (p.status === 'done') { done = true; }
+            } catch(e) {}
+        }
+        document.getElementById('bm-loading').style.display = 'none';
+        sessionStorage.removeItem('buscador_job_id');
+    } catch(e) {}
+})();
 
 // Auto-selecionar aba correta baseado na rota
 const BUSCA_PAGINA = '{{ active_page }}';
