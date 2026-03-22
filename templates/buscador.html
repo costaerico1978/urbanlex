@@ -1362,17 +1362,41 @@ carregarFila();
         logClear();
         (allLogs.logs || []).forEach(l => logLine('🔹', l.msg, 'var(--muted)'));
         let cursor = (allLogs.logs || []).length;
-        let done = false;
-        while (!done && !window._buscadorCancelado) {
-            await new Promise(r => setTimeout(r, 1500));
+        let done = allLogs.done || false;
+        let finalResult = allLogs.result || null;
+        let logCount = (allLogs.logs || []).length;
+        let notFoundCount = 0;
+        const t0rec = Date.now();
+        while (!done) {
+            if (window._buscadorCancelado) { done = true; break; }
+            await new Promise(ok => setTimeout(ok, 1500));
             try {
-                const p = await api('GET', `/api/buscador/job/${jobId}?cursor=${cursor}`);
-                if (!p) continue;
-                (p.logs || []).forEach(l => { logLine('🔹', l.msg, 'var(--muted)'); cursor++; });
-                if (p.status === 'done') { done = true; }
-            } catch(e) {}
+                const poll = await api('GET', `/api/buscador/job/${jobId}?cursor=${cursor}`);
+                if (!poll.success && poll.error === 'Job não encontrado') {
+                    notFoundCount++;
+                    if (notFoundCount > 13) { done = true; } else { logSpinner('Aguardando...'); }
+                    continue;
+                }
+                notFoundCount = 0;
+                if (poll.logs && poll.logs.length) {
+                    logRemoveSpinner();
+                    poll.logs.forEach(l => {
+                        const c = l.nivel==='erro'?'var(--red)':l.nivel==='aviso'?'var(--amber)':l.nivel==='ok'?'var(--accent)':'var(--muted)';
+                        const icon = l.nivel==='erro'?'❌ ':l.nivel==='aviso'?'⚠️':l.nivel==='ok'?'✅ ':'🔹';
+                        logLine(icon, l.msg, c); logCount++;
+                    });
+                    if (!poll.done) logSpinner('Processando...');
+                }
+                cursor = poll.cursor || cursor;
+                if (poll.done) { done = true; finalResult = poll.result; }
+            } catch(e) { logLine('⚠️', 'Polling: ' + e.message, 'var(--amber)'); }
         }
+        logRemoveSpinner();
+        const duracaoRec = ((Date.now() - t0rec) / 1000).toFixed(1);
         document.getElementById('bm-loading').style.display = 'none';
+        document.getElementById('bm-resultados').style.display = 'block';
+        logLine('⏱️', 'Tempo total: ' + duracaoRec + 's (' + logCount + ' etapas)', 'var(--muted)');
+        if (finalResult) { renderizarResultadoBusca(finalResult, duracaoRec); }
         sessionStorage.removeItem('buscador_job_id');
     } catch(e) {}
 })();
