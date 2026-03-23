@@ -642,6 +642,25 @@ async function carregarInfoSistema() {
 }
 carregarInfoSistema();
 setInterval(carregarInfoSistema, 30000);
+
+// Reconexão automática se servidor cair
+(function reconectar() {
+    let offline = false;
+    setInterval(async () => {
+        try {
+            const r = await fetch('/api/status', {cache: 'no-store'});
+            if (r.ok && offline) {
+                offline = false;
+                location.reload();
+            }
+        } catch(e) {
+            if (!offline) {
+                offline = true;
+                console.log('Servidor offline — aguardando reconexão...');
+            }
+        }
+    }, 5000);
+})();
 async function atualizarWorker() {
     if (!confirm('Fazer git pull e reiniciar o worker?')) return;
     const btn = document.querySelector('[onclick="atualizarWorker()"]');

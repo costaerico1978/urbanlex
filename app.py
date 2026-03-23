@@ -505,6 +505,10 @@ def api_login():
     qry("UPDATE users SET ultimo_acesso=NOW() WHERE id=%s", (user['id'],), commit=True, fetch=None)
     return jsonify({'success':True,'role':user['role']})
 
+@app.route('/api/status')
+def api_status():
+    return jsonify({'ok': True})
+
 @app.route('/api/auth/logout', methods=['POST'])
 def api_logout(): session.clear(); return jsonify({'success':True})
 
