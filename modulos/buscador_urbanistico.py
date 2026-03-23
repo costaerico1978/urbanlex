@@ -115,15 +115,20 @@ def _verificar_parametros(texto, municipio, estado, tipo, numero, ano, logs, cha
     prompt = (
         f"Leia o texto abaixo e responda se a {tipo} {numero}/{ano} de {municipio}/{estado} "
         f"define os parametros urbanisticos de ocupacao do solo no municipio.\n\n"
-        f"TEXTO:\n{texto[:5000]}\n\n"
+        f"TEXTO:\n{texto[:12000]}\n\n"
         "Responda APENAS com JSON (sem markdown):\n"
         "{\n"
         "  \"define_parametros\": true ou false,\n"
         "  \"define_zoneamento\": true ou false,\n"
-        "  \"motivo\": \"A [tipo] n [numero]/[ano] [define / nao define] os parametros urbanisticos de ocupacao no municipio de [municipio], tais como [liste apenas os que aparecem no texto: coeficiente de aproveitamento, taxa de ocupacao, gabarito, usos permitidos, recuos, etc].\")\n"
+        "  \"parametros_encontrados\": [\"coeficiente de aproveitamento\", \"taxa de ocupacao\", ...],\n"
+        "  \"referencias\": [\"Art. 10\", \"Anexo I\", ...],\n"
+        "  \"motivo\": \"A [tipo] n [numero]/[ano] [define / nao define] os parametros urbanisticos de ocupacao no municipio de [municipio], tais como [...].\"\"\n"
         "}\n\n"
-        "define_zoneamento = true se a lei divide o municipio em zonas, macrozonas ou setores urbanisticos.\n"
-        "No motivo negativo use apenas: A [tipo] n [numero]/[ano] nao define os parametros urbanisticos de ocupacao no municipio de [municipio]."
+        "Regras:\n"
+        "- define_zoneamento = true se a lei divide o municipio em zonas, macrozonas ou setores urbanisticos.\n"
+        "- parametros_encontrados: liste APENAS os que aparecem claramente no trecho acima. Se nenhum, use [].\n"
+        "- referencias: liste APENAS artigos ou anexos vistos no trecho acima. Se nenhum, use [].\n"
+        "- No motivo negativo use: A [tipo] n [numero]/[ano] nao define os parametros urbanisticos de ocupacao no municipio de [municipio]."
     )
     resp = chamar_llm(prompt, logs, f"Verif {tipo} {numero}")
     if not resp:
@@ -134,12 +139,18 @@ def _verificar_parametros(texto, municipio, estado, tipo, numero, ano, logs, cha
         dados = _json.loads(resp_c)
         motivo = dados.get("motivo", "")[:300]
         zoneamento = dados.get("define_zoneamento", False)
+        parametros = dados.get("parametros_encontrados", [])
+        referencias = dados.get("referencias", [])
         if dados.get("define_parametros"):
             logs.append({"nivel": "ok", "msg": f"  {motivo}"})
             if zoneamento:
                 logs.append({"nivel": "ok", "msg": f"  Define tambem o zoneamento do municipio."})
             else:
                 logs.append({"nivel": "info", "msg": f"  Nao define o zoneamento do municipio."})
+            if parametros:
+                logs.append({"nivel": "info", "msg": f"  Parametros: {', '.join(parametros[:10])}"})
+            if referencias:
+                logs.append({"nivel": "info", "msg": f"  Referencias: {', '.join(referencias[:10])}"})
             return True
         else:
             logs.append({"nivel": "info", "msg": f"  {motivo}"})
