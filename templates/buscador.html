@@ -941,31 +941,65 @@ function fecharModalNovoMun() {
 }
 
 async function confirmarBuscaNovoMun() {
-    const mun = document.getElementById('nm-municipio').value.trim();
-    const est = document.getElementById('nm-estado').value;
-    const cadastrar = document.getElementById('nm-cadastrar').checked;
-    if (!mun) { alert('Informe o município'); return; }
-
-    const btn = document.getElementById('btn-nm-ok');
-    btn.disabled = true; btn.textContent = '⏳ Buscando...';
-
-    try {
-        const r = await api('POST', '/api/buscador/municipio', { municipio: mun, estado: est, cadastrar, monitorar: cadastrar });
-        fecharModalNovoMun();
-        btn.disabled = false; btn.textContent = '🔎 Buscar';
-
-        if (r.success) {
-            const n = (r.legislacoes_encontradas || []).length;
-            const c = (r.legislacoes_cadastradas || []).length;
-            alert(`Encontradas ${n} legislação(ões)${c ? `, ${c} cadastrada(s) na biblioteca` : ''}.`);
-            carregarFila();
-        } else {
-            alert('Erro: ' + (r.error || 'desconhecido'));
-        }
-    } catch(e) {
-        btn.disabled = false; btn.textContent = '🔎 Buscar';
-        alert('Erro: ' + e.message);
+    const mun = document.getElementById("nm-municipio").value.trim();
+    const est = document.getElementById("nm-estado").value;
+    const cadastrar = document.getElementById("nm-cadastrar").checked;
+    if (!mun) { alert("Informe o município"); return; }
+    const btn = document.getElementById("btn-nm-ok");
+    btn.disabled = true; btn.textContent = "⏳ Iniciando...";
+    fecharModalNovoMun();
+    // Mostrar painel de log
+    let logEl = document.getElementById("log-municipio");
+    if (!logEl) {
+        logEl = document.createElement("div");
+        logEl.id = "log-municipio";
+        logEl.style = "margin-top:16px;background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;max-height:400px;overflow-y:auto;";
+        document.getElementById("fila-auto").insertAdjacentElement("beforebegin", logEl);
     }
+    logEl.innerHTML = '<div style="color:var(--accent);margin-bottom:8px;">🔍 Buscando legislações urbanísticas de ' + mun + "/" + est + '...</div>';
+    // Botão baixar log
+    let btnLog = document.getElementById("btn-baixar-log-mun");
+    if (!btnLog) {
+        btnLog = document.createElement("button");
+        btnLog.id = "btn-baixar-log-mun";
+        btnLog.className = "btn btn-secondary btn-sm";
+        btnLog.style = "margin-bottom:8px;";
+        btnLog.textContent = "⬇️ Baixar .txt";
+        btnLog.onclick = () => {
+            const txt = Array.from(logEl.querySelectorAll("div")).map(d => d.textContent).join("\n");
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(new Blob([txt], {type: "text/plain"}));
+            a.download = "busca_" + mun.replace(/ /g,"_") + "_" + est + ".txt";
+            a.click();
+        };
+        logEl.insertAdjacentElement("beforebegin", btnLog);
+    }
+    try {
+        const r = await api("POST", "/api/buscador/municipio", {municipio: mun, estado: est, cadastrar, monitorar: cadastrar});
+        if (!r.success) { alert("Erro: " + (r.error || "desconhecido")); btn.disabled = false; btn.textContent = "🔎 Buscar"; return; }
+        const jobId = r.job_id;
+        let cursor = 0;
+        while (true) {
+            await new Promise(ok => setTimeout(ok, 1500));
+            try {
+                const poll = await api("GET", `/api/buscador/job/${jobId}?cursor=${cursor}`);
+                if (poll.logs && poll.logs.length) {
+                    poll.logs.forEach(l => {
+                        const c = l.nivel === "erro" ? "#ff6b6b" : l.nivel === "aviso" ? "#ffb347" : l.nivel === "ok" ? "var(--accent)" : "var(--muted)";
+                        const d = document.createElement("div");
+                        d.style.color = c;
+                        d.textContent = l.msg;
+                        logEl.appendChild(d);
+                        logEl.scrollTop = logEl.scrollHeight;
+                    });
+                }
+                cursor = poll.cursor || cursor;
+                if (poll.done) break;
+            } catch(e) {}
+        }
+        carregarFila();
+    } catch(e) { alert("Erro: " + e.message); }
+    finally { btn.disabled = false; btn.textContent = "🔎 Buscar"; }
 }
 
 // ── Sincronizar Plataforma ──

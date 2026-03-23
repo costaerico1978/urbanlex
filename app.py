@@ -2242,19 +2242,30 @@ def pg_buscador():
 @app.route('/api/buscador/municipio', methods=['POST'])
 @editor_required
 def api_buscador_municipio():
-    """Busca legislações de um município (botão 'Buscar Novo Município')."""
+    """Inicia busca urbanistica de municipio em background."""
+    import uuid, threading
     d = request.json or {}
-    mun = d.get('municipio', '').strip()
-    est = d.get('estado', '').strip()
+    mun = d.get("municipio", "").strip()
+    est = d.get("estado", "").strip()
     if not mun or not est:
-        return jsonify({'success': False, 'error': 'municipio e estado obrigatórios'}), 400
-    try:
-        from modulos.buscador_legislacoes import buscar_municipio
-        r = buscar_municipio(mun, est, cadastrar=d.get('cadastrar', False), monitorar=d.get('monitorar', True))
-        return jsonify({'success': True, **r})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)[:300]}), 500
-
+        return jsonify({"success": False, "error": "municipio e estado obrigatorios"}), 400
+    job_id = str(uuid.uuid4())[:8]
+    job = {"done": False, "cancelled": False, "logs": [], "result": None}
+    _buscador_jobs[job_id] = job
+    def _run():
+        try:
+            from modulos.buscador_legislacoes import _chamar_llm as _llm
+            from modulos.buscador_urbanistico import buscar_legislacoes_urbanisticas
+            def chamar_llm(prompt, logs, label="LLM", max_retries=2):
+                return _llm(prompt, logs, label, max_retries)
+            r = buscar_legislacoes_urbanisticas(mun, est, job["logs"], chamar_llm)
+            job["result"] = r
+        except Exception as e:
+            job["logs"].append({"nivel": "erro", "msg": f"Erro: {str(e)[:200]}"})
+        finally:
+            job["done"] = True
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"success": True, "job_id": job_id})
 @app.route('/api/buscador/manual', methods=['POST'])
 @editor_required
 def api_buscador_manual():
