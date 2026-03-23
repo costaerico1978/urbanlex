@@ -11,28 +11,50 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
 
     # ETAPA 1: Buscar na web e usar IA para identificar legislacoes
     logs.append({"nivel": "ok", "msg": f"Buscando na web: parametros urbanisticos de {municipio}/{estado}..."})
-    
-    # Buscar no DuckDuckGo
     conteudo_web = ""
+    query = f"qual legislacao define os parametros urbanisticos de {municipio} {estado}"
+    
+    # Tentar Google primeiro
     try:
-        from modulos.buscador_legislacoes import _pesquisar_web
-        query = f"qual legislacao define os parametros urbanisticos de {municipio} {estado}"
-        resultados_web = _pesquisar_web(query, logs, "Web urbanistico", max_results=5)
-        if resultados_web:
-            for res in resultados_web[:5]:
-                conteudo_web += f"Titulo: {res.get('title', '')}\nURL: {res.get('href', '')}\nResumo: {res.get('body', '')}\n\n"
-            logs.append({"nivel": "ok", "msg": f"Web: {len(resultados_web)} resultado(s) encontrado(s)"})
-        else:
-            logs.append({"nivel": "aviso", "msg": "Web: nenhum resultado"})
+        import urllib.parse
+        q = urllib.parse.quote_plus(query)
+        url_g = f"https://www.google.com/search?q={q}&num=5&hl=pt-BR"
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+        r_g = requests.get(url_g, headers=headers, timeout=10)
+        if r_g.status_code == 200 and len(r_g.text) > 500:
+            from bs4 import BeautifulSoup
+            soup_g = BeautifulSoup(r_g.text, "html.parser")
+            # Extrair snippets dos resultados
+            for div in soup_g.find_all("div", class_=["BNeawe", "s3v9rd", "VwiC3b"])[:10]:
+                txt = div.get_text()
+                if len(txt) > 30:
+                    conteudo_web += txt + "\n"
+            logs.append({"nivel": "ok", "msg": f"Google: {len(conteudo_web)} chars de resultados"})
     except Exception as e:
-        logs.append({"nivel": "aviso", "msg": f"Erro na busca web: {str(e)[:60]}"})
+        logs.append({"nivel": "aviso", "msg": f"Google falhou: {str(e)[:60]} — tentando DuckDuckGo..."})
+    
+    # Fallback DuckDuckGo
+    if not conteudo_web:
+        try:
+            from modulos.buscador_legislacoes import _pesquisar_web
+            resultados_ddg = _pesquisar_web(query, logs, "DDG urbanistico", max_results=5)
+            if resultados_ddg:
+                for res in resultados_ddg:
+                    conteudo_web += f"{res.get('title', '')}\n{res.get('body', '')}\n\n"
+                logs.append({"nivel": "ok", "msg": f"DuckDuckGo: {len(resultados_ddg)} resultado(s)"})
+        except Exception as e:
+            logs.append({"nivel": "aviso", "msg": f"DuckDuckGo falhou: {str(e)[:60]}"})
+    
+    if not conteudo_web:
+        logs.append({"nivel": "aviso", "msg": "Nenhum resultado web — usando conhecimento da IA"})
+        conteudo_web = f"Municipio: {municipio}, Estado: {estado}"
     
     # IA analisa resultado da web
     prompt_ia = (
         f"Com base nos resultados de busca abaixo, identifique qual legislacao define os parametros urbanisticos de {municipio}, {estado}.\n"
         f"Use APENAS informacoes presentes nos resultados — nao invente numeros.\n"
         f"Se nao encontrar numero especifico, deixe em branco.\n\n"
-        f"RESULTADOS DA WEB:\n{conteudo_web[:3000]}\n\n"
+        f"RESULTADOS:\n{conteudo_web[:3000]}\n\n"
         'Responda APENAS com JSON: {"legislacoes": [{"tipo": "Lei Complementar", "numero": "148", "ano": "2023", "descricao": "Plano Diretor"}]}'
     )
     resp = chamar_llm(prompt_ia, logs, "IA urbanistico")
