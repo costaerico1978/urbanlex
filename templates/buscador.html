@@ -682,6 +682,7 @@ async function executarBuscaManual() {
             } catch(pollErr) {
                 // Se poll falhar, tentar mais uma vez
                 logLine('⚠️', `Polling: ${pollErr.message} — tentando novamente...`, 'var(--amber)');
+                continue;
             }
         }
 
