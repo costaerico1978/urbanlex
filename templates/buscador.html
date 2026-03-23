@@ -975,6 +975,8 @@ async function confirmarBuscaNovoMun() {
         const r = await api("POST", "/api/buscador/municipio", {municipio: mun, estado: est, cadastrar, monitorar: cadastrar});
         if (!r.success) { alert("Erro: " + (r.error || "desconhecido")); btn.disabled = false; btn.textContent = "🔎 Buscar"; return; }
         const jobId = r.job_id;
+        sessionStorage.setItem("mun_job_id", jobId);
+        sessionStorage.setItem("mun_campos", JSON.stringify({mun, est}));
         let cursor = 0;
         while (true) {
             await new Promise(ok => setTimeout(ok, 1500));
@@ -994,7 +996,8 @@ async function confirmarBuscaNovoMun() {
                 if (poll.done) break;
             } catch(e) {}
         }
-        carregarFila();
+        sessionStorage.removeItem("mun_job_id");
+        sessionStorage.removeItem("mun_campos");
     } catch(e) { alert("Erro: " + e.message); }
     finally { btn.disabled = false; btn.textContent = "🔎 Buscar"; }
 }
@@ -1008,6 +1011,63 @@ async function sincronizarPlataforma() {
             const d = r.data || {};
             alert(`Consultados: ${d.municipios_consultados || 0}\nNovos: ${d.novos_detectados || 0}\nLegislações cadastradas: ${d.legislacoes_cadastradas || 0}`);
             carregarFila();
+
+// Reconectar busca automática se houver job ativo
+(async function reconectarMunJob() {
+    const jobId = sessionStorage.getItem('mun_job_id');
+    if (!jobId) return;
+    const campos = JSON.parse(sessionStorage.getItem('mun_campos') || '{}');
+    const mun = campos.mun || '';
+    const est = campos.est || '';
+    try {
+        const check = await api('GET', `/api/buscador/job/${jobId}?cursor=0`);
+        if (!check || check.error === 'Job não encontrado') {
+            sessionStorage.removeItem('mun_job_id');
+            sessionStorage.removeItem('mun_campos');
+            return;
+        }
+        // Recriar painel de log
+        let logEl = document.getElementById('log-municipio');
+        if (!logEl) {
+            logEl = document.createElement('div');
+            logEl.id = 'log-municipio';
+            logEl.style = 'margin-top:16px;background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;max-height:400px;overflow-y:auto;';
+            document.getElementById('panel-auto').querySelector('.busca-card').insertAdjacentElement('afterend', logEl);
+        }
+        logEl.innerHTML = '<div style="color:var(--accent);margin-bottom:8px;">🔄 Reconectando busca de ' + mun + '/' + est + '...</div>';
+        // Carregar logs existentes
+        (check.logs || []).forEach(l => {
+            const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : 'var(--muted)';
+            const d = document.createElement('div');
+            d.style.color = c;
+            d.textContent = l.msg;
+            logEl.appendChild(d);
+        });
+        let cursor = (check.logs || []).length;
+        if (check.done) { sessionStorage.removeItem('mun_job_id'); return; }
+        // Retomar polling
+        while (true) {
+            await new Promise(ok => setTimeout(ok, 1500));
+            try {
+                const poll = await api('GET', `/api/buscador/job/${jobId}?cursor=${cursor}`);
+                if (poll.logs && poll.logs.length) {
+                    poll.logs.forEach(l => {
+                        const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : 'var(--muted)';
+                        const d = document.createElement('div');
+                        d.style.color = c;
+                        d.textContent = l.msg;
+                        logEl.appendChild(d);
+                        logEl.scrollTop = logEl.scrollHeight;
+                    });
+                }
+                cursor = poll.cursor || cursor;
+                if (poll.done) break;
+            } catch(e) {}
+        }
+        sessionStorage.removeItem('mun_job_id');
+        sessionStorage.removeItem('mun_campos');
+    } catch(e) {}
+})();
         }
     } catch(e) { alert('Erro: ' + e.message); }
 }
