@@ -139,6 +139,21 @@ def _verificar_parametros(texto, municipio, estado, tipo, numero, ano, logs, cha
 def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas):
     try:
         from modulos.navegador_universal import navegar_com_cookies_flaresolverr
+        # Renovar sessao FlareSolverr
+        try:
+            import requests as _rfs, os as _ofs
+            _old = _ofs.environ.get("FLARESOLVERR_SESSION", "")
+            if _old:
+                _rfs.post("http://localhost:8191/v1", json={"cmd": "sessions.destroy", "session": _old}, timeout=5)
+            _rn = _rfs.post("http://localhost:8191/v1", json={"cmd": "sessions.create"}, timeout=10)
+            _ns = _rn.json().get("session", "")
+            if _ns:
+                _ofs.environ["FLARESOLVERR_SESSION"] = _ns
+                import subprocess as _sp
+                _sp.run(["sed", "-i", f"s/FLARESOLVERR_SESSION=.*/FLARESOLVERR_SESSION={_ns}/", "/var/www/urbanlex/.env"], capture_output=True)
+                logs.append({"nivel": "info", "msg": f"FlareSolverr sessao renovada: {_ns[:8]}..."})
+        except Exception as _ef:
+            logs.append({"nivel": "aviso", "msg": f"FlareSolverr renovacao falhou: {str(_ef)[:60]}"})
         url_fs = "https://leismunicipais.com.br"
         leg_dict = {"tipo": tipo, "numero": numero, "ano": ano, "municipio": municipio, "estado": estado}
         logs.append({"nivel": "info", "msg": f"  Buscando {tipo} {numero}/{ano} no LeisMunicipais via FlareSolverr..."})
