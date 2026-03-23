@@ -14,16 +14,14 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
     conteudo_web = ""
     legs = []
     try:
-        import google.generativeai as genai
-        from google.generativeai import types
+        from google import genai as _genai_new
+        from google.genai import types as _types_new
         import os
         GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
-        genai.configure(api_key=GEMINI_KEY)
-        model = genai.GenerativeModel("gemini-2.0-flash")
-        google_search_tool = types.Tool(google_search=types.GoogleSearch())
-        pergunta = f"Qual legislacao define os parametros urbanisticos de {municipio}, {estado}? Informe o tipo, numero e ano da lei."
-        logs.append({"nivel": "info", "msg": f"Pergunta: {pergunta}"})
-        response = model.generate_content(pergunta, tools=[google_search_tool])
+        client = _genai_new.Client(api_key=GEMINI_KEY)
+        google_search_tool = _types_new.Tool(google_search=_types_new.GoogleSearch())
+        config = _types_new.GenerateContentConfig(tools=[google_search_tool])
+        response = client.models.generate_content(model="gemini-2.5-flash", contents=pergunta, config=config)
         resp_texto = response.text.strip()
         logs.append({"nivel": "ok", "msg": f"Gemini respondeu: {resp_texto[:300]}"})
         # Estruturar resposta em JSON
