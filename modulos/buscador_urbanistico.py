@@ -9,29 +9,35 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
     resultado = {"encontradas": [], "nao_encontrada": False}
     analisadas = set()
 
-    # ETAPA 1: IA identifica legislacoes
-    logs.append({"nivel": "ok", "msg": f"Consultando IA sobre legislacoes urbanisticas de {municipio}/{estado}..."})
+    # ETAPA 1: Buscar na web e usar IA para identificar legislacoes
+    logs.append({"nivel": "ok", "msg": f"Buscando na web: parametros urbanisticos de {municipio}/{estado}..."})
     
-    # Pergunta aberta primeiro
-    prompt_aberto = f"Qual legislacao define os parametros urbanisticos de {municipio}, {estado}?"
-    resp_aberto = chamar_llm(prompt_aberto, logs, "IA urbanistico")
-    if not resp_aberto:
-        logs.append({"nivel": "aviso", "msg": "IA nao respondeu"})
-        resultado["nao_encontrada"] = True
-        return resultado
-    logs.append({"nivel": "info", "msg": f"IA respondeu: {resp_aberto[:300]}"})
+    # Buscar no DuckDuckGo
+    conteudo_web = ""
+    try:
+        from modulos.buscador_legislacoes import _pesquisar_web
+        query = f"qual legislacao define os parametros urbanisticos de {municipio} {estado}"
+        resultados_web = _pesquisar_web(query, logs, "Web urbanistico", max_results=5)
+        if resultados_web:
+            for res in resultados_web[:5]:
+                conteudo_web += f"Titulo: {res.get('title', '')}\nURL: {res.get('href', '')}\nResumo: {res.get('body', '')}\n\n"
+            logs.append({"nivel": "ok", "msg": f"Web: {len(resultados_web)} resultado(s) encontrado(s)"})
+        else:
+            logs.append({"nivel": "aviso", "msg": "Web: nenhum resultado"})
+    except Exception as e:
+        logs.append({"nivel": "aviso", "msg": f"Erro na busca web: {str(e)[:60]}"})
     
-    # Segunda chamada: estruturar resposta em JSON
-    prompt_estruturar = (
-        f"Com base na resposta abaixo sobre legislacoes urbanisticas de {municipio}/{estado}, "
-        f"extraia apenas as legislacoes REALMENTE mencionadas (nao invente numeros).\n"
-        f"Se a resposta nao mencionar numeros especificos, deixe numero e ano em branco.\n\n"
-        f"RESPOSTA:\n{resp_aberto}\n\n"
-        'Responda APENAS com JSON: {"legislacoes": [{"tipo": "Lei Complementar", "numero": "", "ano": "", "descricao": "Plano Diretor"}]}'
+    # IA analisa resultado da web
+    prompt_ia = (
+        f"Com base nos resultados de busca abaixo, identifique qual legislacao define os parametros urbanisticos de {municipio}, {estado}.\n"
+        f"Use APENAS informacoes presentes nos resultados — nao invente numeros.\n"
+        f"Se nao encontrar numero especifico, deixe em branco.\n\n"
+        f"RESULTADOS DA WEB:\n{conteudo_web[:3000]}\n\n"
+        'Responda APENAS com JSON: {"legislacoes": [{"tipo": "Lei Complementar", "numero": "148", "ano": "2023", "descricao": "Plano Diretor"}]}'
     )
-    resp = chamar_llm(prompt_estruturar, logs, "IA estruturar")
+    resp = chamar_llm(prompt_ia, logs, "IA urbanistico")
     if not resp:
-        logs.append({"nivel": "aviso", "msg": "IA nao estruturou resposta"})
+        logs.append({"nivel": "aviso", "msg": "IA nao respondeu"})
         resultado["nao_encontrada"] = True
         return resultado
     try:
