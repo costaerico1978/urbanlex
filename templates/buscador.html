@@ -394,7 +394,7 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
                         setTimeout(() => this.textContent = '📋 Copiar Log', 2000);
                     });
                 ">📋 Copiar Log</button>
-                <button class="btn btn-ghost" style="padding:2px 8px;font-size:10px" onclick="logDownload()">📥 Baixar .txt</button>
+                <button class="btn btn-ghost" style="padding:2px 8px;font-size:10px" onclick="logDownload()">📥 Baixar Log .txt</button>
                 <button class="btn btn-ghost" style="padding:2px 8px;font-size:10px" id="btn-log-expandir" onclick="logToggleExpand()">⛶ Expandir</button>
                 <button class="btn btn-ghost" style="padding:2px 8px;font-size:10px" onclick="document.getElementById('bm-log').style.display='none'">✕ Fechar</button>
             </div>
@@ -539,7 +539,16 @@ function logDownload() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'log_busca_' + new Date().toISOString().replace(/[:.]/g,'-').slice(0,19) + '.txt';
+    const _mun = (document.getElementById('bm-municipio').value.trim() || 'municipio').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]/g,'_');
+    const _uf = (document.getElementById('bm-estado').value.trim() || 'UF').toUpperCase();
+    const _nd = new Date();
+    const _dd = String(_nd.getDate()).padStart(2,'0');
+    const _mm = String(_nd.getMonth()+1).padStart(2,'0');
+    const _yyyy = _nd.getFullYear();
+    const _hh = String(_nd.getHours() % 12 || 12).padStart(2,'0');
+    const _min = String(_nd.getMinutes()).padStart(2,'0');
+    const _ampm = _nd.getHours() >= 12 ? 'PM' : 'AM';
+    a.download = 'Log_busca_automatica_' + _uf + '_' + _mun + '_' + _dd + '_' + _mm + '_' + _yyyy + '_H_' + _hh + '_' + _min + '_' + _ampm + '.txt';
     a.click();
     URL.revokeObjectURL(url);
 }
@@ -964,7 +973,7 @@ async function confirmarBuscaNovoMun() {
         btnLog.id = "btn-baixar-log-mun";
         btnLog.className = "btn btn-secondary btn-sm";
         btnLog.style = "margin-bottom:8px;";
-        btnLog.textContent = "⬇️ Baixar .txt";
+        btnLog.textContent = "⬇️ Baixar Log .txt";
         btnLog.onclick = () => {
             const txt = Array.from(logEl.querySelectorAll("div")).map(d => d.textContent).join("\n");
             const a = document.createElement("a");
