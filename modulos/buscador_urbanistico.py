@@ -137,29 +137,47 @@ def _verificar_parametros(texto, municipio, estado, tipo, numero, ano, logs, cha
 
 
 def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas):
+    """Busca legislacao no LeisMunicipais usando navegador real igual busca manual."""
     try:
-        import unicodedata
-        def slugify(s):
-            s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
-            return s.lower().replace(" ", "-")
-        est = estado.lower()
-        mun = slugify(municipio)
-        tipo_map = {"lei complementar": "lei-complementar", "lei ordinaria": "lei", "lei": "lei", "decreto": "decreto", "resolucao": "resolucao", "resolucao": "resolucao"}
-        tipo_norm = tipo.lower().replace("á","a").replace("ã","a").replace("ó","o").replace("ç","c").replace("é","e")
-        tipo_slug = tipo_map.get(tipo_norm, slugify(tipo))
-        ano2 = str(ano)[:2] if ano else "00"
-        url = f"https://leismunicipais.com.br/a/{est}/{mun[0]}/{mun}/{tipo_slug}/{ano2}/{numero}"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(url, headers=headers, timeout=15)
-        if r.status_code == 200 and len(r.text) > 1000:
-            from bs4 import BeautifulSoup
-            texto = BeautifulSoup(r.text, "html.parser").get_text()
-            if _verificar_parametros(texto, municipio, estado, tipo, numero, ano, logs, chamar_llm):
-                return {"tipo": tipo, "numero": numero, "ano": ano, "link": url}
+        from playwright.sync_api import sync_playwright
+        from modulos.navegador_universal import navegar_como_humano
+        url_lm = f"https://leismunicipais.com.br/legislacao-municipal/{municipio.lower().replace(' ', '-')}"
+        legislacao_info = {
+            "tipo": tipo,
+            "numero": numero,
+            "ano": ano,
+            "municipio": municipio,
+            "estado": estado,
+        }
+        logs.append({"nivel": "info", "msg": f"  Acessando LeisMunicipais via navegador para {tipo} {numero}/{ano}..."})
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context()
+            page = context.new_page()
+            page.goto(url_lm, timeout=30000)
+            nav_resultado = navegar_como_humano(
+                page=page,
+                frame=None,
+                legislacao=legislacao_info,
+                chamar_llm=chamar_llm,
+                logs=logs,
+                label=f"LM {tipo} {numero}",
+                max_passos=20
+            )
+            browser.close()
+        if nav_resultado.get("encontrada"):
+            url_enc = nav_resultado.get("url", url_lm)
+            chave = url_enc.lower()
+            if chave in analisadas:
+                return None
+            analisadas.add(chave)
+            logs.append({"nivel": "ok", "msg": f"  LeisMunicipais: encontrada! {url_enc[:80]}"})
+            return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc}
+        else:
+            logs.append({"nivel": "info", "msg": f"  LeisMunicipais: nao encontrada"})
     except Exception as e:
-        logs.append({"nivel": "aviso", "msg": f"  Erro LeisMunicipais: {str(e)[:60]}"})
+        logs.append({"nivel": "aviso", "msg": f"  Erro LeisMunicipais navegador: {str(e)[:80]}"})
     return None
-
 
 def _buscar_google(termo, municipio, estado, logs, chamar_llm, analisadas):
     try:
