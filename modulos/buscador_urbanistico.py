@@ -113,10 +113,17 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
 
 def _verificar_parametros(texto, municipio, estado, tipo, numero, ano, logs, chamar_llm):
     prompt = (
-        f"O texto abaixo e de uma legislacao de {municipio}/{estado}.\n"
-        f"Esta legislacao estabelece parametros urbanisticos (zoneamento, uso do solo, recuos, gabarito, coeficiente de aproveitamento, taxa de ocupacao)?\n\n"
-        f"TEXTO:\n{texto[:4000]}\n\n"
-        'Responda APENAS com JSON: {"define_parametros": true, "motivo": "explicacao"}'
+        f"Leia o texto abaixo e responda se a {tipo} {numero}/{ano} de {municipio}/{estado} "
+        f"define os parametros urbanisticos de ocupacao do solo no municipio.\n\n"
+        f"TEXTO:\n{texto[:5000]}\n\n"
+        "Responda APENAS com JSON (sem markdown):\n"
+        "{\n"
+        "  \"define_parametros\": true ou false,\n"
+        "  \"define_zoneamento\": true ou false,\n"
+        "  \"motivo\": \"A [tipo] n [numero]/[ano] [define / nao define] os parametros urbanisticos de ocupacao no municipio de [municipio], tais como [liste apenas os que aparecem no texto: coeficiente de aproveitamento, taxa de ocupacao, gabarito, usos permitidos, recuos, etc].\")\n"
+        "}\n\n"
+        "define_zoneamento = true se a lei divide o municipio em zonas, macrozonas ou setores urbanisticos.\n"
+        "No motivo negativo use apenas: A [tipo] n [numero]/[ano] nao define os parametros urbanisticos de ocupacao no municipio de [municipio]."
     )
     resp = chamar_llm(prompt, logs, f"Verif {tipo} {numero}")
     if not resp:
@@ -164,6 +171,15 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
                 return None
             analisadas.add(url_enc.lower())
             logs.append({"nivel": "ok", "msg": f"  LeisMunicipais: encontrada! {url_enc[:80]}"})
+            # Verificar se define parametros urbanisticos
+            html_lei = fs_result.get("html", "")
+            if html_lei:
+                from bs4 import BeautifulSoup as _bs
+                texto_lei = _bs(html_lei, "html.parser").get_text()[:8000]
+                define = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm)
+                if not define:
+                    logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros urbanisticos — descartando"})
+                    return None
             return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc}
         logs.append({"nivel": "info", "msg": "  LeisMunicipais: nao encontrada"})
     except Exception as e:
