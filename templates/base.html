@@ -641,6 +641,7 @@ async function carregarInfoSistema() {
     } catch(e) {}
 }
 carregarInfoSistema();
+setInterval(carregarInfoSistema, 30000);
 async function atualizarWorker() {
     if (!confirm('Fazer git pull e reiniciar o worker?')) return;
     const btn = document.querySelector('[onclick="atualizarWorker()"]');
