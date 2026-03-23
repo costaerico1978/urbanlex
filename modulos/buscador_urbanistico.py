@@ -21,7 +21,10 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         client = _genai_new.Client(api_key=GEMINI_KEY)
         google_search_tool = _types_new.Tool(google_search=_types_new.GoogleSearch())
         config = _types_new.GenerateContentConfig(tools=[google_search_tool])
-        response = client.models.generate_content(model="gemini-2.5-flash", contents=pergunta, config=config)
+        import concurrent.futures as _cf
+        with _cf.ThreadPoolExecutor() as _ex:
+            _fut = _ex.submit(client.models.generate_content, model="gemini-2.5-flash", contents=pergunta, config=config)
+            response = _fut.result(timeout=30)
         resp_texto = response.text.strip()
         logs.append({"nivel": "ok", "msg": f"Gemini respondeu: {resp_texto[:300]}"})
         # Estruturar resposta em JSON
