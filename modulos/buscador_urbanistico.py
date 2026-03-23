@@ -18,6 +18,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         from google.genai import types as _types_new
         import os
         GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
+        logs.append({"nivel": "info", "msg": f"Pergunta: {pergunta}"})
+        pergunta = f"Qual legislacao define os parametros urbanisticos de {municipio}, {estado}? Informe o tipo, numero e ano da lei."
         client = _genai_new.Client(api_key=GEMINI_KEY)
         google_search_tool = _types_new.Tool(google_search=_types_new.GoogleSearch())
         config = _types_new.GenerateContentConfig(tools=[google_search_tool])
