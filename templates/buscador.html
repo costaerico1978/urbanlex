@@ -974,6 +974,7 @@ async function confirmarBuscaNovoMun() {
     try {
         const r = await api("POST", "/api/buscador/municipio", {municipio: mun, estado: est, cadastrar, monitorar: cadastrar});
         if (!r.success) { alert("Erro: " + (r.error || "desconhecido")); btn.disabled = false; btn.textContent = "🔎 Buscar"; return; }
+        fecharModalNovoMun();
         const jobId = r.job_id;
         sessionStorage.setItem("mun_job_id", jobId);
         sessionStorage.setItem("mun_campos", JSON.stringify({mun, est}));
