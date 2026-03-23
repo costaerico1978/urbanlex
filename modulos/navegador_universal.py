@@ -3126,6 +3126,10 @@ def navegar_com_cookies_flaresolverr(
                                                                 logs.append({"nivel": "info", "msg": f"{label}: [2C] HTML estabilizado ({_cur_len} chars, {_wi2+1} iteracoes)"})
                                                                 break
                                                             _prev_len = _cur_len
+                                                    try:
+                                                        _pg2.wait_for_load_state('domcontentloaded', timeout=15000)
+                                                    except Exception:
+                                                        pass
                                                     _html_pass = _pg2.content()
                                                     _loading_pass = any(s in _html_pass for s in ['norma requisitada est', 'Por favor, aguarde', 'sendo carregada'])
                                                     _has_law = 'law-container' in _html_pass
