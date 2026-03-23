@@ -135,7 +135,7 @@ REGRAS:
     (a) Clicar em "Mais opcoes" para expandir o formulario avancado.
     (b) Digitar o nome do municipio no campo de cidade e aguardar autocomplete — selecionar da lista (regra 12). ATENCAO: apos selecionar o municipio no autocomplete o formulario avancado pode fechar automaticamente — isso e normal, clique em 'Mais opcoes' novamente para reabri-lo e continue.
     (c) Clicar no dropdown "Todos os Atos" e selecionar o tipo correto (ex: "Leis Complementares").
-    (d) Digitar apenas o NUMERO da lei no campo de numero/palavra-chave.
+    (d) Digitar SOMENTE o NUMERO da lei no campo de numero/palavra-chave — SEM o ano, SEM barra, SEM qualquer outro caractere. Exemplo: se a lei e 270/2024, digitar apenas "270".
     (e) Clicar em "Pesquisar".
     (f) Nos resultados, clicar SOMENTE no TITULO da legislacao (texto em vermelho). NUNCA clique em links encurtados como "http://leis.org/..." ou "bit.ly/..." — ignorar completamente.
     (g) Apos abrir a pagina da legislacao e ela carregar completamente (div com o texto da lei visivel), procure o botao de download do PDF original (pode aparecer como "PDF", "Baixar PDF", "Download PDF", icone de PDF, ou similar) e clique nele. So marque "concluido" DEPOIS de clicar no botao de download.
