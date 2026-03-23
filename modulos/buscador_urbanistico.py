@@ -11,18 +11,29 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
 
     # ETAPA 1: IA identifica legislacoes
     logs.append({"nivel": "ok", "msg": f"Consultando IA sobre legislacoes urbanisticas de {municipio}/{estado}..."})
-    prompt = (
-        f"Qual legislacao define os parametros urbanisticos de {municipio}, {estado}?\n"
-        f"Liste planos diretores, leis de uso e ocupacao do solo, zoneamento e similares.\n"
-        f"Para cada legislacao informe tipo, numero e ano.\n"
-        'Responda APENAS com JSON: {"legislacoes": [{"tipo": "Lei Complementar", "numero": "270", "ano": "2024", "descricao": "Plano Diretor"}]}'
-    )
-    resp = chamar_llm(prompt, logs, "IA urbanistico")
-    if not resp:
+    
+    # Pergunta aberta primeiro
+    prompt_aberto = f"Qual legislacao define os parametros urbanisticos de {municipio}, {estado}?"
+    resp_aberto = chamar_llm(prompt_aberto, logs, "IA urbanistico")
+    if not resp_aberto:
         logs.append({"nivel": "aviso", "msg": "IA nao respondeu"})
         resultado["nao_encontrada"] = True
         return resultado
-
+    logs.append({"nivel": "info", "msg": f"IA respondeu: {resp_aberto[:300]}"})
+    
+    # Segunda chamada: estruturar resposta em JSON
+    prompt_estruturar = (
+        f"Com base na resposta abaixo sobre legislacoes urbanisticas de {municipio}/{estado}, "
+        f"extraia apenas as legislacoes REALMENTE mencionadas (nao invente numeros).\n"
+        f"Se a resposta nao mencionar numeros especificos, deixe numero e ano em branco.\n\n"
+        f"RESPOSTA:\n{resp_aberto}\n\n"
+        'Responda APENAS com JSON: {"legislacoes": [{"tipo": "Lei Complementar", "numero": "", "ano": "", "descricao": "Plano Diretor"}]}'
+    )
+    resp = chamar_llm(prompt_estruturar, logs, "IA estruturar")
+    if not resp:
+        logs.append({"nivel": "aviso", "msg": "IA nao estruturou resposta"})
+        resultado["nao_encontrada"] = True
+        return resultado
     try:
         import re as _re
         resp_c = _re.sub(r"^```json\s*|\s*```$", "", resp.strip())
