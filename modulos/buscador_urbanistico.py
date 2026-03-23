@@ -132,12 +132,17 @@ def _verificar_parametros(texto, municipio, estado, tipo, numero, ano, logs, cha
         import re as _re2
         resp_c = _re2.sub(r"^```json\s*|\s*```$", "", resp.strip())
         dados = _json.loads(resp_c)
-        motivo = dados.get("motivo", "")[:100]
+        motivo = dados.get("motivo", "")[:300]
+        zoneamento = dados.get("define_zoneamento", False)
         if dados.get("define_parametros"):
-            logs.append({"nivel": "ok", "msg": f"  IA confirmou: {motivo}"})
+            logs.append({"nivel": "ok", "msg": f"  {motivo}"})
+            if zoneamento:
+                logs.append({"nivel": "ok", "msg": f"  Define tambem o zoneamento do municipio."})
+            else:
+                logs.append({"nivel": "info", "msg": f"  Nao define o zoneamento do municipio."})
             return True
         else:
-            logs.append({"nivel": "info", "msg": f"  IA: nao define parametros - {motivo}"})
+            logs.append({"nivel": "info", "msg": f"  {motivo}"})
             return False
     except:
         return False
