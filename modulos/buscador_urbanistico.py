@@ -9,66 +9,62 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
     resultado = {"encontradas": [], "nao_encontrada": False}
     analisadas = set()
 
-    # ETAPA 1: Buscar na web e usar IA para identificar legislacoes
-    logs.append({"nivel": "ok", "msg": f"Buscando na web: parametros urbanisticos de {municipio}/{estado}..."})
+    # ETAPA 1: Gemini com Google Search Grounding
+    logs.append({"nivel": "ok", "msg": f"Consultando Gemini com busca web sobre {municipio}/{estado}..."})
     conteudo_web = ""
-    query = f"qual legislacao define os parametros urbanisticos de {municipio} {estado}"
-    
-    # Tentar Google primeiro
+    legs = []
     try:
-        import urllib.parse
-        q = urllib.parse.quote_plus(query)
-        url_g = f"https://www.google.com/search?q={q}&num=5&hl=pt-BR"
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
-        r_g = requests.get(url_g, headers=headers, timeout=10)
-        if r_g.status_code == 200 and len(r_g.text) > 500:
-            from bs4 import BeautifulSoup
-            soup_g = BeautifulSoup(r_g.text, "html.parser")
-            # Extrair snippets dos resultados
-            for div in soup_g.find_all("div", class_=["BNeawe", "s3v9rd", "VwiC3b"])[:10]:
-                txt = div.get_text()
-                if len(txt) > 30:
-                    conteudo_web += txt + "\n"
-            logs.append({"nivel": "ok", "msg": f"Google: {len(conteudo_web)} chars de resultados"})
+        import google.generativeai as genai
+        from google.generativeai import types
+        import os
+        GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
+        genai.configure(api_key=GEMINI_KEY)
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        google_search_tool = types.Tool(google_search=types.GoogleSearch())
+        pergunta = f"Qual legislacao define os parametros urbanisticos de {municipio}, {estado}? Informe o tipo, numero e ano da lei."
+        logs.append({"nivel": "info", "msg": f"Pergunta: {pergunta}"})
+        response = model.generate_content(pergunta, tools=[google_search_tool])
+        resp_texto = response.text.strip()
+        logs.append({"nivel": "ok", "msg": f"Gemini respondeu: {resp_texto[:300]}"})
+        # Estruturar resposta em JSON
+        prompt_estruturar = (
+            f"Com base na resposta abaixo, extraia as legislacoes mencionadas de {municipio}/{estado}.\n"
+            f"Use APENAS informacoes presentes — nao invente numeros.\n\n"
+            f"RESPOSTA:\n{resp_texto}\n\n"
+            'Responda APENAS com JSON: {"legislacoes": [{"tipo": "Lei Complementar", "numero": "148", "ano": "2023", "descricao": "Plano Diretor"}]}'
+        )
+        resp2 = chamar_llm(prompt_estruturar, logs, "IA estruturar")
+        if resp2:
+            import re as _re
+            resp_c = _re.sub(r"^```json\s*|\s*```$", "", resp2.strip())
+            legs = _json.loads(resp_c).get("legislacoes", [])
+            logs.append({"nivel": "ok", "msg": f"IA identificou {len(legs)} legislacao(oes)"})
     except Exception as e:
-        logs.append({"nivel": "aviso", "msg": f"Google falhou: {str(e)[:60]} — tentando DuckDuckGo..."})
-    
-    # Fallback DuckDuckGo
-    if not conteudo_web:
+        logs.append({"nivel": "aviso", "msg": f"Gemini Search falhou: {str(e)[:100]} — usando DDG"})
+        # Fallback DDG
         try:
             from modulos.buscador_legislacoes import _pesquisar_web
+            query = f"qual legislacao define os parametros urbanisticos de {municipio} {estado}"
             resultados_ddg = _pesquisar_web(query, logs, "DDG urbanistico", max_results=5)
             if resultados_ddg:
                 for res in resultados_ddg:
                     conteudo_web += f"{res.get('title', '')}\n{res.get('body', '')}\n\n"
-                logs.append({"nivel": "ok", "msg": f"DuckDuckGo: {len(resultados_ddg)} resultado(s)"})
-        except Exception as e:
-            logs.append({"nivel": "aviso", "msg": f"DuckDuckGo falhou: {str(e)[:60]}"})
-    
-    if not conteudo_web:
-        logs.append({"nivel": "aviso", "msg": "Nenhum resultado web — usando conhecimento da IA"})
-        conteudo_web = f"Municipio: {municipio}, Estado: {estado}"
-    
-    # IA analisa resultado da web
-    prompt_ia = (
-        f"Com base nos resultados de busca abaixo, identifique qual legislacao define os parametros urbanisticos de {municipio}, {estado}.\n"
-        f"Use APENAS informacoes presentes nos resultados — nao invente numeros.\n"
-        f"Se nao encontrar numero especifico, deixe em branco.\n\n"
-        f"RESULTADOS:\n{conteudo_web[:3000]}\n\n"
-        'Responda APENAS com JSON: {"legislacoes": [{"tipo": "Lei Complementar", "numero": "148", "ano": "2023", "descricao": "Plano Diretor"}]}'
-    )
-    resp = chamar_llm(prompt_ia, logs, "IA urbanistico")
-    if not resp:
-        logs.append({"nivel": "aviso", "msg": "IA nao respondeu"})
-        resultado["nao_encontrada"] = True
-        return resultado
-    try:
-        import re as _re
-        resp_c = _re.sub(r"^```json\s*|\s*```$", "", resp.strip())
-        legs = _json.loads(resp_c).get("legislacoes", [])
-        logs.append({"nivel": "ok", "msg": f"IA identificou {len(legs)} legislacao(oes)"})
-    except Exception as e:
-        logs.append({"nivel": "aviso", "msg": f"Erro ao parsear IA: {str(e)[:80]}"})
+            if conteudo_web:
+                prompt_ddg = (
+                    f"Com base nos resultados abaixo, identifique a legislacao de {municipio}/{estado}.\n"
+                    f"Nao invente numeros.\n\nRESULTADOS:\n{conteudo_web[:3000]}\n\n"
+                    'Responda APENAS com JSON: {"legislacoes": [{"tipo": "Lei Complementar", "numero": "", "ano": "", "descricao": ""}]}'
+                )
+                resp_ddg = chamar_llm(prompt_ddg, logs, "IA DDG")
+                if resp_ddg:
+                    import re as _re2
+                    resp_c2 = _re2.sub(r"^```json\s*|\s*```$", "", resp_ddg.strip())
+                    legs = _json.loads(resp_c2).get("legislacoes", [])
+        except Exception as e2:
+            logs.append({"nivel": "aviso", "msg": f"DDG falhou: {str(e2)[:60]}"})
+
+    if not legs:
+        logs.append({"nivel": "aviso", "msg": "Nenhuma legislacao identificada"})
         resultado["nao_encontrada"] = True
         return resultado
 
