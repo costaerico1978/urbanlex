@@ -2302,8 +2302,8 @@ def api_buscador_municipio():
                     _hconn2.commit()
                     _hcur2.close()
                     _hconn2.close()
-                except Exception:
-                    pass
+                except Exception as _he2:
+                    job["logs"].append({"nivel": "aviso", "msg": f"Erro ao salvar historico: {str(_he2)[:100]}"})
         except Exception as e:
             job["logs"].append({"nivel": "erro", "msg": f"Erro: {str(e)[:200]}"})
         finally:
@@ -2885,7 +2885,7 @@ def api_buscador_historico_log(hist_id):
     """Retorna log de uma busca especifica."""
     try:
         conn = get_db()
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("SELECT log_texto, municipio, estado FROM buscas_historico WHERE id=%s", (hist_id,))
         r = cur.fetchone()
         cur.close()
@@ -2902,7 +2902,7 @@ def api_buscador_historico_log_download(hist_id):
     """Download do log de uma busca."""
     try:
         conn = get_db()
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("SELECT log_texto, municipio, estado, iniciado_em FROM buscas_historico WHERE id=%s", (hist_id,))
         r = cur.fetchone()
         cur.close()
