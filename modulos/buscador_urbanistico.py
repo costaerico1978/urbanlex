@@ -66,11 +66,22 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         except Exception as e2:
             logs.append({"nivel": "aviso", "msg": f"DDG falhou: {str(e2)[:60]}"})
 
-    if not legs:
-        logs.append({"nivel": "aviso", "msg": "Nenhuma legislacao identificada"})
-        resultado["nao_encontrada"] = True
+    # Filtrar legs sem numero — acionar fallback por palavra-chave
+    legs_com_numero = [l for l in legs if l.get("numero", "").strip()]
+
+    if not legs_com_numero:
+        if not legs:
+            logs.append({"nivel": "aviso", "msg": "Gemini nao identificou legislacao — tentando busca por Plano Diretor no LeisMunicipais..."})
+        else:
+            logs.append({"nivel": "aviso", "msg": "Gemini identificou legislacao mas sem numero — tentando busca por Plano Diretor no LeisMunicipais..."})
+        enc = _buscar_plano_diretor_lm(municipio, estado, logs, chamar_llm, analisadas)
+        if enc:
+            resultado["encontradas"].append(enc)
+        else:
+            resultado["nao_encontrada"] = True
         return resultado
 
+    legs = legs_com_numero
     # ETAPA 2: Buscar no LeisMunicipais
     for leg in legs:
         tipo = leg.get("tipo", "")
@@ -159,6 +170,67 @@ def _verificar_parametros(texto, municipio, estado, tipo, numero, ano, logs, cha
     except:
         return False
 
+
+def _buscar_plano_diretor_lm(municipio, estado, logs, chamar_llm, analisadas):
+    """Fallback: busca Plano Diretor no LeisMunicipais por palavra-chave quando Gemini nao retorna numero."""
+    try:
+        from modulos.navegador_universal import navegar_com_cookies_flaresolverr
+        import requests as _rfs, os as _ofs
+        try:
+            _old = _ofs.environ.get("FLARESOLVERR_SESSION", "")
+            _rn = _rfs.post("http://localhost:8191/v1", json={"cmd": "sessions.create"}, timeout=10)
+            _ns = _rn.json().get("session", "")
+            if _ns:
+                _ofs.environ["FLARESOLVERR_SESSION"] = _ns
+                import subprocess as _sp
+                _sp.run(["sed", "-i", f"s/FLARESOLVERR_SESSION=.*/FLARESOLVERR_SESSION={_ns}/", "/var/www/urbanlex/.env"], capture_output=True)
+                logs.append({"nivel": "info", "msg": f"FlareSolverr sessao renovada: {_ns[:8]}..."})
+        except Exception as _ef:
+            logs.append({"nivel": "aviso", "msg": f"FlareSolverr renovacao falhou: {str(_ef)[:60]}"})
+
+        leg_dict = {
+            "tipo": "Plano Diretor",
+            "numero": "",
+            "ano": "",
+            "municipio": municipio,
+            "estado": estado,
+            "_palavra_chave": "plano diretor",
+            "_fallback_palavra_chave": True
+        }
+        logs.append({"nivel": "info", "msg": f"  Buscando Plano Diretor de {municipio}/{estado} no LeisMunicipais por palavra-chave..."})
+        fs_result = navegar_com_cookies_flaresolverr("https://leismunicipais.com.br", leg_dict, logs, label=f"LM PD {municipio}", chamar_llm=chamar_llm)
+
+        if fs_result.get("municipio_nao_encontrado"):
+            logs.append({"nivel": "aviso", "msg": f"  Municipio '{municipio}' nao consta no LeisMunicipais"})
+            return None
+        if fs_result.get("palavra_chave_nao_encontrada"):
+            logs.append({"nivel": "aviso", "msg": f"  Termo 'plano diretor' nao encontrado no LeisMunicipais para {municipio}"})
+            return None
+        if fs_result.get("encontrada") and fs_result.get("url"):
+            url_enc = fs_result["url"]
+            if url_enc.lower() in analisadas:
+                return None
+            analisadas.add(url_enc.lower())
+            logs.append({"nivel": "ok", "msg": f"  LeisMunicipais: encontrada! {url_enc[:80]}"})
+            html_lei = fs_result.get("html", "")
+            if html_lei:
+                from bs4 import BeautifulSoup as _bs
+                texto_lei = _bs(html_lei, "html.parser").get_text()[:12000]
+                # Extrair tipo/numero/ano da URL ou do HTML
+                import re as _re
+                m = _re.search(r"/([a-z-]+)/(\d{4})/\d+/(\d+)/", url_enc)
+                tipo_enc = m.group(1).replace("-", " ").title() if m else "Legislacao"
+                numero_enc = m.group(3) if m else "?"
+                ano_enc = m.group(2) if m else "?"
+                define = _verificar_parametros(texto_lei, municipio, estado, tipo_enc, numero_enc, ano_enc, logs, chamar_llm)
+                if not define:
+                    logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros urbanisticos — descartando"})
+                    return None
+            return {"tipo": tipo_enc if 'tipo_enc' in dir() else "Legislacao", "numero": numero_enc if 'numero_enc' in dir() else "?", "ano": ano_enc if 'ano_enc' in dir() else "?", "link": url_enc}
+        logs.append({"nivel": "info", "msg": f"  LeisMunicipais: Plano Diretor nao encontrado para {municipio}"})
+    except Exception as e:
+        logs.append({"nivel": "aviso", "msg": f"  Erro busca palavra-chave LM: {str(e)[:80]}"})
+    return None
 
 def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas):
     try:
