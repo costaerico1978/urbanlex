@@ -997,6 +997,33 @@ async function confirmarBuscaNovoMun() {
         };
         logEl.insertAdjacentElement("beforebegin", btnLog);
     }
+    // Botão Nova Busca
+    let btnNova = document.getElementById("btn-nova-busca-mun");
+    if (!btnNova) {
+        btnNova = document.createElement("button");
+        btnNova.id = "btn-nova-busca-mun";
+        btnNova.className = "btn btn-ghost btn-sm";
+        btnNova.style = "margin-bottom:8px;margin-left:6px;color:#e74c3c;border-color:rgba(231,76,60,.3);";
+        btnNova.textContent = "🔄 Nova Busca";
+        btnNova.onclick = () => {
+            // Cancelar job ativo
+            const jobId = sessionStorage.getItem("mun_job_id");
+            if (jobId) {
+                fetch('/api/buscador/cancelar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({job_id: jobId})}).catch(()=>{});
+                sessionStorage.removeItem("mun_job_id");
+                sessionStorage.removeItem("mun_campos");
+            }
+            // Limpar UI
+            const le = document.getElementById("log-municipio");
+            if (le) le.innerHTML = '';
+            btnNova.remove();
+            const bl = document.getElementById("btn-baixar-log-mun");
+            if (bl) bl.remove();
+            // Reabrir modal
+            abrirModalNovoMun();
+        };
+        btnLog.insertAdjacentElement("afterend", btnNova);
+    }
     try {
         const r = await api("POST", "/api/buscador/municipio", {municipio: mun, estado: est, cadastrar, monitorar: cadastrar});
         if (!r.success) { alert("Erro: " + (r.error || "desconhecido")); btn.disabled = false; btn.textContent = "🔎 Buscar"; return; }
