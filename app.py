@@ -2507,11 +2507,6 @@ def api_buscador_jobs_ativos():
     ativos = any(not j.get('done') for j in _buscador_jobs.values())
     return jsonify({'ativos': ativos})
 
-@app.route('/api/buscador/jobs-ativos')
-def api_buscador_jobs_ativos():
-    """Verifica se ha jobs de busca ativos — usado pelo webhook de deploy."""
-    ativos = any(not j.get('done') for j in _buscador_jobs.values())
-    return jsonify({'ativos': ativos})
 
 @app.route('/api/buscador/cancelar', methods=['POST'])
 @login_required
