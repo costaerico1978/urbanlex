@@ -2792,7 +2792,15 @@ def navegar_com_cookies_flaresolverr(
             timeout=130)
         d = r.json()
         if d.get("status") != "ok":
-            logs.append({"nivel": "aviso", "msg": f"{label}: FlareSolverr falhou"})
+            # Verificar se é o site fora do ar ou erro do FlareSolverr
+            _fs_status = d.get("solution", {}).get("status", 0)
+            _fs_body = d.get("solution", {}).get("response", "") or ""
+            _site_fora = _fs_status in (502, 503, 504, 521, 522, 523, 524) or                 any(x in _fs_body.lower() for x in ["502 bad gateway", "503 service", "site is offline", "cloudflare", "error 521", "web server is down"])
+            if _site_fora:
+                logs.append({"nivel": "erro", "msg": f"{label}: ⚠️ LeisMunicipais parece estar fora do ar (HTTP {_fs_status}) — encerrando busca"})
+                resultado["site_fora_do_ar"] = True
+            else:
+                logs.append({"nivel": "aviso", "msg": f"{label}: FlareSolverr falhou"})
             return resultado
         sol = d.get("solution", {})
         fs_cookies = sol.get("cookies", [])

@@ -200,6 +200,9 @@ def _buscar_plano_diretor_lm(municipio, estado, logs, chamar_llm, analisadas):
         logs.append({"nivel": "info", "msg": f"  Buscando Plano Diretor de {municipio}/{estado} no LeisMunicipais por palavra-chave..."})
         fs_result = navegar_com_cookies_flaresolverr("https://leismunicipais.com.br", leg_dict, logs, label=f"LM PD {municipio}", chamar_llm=chamar_llm)
 
+        if fs_result.get("site_fora_do_ar"):
+            logs.append({"nivel": "erro", "msg": "  LeisMunicipais esta fora do ar — encerrando busca"})
+            return None
         if fs_result.get("municipio_nao_encontrado"):
             logs.append({"nivel": "aviso", "msg": f"  Municipio '{municipio}' nao consta no LeisMunicipais"})
             return None
@@ -254,6 +257,9 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
         leg_dict = {"tipo": tipo, "numero": numero, "ano": ano, "municipio": municipio, "estado": estado}
         logs.append({"nivel": "info", "msg": f"  Buscando {tipo} {numero}/{ano} no LeisMunicipais via FlareSolverr..."})
         fs_result = navegar_com_cookies_flaresolverr(url_fs, leg_dict, logs, label=f"LM {tipo} {numero}", chamar_llm=chamar_llm)
+        if fs_result.get("site_fora_do_ar"):
+            logs.append({"nivel": "erro", "msg": "  LeisMunicipais esta fora do ar — encerrando busca"})
+            return None
         if fs_result.get("encontrada") and fs_result.get("url"):
             url_enc = fs_result["url"]
             if url_enc.lower() in analisadas:
