@@ -2501,6 +2501,18 @@ def api_reiniciar_worker():
     threading.Thread(target=_restart, daemon=True).start()
     return jsonify({'success': True, 'msg': 'Worker reiniciando em 1s...'})
 
+@app.route('/api/buscador/jobs-ativos')
+def api_buscador_jobs_ativos():
+    """Verifica se ha jobs de busca ativos — usado pelo webhook de deploy."""
+    ativos = any(not j.get('done') for j in _buscador_jobs.values())
+    return jsonify({'ativos': ativos})
+
+@app.route('/api/buscador/jobs-ativos')
+def api_buscador_jobs_ativos():
+    """Verifica se ha jobs de busca ativos — usado pelo webhook de deploy."""
+    ativos = any(not j.get('done') for j in _buscador_jobs.values())
+    return jsonify({'ativos': ativos})
+
 @app.route('/api/buscador/cancelar', methods=['POST'])
 @login_required
 def api_buscador_cancelar():
