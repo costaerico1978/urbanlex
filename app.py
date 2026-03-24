@@ -2256,6 +2256,22 @@ def api_buscador_municipio():
     job_id = str(uuid.uuid4())[:8]
     job = {"done": False, "cancelled": False, "logs": [], "result": None}
     _buscador_jobs[job_id] = job
+
+    # Registrar inicio no historico
+    hist_id = None
+    try:
+        _hconn = get_db()
+        _hcur = _hconn.cursor()
+        _hcur.execute("""INSERT INTO buscas_historico (tipo, municipio, estado, iniciado_em)
+                         VALUES (%s, %s, %s, NOW()) RETURNING id""",
+                      ('automatica', mun, est))
+        hist_id = _hcur.fetchone()[0]
+        _hconn.commit()
+        _hcur.close()
+        _hconn.close()
+    except Exception as _he:
+        pass
+
     def _run():
         try:
             from modulos.buscador_legislacoes import _chamar_llm as _llm
@@ -2264,6 +2280,31 @@ def api_buscador_municipio():
                 return _llm(prompt, logs, label, max_retries)
             r = buscar_legislacoes_urbanisticas(mun, est, job["logs"], chamar_llm)
             job["result"] = r
+            # Atualizar historico ao concluir
+            if hist_id:
+                try:
+                    _enc = (r or {}).get("encontradas", [])
+                    _leg = _enc[0] if _enc else {}
+                    _log_txt = "
+".join(l.get("msg","") for l in job["logs"])
+                    _sucesso = bool(_enc)
+                    _hconn2 = get_db()
+                    _hcur2 = _hconn2.cursor()
+                    _hcur2.execute("""UPDATE buscas_historico SET
+                        concluido_em=NOW(), sucesso=%s,
+                        legislacao_tipo=%s, legislacao_numero=%s,
+                        legislacao_ano=%s, legislacao_link=%s,
+                        log_texto=%s
+                        WHERE id=%s""",
+                        (_sucesso,
+                         _leg.get("tipo",""), _leg.get("numero",""),
+                         _leg.get("ano",""), _leg.get("link",""),
+                         _log_txt, hist_id))
+                    _hconn2.commit()
+                    _hcur2.close()
+                    _hconn2.close()
+                except Exception:
+                    pass
         except Exception as e:
             job["logs"].append({"nivel": "erro", "msg": f"Erro: {str(e)[:200]}"})
         finally:
@@ -2799,6 +2840,101 @@ def api_buscador_fila():
     except Exception as e:
         return jsonify({'success': True, 'data': []})
 
+
+@app.route('/api/buscador/historico')
+@login_required
+def api_buscador_historico():
+    """Retorna historico de buscas da tabela buscas_historico."""
+    try:
+        limit = int(request.args.get('limit', 50))
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""SELECT id, tipo, municipio, estado,
+                              iniciado_em, concluido_em, sucesso,
+                              legislacao_tipo, legislacao_numero,
+                              legislacao_ano, legislacao_link,
+                              pdf_path, anexos_paths
+                       FROM buscas_historico
+                       ORDER BY iniciado_em DESC LIMIT %s""", (limit,))
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        data = []
+        for r in (rows or []):
+            data.append({
+                'id': r['id'],
+                'tipo': r['tipo'],
+                'municipio': r['municipio'],
+                'estado': r['estado'],
+                'iniciado_em': r['iniciado_em'].isoformat() if r['iniciado_em'] else None,
+                'concluido_em': r['concluido_em'].isoformat() if r['concluido_em'] else None,
+                'sucesso': r['sucesso'],
+                'legislacao_tipo': r['legislacao_tipo'],
+                'legislacao_numero': r['legislacao_numero'],
+                'legislacao_ano': r['legislacao_ano'],
+                'legislacao_link': r['legislacao_link'],
+                'pdf_path': r['pdf_path'],
+                'anexos_paths': r['anexos_paths'],
+            })
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)[:200]})
+
+@app.route('/api/buscador/historico/log/<int:hist_id>')
+@login_required
+def api_buscador_historico_log(hist_id):
+    """Retorna log de uma busca especifica."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT log_texto, municipio, estado FROM buscas_historico WHERE id=%s", (hist_id,))
+        r = cur.fetchone()
+        cur.close()
+        conn.close()
+        if not r:
+            return jsonify({'success': False, 'error': 'Não encontrado'}), 404
+        return jsonify({'success': True, 'log': r['log_texto'] or '', 'municipio': r['municipio'], 'estado': r['estado']})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)[:200]})
+
+@app.route('/api/buscador/historico/log/<int:hist_id>/download')
+@login_required
+def api_buscador_historico_log_download(hist_id):
+    """Download do log de uma busca."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT log_texto, municipio, estado, iniciado_em FROM buscas_historico WHERE id=%s", (hist_id,))
+        r = cur.fetchone()
+        cur.close()
+        conn.close()
+        if not r:
+            return "Não encontrado", 404
+        from flask import Response
+        nome = f"log_busca_{r['municipio']}_{r['estado']}_{hist_id}.txt".replace(' ', '_')
+        return Response(r['log_texto'] or '', mimetype='text/plain',
+                       headers={'Content-Disposition': f'attachment; filename="{nome}"'})
+    except Exception as e:
+        return str(e), 500
+
+@app.route('/api/buscador/historico/apagar', methods=['POST'])
+@editor_required
+def api_buscador_historico_apagar():
+    """Apaga buscas selecionadas do historico."""
+    try:
+        ids = (request.json or {}).get('ids', [])
+        if not ids:
+            return jsonify({'success': False, 'error': 'Nenhum ID informado'})
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM buscas_historico WHERE id = ANY(%s)", (ids,))
+        deleted = cur.rowcount
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'success': True, 'apagados': deleted})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)[:200]})
 
 @app.route('/api/buscador/autocomplete-municipios')
 @login_required
