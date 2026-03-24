@@ -2385,8 +2385,30 @@ def _cleanup_chromium_orfaos():
         except Exception:
             pass
 
+def _monitor_memoria():
+    """Monitora memoria a cada 30s. Se >90% mata Chromium e cancela jobs ativos."""
+    import subprocess as _sp
+    while True:
+        try:
+            time.sleep(30)
+            with open('/proc/meminfo') as _f:
+                lines = {l.split(':')[0]: int(l.split()[1]) for l in _f if ':' in l}
+            total = lines.get('MemTotal', 1)
+            disponivel = lines.get('MemAvailable', total)
+            uso_pct = 100 * (1 - disponivel / total)
+            if uso_pct > 90:
+                for _j in _buscador_jobs.values():
+                    if not _j.get('done'):
+                        _j['cancelled'] = True
+                        _j['done'] = True
+                        _j['logs'].append({'nivel': 'erro', 'msg': f'Job cancelado: memoria critica ({uso_pct:.1f}% usada)'})
+                _sp.run(['pkill', '-9', '-f', 'chromium'], capture_output=True)
+        except Exception:
+            pass
+
 import threading as _th_ck
 _th_ck.Thread(target=_cleanup_chromium_orfaos, daemon=True).start()
+_th_ck.Thread(target=_monitor_memoria, daemon=True).start()
 
 
 
