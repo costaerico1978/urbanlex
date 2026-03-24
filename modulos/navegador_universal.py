@@ -3343,10 +3343,23 @@ def navegar_com_cookies_flaresolverr(
                 except Exception as e_pg2:
                     logs.append({'nivel': 'aviso', 'msg': f'{label}: Erro ao extrair HTML via sessao: {str(e_pg2)[:80]}'})
 
-            browser.close()
+            finally:
+                try:
+                    browser.close()
+                except Exception:
+                    pass
 
     except Exception as e_pw:
         logs.append({"nivel": "aviso", "msg": f"{label}: Erro Playwright: {str(e_pw)[:120]}"})
+        try:
+            browser.close()
+        except Exception:
+            pass
+        try:
+            import subprocess as _pkill
+            _pkill.run(["pkill", "-9", "-f", "chromium"], capture_output=True)
+        except Exception:
+            pass
 
     return resultado
 
