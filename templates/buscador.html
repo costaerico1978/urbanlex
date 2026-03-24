@@ -383,6 +383,7 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
                     });
                 ">📋 Copiar Log</button>
                 <button class="btn btn-ghost" style="padding:2px 8px;font-size:10px" onclick="logDownload()">📥 Baixar Log .txt</button>
+                <button id="btn-cancelar-busca" class="btn btn-ghost" style="padding:2px 8px;font-size:10px;color:#e74c3c;border-color:rgba(231,76,60,.3);display:none;" onclick="cancelarENovasBusca()">🔄 Nova Busca</button>
                 <button class="btn btn-ghost" style="padding:2px 8px;font-size:10px" id="btn-log-expandir" onclick="logToggleExpand()">⛶ Expandir</button>
                 <button class="btn btn-ghost" style="padding:2px 8px;font-size:10px" onclick="document.getElementById('bm-log').style.display='none'">✕ Fechar</button>
             </div>
@@ -520,6 +521,8 @@ function logClear() {
     el.style.display = 'block';
     lines.innerHTML = '';
     _logBuffer = [];
+    const btnCanc = document.getElementById('btn-cancelar-busca');
+    if (btnCanc) btnCanc.style.display = 'inline-block';
     lines.style.maxHeight = '400px';
     const btn = document.getElementById('btn-log-expandir');
     if (btn) btn.textContent = '⛶ Expandir';
@@ -868,6 +871,8 @@ function cancelarENovasBusca() {
     const logBox = document.getElementById('bm-log');
     if (logBox) logBox.style.display = 'none';
     document.getElementById('bm-resultados').style.display = 'none';
+    const btnCanc = document.getElementById('btn-cancelar-busca');
+    if (btnCanc) btnCanc.style.display = 'none';
     history.replaceState({}, '', '/buscador');
 }
 function limparFormManual() {
