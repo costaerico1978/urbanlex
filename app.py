@@ -2371,6 +2371,23 @@ def _cleanup_old_jobs():
     for k in expired:
         _buscador_jobs.pop(k, None)
 
+def _cleanup_chromium_orfaos():
+    """Mata processos Chromium orfaos quando nao ha jobs ativos."""
+    import subprocess as _sp
+    while True:
+        try:
+            time.sleep(300)
+            jobs_ativos = any(not j.get('done') for j in _buscador_jobs.values())
+            if not jobs_ativos:
+                r = _sp.run(['pgrep', '-f', 'chromium'], capture_output=True, text=True)
+                if r.stdout.strip():
+                    _sp.run(['pkill', '-9', '-f', 'chromium'], capture_output=True)
+        except Exception:
+            pass
+
+import threading as _th_ck
+_th_ck.Thread(target=_cleanup_chromium_orfaos, daemon=True).start()
+
 
 
 @app.route('/api/admin/info-sistema')
