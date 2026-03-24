@@ -396,6 +396,9 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
         <div class="spinner-busca" id="spinner-busca"></div>
         <div style="font-size:13px;font-weight:600;margin-top:12px;" id="loading-msg">Pesquisando e analisando fontes com IA...</div>
         <div style="font-size:11px;margin-top:4px;color:var(--muted2);">Acompanhe o progresso no log acima ↑</div>
+        <button onclick="cancelarENovasBusca()" style="margin-top:16px;padding:7px 18px;background:rgba(231,76,60,.15);color:#e74c3c;border:1px solid rgba(231,76,60,.3);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">
+            ✕ Cancelar e iniciar nova busca
+        </button>
     </div>
 
     <!-- Resultados -->
@@ -850,6 +853,23 @@ function renderizarResultadoBusca(r, duracao) {
     atualizarContagemSelecionados();
 }
 
+function cancelarENovasBusca() {
+    // Cancela job ativo e reseta UI para nova busca
+    window._buscadorCancelado = true;
+    if (window._buscadorJobId) {
+        fetch('/api/buscador/cancelar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({job_id: window._buscadorJobId})}).catch(()=>{});
+        window._buscadorJobId = null;
+    }
+    sessionStorage.removeItem('buscador_job_id');
+    sessionStorage.removeItem('buscador_campos');
+    document.getElementById('bm-loading').style.display = 'none';
+    const logEl = document.getElementById('bm-log-lines');
+    if (logEl) logEl.innerHTML = '';
+    const logBox = document.getElementById('bm-log');
+    if (logBox) logBox.style.display = 'none';
+    document.getElementById('bm-resultados').style.display = 'none';
+    history.replaceState({}, '', '/buscador');
+}
 function limparFormManual() {
     ['bm-esfera','bm-estado','bm-municipio','bm-tipo','bm-numero','bm-ano','bm-data-pub','bm-assunto','bm-palavras','bm-fonte-1','bm-fonte-2','bm-fonte-3']
         .forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
