@@ -2847,7 +2847,7 @@ def api_buscador_historico():
     try:
         limit = int(request.args.get('limit', 50))
         conn = get_db()
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("""SELECT id, tipo, municipio, estado,
                               iniciado_em, concluido_em, sucesso,
                               legislacao_tipo, legislacao_numero,
