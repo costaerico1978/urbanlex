@@ -85,6 +85,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         enc = _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
         if enc:
             resultado["encontradas"].append(enc)
+            break  # Para na primeira legislacao que define parametros urbanisticos
 
     # ETAPA 3: Fallback Google
     if not resultado["encontradas"]:
