@@ -1616,7 +1616,17 @@ const BUSCA_PAGINA = '{{ active_page }}';
 if (BUSCA_PAGINA === 'buscador-manual') {
     mudarTab('manual');
 } else if (BUSCA_PAGINA === 'buscador-historico') {
+    // Na pagina historico: ocultar tabs de busca, mostrar so historico
+    ['tab-auto','tab-ref','tab-manual'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+    document.getElementById('tab-historico').style.display = 'inline-flex';
     mudarTab('historico');
+} else {
+    // No painel de buscas: ocultar tab historico
+    const th = document.getElementById('tab-historico');
+    if (th) th.style.display = 'none';
 }
 </script>
 {% endblock %}
