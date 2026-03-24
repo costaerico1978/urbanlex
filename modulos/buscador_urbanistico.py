@@ -276,9 +276,80 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
                     logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros urbanisticos — descartando"})
                     return None
             return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc}
-        logs.append({"nivel": "info", "msg": "  LeisMunicipais: nao encontrada"})
+        logs.append({"nivel": "aviso", "msg": f"  {tipo} {numero}/{ano} nao encontrada no LeisMunicipais — buscando site da prefeitura..."})
+        return _buscar_site_prefeitura(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
     except Exception as e:
         logs.append({"nivel": "aviso", "msg": f"  Erro LeisMunicipais: {str(e)[:80]}"})
+    return None
+
+def _buscar_site_prefeitura(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas):
+    """Fallback: busca legislacao no site oficial da prefeitura via Google."""
+    try:
+        import urllib.parse
+        # Passo 1: buscar site da prefeitura no Google
+        query = urllib.parse.quote_plus(f"prefeitura {municipio} {estado}")
+        url_g = f"https://www.google.com/search?q={query}&num=10"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        logs.append({"nivel": "info", "msg": f"  Google: buscando site da prefeitura de {municipio}/{estado}..."})
+        r = requests.get(url_g, headers=headers, timeout=15)
+        # Extrair links dos resultados
+        import re as _re
+        links = _re.findall(r'href="(https?://(?!google)[^"&]+)"', r.text)
+        # Filtrar links relevantes — ignorar redes sociais e agregadores
+        ignorar = ["facebook.com", "twitter.com", "instagram.com", "wikipedia.org",
+                   "youtube.com", "linkedin.com", "tiktok.com", "leismunicipais.com.br",
+                   "jusbrasil.com", "camara.leg.br", "google.com"]
+        links_filtrados = [l for l in links if not any(ig in l for ig in ignorar)][:5]
+        if not links_filtrados:
+            logs.append({"nivel": "aviso", "msg": f"  Google nao retornou site da prefeitura de {municipio}"})
+            return None
+        logs.append({"nivel": "info", "msg": f"  Sites candidatos: {', '.join(l[:60] for l in links_filtrados[:3])}"})
+        # Passo 2: IA navega no site da prefeitura buscando a legislacao
+        from modulos.navegador_universal import navegar_com_cookies_flaresolverr
+        for url_pref in links_filtrados[:3]:
+            if url_pref.lower() in analisadas:
+                continue
+            analisadas.add(url_pref.lower())
+            logs.append({"nivel": "info", "msg": f"  Tentando site da prefeitura: {url_pref[:80]}"})
+            leg_dict = {
+                "tipo": tipo,
+                "numero": numero,
+                "ano": ano,
+                "municipio": municipio,
+                "estado": estado,
+                "_site_prefeitura": True
+            }
+            try:
+                import requests as _rfs, os as _ofs
+                _rn = _rfs.post("http://localhost:8191/v1", json={"cmd": "sessions.create"}, timeout=10)
+                _ns = _rn.json().get("session", "")
+                if _ns:
+                    _ofs.environ["FLARESOLVERR_SESSION"] = _ns
+                    import subprocess as _sp
+                    _sp.run(["sed", "-i", f"s/FLARESOLVERR_SESSION=.*/FLARESOLVERR_SESSION={_ns}/", "/var/www/urbanlex/.env"], capture_output=True)
+            except Exception:
+                pass
+            fs_result = navegar_com_cookies_flaresolverr(
+                url_pref, leg_dict, logs,
+                label=f"Pref {municipio}",
+                chamar_llm=chamar_llm,
+                max_passos=15
+            )
+            if fs_result.get("encontrada") and fs_result.get("url"):
+                url_enc = fs_result["url"]
+                logs.append({"nivel": "ok", "msg": f"  Prefeitura: encontrada! {url_enc[:80]}"})
+                html_lei = fs_result.get("html", "")
+                if html_lei:
+                    from bs4 import BeautifulSoup as _bs
+                    texto_lei = _bs(html_lei, "html.parser").get_text()[:12000]
+                    define = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm)
+                    if not define:
+                        logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros urbanisticos — descartando"})
+                        continue
+                return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc}
+        logs.append({"nivel": "aviso", "msg": f"  Legislacao nao encontrada no site da prefeitura de {municipio}"})
+    except Exception as e:
+        logs.append({"nivel": "aviso", "msg": f"  Erro busca prefeitura: {str(e)[:80]}"})
     return None
 
 def _buscar_google(termo, municipio, estado, logs, chamar_llm, analisadas):

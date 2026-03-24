@@ -120,6 +120,24 @@ def _montar_prompt(legislacao: dict, historico: list, passo: int, url_atual: str
             "    (h) Se NENHUM resultado for relevante: use acao desistir com status nenhum_resultado_relevante.\n"
             "    NUNCA selecione tipo de ato — deixe em Todos os Atos."
         )
+    # Instrucao especial para site da prefeitura
+    if legislacao.get("_site_prefeitura"):
+        _tipo_fb = legislacao.get("tipo", "")
+        _num_fb = legislacao.get("numero", "")
+        _ano_fb = legislacao.get("ano", "")
+        _mun_fb = legislacao.get("municipio", "")
+        instrucao_fallback += (
+            f"\n16. SITE DA PREFEITURA (MODO FALLBACK): Voce esta no site da prefeitura de {_mun_fb} "
+            f"buscando a {_tipo_fb} {_num_fb}/{_ano_fb}.\n"
+            "    (a) Analise a estrutura do site e procure secoes como: Legislacao, Leis Municipais, "
+            "Publicacoes Oficiais, Diario Oficial, Atos Oficiais, Transparencia, ou similar.\n"
+            "    (b) Se encontrar um buscador de legislacoes, preencha com o tipo de ato, numero e ano.\n"
+            "    (c) Se encontrar a legislacao, clique nela e retorne a URL.\n"
+            "    (d) Se o site tiver Cloudflare ou CAPTCHA, tente contornar.\n"
+            "    (e) Se apos 15 passos nao encontrar, use acao desistir.\n"
+            "    Voce tem ate 15 passos para encontrar a legislacao."
+        )
+
     return f"""Voce esta navegando uma pagina web para encontrar a legislacao: {tipo} no {numero}/{ano} — {municipio}.
 Data de publicacao: {data_pub}. Assunto: {assunto}
 
