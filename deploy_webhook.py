@@ -18,7 +18,7 @@ def deploy():
         return 'Deploy em andamento', 200
     def _run():
         with deploy._lock:
-            subprocess.run(['bash', '-c', 'cd /var/www/urbanlex && OUTPUT=$(git pull) && echo "$OUTPUT" && echo "$OUTPUT" | grep -q "Already up to date" || systemctl restart urbanlex'])
+            subprocess.run(['bash', '-c', 'cd /var/www/urbanlex && git pull && systemctl restart urbanlex'])
     threading.Thread(target=_run, daemon=True).start()
     return 'OK', 200
 
