@@ -1526,40 +1526,6 @@ async function histApagarSelecionados() {
     } catch(e) { alert('Erro: ' + e.message); }
 }
 
-        // Aplicar filtro de tipo
-        let items = r.data;
-        const filtro = document.getElementById('hist-filtro-tipo');
-        if (filtro && filtro.value) {
-            items = items.filter(i => (i.tipo || '').toLowerCase().includes(filtro.value));
-        }
-
-        if (!items.length) {
-            el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:14px">Nenhum resultado para este filtro</div></div>';
-            return;
-        }
-
-        el.innerHTML = '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">' + items.map(item => {
-            const icon = item.status === 'concluido' ? '✅' : item.status === 'erro' ? '❌' : item.status === 'rodando' ? '⏳' : '🔄';
-            const statusCls = item.status === 'concluido' ? 'background:rgba(0,229,160,.12);color:#00e5a0' 
-                : item.status === 'erro' ? 'background:rgba(255,77,109,.12);color:#ff4d6d'
-                : 'background:rgba(240,173,78,.12);color:#f0ad4e';
-            const titulo = item.municipio ? `${item.municipio}/${item.estado || ''}` : (item.tipo || 'Busca');
-            const sub = item.legislacoes_encontradas != null 
-                ? `${item.legislacoes_encontradas} encontrada(s) · ${item.legislacoes_cadastradas || 0} cadastrada(s)`
-                : (item.detalhes || '');
-            return `<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border)">
-                <span style="font-size:16px;width:28px;text-align:center">${icon}</span>
-                <div style="flex:1;min-width:0">
-                    <div style="font-size:13px;font-weight:600">${titulo}</div>
-                    <div style="font-size:11px;color:var(--muted);margin-top:2px">${sub}</div>
-                </div>
-                <span style="font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600;${statusCls}">${item.status || 'pendente'}</span>
-                <span style="font-size:10px;color:var(--muted2);font-family:var(--font-mono);white-space:nowrap">${fmtData(item.criado_em)}</span>
-            </div>`;
-        }).join('') + '</div>';
-    } catch(e) {
-        el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">Erro ao carregar histórico</div>';
-    }
 }
 
 // ── Init ──
