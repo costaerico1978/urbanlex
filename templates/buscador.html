@@ -1480,15 +1480,16 @@ async function carregarHistorico() {
             const statusTxt = sucesso ? 'Encontrada' : (item.concluido_em ? 'N&#xE3;o encontrada' : 'Em andamento');
             const mun = item.municipio ? `${item.municipio}/${item.estado||''}` : '—';
             const leg = item.legislacao_numero ? `${item.legislacao_tipo||''} n&#xBA; ${item.legislacao_numero}/${item.legislacao_ano||''}` : '—';
-            const ini = item.iniciado_em ? new Date(item.iniciado_em).toLocaleString('pt-BR') : '—';
-            const fim = item.concluido_em ? new Date(item.concluido_em).toLocaleTimeString('pt-BR') : '—';
+            const _fmtDT = (s) => { if (!s) return '—'; const d = new Date(s); return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR'); };
+            const ini = _fmtDT(item.iniciado_em);
+            const fim = _fmtDT(item.concluido_em);
             const tipoBadge = item.tipo === 'manual' ? '&#x1F527; Manual' : '&#x1F916; Auto';
             const pdfBtn = item.pdf_path ? `<a href="${item.pdf_path}" target="_blank" title="Download PDF" style="color:var(--accent);text-decoration:none;font-size:16px;">&#x1F4E5;</a>` : '<span style="color:var(--border);font-size:16px;">&#x1F4E5;</span>';
             return `<div style="display:grid;grid-template-columns:32px 80px 1fr 160px 80px 1fr 110px;gap:0;padding:10px 12px;border-bottom:1px solid var(--border);align-items:center;font-size:12px;" data-id="${item.id}">
                 <div><input type="checkbox" class="hist-check" value="${item.id}" style="cursor:pointer"></div>
                 <div style="color:var(--muted);font-size:11px;">${tipoBadge}</div>
                 <div style="font-weight:600;">${mun}</div>
-                <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">${ini}<br><span style="color:var(--muted2)">&#x2192; ${fim}</span></div>
+                <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);line-height:1.8;"><span style="color:var(--muted2)">in&#xED;cio:</span> ${ini}<br><span style="color:var(--muted2)">t&#xE9;rm.:</span> ${fim}</div>
                 <div><span style="font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;${statusCls}">${statusIcon} ${statusTxt}</span></div>
                 <div style="color:var(--muted);font-size:11px;">${item.legislacao_link ? `<a href="${item.legislacao_link}" target="_blank" style="color:var(--accent);text-decoration:none;">${leg}</a>` : leg}</div>
                 <div style="display:flex;gap:8px;align-items:center;">

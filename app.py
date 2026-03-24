@@ -2293,12 +2293,12 @@ def api_buscador_municipio():
                         concluido_em=NOW(), sucesso=%s,
                         legislacao_tipo=%s, legislacao_numero=%s,
                         legislacao_ano=%s, legislacao_link=%s,
-                        log_texto=%s
+                        log_texto=%s, pdf_path=%s
                         WHERE id=%s""",
                         (_sucesso,
                          _leg.get("tipo",""), _leg.get("numero",""),
                          _leg.get("ano",""), _leg.get("link",""),
-                         _log_txt, hist_id))
+                         _log_txt, _leg.get("pdf_path",""), hist_id))
                     _hconn2.commit()
                     _hcur2.close()
                     _hconn2.close()
