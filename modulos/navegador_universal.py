@@ -103,6 +103,23 @@ def _montar_prompt(legislacao: dict, historico: list, passo: int, url_atual: str
         ])
         historico_txt = f"\n\nHISTORICO DOS ULTIMOS PASSOS:\n{historico_txt}"
 
+    # Instrucao especial para fallback por palavra-chave
+    instrucao_fallback = ""
+    if legislacao.get("_fallback_palavra_chave"):
+        _mun_fb = legislacao.get("municipio", "")
+        instrucao_fallback = (
+            "\n15. BUSCA POR PALAVRA-CHAVE (MODO FALLBACK): Voce esta buscando o Plano Diretor "
+            f"ou legislacao que define o zoneamento e/ou uso e ocupacao do solo de {_mun_fb}.\n"
+            "    (a) Siga os passos 13a e 13b normalmente (expandir formulario, digitar municipio).\n"
+            "    (b) Se o municipio NAO aparecer no dropdown: use acao desistir com status municipio_nao_encontrado.\n"
+            "    (c) Apos selecionar o municipio, NO CAMPO Numero ou Palavra-chave digite: plano diretor\n"
+            "    (d) Se plano diretor NAO aparecer no dropdown: use acao desistir com status palavra_chave_nao_encontrada.\n"
+            "    (e) Clique em Pesquisar.\n"
+            "    (f) Na pagina de resultados, leia TITULOS e EMENTAS de todos os resultados visiveis.\n"
+            "    (g) Clique na legislacao mais relevante — Plano Diretor ou lei de zoneamento/uso e ocupacao do solo.\n"
+            "    (h) Se NENHUM resultado for relevante: use acao desistir com status nenhum_resultado_relevante.\n"
+            "    NUNCA selecione tipo de ato — deixe em Todos os Atos."
+        )
     return f"""Voce esta navegando uma pagina web para encontrar a legislacao: {tipo} no {numero}/{ano} — {municipio}.
 Data de publicacao: {data_pub}. Assunto: {assunto}
 
@@ -180,7 +197,7 @@ IMPORTANTE para preencher_formulario:
 - Use tipo_campo "select" para dropdowns, "input" para texto, "date" para datas.
 - Datas SEMPRE no formato DD/MM/AAAA (ex: "14/01/2019").
 - Em sites de busca de legislacao (NAO diarios oficiais), NAO preencha campos de data.
-- O botao_submit deve ser o texto exato do botao de envio."""
+- O botao_submit deve ser o texto exato do botao de envio.{instrucao_fallback}"""
 
 
 def _clicar_por_texto(page, texto_elemento: str, logs: list, label: str) -> str:
@@ -2720,6 +2737,11 @@ def navegar_via_flaresolverr(
             pensamento = decisao.get('decisao', '')
             logs.append({'nivel': 'aviso', 'msg': f'{label}: ❌ Gemini desistiu na passo {passo}'})
             historico.append({'passo': passo, 'acao': 'desistir', 'resultado': pensamento[:100]})
+            # Capturar status especial do fallback
+            status_desistir = decisao.get('acao', {}).get('status', '') or decisao.get('status', '')
+            if status_desistir in ('municipio_nao_encontrado', 'palavra_chave_nao_encontrada', 'nenhum_resultado_relevante'):
+                resultado[status_desistir] = True
+                logs.append({'nivel': 'aviso', 'msg': f'{label}: fallback_status={status_desistir}'})
             # Antes de desistir: verificar se URL já foi capturada
             if resultado.get('url') and resultado['url'].startswith('http'):
                 resultado['encontrada'] = True
