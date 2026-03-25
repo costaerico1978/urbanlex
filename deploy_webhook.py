@@ -20,10 +20,12 @@ def deploy():
         with deploy._lock:
             subprocess.run(['bash', '-c', '''
 cd /var/www/urbanlex
+HASH_ANTES=$(git rev-parse HEAD)
 CHANGES=$(git pull)
+HASH_DEPOIS=$(git rev-parse HEAD)
 echo "$CHANGES"
-# Reiniciar apenas se houver mudancas em arquivos Python
-if ! echo "$CHANGES" | grep -q "Already up to date" && echo "$CHANGES" | grep -qE "\.py"; then
+# Reiniciar se houver mudancas em arquivos Python
+if [ "$HASH_ANTES" != "$HASH_DEPOIS" ] && git diff "$HASH_ANTES" "$HASH_DEPOIS" --name-only | grep -qE "\.py$"; then
 while true; do
     ATIVOS=$(curl -sf http://localhost:5000/api/buscador/jobs-ativos 2>/dev/null)
     if echo "$ATIVOS" | grep -q '"ativos": true'; then
