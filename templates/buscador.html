@@ -1541,7 +1541,21 @@ carregarFila();
 // Reconectar job ativo ao carregar a página
 (async function reconectarJob() {
     const params = new URLSearchParams(window.location.search);
-    const jobId = params.get('job') || sessionStorage.getItem('buscador_job_id');
+    let jobId = params.get('job') || sessionStorage.getItem('buscador_job_id');
+    // Se nao tem job_id local, verificar no servidor se ha job ativo
+    if (!jobId) {
+        try {
+            const ativo = await api('GET', '/api/buscador/job-ativo');
+            if (ativo && ativo.ativo && ativo.job_id) {
+                jobId = ativo.job_id;
+                sessionStorage.setItem('buscador_job_id', jobId);
+                sessionStorage.setItem('buscador_campos', JSON.stringify({
+                    municipio: ativo.municipio, estado: ativo.estado
+                }));
+                logLine('🔄', `Busca em andamento detectada: ${ativo.municipio}/${ativo.estado} — reconectando...`, 'var(--accent)');
+            }
+        } catch(e) {}
+    }
     if (!jobId) return;
     // Verificar se job ainda existe e está ativo
     try {

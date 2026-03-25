@@ -2262,9 +2262,9 @@ def api_buscador_municipio():
     try:
         _hconn = get_db()
         _hcur = _hconn.cursor()
-        _hcur.execute("""INSERT INTO buscas_historico (tipo, municipio, estado, iniciado_em)
-                         VALUES (%s, %s, %s, NOW()) RETURNING id""",
-                      ('automatica', mun, est))
+        _hcur.execute("""INSERT INTO buscas_historico (tipo, municipio, estado, iniciado_em, job_id)
+                         VALUES (%s, %s, %s, NOW(), %s) RETURNING id""",
+                      ('automatica', mun, est, job_id))
         hist_id = _hcur.fetchone()[0]
         _hconn.commit()
         _hcur.close()
@@ -2503,6 +2503,35 @@ def api_reiniciar_worker():
         subprocess.run(['systemctl', 'start', 'urbanlex'])
     threading.Thread(target=_restart, daemon=True).start()
     return jsonify({'success': True, 'msg': 'Worker reiniciando em 1s...'})
+
+@app.route('/api/buscador/job-ativo')
+@login_required
+def api_buscador_job_ativo():
+    """Retorna job ativo mais recente — para reconexao apos fechar browser."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""SELECT job_id, municipio, estado, iniciado_em
+                       FROM buscas_historico
+                       WHERE job_id IS NOT NULL AND concluido_em IS NULL
+                       ORDER BY iniciado_em DESC LIMIT 1""")
+        r = cur.fetchone()
+        cur.close()
+        conn.close()
+        if not r:
+            return jsonify({'ativo': False})
+        job_id = r['job_id']
+        job = _buscador_jobs.get(job_id)
+        if not job or job.get('done'):
+            return jsonify({'ativo': False})
+        return jsonify({
+            'ativo': True,
+            'job_id': job_id,
+            'municipio': r['municipio'],
+            'estado': r['estado']
+        })
+    except Exception as e:
+        return jsonify({'ativo': False})
 
 @app.route('/api/buscador/jobs-ativos')
 def api_buscador_jobs_ativos():
