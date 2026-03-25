@@ -178,6 +178,13 @@ def _buscar_plano_diretor_lm(municipio, estado, logs, chamar_llm, analisadas):
         import requests as _rfs, os as _ofs
         try:
             _old = _ofs.environ.get("FLARESOLVERR_SESSION", "")
+            # Destruir TODAS as sessoes acumuladas antes de criar nova
+            try:
+                _sl = _rfs.post("http://localhost:8191/v1", json={"cmd": "sessions.list"}, timeout=5)
+                for _sid in _sl.json().get("sessions", []):
+                    _rfs.post("http://localhost:8191/v1", json={"cmd": "sessions.destroy", "session": _sid}, timeout=5)
+            except Exception:
+                pass
             _rn = _rfs.post("http://localhost:8191/v1", json={"cmd": "sessions.create"}, timeout=10)
             _ns = _rn.json().get("session", "")
             if _ns:
