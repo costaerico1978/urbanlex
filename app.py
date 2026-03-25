@@ -2280,6 +2280,7 @@ def api_buscador_municipio():
                 return _llm(prompt, logs, label, max_retries)
             r = buscar_legislacoes_urbanisticas(mun, est, job["logs"], chamar_llm)
             job["result"] = r
+            job["hist_id"] = hist_id
             # Atualizar historico ao concluir
             if hist_id:
                 try:
@@ -2756,6 +2757,7 @@ def api_buscador_manual_start():
                 'logs': [{'nivel': 'erro', 'msg': err_msg}]
             }
         job['done'] = True
+        job['hist_id'] = _hist_id_manual
         # Salvar resultado no historico
         if _hist_id_manual:
             try:
@@ -2808,6 +2810,7 @@ def api_buscador_job_poll(job_id):
     if job['done']:
         resp['result'] = job['result']
         resp['job_id'] = job_id  # Frontend precisa pro cadastrar
+        resp['hist_id'] = job.get('hist_id')
 
     return jsonify(resp)
 

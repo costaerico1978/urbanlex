@@ -556,6 +556,10 @@ function logClear() {
     if (btn) btn.textContent = '⛶ Expandir';
 }
 function logDownload() {
+    if (window._buscadorHistId) {
+        window.location.href = '/api/buscador/historico/log/' + window._buscadorHistId + '/download';
+        return;
+    }
     const text = _logBuffer.join('\n');
     const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
     const url = URL.createObjectURL(blob);
@@ -570,9 +574,13 @@ function logDownload() {
     const _hh = String(_nd.getHours() % 12 || 12).padStart(2,'0');
     const _min = String(_nd.getMinutes()).padStart(2,'0');
     const _ampm = _nd.getHours() >= 12 ? 'PM' : 'AM';
-    a.download = 'Log_busca_automatica_' + _uf + '_' + _mun + '_' + _dd + '_' + _mm + '_' + _yyyy + '_H_' + _hh + '_' + _min + '_' + _ampm + '.txt';
-    a.click();
-    URL.revokeObjectURL(url);
+    const _leg_tipo = (document.getElementById('bm-tipo')?.value || '').trim().replace(/[^a-zA-Z0-9]/g,'_');
+    const _leg_num = (document.getElementById('bm-numero')?.value || '').trim();
+    const _leg_ano = (document.getElementById('bm-ano')?.value || '').trim();
+    let _nome_log = 'Log_busca_manual_' + _uf + '_' + _mun;
+    if (_leg_tipo && _leg_num && _leg_ano) { _nome_log += '_' + _leg_tipo + '_' + _leg_num + '_' + _leg_ano; }
+    _nome_log += '_data_busca_' + _dd + '_' + _mm + '_' + _yyyy + '_' + _hh + 'h' + _min + '.txt';
+    a.download = _nome_log;
 }
 function logToggleExpand() {
     const lines = document.getElementById('bm-log-lines');
@@ -712,6 +720,11 @@ async function executarBuscaManual() {
                 if (poll.done) {
                     done = true;
                     finalResult = poll.result;
+                    if (poll.hist_id) {
+                        window._buscadorHistId = poll.hist_id;
+                        const _btnL = document.getElementById("btn-baixar-log-mun");
+                        if (_btnL) _btnL._histId = poll.hist_id;
+                    }
                 }
             } catch(pollErr) {
                 // Se poll falhar, tentar mais uma vez
@@ -720,6 +733,7 @@ async function executarBuscaManual() {
             }
         }
 
+        window._buscadorHistId = window._buscadorHistId || null;
         logRemoveSpinner();
         const duracao = ((Date.now() - t0) / 1000).toFixed(1);
 
@@ -1016,12 +1030,17 @@ async function confirmarBuscaNovoMun() {
         btnLog.className = "btn btn-secondary btn-sm";
         btnLog.style = "margin-bottom:8px;";
         btnLog.textContent = "⬇️ Baixar Log .txt";
+        btnLog._histId = null;
         btnLog.onclick = () => {
-            const txt = Array.from(logEl.querySelectorAll("div")).map(d => d.textContent).join("\n");
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(new Blob([txt], {type: "text/plain"}));
-            a.download = "busca_" + mun.replace(/ /g,"_") + "_" + est + ".txt";
-            a.click();
+            if (btnLog._histId) {
+                window.location.href = "/api/buscador/historico/log/" + btnLog._histId + "/download";
+            } else {
+                const txt = Array.from(logEl.querySelectorAll("div")).map(d => d.textContent).join("\n");
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(new Blob([txt], {type: "text/plain"}));
+                a.download = "busca_" + mun.replace(/ /g,"_") + "_" + est + ".txt";
+                a.click();
+            }
         };
         logEl.insertAdjacentElement("beforebegin", btnLog);
     }
