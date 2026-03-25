@@ -3409,6 +3409,29 @@ def navegar_com_cookies_flaresolverr(
                     _pg2.close()
                 except Exception as e_pg2:
                     logs.append({'nivel': 'aviso', 'msg': f'{label}: Erro ao extrair HTML via sessao: {str(e_pg2)[:80]}'})
+                    # Tentar baixar PDF S3 mesmo com erro na pagina
+                    if _pdf_s3_url and not resultado.get('pdf_nativo_s3'):
+                        try:
+                            import requests as _rq_s3x, os as _os_s3x
+                            _s3_url_x = _pdf_s3_url[0]
+                            _pdf_dir_s3x = _os_s3x.path.join(_os_s3x.path.dirname(_os_s3x.path.dirname(__file__)), 'static', 'downloads')
+                            _os_s3x.makedirs(_pdf_dir_s3x, exist_ok=True)
+                            _fname_s3x = _gerar_nome_pdf(legislacao)
+                            _fpath_s3x = _os_s3x.path.join(_pdf_dir_s3x, _fname_s3x)
+                            _r_s3x = _rq_s3x.get(_s3_url_x, timeout=120, stream=True)
+                            _s3x_size = 0
+                            if _r_s3x.status_code == 200:
+                                with open(_fpath_s3x, 'wb') as _f_s3x:
+                                    for _chunk in _r_s3x.iter_content(chunk_size=65536):
+                                        if _chunk:
+                                            _f_s3x.write(_chunk)
+                                            _s3x_size += len(_chunk)
+                            if _s3x_size > 10000:
+                                resultado['pdf_nativo_s3'] = f'/static/downloads/{_fname_s3x}'
+                                resultado['pdf_nativo_s3_path'] = _fpath_s3x
+                                logs.append({'nivel': 'ok', 'msg': f'{label}: 🎯 PDF S3 baixado no except ({_s3x_size//1024}KB)'})
+                        except Exception as _e_s3x:
+                            logs.append({'nivel': 'aviso', 'msg': f'{label}: PDF S3 except erro: {str(_e_s3x)[:80]}'})
 
             browser.close()
 
