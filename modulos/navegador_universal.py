@@ -2784,6 +2784,20 @@ def navegar_via_flaresolverr(
     return resultado
 
 
+def _gerar_nome_pdf(legislacao):
+    """Gera nome padrao para PDF: {Estado}_{Municipio}_{Tipo}_{Numero}_{Ano}_data_busca_{data}_{hora}"""
+    import datetime as _dt_n, re as _re_n
+    est = (legislacao.get('estado') or 'XX').upper()
+    mun = (legislacao.get('municipio') or 'municipio').replace(' ', '_')
+    tipo = (legislacao.get('tipo') or 'Lei').replace(' ', '_')
+    num = (legislacao.get('numero') or '0')
+    ano = (legislacao.get('ano') or '0000')
+    now = _dt_n.datetime.now().strftime('%d_%m_%Y_%Hh%M')
+    nome = f"{est}_{mun}_{tipo}_{num}_{ano}_data_busca_{now}.pdf"
+    # Remover caracteres invalidos
+    nome = _re_n.sub(r'[^a-zA-Z0-9_\-.]', '', nome)
+    return nome
+
 def navegar_com_cookies_flaresolverr(
     url_inicial: str,
     legislacao: dict,
@@ -3018,7 +3032,7 @@ def navegar_com_cookies_flaresolverr(
                                 if _fs_s3_matches:
                                     try:
                                         import requests as _rq_fs, os as _os_fs
-                                        _fname_fs = 'lm_pdf_nativo.pdf'
+                                        _fname_fs = _gerar_nome_pdf(legislacao)
                                         _pdf_dir_fs = _os_fs.path.join(_os_fs.path.dirname(_os_fs.path.dirname(__file__)), 'static', 'downloads')
                                         _os_fs.makedirs(_pdf_dir_fs, exist_ok=True)
                                         _fpath_fs = _os_fs.path.join(_pdf_dir_fs, _fname_fs)
@@ -3191,7 +3205,7 @@ def navegar_com_cookies_flaresolverr(
                                                         if _pdf_s3_url:
                                                             try:
                                                                 import requests as _rq_s3p, os as _os_s3p
-                                                                _fname_s3p = 'lm_pdf_nativo.pdf'
+                                                                _fname_s3p = _gerar_nome_pdf(legislacao)
                                                                 _pdf_dir_s3p = _os_s3p.path.join(_os_s3p.path.dirname(_os_s3p.path.dirname(__file__)), 'static', 'downloads')
                                                                 _os_s3p.makedirs(_pdf_dir_s3p, exist_ok=True)
                                                                 _fpath_s3p = _os_s3p.path.join(_pdf_dir_s3p, _fname_s3p)
@@ -3288,7 +3302,7 @@ def navegar_com_cookies_flaresolverr(
                             _s3_url_e = _pdf_s3_url[0]
                             _pdf_dir_s3e = _os_s3e.path.join(_os_s3e.path.dirname(_os_s3e.path.dirname(__file__)), 'static', 'downloads')
                             _os_s3e.makedirs(_pdf_dir_s3e, exist_ok=True)
-                            _fname_s3e = 'lm_pdf_nativo.pdf'
+                            _fname_s3e = _gerar_nome_pdf(legislacao)
                             _fpath_s3e = _os_s3e.path.join(_pdf_dir_s3e, _fname_s3e)
                             _r_s3e = _rq_s3e.get(_s3_url_e, timeout=120, stream=True)
                             _s3e_size = 0
@@ -3311,7 +3325,7 @@ def navegar_com_cookies_flaresolverr(
                             if _pdf_s3_url and not resultado.get('pdf_nativo_s3'):
                                 try:
                                     import requests as _rq_s3l, os as _os_s3l
-                                    _fname_s3l = 'lm_pdf_nativo.pdf'
+                                    _fname_s3l = _gerar_nome_pdf(legislacao)
                                     _pdf_dir_s3l = _os_s3l.path.join(_os_s3l.path.dirname(_os_s3l.path.dirname(__file__)), 'static', 'downloads')
                                     _os_s3l.makedirs(_pdf_dir_s3l, exist_ok=True)
                                     _fpath_s3l = _os_s3l.path.join(_pdf_dir_s3l, _fname_s3l)
