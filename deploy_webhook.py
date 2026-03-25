@@ -18,7 +18,20 @@ def deploy():
         return 'Deploy em andamento', 200
     def _run():
         with deploy._lock:
-            subprocess.run(['bash', '-c', 'cd /var/www/urbanlex && git pull && curl -sf http://localhost:5000/api/buscador/jobs-ativos | grep -q "true" && echo "Jobs ativos, restart adiado" >> /var/log/urbanlex-deploy.log || systemctl restart urbanlex'])
+            subprocess.run(['bash', '-c', '''
+cd /var/www/urbanlex && git pull
+while true; do
+    ATIVOS=$(curl -sf http://localhost:5000/api/buscador/jobs-ativos 2>/dev/null)
+    if echo "$ATIVOS" | grep -q '"ativos": true'; then
+        echo "$(date): Jobs ativos, aguardando 30s..." >> /var/log/urbanlex-deploy.log
+        sleep 30
+    else
+        systemctl restart urbanlex
+        echo "$(date): Restart executado" >> /var/log/urbanlex-deploy.log
+        break
+    fi
+done
+'''])
     threading.Thread(target=_run, daemon=True).start()
     return 'OK', 200
 
