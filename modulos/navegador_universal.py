@@ -3066,19 +3066,6 @@ def navegar_com_cookies_flaresolverr(
                         browser.close()
                         return resultado
                     logs.append({'nivel': 'info', 'msg': f'{label}: Extraindo HTML via sessao Playwright: {_lei_url[:80]}'})
-                    try:
-                        _ctx_ok = ctx.browser.is_connected()
-                    except:
-                        _ctx_ok = False
-                    if not _ctx_ok:
-                        logs.append({'nivel': 'info', 'msg': f'{label}: Browser fechado — abrindo novo para extrair HTML'})
-                        from playwright.sync_api import sync_playwright as _spw2
-                        _spw2_inst = _spw2().__enter__()
-                        _browser2 = _spw2_inst.chromium.launch(headless=True, args=['--no-sandbox','--disable-dev-shm-usage'])
-                        ctx = _browser2.new_context(viewport={"width":1280,"height":900}, user_agent=fs_user_agent)
-                        for _c in fs_cookies:
-                            try: ctx.add_cookies([_c])
-                            except: pass
                     _pg2 = ctx.new_page()
                     _pdf_s3_url = []
                     # Bloquear ads tambem nesta pagina
@@ -3896,8 +3883,11 @@ def navegar_como_humano(
                         })
                         continue  # Continuar navegação na nova página
                     except Exception:
-                        # Navegação falhou — href pode ser bloqueado
-                        logs.append({'nivel': 'info', 'msg': f'{label}: ⚠️ Navegação para href bloqueada'})
+                        # Navegação falhou — href pode ser bloqueado — sair do loop com URL capturada
+                        logs.append({'nivel': 'info', 'msg': f'{label}: ⚠️ Navegação para href bloqueada — encerrando com URL capturada'})
+                        resultado['encontrada'] = True
+                        resultado['confirmacao'] = 'URL capturada antes do browser fechar'
+                        break
 
             # 13. Download? Verificar se a legislação está no PDF
             if exec_resultado.startswith('Download:'):
