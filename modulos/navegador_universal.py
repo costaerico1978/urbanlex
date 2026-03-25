@@ -3066,6 +3066,11 @@ def navegar_com_cookies_flaresolverr(
                         browser.close()
                         return resultado
                     logs.append({'nivel': 'info', 'msg': f'{label}: Extraindo HTML via sessao Playwright: {_lei_url[:80]}'})
+                    try:
+                        _ctx_ok = not ctx.browser.is_connected() == False
+                    except:
+                        _ctx_ok = False
+                    logs.append({'nivel': 'info', 'msg': f'{label}: [DEBUG] ctx browser conectado: {_ctx_ok}'})
                     _pg2 = ctx.new_page()
                     _pdf_s3_url = []
                     # Bloquear ads tambem nesta pagina
