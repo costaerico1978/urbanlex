@@ -2997,7 +2997,12 @@ def api_buscador_historico_log_download(hist_id):
         _est = (r.get('estado') or 'XX').upper()
         _mun = (r.get('municipio') or 'municipio').replace(' ', '_')
         _dt = r.get('iniciado_em')
-        _dt_str = _dt.strftime('%d_%m_%Y_%Hh%M') if _dt else 'sem_data'
+        if _dt:
+            import datetime as _dtmod
+            _dt_brt = _dt + _dtmod.timedelta(hours=-3)
+            _dt_str = _dt_brt.strftime('%d_%m_%Y_%Hh%M')
+        else:
+            _dt_str = 'sem_data'
         if _tipo_busca == 'manual' and r.get('legislacao_numero'):
             _leg_tipo = (r.get('legislacao_tipo') or 'Lei').replace(' ', '_')
             _leg_num = r.get('legislacao_numero') or '0'
