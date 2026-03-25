@@ -19,7 +19,11 @@ def deploy():
     def _run():
         with deploy._lock:
             subprocess.run(['bash', '-c', '''
-cd /var/www/urbanlex && git pull
+cd /var/www/urbanlex
+CHANGES=$(git pull)
+echo "$CHANGES"
+# Reiniciar apenas se houver mudancas em arquivos Python
+if ! echo "$CHANGES" | grep -q "Already up to date" && echo "$CHANGES" | grep -qE "\.py"; then
 while true; do
     ATIVOS=$(curl -sf http://localhost:5000/api/buscador/jobs-ativos 2>/dev/null)
     if echo "$ATIVOS" | grep -q '"ativos": true'; then
@@ -38,6 +42,9 @@ while true; do
         break
     fi
 done
+else
+    echo "$(date): Sem mudancas em .py — restart nao necessario" >> /var/log/urbanlex-deploy.log
+fi
 '''])
     threading.Thread(target=_run, daemon=True).start()
     return 'OK', 200
