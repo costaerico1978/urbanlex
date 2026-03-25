@@ -26,6 +26,13 @@ while true; do
         echo "$(date): Jobs ativos, aguardando 30s..." >> /var/log/urbanlex-deploy.log
         sleep 30
     else
+        echo "$(date): Sem jobs ativos, aguardando 15s antes de reiniciar..." >> /var/log/urbanlex-deploy.log
+        sleep 15
+        # Verificar novamente se nao iniciou novo job no intervalo
+        ATIVOS2=$(curl -sf http://localhost:5000/api/buscador/jobs-ativos 2>/dev/null)
+        if echo "$ATIVOS2" | grep -q '"ativos": true'; then
+            continue
+        fi
         systemctl restart urbanlex
         echo "$(date): Restart executado" >> /var/log/urbanlex-deploy.log
         break
