@@ -276,7 +276,8 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
                     logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros urbanisticos — descartando"})
                     return None
             _pdf = fs_result.get("pdf_nativo_s3") or fs_result.get("pdf_path") or ""
-            return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc, "pdf_path": _pdf}
+            _anexos = fs_result.get("anexos_lm") or []
+            return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc, "pdf_path": _pdf, "anexos_lm": _anexos}
         logs.append({"nivel": "aviso", "msg": f"  {tipo} {numero}/{ano} nao encontrada no LeisMunicipais — buscando site da prefeitura..."})
         return _buscar_site_prefeitura(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
     except Exception as e:
