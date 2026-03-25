@@ -2286,6 +2286,7 @@ def api_buscador_municipio():
                     _enc = (r or {}).get("encontradas", [])
                     _leg = _enc[0] if _enc else {}
                     _log_txt = "\n".join(l.get("msg","") for l in job["logs"])
+                    job["logs"].append({"nivel": "info", "msg": f"[DEBUG] _leg keys: {list(_leg.keys())} | pdf_path: {_leg.get('pdf_path','VAZIO')}"})
                     _sucesso = bool(_enc)
                     _hconn2 = get_db()
                     _hcur2 = _hconn2.cursor()
