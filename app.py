@@ -2913,14 +2913,27 @@ def api_buscador_historico_log_download(hist_id):
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT log_texto, municipio, estado, iniciado_em FROM buscas_historico WHERE id=%s", (hist_id,))
+        cur.execute("SELECT log_texto, municipio, estado, iniciado_em, tipo, legislacao_tipo, legislacao_numero, legislacao_ano FROM buscas_historico WHERE id=%s", (hist_id,))
         r = cur.fetchone()
         cur.close()
         conn.close()
         if not r:
             return "Não encontrado", 404
         from flask import Response
-        nome = f"log_busca_{r['municipio']}_{r['estado']}_{hist_id}.txt".replace(' ', '_')
+        import re as _re_log, datetime as _dt_log
+        _tipo_busca = (r.get('tipo') or 'automatica').lower()
+        _est = (r.get('estado') or 'XX').upper()
+        _mun = (r.get('municipio') or 'municipio').replace(' ', '_')
+        _dt = r.get('iniciado_em')
+        _dt_str = _dt.strftime('%d_%m_%Y_%Hh%M') if _dt else 'sem_data'
+        if _tipo_busca == 'manual' and r.get('legislacao_numero'):
+            _leg_tipo = (r.get('legislacao_tipo') or 'Lei').replace(' ', '_')
+            _leg_num = r.get('legislacao_numero') or '0'
+            _leg_ano = r.get('legislacao_ano') or '0000'
+            nome = f"Log_busca_manual_{_est}_{_mun}_{_leg_tipo}_{_leg_num}_{_leg_ano}_data_busca_{_dt_str}.txt"
+        else:
+            nome = f"Log_busca_automatica_{_est}_{_mun}_data_busca_{_dt_str}.txt"
+        nome = _re_log.sub(r'[^a-zA-Z0-9_\-.]', '', nome)
         return Response(r['log_texto'] or '', mimetype='text/plain',
                        headers={'Content-Disposition': f'attachment; filename="{nome}"'})
     except Exception as e:
