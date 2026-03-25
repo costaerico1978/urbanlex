@@ -2573,6 +2573,22 @@ def api_buscador_manual_start():
     job_id = str(uuid.uuid4())[:12]
     job = {'logs': [], 'result': None, 'done': False, 'ts': time.time(), 'log_cursor': 0, 'cancelled': False}
     _buscador_jobs[job_id] = job
+    # Registrar inicio no historico
+    _hist_id_manual = None
+    try:
+        _mun_m = d.get('municipio', '').strip()
+        _est_m = d.get('estado', '').strip()
+        _hconn_m = get_db()
+        _hcur_m = _hconn_m.cursor()
+        _hcur_m.execute("""INSERT INTO buscas_historico (tipo, municipio, estado, iniciado_em, job_id)
+                           VALUES (%s, %s, %s, NOW(), %s) RETURNING id""",
+                        ('manual', _mun_m, _est_m, job_id))
+        _hist_id_manual = _hcur_m.fetchone()[0]
+        _hconn_m.commit()
+        _hcur_m.close()
+        _hconn_m.close()
+    except Exception:
+        pass
 
     def log_cb(entry):
         job['logs'].append(entry)
@@ -2739,6 +2755,29 @@ def api_buscador_manual_start():
                 'logs': [{'nivel': 'erro', 'msg': err_msg}]
             }
         job['done'] = True
+        # Salvar resultado no historico
+        if _hist_id_manual:
+            try:
+                _legs_m = (job.get('result') or {}).get('legislacoes', [])
+                _leg_m = _legs_m[0] if _legs_m else {}
+                _log_m = "\n".join(l.get("msg","") for l in job["logs"])
+                _hconn_m2 = get_db()
+                _hcur_m2 = _hconn_m2.cursor()
+                _hcur_m2.execute("""UPDATE buscas_historico SET
+                    concluido_em=NOW(), sucesso=%s,
+                    legislacao_tipo=%s, legislacao_numero=%s,
+                    legislacao_ano=%s, legislacao_link=%s,
+                    log_texto=%s
+                    WHERE id=%s""",
+                    (bool(_legs_m),
+                     _leg_m.get('tipo',''), _leg_m.get('numero',''),
+                     _leg_m.get('ano',''), _leg_m.get('url_fonte','') or _leg_m.get('link',''),
+                     _log_m, _hist_id_manual))
+                _hconn_m2.commit()
+                _hcur_m2.close()
+                _hconn_m2.close()
+            except Exception:
+                pass
 
     t = threading.Thread(target=run, daemon=True)
     t.start()
