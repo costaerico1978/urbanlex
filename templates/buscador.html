@@ -1163,6 +1163,7 @@ async function sincronizarPlataforma() {
 
 // Reconectar busca automática se houver job ativo
 (async function reconectarMunJob() {
+    await new Promise(ok => setTimeout(ok, 300)); // aguardar DOM e funções prontos
     const jobId = localStorage.getItem('mun_job_id');
     if (!jobId) return;
     const campos = JSON.parse(localStorage.getItem('mun_campos') || '{}');
