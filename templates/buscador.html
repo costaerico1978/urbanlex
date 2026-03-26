@@ -1044,6 +1044,15 @@ async function confirmarBuscaNovoMun() {
         };
         logEl.insertAdjacentElement("beforebegin", btnLog);
     }
+    // Loading spinner abaixo do log (igual busca manual)
+    let loadingMun = document.getElementById("loading-mun");
+    if (!loadingMun) {
+        loadingMun = document.createElement("div");
+        loadingMun.id = "loading-mun";
+        loadingMun.style = "text-align:center;padding:20px;color:var(--muted);";
+        loadingMun.innerHTML = '<div class="spinner-busca"></div><div style="font-size:13px;font-weight:600;margin-top:12px;">Pesquisando e analisando fontes com IA...</div><div style="font-size:11px;margin-top:4px;color:var(--muted2);">Acompanhe o progresso no log acima ↑</div>';
+        logEl.insertAdjacentElement("afterend", loadingMun);
+    }
     // Botão Nova Busca
     let btnNova = document.getElementById("btn-nova-busca-mun");
     if (!btnNova) {
@@ -1098,6 +1107,8 @@ async function confirmarBuscaNovoMun() {
                     // Remover spinner ao concluir
                     const _sp = logEl.querySelector('.log-line-spinner');
                     if (_sp) _sp.remove();
+                    const _ldMun = document.getElementById('loading-mun');
+                    if (_ldMun) _ldMun.style.display = 'none';
                     if (poll.hist_id) btnLog._histId = poll.hist_id;
                     break;
                 }
