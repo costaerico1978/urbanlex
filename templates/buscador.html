@@ -1183,7 +1183,7 @@ async function sincronizarPlataforma() {
             logEl = document.createElement('div');
             logEl.id = 'log-municipio';
             logEl.style = 'margin-top:16px;background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;max-height:400px;overflow-y:auto;';
-            document.getElementById('panel-auto').querySelector('.busca-card').insertAdjacentElement('afterend', logEl);
+            document.getElementById('panel-auto').appendChild(logEl);
         }
         mudarTab('auto');
         logEl.innerHTML = '<div style="color:var(--accent);margin-bottom:8px;">🔄 Reconectando busca de ' + mun + '/' + est + '...</div>';
