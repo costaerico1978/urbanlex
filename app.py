@@ -2254,7 +2254,7 @@ def api_buscador_municipio():
     if not mun or not est:
         return jsonify({"success": False, "error": "municipio e estado obrigatorios"}), 400
     job_id = str(uuid.uuid4())[:8]
-    job = {"done": False, "cancelled": False, "logs": [], "result": None, "tipo": "manual"}
+    job = {"done": False, "cancelled": False, "logs": [], "result": None, "tipo": "auto"}
     _buscador_jobs[job_id] = job
 
     # Registrar inicio no historico
