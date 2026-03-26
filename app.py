@@ -2589,6 +2589,7 @@ def api_buscador_manual_start():
         _hconn_m.commit()
         _hcur_m.close()
         _hconn_m.close()
+        job['hist_id'] = _hist_id_manual
     except Exception:
         pass
 
