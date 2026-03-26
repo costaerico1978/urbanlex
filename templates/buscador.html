@@ -702,6 +702,8 @@ async function executarBuscaManual() {
                     continue;
                 }
                 notFoundCount = 0; // resetar se encontrou o job
+                // Salvar hist_id assim que chegar
+                if (poll.hist_id) window._buscadorHistId = poll.hist_id;
 
                 // Renderizar novos logs
                 if (poll.logs && poll.logs.length) {
