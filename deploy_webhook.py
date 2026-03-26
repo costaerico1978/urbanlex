@@ -26,6 +26,7 @@ HASH_DEPOIS=$(git rev-parse HEAD)
 echo "$CHANGES"
 # Reiniciar se houver mudancas em arquivos Python
 if [ "$HASH_ANTES" != "$HASH_DEPOIS" ] && git diff "$HASH_ANTES" "$HASH_DEPOIS" --name-only | grep -qE "\.py$"; then
+touch /tmp/urbanlex_restart_pendente
 while true; do
     ATIVOS=$(curl -sf http://localhost:5000/api/buscador/jobs-ativos 2>/dev/null)
     if echo "$ATIVOS" | grep -q '"ativos": true'; then
@@ -39,13 +40,21 @@ while true; do
         if echo "$ATIVOS2" | grep -q '"ativos": true'; then
             continue
         fi
+        git pull
         systemctl restart urbanlex
+        rm -f /tmp/urbanlex_restart_pendente
         echo "$(date): Restart executado" >> /var/log/urbanlex-deploy.log
         break
     fi
 done
 else
-    echo "$(date): Sem mudancas em .py — restart nao necessario" >> /var/log/urbanlex-deploy.log
+    if [ -f /tmp/urbanlex_restart_pendente ]; then
+        echo "$(date): Restart pendente — executando..." >> /var/log/urbanlex-deploy.log
+        git pull && systemctl restart urbanlex && rm -f /tmp/urbanlex_restart_pendente
+        echo "$(date): Restart pendente executado" >> /var/log/urbanlex-deploy.log
+    else
+        echo "$(date): Sem mudancas em .py — restart nao necessario" >> /var/log/urbanlex-deploy.log
+    fi
 fi
 '''])
     threading.Thread(target=_run, daemon=True).start()
