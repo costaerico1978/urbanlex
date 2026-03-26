@@ -1175,6 +1175,8 @@ async function sincronizarPlataforma() {
             localStorage.removeItem('mun_campos');
             return;
         }
+        // Só manipular DOM se estiver no painel de buscas
+        if (typeof BUSCA_PAGINA !== 'undefined' && BUSCA_PAGINA !== 'buscador-painel') return;
         // Recriar painel de log
         let logEl = document.getElementById('log-municipio');
         if (!logEl) {
