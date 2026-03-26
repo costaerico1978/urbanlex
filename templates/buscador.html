@@ -1663,6 +1663,12 @@ carregarFila();
         if (!poll || poll.status === 'not_found') {
             localStorage.removeItem('buscador_job_id');
             localStorage.removeItem('buscador_campos');
+            history.replaceState({}, '', window.location.pathname);
+            return;
+        }
+        // Se job já concluiu e não estava salvo no localStorage (resíduo de URL)
+        if (poll.done && !localStorage.getItem('buscador_job_id')) {
+            history.replaceState({}, '', window.location.pathname);
             return;
         }
         // Restaurar campos
