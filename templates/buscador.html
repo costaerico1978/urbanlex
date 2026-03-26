@@ -1702,9 +1702,10 @@ carregarFila();
         }
         if (BUSCA_PAGINA === 'buscador-historico') return;
         mudarTab('manual');
+        // Salvar cache ANTES do logClear (que limpa o bm_log_cache)
+        const _bmCache = JSON.parse(localStorage.getItem('bm_log_cache') || '[]');
         logClear();
         // Restaurar cache do log manual
-        const _bmCache = JSON.parse(localStorage.getItem('bm_log_cache') || '[]');
         if (_bmCache.length) {
             _bmCache.forEach(l => logLine('🔹', l.msg, l.color || 'var(--muted)'));
         }
