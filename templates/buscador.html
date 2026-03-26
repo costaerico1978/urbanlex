@@ -1597,7 +1597,8 @@ carregarFila();
                 sessionStorage.setItem('buscador_campos', JSON.stringify({
                     municipio: ativo.municipio, estado: ativo.estado
                 }));
-                logLine('🔄', `Busca em andamento detectada: ${ativo.municipio}/${ativo.estado} — reconectando...`, 'var(--accent)');
+                if (BUSCA_PAGINA === 'buscador-historico') return;
+        logLine('🔄', `Busca em andamento detectada: ${ativo.municipio}/${ativo.estado} — reconectando...`, 'var(--accent)');
             }
         } catch(e) {}
     }
