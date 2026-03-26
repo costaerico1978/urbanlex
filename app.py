@@ -3004,15 +3004,25 @@ def api_buscador_historico_log_download(hist_id):
             _dt_str = _dt_brt.strftime('%d_%m_%Y_%Hh%M')
         else:
             _dt_str = 'sem_data'
-        if _tipo_busca == 'manual' and r.get('legislacao_numero'):
-            _leg_tipo = (r.get('legislacao_tipo') or 'Lei').replace(' ', '_')
-            _leg_num = r.get('legislacao_numero') or '0'
-            _leg_ano = r.get('legislacao_ano') or '0000'
-            nome = f"Log_busca_manual_{_est}_{_mun}_{_leg_tipo}_{_leg_num}_{_leg_ano}_data_busca_{_dt_str}.txt"
+        if _tipo_busca == 'manual':
+            if r.get('legislacao_numero'):
+                _leg_tipo = (r.get('legislacao_tipo') or 'Lei').replace(' ', '_')
+                _leg_num = r.get('legislacao_numero') or '0'
+                _leg_ano = r.get('legislacao_ano') or '0000'
+                nome = f"Log_busca_manual_{_est}_{_mun}_{_leg_tipo}_{_leg_num}_{_leg_ano}_data_busca_{_dt_str}.txt"
+            else:
+                nome = f"Log_busca_manual_{_est}_{_mun}_data_busca_{_dt_str}.txt"
         else:
             nome = f"Log_busca_automatica_{_est}_{_mun}_data_busca_{_dt_str}.txt"
         nome = _re_log.sub(r'[^a-zA-Z0-9_\-.]', '', nome)
-        return Response(r['log_texto'] or '', mimetype='text/plain',
+        # Se log vazio no banco, ler do job ativo em memoria
+        _log_txt = r['log_texto'] or ''
+        if not _log_txt:
+            for _jv in _buscador_jobs.values():
+                if _jv.get('hist_id') == hist_id:
+                    _log_txt = "\n".join(l.get("msg","") for l in _jv.get("logs", []))
+                    break
+        return Response(_log_txt, mimetype='text/plain',
                        headers={'Content-Disposition': f'attachment; filename="{nome}"'})
     except Exception as e:
         return str(e), 500
