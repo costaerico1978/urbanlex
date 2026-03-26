@@ -2807,10 +2807,10 @@ def api_buscador_job_poll(job_id):
         'done': job['done'],
     }
 
+    resp['hist_id'] = job.get('hist_id')  # Sempre retornar hist_id
     if job['done']:
         resp['result'] = job['result']
         resp['job_id'] = job_id  # Frontend precisa pro cadastrar
-        resp['hist_id'] = job.get('hist_id')
 
     return jsonify(resp)
 

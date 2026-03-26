@@ -578,7 +578,8 @@ function logDownload() {
     const _leg_ano = (document.getElementById('bm-ano')?.value || '').trim();
     let _nome_log = 'Log_busca_manual_' + _uf + '_' + _mun;
     if (_leg_tipo && _leg_num && _leg_ano) { _nome_log += '_' + _leg_tipo + '_' + _leg_num + '_' + _leg_ano; }
-    _nome_log += '_data_busca_' + _dd + '_' + _mm + '_' + _yyyy + '_' + _hh + 'h' + _min + '.txt';
+    const _sec = String(_nd.getSeconds()).padStart(2,'0');
+    _nome_log += '_data_busca_' + _dd + '_' + _mm + '_' + _yyyy + '_' + _hh + 'h' + _min + '_' + _sec + '.txt';
     a.download = _nome_log;
 }
 function logToggleExpand() {
@@ -716,14 +717,17 @@ async function executarBuscaManual() {
 
                 cursor = poll.cursor || cursor;
 
+                if (poll.hist_id) {
+                    window._buscadorHistId = poll.hist_id;
+                    const _btnL = document.getElementById("btn-baixar-log-mun");
+                    if (_btnL) _btnL._histId = poll.hist_id;
+                    const _btnLM = document.querySelector('#btn-log-expandir')?.parentElement?.querySelector('button');
+                    // Atualizar botao Baixar Log .txt da busca manual tambem
+                    window._buscadorHistId = poll.hist_id;
+                }
                 if (poll.done) {
                     done = true;
                     finalResult = poll.result;
-                    if (poll.hist_id) {
-                        window._buscadorHistId = poll.hist_id;
-                        const _btnL = document.getElementById("btn-baixar-log-mun");
-                        if (_btnL) _btnL._histId = poll.hist_id;
-                    }
                 }
             } catch(pollErr) {
                 // Se poll falhar, tentar mais uma vez
@@ -1037,7 +1041,15 @@ async function confirmarBuscaNovoMun() {
                 const txt = Array.from(logEl.querySelectorAll("div")).map(d => d.textContent).join("\n");
                 const a = document.createElement("a");
                 a.href = URL.createObjectURL(new Blob([txt], {type: "text/plain"}));
-                a.download = "busca_" + mun.replace(/ /g,"_") + "_" + est + ".txt";
+                const _nd2 = new Date();
+                const _dd2 = String(_nd2.getDate()).padStart(2,'0');
+                const _mm2 = String(_nd2.getMonth()+1).padStart(2,'0');
+                const _yyyy2 = _nd2.getFullYear();
+                const _hh2 = String(_nd2.getHours()).padStart(2,'0');
+                const _min2 = String(_nd2.getMinutes()).padStart(2,'0');
+                const _sec2 = String(_nd2.getSeconds()).padStart(2,'0');
+                const _munN = mun.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-zA-Z0-9]/g,'_');
+                a.download = 'Log_busca_automatica_' + est + '_' + _munN + '_data_busca_' + _dd2 + '_' + _mm2 + '_' + _yyyy2 + '_' + _hh2 + 'h' + _min2 + '_' + _sec2 + '.txt';
                 a.click();
             }
         };
