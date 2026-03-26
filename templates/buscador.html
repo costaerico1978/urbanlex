@@ -547,6 +547,7 @@ function logClear() {
     el.style.display = 'block';
     lines.innerHTML = '';
     _logBuffer = [];
+    localStorage.removeItem('bm_log_cache');
     const btnCanc = document.getElementById('btn-cancelar-busca');
     if (btnCanc) btnCanc.style.display = 'inline-block';
     lines.style.maxHeight = '400px';
@@ -602,6 +603,11 @@ function logLine(icon, msg, color) {
     const c = color || 'var(--muted)';
     const text = `[${ts}] ${icon} ${msg}`;
     _logBuffer.push(text);
+    try {
+        const _blc = JSON.parse(localStorage.getItem('bm_log_cache') || '[]');
+        _blc.push({msg, color});
+        localStorage.setItem('bm_log_cache', JSON.stringify(_blc));
+    } catch(e) {}
     lines.innerHTML += `<div style="color:${c}"><span style="color:var(--muted2)">[${ts}]</span> ${icon} ${msg}</div>`;
     lines.scrollTop = lines.scrollHeight;
 }
@@ -1696,6 +1702,11 @@ carregarFila();
         if (BUSCA_PAGINA === 'buscador-historico') return;
         mudarTab('manual');
         logClear();
+        // Restaurar cache do log manual
+        const _bmCache = JSON.parse(localStorage.getItem('bm_log_cache') || '[]');
+        if (_bmCache.length) {
+            _bmCache.forEach(l => logLine('🔹', l.msg, l.color || 'var(--muted)'));
+        }
         logLine('🔄', 'Reconectando busca em andamento...', 'var(--accent)');
         document.getElementById('bm-loading').style.display = 'block';
         window._buscadorJobId = jobId;
