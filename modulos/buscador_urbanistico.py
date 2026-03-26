@@ -27,7 +27,9 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         with _cf.ThreadPoolExecutor() as _ex:
             _fut = _ex.submit(client.models.generate_content, model="gemini-2.5-flash", contents=pergunta, config=config)
             response = _fut.result(timeout=30)
-        resp_texto = response.text.strip()
+        resp_texto = (response.text or "").strip()
+        if not resp_texto:
+            raise ValueError("Gemini retornou texto vazio (sem resposta direta da busca)")
         logs.append({"nivel": "ok", "msg": f"Gemini respondeu: {resp_texto[:300]}"})
         # Estruturar resposta em JSON
         prompt_estruturar = (
@@ -39,7 +41,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         resp2 = chamar_llm(prompt_estruturar, logs, "IA estruturar")
         if resp2:
             import re as _re
-            resp_c = _re.sub(r"^```json\s*|\s*```$", "", resp2.strip())
+            resp_c = _re.sub(r"^```json\s*|\s*```$", "", (resp2 or "").strip())
             legs = _json.loads(resp_c).get("legislacoes", [])
             logs.append({"nivel": "ok", "msg": f"IA identificou {len(legs)} legislacao(oes)"})
     except Exception as e:
@@ -61,7 +63,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                 resp_ddg = chamar_llm(prompt_ddg, logs, "IA DDG")
                 if resp_ddg:
                     import re as _re2
-                    resp_c2 = _re2.sub(r"^```json\s*|\s*```$", "", resp_ddg.strip())
+                    resp_c2 = _re2.sub(r"^```json\s*|\s*```$", "", (resp_ddg or "").strip())
                     legs = _json.loads(resp_c2).get("legislacoes", [])
         except Exception as e2:
             logs.append({"nivel": "aviso", "msg": f"DDG falhou: {str(e2)[:60]}"})
@@ -147,7 +149,7 @@ def _verificar_parametros(texto, municipio, estado, tipo, numero, ano, logs, cha
         return False
     try:
         import re as _re2
-        resp_c = _re2.sub(r"^```json\s*|\s*```$", "", resp.strip())
+        resp_c = _re2.sub(r"^```json\s*|\s*```$", "", (resp or "").strip())
         dados = _json.loads(resp_c)
         motivo = dados.get("motivo", "")[:300]
         zoneamento = dados.get("define_zoneamento", False)
