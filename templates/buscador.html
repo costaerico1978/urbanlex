@@ -1094,7 +1094,23 @@ async function confirmarBuscaNovoMun() {
                     });
                 }
                 cursor = poll.cursor || cursor;
-                if (poll.done) break;
+                if (poll.done) {
+                    // Remover spinner ao concluir
+                    const _sp = logEl.querySelector('.log-line-spinner');
+                    if (_sp) _sp.remove();
+                    if (poll.hist_id) btnLog._histId = poll.hist_id;
+                    break;
+                }
+                // Mostrar spinner enquanto processa
+                let _spEl = logEl.querySelector('.log-line-spinner');
+                if (!_spEl) {
+                    _spEl = document.createElement('div');
+                    _spEl.className = 'log-line-spinner';
+                    _spEl.style.color = 'var(--muted)';
+                    _spEl.innerHTML = '<span class="log-spinner"></span> Processando...';
+                    logEl.appendChild(_spEl);
+                    logEl.scrollTop = logEl.scrollHeight;
+                }
             } catch(e) {}
         }
         sessionStorage.removeItem("mun_job_id");
