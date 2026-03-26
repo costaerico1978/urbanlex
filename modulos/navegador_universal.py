@@ -3752,7 +3752,7 @@ def navegar_como_humano(
 
             # 8. Detectar loop
             _texto_el_loop = acao.get('texto_elemento', '') or ''
-            _ignorar_loop = any(s in _texto_el_loop for s in ('Mais op', 'Mais Op'))
+            _ignorar_loop = any(s in _texto_el_loop for s in ('Mais op', 'Mais Op', 'Todos os Atos', 'todos os atos'))
             if len(historico) >= 2 and not _ignorar_loop:
                 tipos_recentes = [h['acao'].split(' ')[0] for h in historico[-2:]]
                 if all(t == tipo_acao for t in tipos_recentes):
