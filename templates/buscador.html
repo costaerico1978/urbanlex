@@ -526,8 +526,7 @@ function mudarTab(tab) {
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     document.getElementById('tab-' + tab).classList.add('active');
     document.getElementById('panel-' + tab).classList.add('active');
-    const labels = {auto:'Buscas Automáticas', ref:'Referências Cruzadas', manual:'Busca Manual', historico:'Histórico de Buscas'};
-    document.getElementById('busca-status').textContent = labels[tab] || 'Painel';
+    document.getElementById('busca-status').textContent = '';
     // Carregar dados ao entrar na aba
     if (tab === 'historico') carregarHistorico();
 }
