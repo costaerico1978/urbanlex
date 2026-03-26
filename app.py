@@ -2767,16 +2767,20 @@ def api_buscador_manual_start():
                 _log_m = "\n".join(l.get("msg","") for l in job["logs"])
                 _hconn_m2 = get_db()
                 _hcur_m2 = _hconn_m2.cursor()
+                import json as _json_m2
+                _pdf_m = _leg_m.get("pdf_nativo_s3") or _leg_m.get("pdf_path") or ""
+                _anx_m = _leg_m.get("anexos_lm") or []
+                _anx_m_json = _json_m2.dumps(_anx_m) if _anx_m else "[]"
                 _hcur_m2.execute("""UPDATE buscas_historico SET
                     concluido_em=NOW(), sucesso=%s,
                     legislacao_tipo=%s, legislacao_numero=%s,
                     legislacao_ano=%s, legislacao_link=%s,
-                    log_texto=%s
+                    log_texto=%s, pdf_path=%s, anexos_paths=%s
                     WHERE id=%s""",
                     (bool(_legs_m),
-                     _leg_m.get('tipo',''), _leg_m.get('numero',''),
-                     _leg_m.get('ano',''), _leg_m.get('url_fonte','') or _leg_m.get('link',''),
-                     _log_m, _hist_id_manual))
+                     _leg_m.get("tipo",""), _leg_m.get("numero",""),
+                     _leg_m.get("ano",""), _leg_m.get("url_fonte","") or _leg_m.get("link",""),
+                     _log_m, _pdf_m, _anx_m_json, _hist_id_manual))
                 _hconn_m2.commit()
                 _hcur_m2.close()
                 _hconn_m2.close()
