@@ -1561,6 +1561,11 @@ async function carregarHistorico() {
         }).join('');
         // Sincronizar checkbox all
         document.getElementById('hist-check-all').checked = false;
+        // Auto-refresh enquanto houver buscas em andamento
+        clearTimeout(window._histRefreshTimer);
+        if (items.some(i => !i.concluido_em)) {
+            window._histRefreshTimer = setTimeout(carregarHistorico, 5000);
+        }
     } catch(e) {
         el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">Erro ao carregar hist&#xF3;rico</div>';
     }
