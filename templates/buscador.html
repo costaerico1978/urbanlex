@@ -1677,6 +1677,7 @@ carregarFila();
         if (!poll || poll.status === 'not_found') {
             localStorage.removeItem('buscador_job_id');
             localStorage.removeItem('buscador_campos');
+            localStorage.removeItem('bm_log_cache');
             history.replaceState({}, '', window.location.pathname);
             return;
         }
@@ -1753,6 +1754,7 @@ carregarFila();
         logLine('⏱️', 'Tempo total: ' + duracaoRec + 's (' + logCount + ' etapas)', 'var(--muted)');
         if (finalResult) { renderizarResultadoBusca(finalResult, duracaoRec); }
         localStorage.removeItem('buscador_job_id');
+        localStorage.removeItem('bm_log_cache');
     } catch(e) {}
 })();
 
