@@ -1649,6 +1649,8 @@ carregarFila();
             const ativo = await api('GET', '/api/buscador/job-ativo');
             if (ativo && ativo.ativo && ativo.job_id) {
                 jobId = ativo.job_id;
+                // Ignorar jobs automáticos — serão tratados pelo reconectarMunJob
+                if (ativo.tipo === 'auto') return;
                 localStorage.setItem('buscador_job_id', jobId);
                 localStorage.setItem('buscador_campos', JSON.stringify({
                     municipio: ativo.municipio, estado: ativo.estado
@@ -1670,6 +1672,11 @@ carregarFila();
         }
         // Se job já concluiu e não estava salvo no localStorage (resíduo de URL)
         if (poll.done && !localStorage.getItem('buscador_job_id')) {
+            history.replaceState({}, '', window.location.pathname);
+            return;
+        }
+        // Se é job automático, ignorar — reconectarMunJob cuida disso
+        if (poll.tipo === 'auto') {
             history.replaceState({}, '', window.location.pathname);
             return;
         }

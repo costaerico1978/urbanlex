@@ -2254,7 +2254,7 @@ def api_buscador_municipio():
     if not mun or not est:
         return jsonify({"success": False, "error": "municipio e estado obrigatorios"}), 400
     job_id = str(uuid.uuid4())[:8]
-    job = {"done": False, "cancelled": False, "logs": [], "result": None}
+    job = {"done": False, "cancelled": False, "logs": [], "result": None, "tipo": "manual"}
     _buscador_jobs[job_id] = job
 
     # Registrar inicio no historico
@@ -2524,7 +2524,7 @@ def api_buscador_job_ativo():
             return jsonify({'ativo': False})
         job_id = r['job_id']
         job = _buscador_jobs.get(job_id)
-        if not job or job.get('done'):
+        if not job or job.get('done') or job.get('tipo') != 'manual':
             return jsonify({'ativo': False})
         return jsonify({
             'ativo': True,
@@ -2573,7 +2573,7 @@ def api_buscador_manual_start():
 
     d = request.json or {}
     job_id = str(uuid.uuid4())[:12]
-    job = {'logs': [], 'result': None, 'done': False, 'ts': time.time(), 'log_cursor': 0, 'cancelled': False}
+    job = {'logs': [], 'result': None, 'done': False, 'ts': time.time(), 'log_cursor': 0, 'cancelled': False, 'tipo': 'auto'}
     _buscador_jobs[job_id] = job
     # Registrar inicio no historico
     _hist_id_manual = None
@@ -2813,6 +2813,7 @@ def api_buscador_job_poll(job_id):
     }
 
     resp['hist_id'] = job.get('hist_id')  # Sempre retornar hist_id
+    resp['tipo'] = job.get('tipo', 'manual')
     if job['done']:
         resp['result'] = job['result']
         resp['job_id'] = job_id  # Frontend precisa pro cadastrar
