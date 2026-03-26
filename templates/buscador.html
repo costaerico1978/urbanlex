@@ -1636,6 +1636,11 @@ carregarFila();
 (async function reconectarJob() {
     const params = new URLSearchParams(window.location.search);
     let jobId = params.get('job') || localStorage.getItem('buscador_job_id');
+    // Ignorar ?job= da URL se pertence à busca automática
+    if (jobId && jobId === localStorage.getItem('mun_job_id')) {
+        history.replaceState({}, '', window.location.pathname);
+        jobId = null;
+    }
     // Se nao tem job_id local, verificar no servidor se ha job ativo
     if (!jobId) {
         try {
