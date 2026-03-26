@@ -683,7 +683,7 @@ async function executarBuscaManual() {
         let notFoundCount = 0; // contador de vezes que job não foi encontrado
 
         while (!done) {
-            if (window._buscadorCancelado) { done = true; break; }
+            if (window._buscadorCancelado) { done = true; if (typeof carregarHistorico === 'function') carregarHistorico(); break; }
             await new Promise(ok => setTimeout(ok, 1500));
 
             try {
@@ -729,6 +729,8 @@ async function executarBuscaManual() {
                 if (poll.done) {
                     done = true;
                     finalResult = poll.result;
+                    // Atualizar historico automaticamente ao concluir
+                    if (typeof carregarHistorico === 'function') carregarHistorico();
                 }
             } catch(pollErr) {
                 // Se poll falhar, tentar mais uma vez
@@ -1652,7 +1654,7 @@ carregarFila();
         let notFoundCount = 0;
         const t0rec = Date.now();
         while (!done) {
-            if (window._buscadorCancelado) { done = true; break; }
+            if (window._buscadorCancelado) { done = true; if (typeof carregarHistorico === 'function') carregarHistorico(); break; }
             await new Promise(ok => setTimeout(ok, 1500));
             try {
                 const poll = await api('GET', `/api/buscador/job/${jobId}?cursor=${cursor}`);
@@ -1672,7 +1674,7 @@ carregarFila();
                     if (!poll.done) logSpinner('Processando...');
                 }
                 cursor = poll.cursor || cursor;
-                if (poll.done) { done = true; finalResult = poll.result; }
+                if (poll.done) { done = true; finalResult = poll.result; if (typeof carregarHistorico === 'function') carregarHistorico(); }
             } catch(e) { logLine('⚠️', 'Polling: ' + e.message, 'var(--amber)'); }
         }
         logRemoveSpinner();
