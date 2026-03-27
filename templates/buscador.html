@@ -185,6 +185,9 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
         <button class="btn btn-secondary btn-sm" onclick="sincronizarPlataforma()">
             🔄 Sincronizar com Plataforma
         </button>
+        <button id="btn-baixar-log-auto" class="btn btn-secondary btn-sm" style="display:none;" onclick="if(window._munHistId){window.location.href='/api/buscador/historico/log/'+window._munHistId+'/download'}">
+            📥 Baixar Log .txt
+        </button>
     </div>
 </div>
 
@@ -1094,33 +1097,6 @@ async function confirmarBuscaNovoMun() {
         loadingMun.style = "text-align:center;padding:20px;color:var(--muted);";
         loadingMun.innerHTML = '<div class="spinner-busca"></div><div style="font-size:13px;font-weight:600;margin-top:12px;">Pesquisando e analisando fontes com IA...</div><div style="font-size:11px;margin-top:4px;color:var(--muted2);">Acompanhe o progresso no log acima ↑</div><div style="margin-top:12px;"><button class="btn btn-ghost btn-sm" style="color:#e74c3c;border-color:rgba(231,76,60,.3);" onclick="pararBuscaAuto()">✕ Cancelar e iniciar nova busca</button></div>';
         logEl.insertAdjacentElement("afterend", loadingMun);
-    }
-    // Botão Nova Busca
-    let btnNova = document.getElementById("btn-nova-busca-mun");
-    if (!btnNova) {
-        btnNova = document.createElement("button");
-        btnNova.id = "btn-nova-busca-mun";
-        btnNova.className = "btn btn-ghost btn-sm";
-        btnNova.style = "margin-bottom:8px;margin-left:6px;color:#e74c3c;border-color:rgba(231,76,60,.3);";
-        btnNova.textContent = "🔄 Nova Busca";
-        btnNova.onclick = () => {
-            // Cancelar job ativo
-            const jobId = localStorage.getItem("mun_job_id");
-            if (jobId) {
-                fetch('/api/buscador/cancelar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({job_id: jobId})}).catch(()=>{});
-                localStorage.removeItem("mun_job_id");
-                localStorage.removeItem("mun_campos");
-            }
-            // Limpar UI
-            const le = document.getElementById("log-municipio");
-            if (le) le.innerHTML = '';
-            btnNova.remove();
-            const bl = document.getElementById("btn-baixar-log-mun");
-            if (bl) bl.remove();
-            // Reabrir modal
-            dispararBuscaNovoMunicipio();
-        };
-        btnLog.insertAdjacentElement("afterend", btnNova);
     }
     try {
         const r = await api("POST", "/api/buscador/municipio", {municipio: mun, estado: est, cadastrar, monitorar: cadastrar});
