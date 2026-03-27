@@ -344,7 +344,7 @@ def login_page():
     return render_template('login.html', error=error, **tmpl_ctx())
 
 @app.route('/cadastro')
-def pagina_cadastro(): return render_template('cadastro.html', **tmpl_ctx())
+def pagina_cadastro(): return render_template('cadastro.html')
 
 @app.route('/esqueci-senha')
 def pagina_esqueci_senha(): return render_template('esqueci_senha.html', **tmpl_ctx())
