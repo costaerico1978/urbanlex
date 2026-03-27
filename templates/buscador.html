@@ -750,8 +750,8 @@ async function executarBuscaManual() {
         const duracao = ((Date.now() - t0) / 1000).toFixed(1);
 
         document.getElementById('bm-loading').style.display = 'none';
-        localStorage.removeItem('buscador_job_id');
-        localStorage.removeItem('buscador_campos');
+        // Manter buscador_job_id por 5min para reconectarJob poder restaurar log se usuário voltar
+        setTimeout(() => { localStorage.removeItem('buscador_job_id'); localStorage.removeItem('buscador_campos'); localStorage.removeItem('bm_log_cache'); }, 300000);
         history.replaceState({}, '', '/buscador');
         document.getElementById('bm-resultados').style.display = 'block';
 
@@ -1643,6 +1643,28 @@ carregarFila();
     } catch(e) {}
 })();
 
+
+// Restaurar log manual do cache se não há job ativo em andamento
+(function restaurarLogManualCache() {
+    const cache = JSON.parse(localStorage.getItem('bm_log_cache') || '[]');
+    if (!cache.length) return;
+    if (typeof BUSCA_PAGINA !== 'undefined' && BUSCA_PAGINA === 'buscador-historico') return;
+    // Só restaurar se não há job ativo (o reconectarJob cuidará disso)
+    const jobId = new URLSearchParams(window.location.search).get('job') || localStorage.getItem('buscador_job_id');
+    if (jobId) return;
+    // Mostrar painel e restaurar log
+    const logBox = document.getElementById('bm-log');
+    if (logBox) logBox.style.display = 'block';
+    cache.forEach(l => {
+        const lines = document.getElementById('bm-log-lines');
+        if (!lines) return;
+        const ts = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+        lines.innerHTML += `<div style="color:${l.color||'var(--muted)'}"><span style="color:var(--muted2)">[${ts}]</span> 🔹 ${l.msg}</div>`;
+    });
+    const lines = document.getElementById('bm-log-lines');
+    if (lines) lines.scrollTop = lines.scrollHeight;
+    mudarTab('manual');
+})();
 
 // Reconectar job ativo ao carregar a página
 (async function reconectarJob() {
