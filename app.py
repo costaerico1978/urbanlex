@@ -616,6 +616,44 @@ def api_excluir_usuario(uid):
     qry("DELETE FROM users WHERE id=%s", (uid,), commit=True, fetch=None)
     return jsonify({'success':True})
 
+@app.route('/api/admin/usuarios/<int:uid>/acesso', methods=['POST'])
+@admin_required
+def api_atualizar_acesso(uid):
+    d = request.json or {}
+    acesso = d.get('acesso')  # 'liberado' ou 'negado'
+    if acesso not in ('liberado', 'negado'):
+        return jsonify({'success': False, 'error': 'Valor invalido'})
+    aprovado = acesso == 'liberado'
+    ativo = acesso == 'liberado'
+    user = qry("SELECT * FROM users WHERE id=%s", (uid,), 'one')
+    if not user:
+        return jsonify({'success': False, 'error': 'Usuario nao encontrado'})
+    era_aprovado = user.get('aprovado', False)
+    qry("UPDATE users SET aprovado=%s, ativo=%s WHERE id=%s", (aprovado, ativo, uid), commit=True, fetch=None)
+    # Enviar e-mail de boas-vindas apenas quando liberar pela primeira vez
+    if aprovado and not era_aprovado:
+        try:
+            enviar_email_generico(user['email'], 'Acesso Liberado — UrbanLex',
+                f'<p>Ola {user["nome"]},</p>'
+                f'<p>Seu acesso a plataforma <strong>UrbanLex</strong> foi liberado!</p>'
+                f'<p>Acesse agora: <a href="{get_app_url()}/login">{get_app_url()}/login</a></p>'
+                f'<p>Bem-vindo!</p>')
+        except Exception as e:
+            print(f"[EMAIL] Erro ao enviar email de acesso liberado: {e}")
+    return jsonify({'success': True})
+
+@app.route('/api/admin/verificar-senha', methods=['POST'])
+@admin_required
+def api_verificar_senha():
+    from werkzeug.security import check_password_hash
+    d = request.json or {}
+    senha = d.get('senha', '')
+    user = qry("SELECT senha_hash FROM users WHERE id=%s", (session['user_id'],), 'one')
+    if not user:
+        return jsonify({'success': False})
+    ok = check_password_hash(user['senha_hash'], senha)
+    return jsonify({'success': ok})
+
 # -------------------------------------------------------------------
 # API: BIBLIOTECA DE LEGISLACOES
 # -------------------------------------------------------------------

@@ -733,5 +733,48 @@ function fmtData(d) { if (!d) return '—'; try { return new Date(d).toLocaleDat
 function fmtNum(n, dec=2) { if (n===null||n===undefined||n==='') return '—'; return parseFloat(n).toFixed(dec); }
 </script>
 {% block scripts %}{% endblock %}
+<script>
+let _adminDesbloqueado = false;
+
+function abrirPainelAdmin() {
+    if (_adminDesbloqueado) {
+        toggleGroup('grp-users');
+        return;
+    }
+    const modal = document.getElementById('modal-admin-senha');
+    modal.style.display = 'flex';
+    document.getElementById('admin-senha-input').value = '';
+    document.getElementById('admin-senha-erro').style.display = 'none';
+    setTimeout(() => document.getElementById('admin-senha-input').focus(), 100);
+}
+
+function fecharModalAdmin() {
+    document.getElementById('modal-admin-senha').style.display = 'none';
+}
+
+async function verificarSenhaAdmin() {
+    const senha = document.getElementById('admin-senha-input').value;
+    if (!senha) return;
+    try {
+        const r = await fetch('/api/admin/verificar-senha', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({senha})
+        });
+        const d = await r.json();
+        if (d.success) {
+            _adminDesbloqueado = true;
+            fecharModalAdmin();
+            toggleGroup('grp-users');
+        } else {
+            document.getElementById('admin-senha-erro').style.display = 'block';
+            document.getElementById('admin-senha-input').value = '';
+            document.getElementById('admin-senha-input').focus();
+        }
+    } catch(e) {
+        document.getElementById('admin-senha-erro').style.display = 'block';
+    }
+}
+</script>
 </body>
 </html>

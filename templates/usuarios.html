@@ -14,19 +14,20 @@
 </div>
 
 <div class="card" style="padding:0">
-    <div style="padding:14px 18px;border-bottom:1px solid var(--border)">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <input type="text" id="filtro-user" placeholder="Filtrar por nome ou e-mail..." style="width:280px;font-size:12px;padding:5px 10px" oninput="filtrar(this.value)">
+        <button id="btn-salvar-acessos" onclick="salvarAcessos()" style="display:none;padding:6px 16px;font-size:12px;font-weight:700;border-radius:6px;border:none;cursor:pointer;background:var(--accent);color:#0a0c0f">💾 Salvar Alterações</button>
     </div>
     <div class="table-wrap">
         <table>
             <thead>
                 <tr>
                     <th>Nome</th><th>E-mail</th><th>Perfil</th>
-                    <th>Status</th><th>Último Acesso</th><th>Ações</th>
+                    <th>Status</th><th>Acesso</th><th>Último Acesso</th><th>Ações</th>
                 </tr>
             </thead>
             <tbody id="tbody-users">
-                <tr><td colspan="6" style="text-align:center;padding:30px"><span class="spinner" style="margin:0 auto"></span></td></tr>
+                <tr><td colspan="7" style="text-align:center;padding:30px"><span class="spinner" style="margin:0 auto"></span></td></tr>
             </tbody>
         </table>
     </div>
@@ -81,7 +82,7 @@ const roleLabel = { admin:'Administrador', editor:'Editor', apenas_leitura:'Apen
 async function carregarUsuarios() {
     const r = await api('GET', '/api/admin/usuarios');
     const tbody = document.getElementById('tbody-users');
-    if (!r.success) { tbody.innerHTML = `<tr><td colspan="6" class="text-muted" style="text-align:center;padding:20px">Erro ao carregar</td></tr>`; return; }
+    if (!r.success) { tbody.innerHTML = `<tr><td colspan="7" class="text-muted" style="text-align:center;padding:20px">Erro ao carregar</td></tr>`; return; }
     const users = r.data || [];
     document.getElementById('users-count').textContent = `${users.length} usuário(s)`;
     const pendentes = users.filter(u => !u.aprovado).length;
@@ -93,6 +94,7 @@ async function carregarUsuarios() {
         <td style="font-family:var(--font-mono);font-size:11px">${u.email}</td>
         <td>${roleBadge[u.role]||u.role}</td>
         <td>${u.ativo && u.aprovado ? '<span class="badge badge-green">Ativo</span>' : u.aprovado ? '<span class="badge badge-amber">Inativo</span>' : '<span class="badge badge-amber">Pendente</span>'}</td>
+        <td><select class="acesso-select" data-uid="${u.id}" onchange="marcarAlterado(this)" style="font-size:11px;padding:3px 6px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text)"><option value="liberado" ${u.aprovado && u.ativo ? 'selected' : ''}>✅ Liberado</option><option value="negado" ${!u.aprovado || !u.ativo ? 'selected' : ''}>🚫 Negado</option></select></td>
         <td style="font-size:11px;font-family:var(--font-mono)">${fmtData(u.ultimo_acesso)||'Nunca'}</td>
         <td>
             <div style="display:flex;gap:6px">
@@ -119,7 +121,31 @@ function abrirAlterarRole(id, nome, roleAtual) {
 async function salvarRole() {
     const role = document.getElementById('novo-role').value;
     const r = await api('POST', `/api/admin/usuarios/${userIdAtual}/role`, { role });
-    if (r.success) { toast('Perfil atualizado!'); closeModal('modal-role'); carregarUsuarios(); }
+    if (r.success) { toast('Perfil atualizado!'); closeModal('modal-role'); let _acessosAlterados = {};
+
+function marcarAlterado(sel) {
+    _acessosAlterados[sel.dataset.uid] = sel.value;
+    document.getElementById('btn-salvar-acessos').style.display = 'inline-block';
+}
+
+async function salvarAcessos() {
+    const btn = document.getElementById('btn-salvar-acessos');
+    btn.textContent = '⏳ Salvando...';
+    btn.disabled = true;
+    let erros = 0;
+    for (const [uid, acesso] of Object.entries(_acessosAlterados)) {
+        const r = await api('POST', `/api/admin/usuarios/${uid}/acesso`, {acesso});
+        if (!r.success) { erros++; toast(r.error || 'Erro ao salvar', 'error'); }
+    }
+    if (!erros) toast('Alterações salvas com sucesso!');
+    _acessosAlterados = {};
+    btn.style.display = 'none';
+    btn.disabled = false;
+    btn.textContent = '💾 Salvar Alterações';
+    carregarUsuarios();
+}
+
+carregarUsuarios(); }
     else toast(r.error || 'Erro', 'error');
 }
 
@@ -128,9 +154,57 @@ function confirmarDelUser(id) {
     openModal('modal-del-user');
     document.getElementById('btn-confirmar-del-user').onclick = async () => {
         const r = await api('DELETE', `/api/admin/usuarios/${id}`);
-        if (r.success) { toast('Usuário removido'); closeModal('modal-del-user'); carregarUsuarios(); }
+        if (r.success) { toast('Usuário removido'); closeModal('modal-del-user'); let _acessosAlterados = {};
+
+function marcarAlterado(sel) {
+    _acessosAlterados[sel.dataset.uid] = sel.value;
+    document.getElementById('btn-salvar-acessos').style.display = 'inline-block';
+}
+
+async function salvarAcessos() {
+    const btn = document.getElementById('btn-salvar-acessos');
+    btn.textContent = '⏳ Salvando...';
+    btn.disabled = true;
+    let erros = 0;
+    for (const [uid, acesso] of Object.entries(_acessosAlterados)) {
+        const r = await api('POST', `/api/admin/usuarios/${uid}/acesso`, {acesso});
+        if (!r.success) { erros++; toast(r.error || 'Erro ao salvar', 'error'); }
+    }
+    if (!erros) toast('Alterações salvas com sucesso!');
+    _acessosAlterados = {};
+    btn.style.display = 'none';
+    btn.disabled = false;
+    btn.textContent = '💾 Salvar Alterações';
+    carregarUsuarios();
+}
+
+carregarUsuarios(); }
         else toast(r.error || 'Erro', 'error');
     };
+}
+
+let _acessosAlterados = {};
+
+function marcarAlterado(sel) {
+    _acessosAlterados[sel.dataset.uid] = sel.value;
+    document.getElementById('btn-salvar-acessos').style.display = 'inline-block';
+}
+
+async function salvarAcessos() {
+    const btn = document.getElementById('btn-salvar-acessos');
+    btn.textContent = '⏳ Salvando...';
+    btn.disabled = true;
+    let erros = 0;
+    for (const [uid, acesso] of Object.entries(_acessosAlterados)) {
+        const r = await api('POST', `/api/admin/usuarios/${uid}/acesso`, {acesso});
+        if (!r.success) { erros++; toast(r.error || 'Erro ao salvar', 'error'); }
+    }
+    if (!erros) toast('Alterações salvas com sucesso!');
+    _acessosAlterados = {};
+    btn.style.display = 'none';
+    btn.disabled = false;
+    btn.textContent = '💾 Salvar Alterações';
+    carregarUsuarios();
 }
 
 carregarUsuarios();
