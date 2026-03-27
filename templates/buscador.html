@@ -1737,22 +1737,14 @@ carregarFila();
         }
         if (window.location.pathname.includes('historico')) return;
         mudarTab('manual');
-        // Salvar cache ANTES do logClear (que limpa o bm_log_cache)
-        const _bmCache = JSON.parse(localStorage.getItem('bm_log_cache') || '[]');
         logClear();
-        // Restaurar cache do log manual
-        if (_bmCache.length) {
-            _bmCache.forEach(l => logLine('🔹', l.msg, l.color || 'var(--muted)'));
-        }
         logLine('🔄', 'Reconectando busca em andamento...', 'var(--accent)');
         document.getElementById('bm-loading').style.display = 'block';
         window._buscadorJobId = jobId;
         window._buscadorCancelado = false;
         history.replaceState({jobId}, '', '?job=' + jobId);
-        // Buscar TODOS os logs desde o início
+        // Buscar TODOS os logs do servidor desde o início
         const allLogs = await api('GET', `/api/buscador/job/${jobId}?cursor=0&limit=9999`);
-        // Limpar apenas DOM (não o bm_log_cache) antes de carregar logs do servidor
-        document.getElementById('bm-log-lines').innerHTML = '';
         (allLogs.logs || []).forEach(l => logLine('🔹', l.msg, 'var(--muted)'));
         let cursor = (allLogs.logs || []).length;
         let done = allLogs.done || false;
