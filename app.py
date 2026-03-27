@@ -518,8 +518,6 @@ def logout():
     session.clear()
     return redirect('/login')
 
-@app.route('/cadastro')
-def pagina_cadastro(): return render_template('cadastro.html')
 
 @app.route('/api/auth/cadastrar', methods=['POST'])
 def api_cadastrar():
