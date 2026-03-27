@@ -1559,6 +1559,20 @@ async function histApagarSelecionados() {
 // ── Init ──
 carregarStatusPlataforma();
 carregarFila();
+// Restaurar log manual do cache ao recarregar
+(function() {
+    const cache = JSON.parse(localStorage.getItem('bm_log_cache') || '[]');
+    if (!cache.length) return;
+    const logBox = document.getElementById('bm-log');
+    const logLines = document.getElementById('bm-log-lines');
+    if (!logBox || !logLines) return;
+    logBox.style.display = 'block';
+    cache.forEach(l => {
+        logLines.innerHTML += '<div style="color:' + (l.color||'var(--muted)') + '">🔹 ' + l.msg + '</div>';
+    });
+    logLines.scrollTop = logLines.scrollHeight;
+    mudarTab('manual');
+})();
 
 // Reconectar busca automática se houver job ativo
 (async function reconectarMunJob() {
