@@ -1557,6 +1557,7 @@ async function histApagarSelecionados() {
 
 
 // ── Init ──
+const BUSCA_PAGINA = '{{ active_page }}';
 carregarStatusPlataforma();
 carregarFila();
 // Restaurar log manual do cache ao recarregar
@@ -1796,7 +1797,6 @@ carregarFila();
 })();
 
 // Auto-selecionar aba correta baseado na rota
-var BUSCA_PAGINA = '{{ active_page }}';
 if (BUSCA_PAGINA === 'buscador-manual') {
     mudarTab('manual');
 } else if (BUSCA_PAGINA === 'buscador-historico') {
