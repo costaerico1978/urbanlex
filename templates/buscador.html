@@ -1713,6 +1713,7 @@ carregarFila();
             return;
         }
         let cursor = _srvLogs.length;
+        logSpinner('Processando...');
         // Retomar polling — igual ao reconectarMunJob
         while (true) {
             if (window._buscadorCancelado) break;
