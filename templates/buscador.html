@@ -602,11 +602,6 @@ function logLine(icon, msg, color) {
     const c = color || 'var(--muted)';
     const text = `[${ts}] ${icon} ${msg}`;
     _logBuffer.push(text);
-    try {
-        const _blc = JSON.parse(localStorage.getItem('bm_log_cache') || '[]');
-        _blc.push({msg, color});
-        localStorage.setItem('bm_log_cache', JSON.stringify(_blc));
-    } catch(e) {}
     lines.innerHTML += `<div style="color:${c}"><span style="color:var(--muted2)">[${ts}]</span> ${icon} ${msg}</div>`;
     lines.scrollTop = lines.scrollHeight;
 }
@@ -1657,27 +1652,6 @@ carregarFila();
 })();
 
 
-// Restaurar log manual do cache se não há job ativo em andamento
-(function restaurarLogManualCache() {
-    const cache = JSON.parse(localStorage.getItem('bm_log_cache') || '[]');
-    if (!cache.length) return;
-    if (typeof BUSCA_PAGINA !== 'undefined' && BUSCA_PAGINA === 'buscador-historico') return;
-    // Só restaurar se não há job ativo (o reconectarJob cuidará disso)
-    const jobId = new URLSearchParams(window.location.search).get('job') || localStorage.getItem('buscador_job_id');
-    if (jobId) return;
-    // Mostrar painel e restaurar log
-    const logBox = document.getElementById('bm-log');
-    if (logBox) logBox.style.display = 'block';
-    cache.forEach(l => {
-        const lines = document.getElementById('bm-log-lines');
-        if (!lines) return;
-        const ts = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
-        lines.innerHTML += `<div style="color:${l.color||'var(--muted)'}"><span style="color:var(--muted2)">[${ts}]</span> 🔹 ${l.msg}</div>`;
-    });
-    const lines = document.getElementById('bm-log-lines');
-    if (lines) lines.scrollTop = lines.scrollHeight;
-    mudarTab('manual');
-})();
 
 // Reconectar job ativo ao carregar a página
 (async function reconectarJob() {
@@ -1712,8 +1686,7 @@ carregarFila();
         if (!poll || poll.status === 'not_found') {
             localStorage.removeItem('buscador_job_id');
             localStorage.removeItem('buscador_campos');
-            localStorage.removeItem('bm_log_cache');
-            history.replaceState({}, '', window.location.pathname);
+                    history.replaceState({}, '', window.location.pathname);
             return;
         }
         // Se job já concluiu e não estava salvo no localStorage (resíduo de URL)
@@ -1783,8 +1756,7 @@ carregarFila();
         logLine('⏱️', 'Tempo total: ' + duracaoRec + 's (' + logCount + ' etapas)', 'var(--muted)');
         if (finalResult) { renderizarResultadoBusca(finalResult, duracaoRec); }
         localStorage.removeItem('buscador_job_id');
-        localStorage.removeItem('bm_log_cache');
-    } catch(e) {}
+        } catch(e) {}
 })();
 
 // Auto-selecionar aba correta baseado na rota
