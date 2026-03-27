@@ -1015,9 +1015,19 @@ function pararBuscaAuto() {
     const _bpa = document.getElementById('btn-parar-auto');
     if (_bpa) _bpa.style.display = 'none';
     const logEl = document.getElementById('log-municipio');
-    if (logEl) { logEl.innerHTML += '<div style="color:#e74c3c;margin-top:8px;">⏹️ Busca interrompida pelo usuário.</div>'; }
+    if (logEl) {
+        const _sp = logEl.querySelector('.mun-spinner');
+        if (_sp) _sp.remove();
+        const _dm = document.createElement('div');
+        _dm.style.color = '#e74c3c';
+        _dm.style.marginTop = '8px';
+        _dm.textContent = '⏹️ Busca cancelada pelo usuário.';
+        logEl.appendChild(_dm);
+        logEl.scrollTop = logEl.scrollHeight;
+    }
     const ldMun = document.getElementById('loading-mun');
     if (ldMun) ldMun.style.display = 'none';
+    dispararBuscaNovoMunicipio();
 }
 function dispararBuscaNovoMunicipio() {
     document.getElementById('modal-novo-mun').style.display = 'flex';
