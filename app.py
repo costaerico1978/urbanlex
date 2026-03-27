@@ -2573,7 +2573,7 @@ def api_buscador_manual_start():
 
     d = request.json or {}
     job_id = str(uuid.uuid4())[:12]
-    job = {'logs': [], 'result': None, 'done': False, 'ts': time.time(), 'log_cursor': 0, 'cancelled': False, 'tipo': 'auto'}
+    job = {'logs': [], 'result': None, 'done': False, 'ts': time.time(), 'log_cursor': 0, 'cancelled': False, 'tipo': 'manual'}
     _buscador_jobs[job_id] = job
     # Registrar inicio no historico
     _hist_id_manual = None
