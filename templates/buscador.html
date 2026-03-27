@@ -178,9 +178,13 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
     </div>
 
     <!-- Botão buscar agora -->
-    <div style="display:flex;gap:10px;margin-bottom:20px;">
+    <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
         <button class="btn btn-primary btn-sm" onclick="dispararBuscaNovoMunicipio()">
             📍 Buscar Novo Município...
+        </button>
+        <button id="btn-parar-auto" class="btn btn-sm" onclick="pararBuscaAuto()"
+            style="display:none;background:rgba(231,76,60,.15);color:#e74c3c;border:1px solid rgba(231,76,60,.3);">
+            ⏹️ Interromper Busca
         </button>
         <button class="btn btn-secondary btn-sm" onclick="sincronizarPlataforma()">
             🔄 Sincronizar com Plataforma
@@ -1004,6 +1008,20 @@ async function cadastrarSelecionados() {
 }
 
 // ── Busca Novo Município ──
+function pararBuscaAuto() {
+    const jobId = localStorage.getItem('mun_job_id');
+    if (jobId) {
+        fetch('/api/buscador/cancelar', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({job_id: jobId})}).catch(()=>{});
+        localStorage.removeItem('mun_job_id');
+        localStorage.removeItem('mun_campos');
+        localStorage.removeItem('mun_log_cache');
+    }
+    document.getElementById('btn-parar-auto').style.display = 'none';
+    const logEl = document.getElementById('log-municipio');
+    if (logEl) { logEl.innerHTML += '<div style="color:#e74c3c;margin-top:8px;">⏹️ Busca interrompida pelo usuário.</div>'; }
+    const ldMun = document.getElementById('loading-mun');
+    if (ldMun) ldMun.style.display = 'none';
+}
 function dispararBuscaNovoMunicipio() {
     document.getElementById('modal-novo-mun').style.display = 'flex';
 }
@@ -1029,6 +1047,8 @@ async function confirmarBuscaNovoMun() {
     }
     localStorage.removeItem('mun_log_cache');
     logEl.innerHTML = '<div style="color:var(--accent);margin-bottom:8px;">🔍 Buscando legislações urbanísticas de ' + mun + "/" + est + '...</div>';
+    const _btnParar = document.getElementById('btn-parar-auto');
+    if (_btnParar) _btnParar.style.display = 'inline-block';
     // Botão baixar log
     let btnLog = document.getElementById("btn-baixar-log-mun");
     if (!btnLog) {
@@ -1131,6 +1151,8 @@ async function confirmarBuscaNovoMun() {
                     if (_ldMun) _ldMun.style.display = 'none';
                     if (poll.hist_id) btnLog._histId = poll.hist_id;
                     localStorage.removeItem('mun_log_cache');
+                    const _bp = document.getElementById('btn-parar-auto');
+                    if (_bp) _bp.style.display = 'none';
                     break;
                 }
                 // Mostrar spinner enquanto processa
