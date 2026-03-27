@@ -91,7 +91,7 @@ if(!senhaValida()){showMsg('A senha não atende a todos os requisitos.','erro');
 if(senha!==senha2){showMsg('As senhas não coincidem.','erro');return;}
 btn.disabled=true;btn.textContent='Enviando...';
 try{const r=await fetch('/api/auth/cadastrar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nome,email,senha})});const d=await r.json();
-if(d.success){showMsg('✅ Cadastro enviado! Aguarde a aprovação do administrador.','ok');btn.textContent='Cadastro Enviado';}
+if(d.success){showMsg('✅ Seu cadastro foi realizado com sucesso. Aguarde a aprovação do Administrador. Você receberá um e-mail quando seu acesso estiver liberado.','ok');btn.textContent='Cadastro Enviado';}
 else{showMsg('Erro: '+(d.error||'desconhecido'),'erro');btn.disabled=false;btn.textContent='Confirmar Cadastro';}}
 catch(e){showMsg('Erro de conexão.','erro');btn.disabled=false;btn.textContent='Confirmar Cadastro';}}
 </script>
