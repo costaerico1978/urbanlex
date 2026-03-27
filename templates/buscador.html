@@ -1716,7 +1716,8 @@ carregarFila();
         history.replaceState({jobId}, '', '?job=' + jobId);
         // Buscar TODOS os logs desde o início
         const allLogs = await api('GET', `/api/buscador/job/${jobId}?cursor=0&limit=9999`);
-        logClear();
+        // Limpar apenas DOM (não o bm_log_cache) antes de carregar logs do servidor
+        document.getElementById('bm-log-lines').innerHTML = '';
         (allLogs.logs || []).forEach(l => logLine('🔹', l.msg, 'var(--muted)'));
         let cursor = (allLogs.logs || []).length;
         let done = allLogs.done || false;
