@@ -547,7 +547,6 @@ function logClear() {
     el.style.display = 'block';
     lines.innerHTML = '';
     _logBuffer = [];
-    localStorage.removeItem('bm_log_cache');
     const btnCanc = document.getElementById('btn-cancelar-busca');
     if (btnCanc) btnCanc.style.display = 'inline-block';
     lines.style.maxHeight = '400px';
