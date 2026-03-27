@@ -1796,7 +1796,7 @@ carregarFila();
 })();
 
 // Auto-selecionar aba correta baseado na rota
-const BUSCA_PAGINA = '{{ active_page }}';
+var BUSCA_PAGINA = '{{ active_page }}';
 if (BUSCA_PAGINA === 'buscador-manual') {
     mudarTab('manual');
 } else if (BUSCA_PAGINA === 'buscador-historico') {
