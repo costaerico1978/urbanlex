@@ -1012,7 +1012,8 @@ function pararBuscaAuto() {
         localStorage.removeItem('mun_campos');
         localStorage.removeItem('mun_log_cache');
     }
-    document.getElementById('btn-parar-auto').style.display = 'none';
+    const _bpa = document.getElementById('btn-parar-auto');
+    if (_bpa) _bpa.style.display = 'none';
     const logEl = document.getElementById('log-municipio');
     if (logEl) { logEl.innerHTML += '<div style="color:#e74c3c;margin-top:8px;">⏹️ Busca interrompida pelo usuário.</div>'; }
     const ldMun = document.getElementById('loading-mun');
