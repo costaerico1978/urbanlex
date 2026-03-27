@@ -182,10 +182,6 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
         <button class="btn btn-primary btn-sm" onclick="dispararBuscaNovoMunicipio()">
             📍 Buscar Novo Município...
         </button>
-        <button id="btn-parar-auto" class="btn btn-sm" onclick="pararBuscaAuto()"
-            style="display:none;background:rgba(231,76,60,.15);color:#e74c3c;border:1px solid rgba(231,76,60,.3);">
-            ⏹️ Interromper Busca
-        </button>
         <button class="btn btn-secondary btn-sm" onclick="sincronizarPlataforma()">
             🔄 Sincronizar com Plataforma
         </button>
@@ -1660,23 +1656,10 @@ carregarFila();
             loadingMun = document.createElement('div');
             loadingMun.id = 'loading-mun';
             loadingMun.style = 'text-align:center;padding:20px;color:var(--muted);';
-            loadingMun.innerHTML = '<div class="spinner-busca"></div><div style="font-size:13px;font-weight:600;margin-top:12px;">Pesquisando e analisando fontes com IA...</div><div style="font-size:11px;margin-top:4px;color:var(--muted2);">Acompanhe o progresso no log acima ↑</div>';
+            loadingMun.innerHTML = '<div class="spinner-busca"></div><div style="font-size:13px;font-weight:600;margin-top:12px;">Pesquisando e analisando fontes com IA...</div><div style="font-size:11px;margin-top:4px;color:var(--muted2);">Acompanhe o progresso no log acima ↑</div><div style="margin-top:12px;"><button class="btn btn-ghost btn-sm" style="color:#e74c3c;border-color:rgba(231,76,60,.3);" onclick="pararBuscaAuto()">✕ Cancelar e iniciar nova busca</button></div>';
             logEl.insertAdjacentElement('afterend', loadingMun);
         } else {
             loadingMun.style.display = 'block';
-        }
-        // Recriar botão cancelar se não existir
-        let btnNovaMun = document.getElementById('btn-nova-busca-mun');
-        if (!btnNovaMun) {
-            btnNovaMun = document.createElement('button');
-            btnNovaMun.id = 'btn-nova-busca-mun';
-            btnNovaMun.className = 'btn btn-ghost btn-sm';
-            btnNovaMun.style = 'margin-top:8px;color:#e74c3c;border-color:rgba(231,76,60,.3);';
-            btnNovaMun.textContent = '✕ Cancelar e iniciar nova busca';
-            btnNovaMun.onclick = () => pararBuscaAuto();
-            loadingMun.insertAdjacentElement('afterend', btnNovaMun);
-        } else {
-            btnNovaMun.style.display = 'inline-block';
         }
         // Retomar polling
         while (true) {
