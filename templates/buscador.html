@@ -1616,6 +1616,8 @@ carregarFila();
             document.getElementById('panel-auto').appendChild(logEl);
         }
         mudarTab('auto');
+        const _bpR = document.getElementById('btn-parar-auto');
+        if (_bpR) _bpR.style.display = 'inline-block';
         logEl.innerHTML = '<div style="color:var(--accent);margin-bottom:8px;">🔄 Reconectando busca de ' + mun + '/' + est + '...</div>';
         // Restaurar cache do localStorage
         const _cachedLogs = JSON.parse(localStorage.getItem('mun_log_cache') || '[]');
@@ -1633,6 +1635,8 @@ carregarFila();
             _df.textContent = '✅ Busca concluída (log restaurado)';
             logEl.appendChild(_df);
             logEl.scrollTop = logEl.scrollHeight;
+            const _bpD = document.getElementById('btn-parar-auto');
+            if (_bpD) _bpD.style.display = 'none';
             localStorage.removeItem('mun_job_id');
             localStorage.removeItem('mun_log_cache');
             return;
