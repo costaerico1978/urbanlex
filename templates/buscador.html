@@ -1655,60 +1655,39 @@ carregarFila();
 
 // Reconectar job ativo ao carregar a página
 (async function reconectarJob() {
-    const params = new URLSearchParams(window.location.search);
-    let jobId = params.get('job') || localStorage.getItem('buscador_job_id');
-    // Ignorar ?job= da URL se pertence à busca automática
+    await new Promise(ok => setTimeout(ok, 300));
+    let jobId = new URLSearchParams(window.location.search).get('job') || localStorage.getItem('buscador_job_id');
+    // Ignorar se pertence à busca automática
     if (jobId && jobId === localStorage.getItem('mun_job_id')) {
         history.replaceState({}, '', window.location.pathname);
         jobId = null;
     }
-    // Se nao tem job_id local, verificar no servidor se ha job ativo
-    if (!jobId) {
-        try {
-            const ativo = await api('GET', '/api/buscador/job-ativo');
-            if (ativo && ativo.ativo && ativo.job_id) {
-                jobId = ativo.job_id;
-                // Ignorar jobs automáticos — serão tratados pelo reconectarMunJob
-                if (ativo.tipo === 'auto') return;
-                localStorage.setItem('buscador_job_id', jobId);
-                localStorage.setItem('buscador_campos', JSON.stringify({
-                    municipio: ativo.municipio, estado: ativo.estado
-                }));
-                if (window.location.pathname.includes('historico')) return;
-        logLine('🔄', `Busca em andamento detectada: ${ativo.municipio}/${ativo.estado} — reconectando...`, 'var(--accent)');
-            }
-        } catch(e) {}
-    }
     if (!jobId) return;
-    // Verificar se job ainda existe e está ativo
     try {
-        const poll = await api('GET', `/api/buscador/job/${jobId}?cursor=0`);
-        if (!poll || poll.status === 'not_found') {
+        const check = await api('GET', `/api/buscador/job/${jobId}?cursor=0`);
+        if (!check || check.error === 'Job não encontrado') {
             localStorage.removeItem('buscador_job_id');
             localStorage.removeItem('buscador_campos');
-                    history.replaceState({}, '', window.location.pathname);
-            return;
-        }
-        // Se job já concluiu e não estava salvo no localStorage (resíduo de URL)
-        if (poll.done && !localStorage.getItem('buscador_job_id')) {
             history.replaceState({}, '', window.location.pathname);
             return;
         }
-        // Se é job automático, ignorar — reconectarMunJob cuida disso
-        if (poll.tipo === 'auto') {
+        // Ignorar jobs automáticos
+        if (check.tipo === 'auto') {
             history.replaceState({}, '', window.location.pathname);
             return;
         }
+        if (BUSCA_PAGINA === 'buscador-historico') return;
         // Restaurar campos
         const camposSalvos = localStorage.getItem('buscador_campos');
         if (camposSalvos) {
-            const campos = JSON.parse(camposSalvos);
-            if (campos.municipio) document.getElementById('bm-municipio').value = campos.municipio;
-            if (campos.tipo) document.getElementById('bm-tipo').value = campos.tipo;
-            if (campos.numero) document.getElementById('bm-numero').value = campos.numero;
-            if (campos.ano) document.getElementById('bm-ano').value = campos.ano;
+            try {
+                const campos = JSON.parse(camposSalvos);
+                if (campos.municipio) document.getElementById('bm-municipio').value = campos.municipio;
+                if (campos.tipo) document.getElementById('bm-tipo').value = campos.tipo;
+                if (campos.numero) document.getElementById('bm-numero').value = campos.numero;
+                if (campos.ano) document.getElementById('bm-ano').value = campos.ano;
+            } catch(e) {}
         }
-        if (window.location.pathname.includes('historico')) return;
         mudarTab('manual');
         logClear();
         logLine('🔄', 'Reconectando busca em andamento...', 'var(--accent)');
@@ -1716,57 +1695,52 @@ carregarFila();
         window._buscadorJobId = jobId;
         window._buscadorCancelado = false;
         history.replaceState({jobId}, '', '?job=' + jobId);
-        // Buscar TODOS os logs do servidor desde o início
-        const allLogs = await api('GET', `/api/buscador/job/${jobId}?cursor=0&limit=9999`);
-        (allLogs.logs || []).forEach(l => logLine('🔹', l.msg, 'var(--muted)'));
-        let cursor = (allLogs.logs || []).length;
-        let done = allLogs.done || false;
-        let finalResult = allLogs.result || null;
-        let logCount = (allLogs.logs || []).length;
-        let notFoundCount = 0;
-        const t0rec = Date.now();
-        // Se job já terminou enquanto estava fora, mostrar resultado
-        if (done) {
+        // Mostrar logs existentes do servidor
+        const _srvLogs = check.logs || [];
+        _srvLogs.forEach(l => {
+            const c = l.nivel === 'erro' ? 'var(--red)' : l.nivel === 'aviso' ? 'var(--amber)' : l.nivel === 'ok' ? 'var(--accent)' : 'var(--muted)';
+            const icon = l.nivel === 'erro' ? '❌ ' : l.nivel === 'aviso' ? '⚠️' : l.nivel === 'ok' ? '✅ ' : '🔹';
+            logLine(icon, l.msg, c);
+        });
+        if (check.done) {
             logRemoveSpinner();
             document.getElementById('bm-loading').style.display = 'none';
             document.getElementById('bm-resultados').style.display = 'block';
-            if (finalResult) { renderizarResultadoBusca(finalResult, '0'); }
+            if (check.result) renderizarResultadoBusca(check.result, '0');
             localStorage.removeItem('buscador_job_id');
-            localStorage.removeItem('bm_log_cache');
+            localStorage.removeItem('buscador_campos');
+            if (typeof carregarHistorico === 'function') carregarHistorico();
             return;
         }
-        while (!done) {
-            if (window._buscadorCancelado) { done = true; if (typeof carregarHistorico === 'function') carregarHistorico(); break; }
+        let cursor = _srvLogs.length;
+        // Retomar polling — igual ao reconectarMunJob
+        while (true) {
+            if (window._buscadorCancelado) break;
             await new Promise(ok => setTimeout(ok, 1500));
             try {
                 const poll = await api('GET', `/api/buscador/job/${jobId}?cursor=${cursor}`);
-                if (!poll.success && poll.error === 'Job não encontrado') {
-                    notFoundCount++;
-                    if (notFoundCount > 13) { done = true; } else { logSpinner('Aguardando...'); }
-                    continue;
-                }
-                notFoundCount = 0;
                 if (poll.logs && poll.logs.length) {
                     logRemoveSpinner();
                     poll.logs.forEach(l => {
-                        const c = l.nivel==='erro'?'var(--red)':l.nivel==='aviso'?'var(--amber)':l.nivel==='ok'?'var(--accent)':'var(--muted)';
-                        const icon = l.nivel==='erro'?'❌ ':l.nivel==='aviso'?'⚠️':l.nivel==='ok'?'✅ ':'🔹';
-                        logLine(icon, l.msg, c); logCount++;
+                        const c = l.nivel === 'erro' ? 'var(--red)' : l.nivel === 'aviso' ? 'var(--amber)' : l.nivel === 'ok' ? 'var(--accent)' : 'var(--muted)';
+                        const icon = l.nivel === 'erro' ? '❌ ' : l.nivel === 'aviso' ? '⚠️' : l.nivel === 'ok' ? '✅ ' : '🔹';
+                        logLine(icon, l.msg, c);
                     });
                     if (!poll.done) logSpinner('Processando...');
                 }
                 cursor = poll.cursor || cursor;
-                if (poll.done) { done = true; finalResult = poll.result; if (typeof carregarHistorico === 'function') carregarHistorico(); }
-            } catch(e) { console.error('Polling error:', e); logLine('⚠️', 'Polling erro: ' + e.message, 'var(--amber)'); }
+                if (poll.done) {
+                    if (typeof carregarHistorico === 'function') carregarHistorico();
+                    break;
+                }
+            } catch(e) {}
         }
         logRemoveSpinner();
-        const duracaoRec = ((Date.now() - t0rec) / 1000).toFixed(1);
         document.getElementById('bm-loading').style.display = 'none';
         document.getElementById('bm-resultados').style.display = 'block';
-        logLine('⏱️', 'Tempo total: ' + duracaoRec + 's (' + logCount + ' etapas)', 'var(--muted)');
-        if (finalResult) { renderizarResultadoBusca(finalResult, duracaoRec); }
         localStorage.removeItem('buscador_job_id');
-        } catch(e) {}
+        localStorage.removeItem('buscador_campos');
+    } catch(e) {}
 })();
 
 // Auto-selecionar aba correta baseado na rota
