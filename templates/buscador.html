@@ -1655,11 +1655,13 @@ carregarFila();
         }
         let cursor = _srvLogs.length;
         // Retomar polling
+        logSpinner('Processando...');
         while (true) {
             await new Promise(ok => setTimeout(ok, 1500));
             try {
                 const poll = await api('GET', `/api/buscador/job/${jobId}?cursor=${cursor}`);
                 if (poll.logs && poll.logs.length) {
+                    logRemoveSpinner();
                     poll.logs.forEach(l => {
                         const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : 'var(--muted)';
                         const d = document.createElement('div');
