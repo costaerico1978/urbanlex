@@ -528,7 +528,7 @@ def api_cadastrar():
     if not nome or not email or not senha: return jsonify({'success':False,'error':'Campos obrigatorios'}), 400
     if qry("SELECT id FROM users WHERE email=%s", (email,), 'one'): return jsonify({'success':False,'error':'E-mail ja cadastrado'}), 400
     import re
-    if not re.match(r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&\-_#])[A-Za-z\d@$!%*?&\-_#]{6,15}$', senha):
+    if not re.match(r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&\-_#])[A-Za-z\d@$!%*?&\-_#]{8,20}$', senha):
         return jsonify({'success':False,'error':'Senha fraca. Use 6-15 chars com maiuscula, minuscula, numero e especial.'}), 400
     conn = get_db()
     try:

@@ -58,7 +58,7 @@ input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,229,160,0.08)
 <button type="button" class="eye-btn" onclick="toggleOlho('c-senha','eye1')"><svg id="eye1" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
 </div>
 <div class="senha-req">
-<div class="req" id="req-len"><div class="dot"></div>8 a 12 caracteres</div>
+<div class="req" id="req-len"><div class="dot"></div>8 a 20 caracteres</div>
 <div class="req" id="req-mai"><div class="dot"></div>Letra maiúscula</div>
 <div class="req" id="req-min"><div class="dot"></div>Letra minúscula</div>
 <div class="req" id="req-num"><div class="dot"></div>Número</div>
@@ -80,9 +80,9 @@ input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,229,160,0.08)
 <script>
 function toggleOlho(id,ico){const i=document.getElementById(id),s=document.getElementById(ico);if(i.type==='password'){i.type='text';s.innerHTML='<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>';}else{i.type='password';s.innerHTML='<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';}}
 function setReq(id,ok){const e=document.getElementById(id);ok?e.classList.add('ok'):e.classList.remove('ok');}
-function verificarSenha(){const s=document.getElementById('c-senha').value;setReq('req-len',s.length>=8&&s.length<=12);setReq('req-mai',/[A-Z]/.test(s));setReq('req-min',/[a-z]/.test(s));setReq('req-num',/\d/.test(s));setReq('req-esp',/[@$!%*?&\-_#]/.test(s));verificarConfirmacao();}
+function verificarSenha(){const s=document.getElementById('c-senha').value;setReq('req-len',s.length>=8&&s.length<=20);setReq('req-mai',/[A-Z]/.test(s));setReq('req-min',/[a-z]/.test(s));setReq('req-num',/\d/.test(s));setReq('req-esp',/[@$!%*?&\-_#]/.test(s));verificarConfirmacao();}
 function verificarConfirmacao(){const s=document.getElementById('c-senha').value,s2=document.getElementById('c-senha2').value,i=document.getElementById('c-senha2');if(!s2.length){i.style.borderColor='';return;}i.style.borderColor=s===s2?'var(--accent)':'var(--red)';}
-function senhaValida(){const s=document.getElementById('c-senha').value;return s.length>=8&&s.length<=12&&/[A-Z]/.test(s)&&/[a-z]/.test(s)&&/\d/.test(s)&&/[@$!%*?&\-_#]/.test(s);}
+function senhaValida(){const s=document.getElementById('c-senha').value;return s.length>=8&&s.length<=20&&/[A-Z]/.test(s)&&/[a-z]/.test(s)&&/\d/.test(s)&&/[@$!%*?&\-_#]/.test(s);}
 function showMsg(t,tp){const m=document.getElementById('msg');m.textContent=t;m.className='msg '+tp;m.style.display='block';}
 async function cadastrar(){
 const nome=document.getElementById('c-nome').value.trim(),email=document.getElementById('c-email').value.trim(),senha=document.getElementById('c-senha').value,senha2=document.getElementById('c-senha2').value,btn=document.getElementById('btn-cad');
