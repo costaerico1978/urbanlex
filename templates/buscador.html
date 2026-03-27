@@ -1717,10 +1717,10 @@ carregarFila();
         if (camposSalvos) {
             try {
                 const campos = JSON.parse(camposSalvos);
-                if (campos.municipio) document.getElementById('bm-municipio').value = campos.municipio;
-                if (campos.tipo) document.getElementById('bm-tipo').value = campos.tipo;
-                if (campos.numero) document.getElementById('bm-numero').value = campos.numero;
-                if (campos.ano) document.getElementById('bm-ano').value = campos.ano;
+                if (campos.municipio && document.getElementById('bm-municipio')) document.getElementById('bm-municipio').value = campos.municipio;
+                if (campos.tipo && document.getElementById('bm-tipo')) document.getElementById('bm-tipo').value = campos.tipo;
+                if (campos.numero && document.getElementById('bm-numero')) document.getElementById('bm-numero').value = campos.numero;
+                if (campos.ano && document.getElementById('bm-ano')) document.getElementById('bm-ano').value = campos.ano;
             } catch(e) {}
         }
         mudarTab('manual');
