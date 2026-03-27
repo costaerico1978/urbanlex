@@ -1700,7 +1700,7 @@ carregarFila();
                 localStorage.setItem('buscador_campos', JSON.stringify({
                     municipio: ativo.municipio, estado: ativo.estado
                 }));
-                if (BUSCA_PAGINA === 'buscador-historico') return;
+                if (window.location.pathname.includes('historico')) return;
         logLine('🔄', `Busca em andamento detectada: ${ativo.municipio}/${ativo.estado} — reconectando...`, 'var(--accent)');
             }
         } catch(e) {}
@@ -1735,7 +1735,7 @@ carregarFila();
             if (campos.numero) document.getElementById('bm-numero').value = campos.numero;
             if (campos.ano) document.getElementById('bm-ano').value = campos.ano;
         }
-        if (BUSCA_PAGINA === 'buscador-historico') return;
+        if (window.location.pathname.includes('historico')) return;
         mudarTab('manual');
         // Salvar cache ANTES do logClear (que limpa o bm_log_cache)
         const _bmCache = JSON.parse(localStorage.getItem('bm_log_cache') || '[]');
