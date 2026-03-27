@@ -1613,6 +1613,22 @@ carregarFila();
         }
         mudarTab('auto');
         logEl.innerHTML = '<div style="color:var(--accent);margin-bottom:8px;">🔄 Reconectando busca de ' + mun + '/' + est + '...</div>';
+        // Recriar botão Baixar Log se não existir
+        let btnLogMun = document.getElementById('btn-baixar-log-mun');
+        if (!btnLogMun) {
+            btnLogMun = document.createElement('button');
+            btnLogMun.id = 'btn-baixar-log-mun';
+            btnLogMun.className = 'btn btn-secondary btn-sm';
+            btnLogMun.style = 'margin-bottom:8px;';
+            btnLogMun.textContent = '⬇️ Baixar Log .txt';
+            btnLogMun._histId = null;
+            btnLogMun.onclick = () => {
+                if (btnLogMun._histId) {
+                    window.location.href = '/api/buscador/historico/log/' + btnLogMun._histId + '/download';
+                }
+            };
+            logEl.insertAdjacentElement('beforebegin', btnLogMun);
+        }
         // Restaurar cache do localStorage
         const _cachedLogs = JSON.parse(localStorage.getItem('mun_log_cache') || '[]');
         _cachedLogs.forEach(l => {
