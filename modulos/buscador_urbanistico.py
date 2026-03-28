@@ -278,7 +278,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
 def _verificar_parametros(texto, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo="parametros"):
     if modo == "parametros":
         criterio = (
-            f"Verifique se a {tipo} {numero}/{ano} de {municipio}/{estado} define PELO MENOS 2 dos seguintes parametros urbanisticos:\n"
+            f"Faca uma analise PROFUNDA e HOLISTICA de todo o texto da {tipo} {numero}/{ano} de {municipio}/{estado}, incluindo todos os artigos, paragrafos, incisos e anexos.\n"
+            "Verifique se a lei define PELO MENOS 2 dos seguintes parametros urbanisticos:\n"
             "  - Taxa de ocupacao\n"
             "  - Indice ou coeficiente de aproveitamento\n"
             "  - Gabarito ou altura maxima de edificacao\n"
@@ -287,8 +288,8 @@ def _verificar_parametros(texto, municipio, estado, tipo, numero, ano, logs, cha
             "  - Densidade demografica ou construtiva\n"
             "  - Numero maximo de pavimentos\n"
             "  - Area minima de lote\n"
-            "define_parametros = true SOMENTE se encontrar pelo menos 2 desses parametros claramente definidos.\n"
-            "Leia o texto COMPLETO com atencao — os parametros podem estar em tabelas, anexos ou artigos especificos."
+            "IMPORTANTE: Os parametros podem estar em qualquer parte do texto — artigos, tabelas, quadros, mapas ou anexos.\n"
+            "define_parametros = true se encontrar pelo menos 2 desses parametros em qualquer parte da lei."
         )
     else:
         criterio = (
