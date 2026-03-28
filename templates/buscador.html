@@ -185,7 +185,7 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
         <button class="btn btn-secondary btn-sm" onclick="sincronizarPlataforma()">
             🔄 Sincronizar com Plataforma
         </button>
-        <button id="btn-baixar-log-auto" class="btn btn-secondary btn-sm" style="display:none;" onclick="if(window._munHistId){window.location.href='/api/buscador/historico/log/'+window._munHistId+'/download'}">
+        <button id="btn-baixar-log-auto" class="btn btn-secondary btn-sm" style="display:none;" onclick="const _hid=window._munHistId||document.getElementById('btn-baixar-log-mun')?._histId; if(_hid){window.location.href='/api/buscador/historico/log/'+_hid+'/download'}else{alert('Log ainda nao disponivel. Aguarde a conclusao da busca.')}">
             📥 Baixar Log .txt
         </button>
     </div>
@@ -1132,7 +1132,7 @@ async function confirmarBuscaNovoMun() {
                     if (_sp) _sp.remove();
                     const _ldMun = document.getElementById('loading-mun');
                     if (_ldMun) _ldMun.style.display = 'none';
-                    if (poll.hist_id) btnLog._histId = poll.hist_id;
+                    if (poll.hist_id) { btnLog._histId = poll.hist_id; window._munHistId = poll.hist_id; const _btnAuto = document.getElementById('btn-baixar-log-auto'); if(_btnAuto) _btnAuto.style.display='inline-block'; }
                     localStorage.removeItem('mun_log_cache');
                     const _bp = document.getElementById('btn-parar-auto');
                     if (_bp) _bp.style.display = 'none';
