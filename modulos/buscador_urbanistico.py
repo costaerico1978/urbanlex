@@ -93,6 +93,29 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
     conteudo_web = ""
 
     # Filtrar legs sem numero — acionar fallback por palavra-chave
+    # REGRA 1: Ignorar legislacoes federais e estaduais — manter apenas municipais
+    def _is_federal_ou_estadual(leg):
+        tipo = leg.get("tipo", "").lower()
+        desc = leg.get("descricao", "").lower()
+        esfera = leg.get("esfera", "").lower()
+        palavras_fed_est = ["federal", "estadual", "estado", "constituicao", "codigo civil",
+                            "codigo penal", "codigo tributario nacional", "lei organica do estado"]
+        if esfera in ["federal", "estadual"]:
+            return True
+        if any(p in tipo for p in palavras_fed_est):
+            return True
+        if any(p in desc for p in palavras_fed_est):
+            return True
+        return False
+
+    legs_municipais = []
+    for _l in legs:
+        if _is_federal_ou_estadual(_l):
+            logs.append({"nivel": "aviso", "msg": f"  Ignorando legislacao federal/estadual: {_l.get('tipo','')} {_l.get('numero','')}/{_l.get('ano','')} — fora do escopo municipal"})
+        else:
+            legs_municipais.append(_l)
+    legs = legs_municipais
+
     legs_com_numero = [l for l in legs if l.get("numero", "").strip()]
 
     if not legs_com_numero:
@@ -413,8 +436,32 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
                 texto_lei = _bs(html_lei, "html.parser").get_text()[:8000]
                 define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm)
                 if not define:
-                    logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros urbanisticos — descartando"})
-                    return None
+                    # REGRA 2: Verificar se altera/complementa/regulamenta outra lei antes de descartar
+                    prompt_altera = (
+                        f"O texto abaixo e da {tipo} {numero}/{ano} de {municipio}/{estado}.\n"
+                        f"Esta legislacao altera, complementa, regulamenta ou modifica artigos de outras legislacoes municipais?\n\n"
+                        f"TEXTO:\n{texto_lei[:6000]}\n\n"
+                        "Responda APENAS com JSON: {\"altera\": true ou false, \"leis_alteradas\": [{\"tipo\": \"\", \"numero\": \"\", \"ano\": \"\", \"descricao\": \"descreva o que altera\"}]}"
+                    )
+                    resp_altera = chamar_llm(prompt_altera, logs, f"Verif alteracao {tipo} {numero}")
+                    _altera = False
+                    if resp_altera:
+                        try:
+                            import re as _re_alt
+                            resp_alt_c = _re_alt.sub(r"^```json\s*|\s*```$", "", (resp_altera or "").strip())
+                            dados_alt = _json.loads(resp_alt_c)
+                            _altera = dados_alt.get("altera", False)
+                            leis_alt = dados_alt.get("leis_alteradas", [])
+                            if _altera and leis_alt:
+                                logs.append({"nivel": "ok", "msg": f"  ⚠️ ATENCAO: {tipo} {numero}/{ano} altera legislacoes existentes — NAO descartada!"})
+                                for la in leis_alt:
+                                    logs.append({"nivel": "ok", "msg": f"    -> Altera {la.get('tipo','')} {la.get('numero','')}/{la.get('ano','')}: {la.get('descricao','')[:100]}"})
+                        except Exception:
+                            pass
+                    if not _altera:
+                        logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros e nao altera outras — descartando"})
+                        return None
+                    # Se altera outra lei, manter mesmo sem definir parametros diretamente
             _pdf = fs_result.get("pdf_nativo_s3") or fs_result.get("pdf_path") or ""
             _anexos = fs_result.get("anexos_lm") or []
             return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc, "pdf_path": _pdf, "anexos_lm": _anexos, "_leis_referenciadas": _leis_ref if "_leis_ref" in dir() else []}
