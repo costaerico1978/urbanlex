@@ -566,7 +566,7 @@ def api_esqueci_senha():
 def api_reset_senha():
     d = request.json or {}
     token = d.get('token','')
-    senha = d.get('senha','')
+    senha = d.get('nova_senha','') or d.get('senha','')
     tk = qry("SELECT * FROM password_reset_tokens WHERE token=%s AND usado=FALSE AND expira_em>NOW()", (token,), 'one')
     if not tk: return jsonify({'success':False,'error':'Link invalido ou expirado'}), 400
     qry("UPDATE users SET senha_hash=%s WHERE id=%s", (hash_senha(senha), tk['user_id']), commit=True, fetch=None)
