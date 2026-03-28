@@ -77,7 +77,6 @@
 <script>
 let userIdAtual = null;
 const roleBadge = { admin:'<span class="badge badge-red">Admin</span>', editor:'<span class="badge badge-blue">Editor</span>', apenas_leitura:'<span class="badge badge-muted">Leitura</span>' };
-const roleLabel = { admin:'Administrador', editor:'Editor', apenas_leitura:'Apenas Leitura' };
 
 async function carregarUsuarios() {
     const r = await api('GET', '/api/admin/usuarios');
@@ -88,7 +87,6 @@ async function carregarUsuarios() {
     const pendentes = users.filter(u => !u.aprovado).length;
     document.getElementById('tab-badge-pend').textContent = pendentes;
     document.getElementById('tab-badge-pend').style.display = pendentes > 0 ? '' : 'none';
-
     tbody.innerHTML = users.map(u => `<tr>
         <td>${u.nome}</td>
         <td style="font-family:var(--font-mono);font-size:11px">${u.email}</td>
@@ -121,31 +119,7 @@ function abrirAlterarRole(id, nome, roleAtual) {
 async function salvarRole() {
     const role = document.getElementById('novo-role').value;
     const r = await api('POST', `/api/admin/usuarios/${userIdAtual}/role`, { role });
-    if (r.success) { toast('Perfil atualizado!'); closeModal('modal-role'); let _acessosAlterados = {};
-
-function marcarAlterado(sel) {
-    _acessosAlterados[sel.dataset.uid] = sel.value;
-    document.getElementById('btn-salvar-acessos').style.display = 'inline-block';
-}
-
-async function salvarAcessos() {
-    const btn = document.getElementById('btn-salvar-acessos');
-    btn.textContent = '⏳ Salvando...';
-    btn.disabled = true;
-    let erros = 0;
-    for (const [uid, acesso] of Object.entries(_acessosAlterados)) {
-        const r = await api('POST', `/api/admin/usuarios/${uid}/acesso`, {acesso});
-        if (!r.success) { erros++; toast(r.error || 'Erro ao salvar', 'error'); }
-    }
-    if (!erros) toast('Alterações salvas com sucesso!');
-    _acessosAlterados = {};
-    btn.style.display = 'none';
-    btn.disabled = false;
-    btn.textContent = '💾 Salvar Alterações';
-    carregarUsuarios();
-}
-
-carregarUsuarios(); }
+    if (r.success) { toast('Perfil atualizado!'); closeModal('modal-role'); carregarUsuarios(); }
     else toast(r.error || 'Erro', 'error');
 }
 
@@ -154,31 +128,7 @@ function confirmarDelUser(id) {
     openModal('modal-del-user');
     document.getElementById('btn-confirmar-del-user').onclick = async () => {
         const r = await api('DELETE', `/api/admin/usuarios/${id}`);
-        if (r.success) { toast('Usuário removido'); closeModal('modal-del-user'); let _acessosAlterados = {};
-
-function marcarAlterado(sel) {
-    _acessosAlterados[sel.dataset.uid] = sel.value;
-    document.getElementById('btn-salvar-acessos').style.display = 'inline-block';
-}
-
-async function salvarAcessos() {
-    const btn = document.getElementById('btn-salvar-acessos');
-    btn.textContent = '⏳ Salvando...';
-    btn.disabled = true;
-    let erros = 0;
-    for (const [uid, acesso] of Object.entries(_acessosAlterados)) {
-        const r = await api('POST', `/api/admin/usuarios/${uid}/acesso`, {acesso});
-        if (!r.success) { erros++; toast(r.error || 'Erro ao salvar', 'error'); }
-    }
-    if (!erros) toast('Alterações salvas com sucesso!');
-    _acessosAlterados = {};
-    btn.style.display = 'none';
-    btn.disabled = false;
-    btn.textContent = '💾 Salvar Alterações';
-    carregarUsuarios();
-}
-
-carregarUsuarios(); }
+        if (r.success) { toast('Usuário removido'); closeModal('modal-del-user'); carregarUsuarios(); }
         else toast(r.error || 'Erro', 'error');
     };
 }
