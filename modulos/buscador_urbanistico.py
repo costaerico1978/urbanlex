@@ -76,7 +76,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         return _legs
 
     for idx, pergunta in enumerate(PERGUNTAS, 1):
-        logs.append({"nivel": "ok", "msg": f"--- Pergunta {idx}/3 ---"})
+        logs.append({"nivel": "ok", "msg": f"--- Pergunta {idx}/{len(PERGUNTAS)} ---"})
+        _modo_pergunta = "parametros" if idx == 1 else "geral"
         for leg in _gemini_pergunta(pergunta):
             numero = leg.get("numero", "").strip()
             if not numero:
@@ -84,6 +85,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             chave = f"{leg.get('tipo','').lower()}_{numero}_{leg.get('ano','')}".lower()
             if chave not in _chaves_legs:
                 _chaves_legs.add(chave)
+                leg["_modo_verificacao"] = _modo_pergunta
                 legs.append(leg)
                 logs.append({"nivel": "info", "msg": f"  Nova legislacao: {leg.get('tipo')} {numero}/{leg.get('ano','?')}"})
             else:
