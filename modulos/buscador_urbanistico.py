@@ -410,7 +410,7 @@ def _buscar_plano_diretor_lm(municipio, estado, logs, chamar_llm, analisadas):
                 tipo_enc = m.group(1).replace("-", " ").title() if m else "Legislacao"
                 numero_enc = m.group(3) if m else "?"
                 ano_enc = m.group(2) if m else "?"
-                define, _leis_ref_pd = _verificar_parametros(texto_lei, municipio, estado, tipo_enc, numero_enc, ano_enc, logs, chamar_llm)
+                define, _leis_ref_pd = _verificar_parametros(texto_lei, municipio, estado, tipo_enc, numero_enc, ano_enc, logs, chamar_llm, modo="geral")
                 if not define:
                     logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros urbanisticos — descartando"})
                     return None
@@ -456,9 +456,7 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
             if html_lei:
                 from bs4 import BeautifulSoup as _bs
                 texto_lei = _bs(html_lei, "html.parser").get_text()[:8000]
-                _desc_leg = (leg.get("descricao","") + " " + tipo).lower()
-                _modo_v = "parametros" if any(k in _desc_leg for k in ["plano diretor","parametro"]) else "geral"
-                define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo=_modo_v)
+                define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo="geral")
                 if not define:
                     # REGRA 2: Verificar se altera/complementa/regulamenta outra lei antes de descartar
                     prompt_altera = (
@@ -555,9 +553,7 @@ def _buscar_site_prefeitura(municipio, estado, tipo, numero, ano, logs, chamar_l
                 if html_lei:
                     from bs4 import BeautifulSoup as _bs
                     texto_lei = _bs(html_lei, "html.parser").get_text()[:12000]
-                    _desc_leg = (leg.get("descricao","") + " " + tipo).lower()
-                _modo_v = "parametros" if any(k in _desc_leg for k in ["plano diretor","parametro"]) else "geral"
-                define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo=_modo_v)
+                    define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo="geral")
                     if not define:
                         logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros urbanisticos — descartando"})
                         continue
