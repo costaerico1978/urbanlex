@@ -679,7 +679,11 @@ async function reiniciarWorker() {
     } catch(e) { alert('Erro: ' + e); }
     finally { if (btn) { btn.disabled = false; btn.textContent = '🔴 Reiniciar Worker'; } }
 }
-function logout() { api('POST','/api/auth/logout').then(()=>location.href='/login'); }
+function logout() {
+    if (confirm('Deseja sair do UrbanLex?')) {
+        api('POST','/api/auth/logout').then(()=>location.href='/login');
+    }
+}
 
 // ── Avatar ───────────────────────────────────────────────────
 const nm = document.getElementById('user-name');
