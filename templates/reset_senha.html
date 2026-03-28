@@ -230,8 +230,11 @@
 
         <!-- Requisitos -->
         <div class="requisitos">
-            <div class="req-item" id="req-len"><div class="req-dot"></div>Mínimo 8 caracteres</div>
-            <div class="req-item" id="req-num"><div class="req-dot"></div>Pelo menos 1 número</div>
+            <div class="req-item" id="req-len"><div class="req-dot"></div>8 a 20 caracteres</div>
+            <div class="req-item" id="req-mai"><div class="req-dot"></div>Letra maiúscula</div>
+            <div class="req-item" id="req-min"><div class="req-dot"></div>Letra minúscula</div>
+            <div class="req-item" id="req-num"><div class="req-dot"></div>Número</div>
+            <div class="req-item" id="req-esp"><div class="req-dot"></div>Caractere especial</div>
             <div class="req-item" id="req-match"><div class="req-dot"></div>Senhas coincidem</div>
         </div>
 
@@ -311,9 +314,12 @@
 
         erro.classList.remove('show');
 
-        if (nova.length < 8) { mostrarErro('A senha deve ter pelo menos 8 caracteres'); return; }
-        if (nova !== confirmar) { mostrarErro('As senhas não coincidem'); return; }
+        if (nova.length < 8 || nova.length > 20) { mostrarErro('A senha deve ter entre 8 e 20 caracteres'); return; }
+        if (!/[A-Z]/.test(nova)) { mostrarErro('Inclua pelo menos uma letra maiúscula'); return; }
+        if (!/[a-z]/.test(nova)) { mostrarErro('Inclua pelo menos uma letra minúscula'); return; }
         if (!/[0-9]/.test(nova)) { mostrarErro('Inclua pelo menos 1 número'); return; }
+        if (!/[@$!%*?&\-_#]/.test(nova)) { mostrarErro('Inclua pelo menos um caractere especial (@$!%*?&-_#)'); return; }
+        if (nova !== confirmar) { mostrarErro('As senhas não coincidem'); return; }
 
         btn.disabled = true;
         document.getElementById('btn-text').innerHTML = '<div class="spinner"></div>';
