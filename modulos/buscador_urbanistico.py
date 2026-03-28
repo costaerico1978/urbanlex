@@ -160,7 +160,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             continue
         analisadas.add(chave)
         logs.append({"nivel": "info", "msg": f"Buscando {tipo} n {numero}/{ano} ({descricao}) no LeisMunicipais..."})
-        enc = _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
+        enc = _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, modo=modo)
         if enc:
             resultado["encontradas"].append(enc)
             # Buscar leis referenciadas na legislacao encontrada
@@ -406,7 +406,7 @@ def _buscar_plano_diretor_lm(municipio, estado, logs, chamar_llm, analisadas):
             html_lei = fs_result.get("html", "")
             if html_lei:
                 from bs4 import BeautifulSoup as _bs
-                texto_lei = _bs(html_lei, "html.parser").get_text()[:12000]
+                texto_lei = _bs(html_lei, "html.parser").get_text()
                 # Extrair tipo/numero/ano da URL ou do HTML
                 import re as _re
                 m = _re.search(r"/([a-z-]+)/(\d{4})/\d+/(\d+)/", url_enc)
@@ -423,7 +423,7 @@ def _buscar_plano_diretor_lm(municipio, estado, logs, chamar_llm, analisadas):
         logs.append({"nivel": "aviso", "msg": f"  Erro busca palavra-chave LM: {str(e)[:80]}"})
     return None
 
-def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas):
+def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, modo="geral"):
     try:
         from modulos.navegador_universal import navegar_com_cookies_flaresolverr
         # Renovar sessao FlareSolverr
@@ -458,8 +458,17 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
             html_lei = fs_result.get("html", "")
             if html_lei:
                 from bs4 import BeautifulSoup as _bs
-                texto_lei = _bs(html_lei, "html.parser").get_text()[:8000]
-                define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo=leg.get("_modo_verificacao","geral"))
+                texto_lei = _bs(html_lei, "html.parser").get_text()
+                # Incluir texto dos anexos na verificacao
+                _anexos_lm = fs_result.get("anexos_lm") or []
+                for _anx in _anexos_lm:
+                    _anx_path = _anx.get("path", "") or _anx.get("pdf_path", "") if isinstance(_anx, dict) else ""
+                    _anx_texto = _anx.get("texto", "") if isinstance(_anx, dict) else ""
+                    if _anx_texto:
+                        texto_lei += f"\n\nANEXO: {_anx_texto}"
+                if _anexos_lm:
+                    logs.append({"nivel": "info", "msg": f"  Incluindo {len(_anexos_lm)} anexo(s) na verificacao"})
+                define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo=modo)
                 if not define:
                     # REGRA 2: Verificar se altera/complementa/regulamenta outra lei antes de descartar
                     prompt_altera = (
@@ -555,8 +564,8 @@ def _buscar_site_prefeitura(municipio, estado, tipo, numero, ano, logs, chamar_l
                 html_lei = fs_result.get("html", "")
                 if html_lei:
                     from bs4 import BeautifulSoup as _bs
-                    texto_lei = _bs(html_lei, "html.parser").get_text()[:12000]
-                    define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo=leg.get("_modo_verificacao","geral"))
+                    texto_lei = _bs(html_lei, "html.parser").get_text()
+                    define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo=modo)
                     if not define:
                         logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros urbanisticos — descartando"})
                         continue
