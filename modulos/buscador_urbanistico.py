@@ -480,12 +480,30 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
                 # Incluir texto dos anexos na verificacao
                 _anexos_lm = fs_result.get("anexos_lm") or []
                 for _anx in _anexos_lm:
-                    _anx_path = _anx.get("path", "") or _anx.get("pdf_path", "") if isinstance(_anx, dict) else ""
-                    _anx_texto = _anx.get("texto", "") if isinstance(_anx, dict) else ""
+                    if not isinstance(_anx, dict):
+                        continue
+                    _anx_nome = _anx.get("nome", "Anexo")
+                    _anx_url = _anx.get("url", "")
+                    # Tentar extrair texto do PDF do anexo
+                    _anx_texto = ""
+                    if _anx_url:
+                        try:
+                            import os as _os_anx
+                            _anx_file = _anx_url.replace("/static/downloads/", "/var/www/urbanlex/static/downloads/")
+                            if _os_anx.path.exists(_anx_file):
+                                import subprocess as _sp_anx
+                                _r_anx = _sp_anx.run(["pdftotext", "-layout", _anx_file, "-"], capture_output=True, timeout=30)
+                                if _r_anx.returncode == 0:
+                                    _anx_texto = _r_anx.stdout.decode("utf-8", errors="ignore")
+                                    logs.append({"nivel": "info", "msg": f"  Anexo '{_anx_nome}' extraido ({len(_anx_texto)} chars)"})
+                        except Exception as _e_anx_txt:
+                            logs.append({"nivel": "aviso", "msg": f"  Erro extrai texto anexo: {str(_e_anx_txt)[:60]}"})
                     if _anx_texto:
-                        texto_lei += f"\n\nANEXO: {_anx_texto}"
+                        texto_lei += f"\n\n=== ANEXO: {_anx_nome} ===\n{_anx_texto}"
+                    else:
+                        texto_lei += f"\n\n=== ANEXO: {_anx_nome} (sem texto extraido) ==="
                 if _anexos_lm:
-                    logs.append({"nivel": "info", "msg": f"  Incluindo {len(_anexos_lm)} anexo(s) na verificacao"})
+                    logs.append({"nivel": "info", "msg": f"  {len(_anexos_lm)} anexo(s) incluidos na analise"})
                 define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo=modo)
                 if not define:
                     # REGRA 2: Verificar se altera/complementa/regulamenta outra lei antes de descartar
