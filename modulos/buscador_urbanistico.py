@@ -213,15 +213,20 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                     try:
                         import re as _re_rev
                         resp_rev_c = _re_rev.sub(r"^```json\s*|\s*```$", "", (resp_rev or "").strip())
-                        revogadas_ia = _json.loads(resp_rev_c).get("revogadas", [])
+                        dados_rev = _json.loads(resp_rev_c)
+                        revogadas_ia = dados_rev.get("revogadas", [])
+                        alteradas_ia = dados_rev.get("alteradas", [])
+                        for alt in alteradas_ia:
+                            logs.append({"nivel": "ok", "msg": f"  ℹ️ ALTERACAO PARCIAL: {tipo} {numero}/{ano} altera {alt.get('lei','')}: {alt.get('descricao','')[:120]}"})
+                            logs.append({"nivel": "ok", "msg": "     Ambas continuam vigentes e serao analisadas"})
                         for outra in outras_legs:
                             num_outra = outra.get("numero", "").strip()
                             chave_outra = f"{outra.get('tipo','').lower()}_{num_outra}_{outra.get('ano','')}".lower()
                             for rev_str in revogadas_ia:
                                 if num_outra and num_outra in rev_str:
                                     revogadas.add(chave_outra)
-                                    logs.append({"nivel": "aviso", "msg": f"  ⚠️ REVOGACAO CONFIRMADA PELA IA: {tipo} {numero}/{ano} revoga {outra.get('tipo')} {num_outra}/{outra.get('ano','')}"})
-                                    logs.append({"nivel": "aviso", "msg": f"     A {outra.get('tipo')} {num_outra}/{outra.get('ano','')} NAO sera analisada — foi revogada pela legislacao mais recente"})
+                                    logs.append({"nivel": "aviso", "msg": f"  ⚠️ REVOGACAO TOTAL: {tipo} {numero}/{ano} revoga integralmente {outra.get('tipo')} {num_outra}/{outra.get('ano','')}"})
+                                    logs.append({"nivel": "aviso", "msg": f"     {outra.get('tipo')} {num_outra}/{outra.get('ano','')} NAO sera analisada — perdeu vigencia"})
                                     break
                     except Exception as _e_rev:
                         logs.append({"nivel": "aviso", "msg": f"  Erro verificacao revogacao: {str(_e_rev)[:60]}"})
