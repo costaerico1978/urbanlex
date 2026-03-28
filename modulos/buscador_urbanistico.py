@@ -9,64 +9,86 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
     resultado = {"encontradas": [], "nao_encontrada": False}
     analisadas = set()
 
-    # ETAPA 1: Gemini com Google Search Grounding
-    logs.append({"nivel": "ok", "msg": f"Consultando Gemini com busca web sobre {municipio}/{estado}..."})
-    conteudo_web = ""
+    # ETAPA 1: 3 perguntas ao Gemini para identificar legislacoes
+    PERGUNTAS = [
+        f"qual legislacao define atualmente os parametros urbanisticos de {municipio} {estado}?",
+        f"qual e a legislacao atual de zoneamento de {municipio} {estado}?",
+        f"qual e a legislacao atual de uso e ocupacao do solo de {municipio} {estado}?",
+    ]
     legs = []
-    try:
-        from google import genai as _genai_new
-        from google.genai import types as _types_new
-        import os
-        GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
-        pergunta = f"Qual legislacao define os parametros urbanisticos de {municipio}, {estado}? Informe o tipo, numero e ano da lei."
+    _chaves_legs = set()
+
+    def _gemini_pergunta(pergunta):
+        _legs = []
+        logs.append({"nivel": "ok", "msg": f"Consultando Gemini com busca web sobre {municipio}/{estado}..."})
         logs.append({"nivel": "info", "msg": f"Pergunta: {pergunta}"})
-        client = _genai_new.Client(api_key=GEMINI_KEY)
-        google_search_tool = _types_new.Tool(google_search=_types_new.GoogleSearch())
-        config = _types_new.GenerateContentConfig(tools=[google_search_tool])
-        import concurrent.futures as _cf
-        with _cf.ThreadPoolExecutor() as _ex:
-            _fut = _ex.submit(client.models.generate_content, model="gemini-2.5-flash", contents=pergunta, config=config)
-            response = _fut.result(timeout=30)
-        resp_texto = (response.text or "").strip()
-        if not resp_texto:
-            raise ValueError("Gemini retornou texto vazio (sem resposta direta da busca)")
-        logs.append({"nivel": "ok", "msg": f"Gemini respondeu: {resp_texto[:300]}"})
-        # Estruturar resposta em JSON
-        prompt_estruturar = (
-            f"Com base na resposta abaixo, extraia as legislacoes mencionadas de {municipio}/{estado}.\n"
-            f"Use APENAS informacoes presentes — nao invente numeros.\n\n"
-            f"RESPOSTA:\n{resp_texto}\n\n"
-            'Responda APENAS com JSON: {"legislacoes": [{"tipo": "Lei Complementar", "numero": "148", "ano": "2023", "descricao": "Plano Diretor"}]}'
-        )
-        resp2 = chamar_llm(prompt_estruturar, logs, "IA estruturar")
-        if resp2:
-            import re as _re
-            resp_c = _re.sub(r"^```json\s*|\s*```$", "", (resp2 or "").strip())
-            legs = _json.loads(resp_c).get("legislacoes", [])
-            logs.append({"nivel": "ok", "msg": f"IA identificou {len(legs)} legislacao(oes)"})
-    except Exception as e:
-        logs.append({"nivel": "aviso", "msg": f"Gemini Search falhou: {str(e)[:100]} — usando DDG"})
-        # Fallback DDG
         try:
-            from modulos.buscador_legislacoes import _pesquisar_web
-            query = f"qual legislacao define os parametros urbanisticos de {municipio} {estado}"
-            resultados_ddg = _pesquisar_web(query, logs, "DDG urbanistico", max_results=5)
-            if resultados_ddg:
-                for res in resultados_ddg:
-                    conteudo_web += f"{res.get('title', '')}\n{res.get('body', '')}\n\n"
-            if conteudo_web:
-                prompt_ddg = (
-                    f"Com base nos resultados abaixo, identifique a legislacao de {municipio}/{estado}.\n"
-                    f"Nao invente numeros.\n\nRESULTADOS:\n{conteudo_web[:3000]}\n\n"
-                    'Responda APENAS com JSON: {"legislacoes": [{"tipo": "Lei Complementar", "numero": "", "ano": "", "descricao": ""}]}'
-                )
-                resp_ddg = chamar_llm(prompt_ddg, logs, "IA DDG")
-                if resp_ddg:
-                    import re as _re2
-                    resp_c2 = _re2.sub(r"^```json\s*|\s*```$", "", (resp_ddg or "").strip())
-                    legs = _json.loads(resp_c2).get("legislacoes", [])
-        except Exception as e2:
-            logs.append({"nivel": "aviso", "msg": f"DDG falhou: {str(e2)[:60]}"})
+            from google import genai as _genai_new
+            from google.genai import types as _types_new
+            import os as _os2
+            GEMINI_KEY = _os2.environ.get("GEMINI_API_KEY", "")
+            client = _genai_new.Client(api_key=GEMINI_KEY)
+            google_search_tool = _types_new.Tool(google_search=_types_new.GoogleSearch())
+            config = _types_new.GenerateContentConfig(tools=[google_search_tool])
+            import concurrent.futures as _cf
+            with _cf.ThreadPoolExecutor() as _ex:
+                _fut = _ex.submit(client.models.generate_content, model="gemini-2.5-flash", contents=pergunta, config=config)
+                response = _fut.result(timeout=30)
+            resp_texto = (response.text or "").strip()
+            if not resp_texto:
+                raise ValueError("Gemini retornou texto vazio")
+            logs.append({"nivel": "ok", "msg": f"Gemini respondeu ({len(resp_texto)} chars)"})
+            prompt_e = (
+                f"Com base na resposta abaixo, extraia as legislacoes mencionadas de {municipio}/{estado}.\n"
+                f"Use APENAS informacoes presentes — nao invente numeros.\n\n"
+                f"RESPOSTA:\n{resp_texto}\n\n"
+                "Responda APENAS com JSON: {\"legislacoes\": [{\"tipo\": \"Lei Complementar\", \"numero\": \"148\", \"ano\": \"2023\", \"descricao\": \"Plano Diretor\"}]}"
+            )
+            resp2 = chamar_llm(prompt_e, logs, "IA estruturar")
+            if resp2:
+                import re as _re
+                resp_c = _re.sub(r"^```json\s*|\s*```$", "", (resp2 or "").strip())
+                _legs = _json.loads(resp_c).get("legislacoes", [])
+                logs.append({"nivel": "ok", "msg": f"IA identificou {len(_legs)} legislacao(oes)"})
+        except Exception as e:
+            logs.append({"nivel": "aviso", "msg": f"Gemini falhou: {str(e)[:100]} — usando DDG"})
+            try:
+                from modulos.buscador_legislacoes import _pesquisar_web
+                resultados_ddg = _pesquisar_web(pergunta, logs, "DDG", max_results=5)
+                conteudo_ddg = ""
+                for res in (resultados_ddg or []):
+                    conteudo_ddg += f"{res.get('title','')}\n{res.get('body','')}\n\n"
+                if conteudo_ddg:
+                    prompt_ddg = (
+                        f"Identifique legislacoes de {municipio}/{estado} nos resultados.\n"
+                        f"Nao invente numeros.\n\nRESULTADOS:\n{conteudo_ddg[:3000]}\n\n"
+                        "Responda APENAS com JSON: {\"legislacoes\": [{\"tipo\": \"\", \"numero\": \"\", \"ano\": \"\", \"descricao\": \"\"}]}"
+                    )
+                    resp_ddg = chamar_llm(prompt_ddg, logs, "IA DDG")
+                    if resp_ddg:
+                        import re as _re2
+                        resp_c2 = _re2.sub(r"^```json\s*|\s*```$", "", (resp_ddg or "").strip())
+                        _legs = _json.loads(resp_c2).get("legislacoes", [])
+            except Exception as e2:
+                logs.append({"nivel": "aviso", "msg": f"DDG falhou: {str(e2)[:60]}"})
+        return _legs
+
+    for idx, pergunta in enumerate(PERGUNTAS, 1):
+        logs.append({"nivel": "ok", "msg": f"--- Pergunta {idx}/3 ---"})
+        for leg in _gemini_pergunta(pergunta):
+            numero = leg.get("numero", "").strip()
+            if not numero:
+                continue
+            chave = f"{leg.get('tipo','').lower()}_{numero}_{leg.get('ano','')}".lower()
+            if chave not in _chaves_legs:
+                _chaves_legs.add(chave)
+                legs.append(leg)
+                logs.append({"nivel": "info", "msg": f"  Nova legislacao: {leg.get('tipo')} {numero}/{leg.get('ano','?')}"})
+            else:
+                logs.append({"nivel": "info", "msg": f"  Duplicata ignorada: {leg.get('tipo')} {numero}/{leg.get('ano','?')}"})
+
+    logs.append({"nivel": "ok", "msg": f"Total legislacoes unicas: {len(legs)}"})
+    conteudo_web = ""
 
     # Filtrar legs sem numero — acionar fallback por palavra-chave
     legs_com_numero = [l for l in legs if l.get("numero", "").strip()]
