@@ -331,6 +331,7 @@ def login_page():
     if request.method == 'POST':
         email = request.form.get('email','').strip().lower()
         senha = request.form.get('senha','')
+        user_exists = qry("SELECT * FROM users WHERE email=%s", (email,), 'one')
         user = qry("SELECT * FROM users WHERE email=%s AND ativo=TRUE AND aprovado=TRUE", (email,), 'one')
         if user and verificar_senha(senha, user['senha_hash']):
             session['user_id'] = user['id']
@@ -340,7 +341,12 @@ def login_page():
             # FIX 9: usar qry() em vez de conexao manual
             qry("UPDATE users SET ultimo_acesso=NOW() WHERE id=%s", (user['id'],), commit=True, fetch=None)
             return redirect('/')
-        error = 'E-mail ou senha incorretos'
+        if not user_exists:
+            error = 'Usuário não cadastrado. Faça o cadastro para acessar.'
+        elif user_exists and not user_exists.get('aprovado'):
+            error = 'Seu cadastro ainda não foi aprovado. Aguarde a liberação pelo administrador.'
+        else:
+            error = 'E-mail ou senha incorretos.'
     return render_template('login.html', error=error, **tmpl_ctx())
 
 @app.route('/cadastro')
