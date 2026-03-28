@@ -274,28 +274,49 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
 
 
 def _verificar_parametros(texto, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo="parametros"):
+    if modo == "parametros":
+        criterio = (
+            f"Verifique se a {tipo} {numero}/{ano} de {municipio}/{estado} define PELO MENOS 2 dos seguintes parametros urbanisticos:\n"
+            "  - Taxa de ocupacao\n"
+            "  - Indice ou coeficiente de aproveitamento\n"
+            "  - Gabarito ou altura maxima de edificacao\n"
+            "  - Afastamento frontal, lateral ou de fundos (recuo)\n"
+            "  - Taxa de permeabilidade\n"
+            "  - Densidade demografica ou construtiva\n"
+            "  - Numero maximo de pavimentos\n"
+            "  - Area minima de lote\n"
+            "define_parametros = true SOMENTE se encontrar pelo menos 2 desses parametros claramente definidos.\n"
+            "Leia o texto COMPLETO com atencao — os parametros podem estar em tabelas, anexos ou artigos especificos."
+        )
+    else:
+        criterio = (
+            f"Analise de forma PROFUNDA e HOLISTICA a {tipo} {numero}/{ano} de {municipio}/{estado}.\n"
+            "Leia o texto completo e compreenda o PROPOSITO GERAL da lei.\n"
+            "define_parametros = true se a lei tratar de zoneamento, uso/ocupacao do solo, "
+            "parcelamento do solo, codigo de obras, loteamentos ou qualquer ordenamento territorial urbano.\n"
+            "EM CASO DE DUVIDA prefira true."
+        )
     prompt = (
-        f"Leia o texto abaixo e responda se a {tipo} {numero}/{ano} de {municipio}/{estado} "
-        f"define os parametros urbanisticos de ocupacao do solo no municipio.\n\n"
-        f"TEXTO:\n{texto[:12000]}\n\n"
+        f"Voce e um especialista em direito urbanistico brasileiro.\n"
+        f"{criterio}\n\n"
+        f"TEXTO COMPLETO DA LEI:\n{texto}\n\n"
         "Responda APENAS com JSON (sem markdown):\n"
         "{\n"
         "  \"define_parametros\": true ou false,\n"
         "  \"define_zoneamento\": true ou false,\n"
-        "  \"parametros_encontrados\": [\"coeficiente de aproveitamento\", \"taxa de ocupacao\", ...],\n"
+        "  \"parametros_encontrados\": [\"lista dos parametros ou temas encontrados\"],\n"
         "  \"referencias\": [\"Art. 10\", \"Anexo I\", ...],\n"
-        "  \"motivo\": \"A [tipo] n [numero]/[ano] [define / nao define] os parametros urbanisticos de ocupacao no municipio de [municipio], tais como [...].\"\"\n"
+        "  \"leis_referenciadas\": [{\"tipo\": \"Lei\", \"numero\": \"123\", \"ano\": \"2010\", \"motivo\": \"complementa o zoneamento\"}],\n"
+        "  \"motivo\": \"Explicacao clara sobre o que a lei trata e por que define_parametros e true ou false.\"\n"
         "}\n\n"
         "Regras:\n"
-        "- define_zoneamento = true se a lei divide o municipio em zonas, macrozonas ou setores urbanisticos.\n"
-        "- parametros_encontrados: liste APENAS os que aparecem claramente no trecho acima. Se nenhum, use [].\n"
-        "- referencias: liste APENAS artigos ou anexos vistos no trecho acima. Se nenhum, use [].\n"
-        "- leis_referenciadas: identifique OUTRAS leis/decretos/decretos-lei citados no texto que possam estabelecer zoneamento ou parametros urbanisticos para areas especificas do municipio. Inclua tipo, numero e ano se mencionados. Se nenhum, use [].\n"
-        "- No motivo negativo use: A [tipo] n [numero]/[ano] nao define os parametros urbanisticos de ocupacao no municipio de [municipio]."
+        "- define_zoneamento = true se a lei divide o municipio em zonas ou macrozonas\n"
+        "- leis_referenciadas: outras leis citadas que complementem o ordenamento territorial. Se nenhuma, use []\n"
+        "- No motivo, seja objetivo e claro"
     )
     resp = chamar_llm(prompt, logs, f"Verif {tipo} {numero}")
     if not resp:
-        return False
+        return False, []
     try:
         import re as _re2
         resp_c = _re2.sub(r"^```json\s*|\s*```$", "", (resp or "").strip())
@@ -307,23 +328,24 @@ def _verificar_parametros(texto, municipio, estado, tipo, numero, ano, logs, cha
         if dados.get("define_parametros"):
             logs.append({"nivel": "ok", "msg": f"  {motivo}"})
             if zoneamento:
-                logs.append({"nivel": "ok", "msg": f"  Define tambem o zoneamento do municipio."})
+                logs.append({"nivel": "ok", "msg": "  Define tambem o zoneamento do municipio."})
             else:
-                logs.append({"nivel": "info", "msg": f"  Nao define o zoneamento do municipio."})
+                logs.append({"nivel": "info", "msg": "  Nao define o zoneamento do municipio."})
             if parametros:
-                logs.append({"nivel": "info", "msg": f"  Parametros: {', '.join(parametros[:10])}"})
+                logs.append({"nivel": "info", "msg": f"  Parametros/temas: {', '.join(parametros[:10])}"})
             if referencias:
                 logs.append({"nivel": "info", "msg": f"  Referencias: {', '.join(referencias[:10])}"})
             leis_ref = dados.get("leis_referenciadas", [])
             if leis_ref:
-                logs.append({"nivel": "info", "msg": f"  Leis referenciadas encontradas: {len(leis_ref)}"})
+                logs.append({"nivel": "info", "msg": f"  Leis referenciadas: {len(leis_ref)}"})
                 for lr in leis_ref:
-                    logs.append({"nivel": "info", "msg": f"    -> {lr.get('tipo','')} {lr.get('numero','')} ({lr.get('motivo','')[:80]})"})
+                    logs.append({"nivel": "info", "msg": f"    -> {lr.get('tipo','')} {lr.get('numero','')}/{lr.get('ano','')}: {lr.get('motivo','')[:80]}"})
             return True, leis_ref
         else:
             logs.append({"nivel": "info", "msg": f"  {motivo}"})
             return False, []
-    except:
+    except Exception as _e:
+        logs.append({"nivel": "aviso", "msg": f"  Erro parse verificacao: {str(_e)[:60]}"})
         return False, []
 
 
@@ -434,10 +456,7 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
             if html_lei:
                 from bs4 import BeautifulSoup as _bs
                 texto_lei = _bs(html_lei, "html.parser").get_text()[:8000]
-                # Determinar modo: parametros para plano diretor, geral para demais
-                _desc_leg = (leg.get("descricao","") + " " + tipo).lower()
-                _modo_verif = "parametros" if any(k in _desc_leg for k in ["plano diretor", "parametro", "uso e ocupacao", "zoneamento"]) else "geral"
-                define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo=_modo_verif)
+                define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm)
                 if not define:
                     # REGRA 2: Verificar se altera/complementa/regulamenta outra lei antes de descartar
                     prompt_altera = (
@@ -534,10 +553,7 @@ def _buscar_site_prefeitura(municipio, estado, tipo, numero, ano, logs, chamar_l
                 if html_lei:
                     from bs4 import BeautifulSoup as _bs
                     texto_lei = _bs(html_lei, "html.parser").get_text()[:12000]
-                    # Determinar modo: parametros para plano diretor, geral para demais
-                _desc_leg = (leg.get("descricao","") + " " + tipo).lower()
-                _modo_verif = "parametros" if any(k in _desc_leg for k in ["plano diretor", "parametro", "uso e ocupacao", "zoneamento"]) else "geral"
-                define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo=_modo_verif)
+                    define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm)
                     if not define:
                         logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros urbanisticos — descartando"})
                         continue
