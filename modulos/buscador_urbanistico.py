@@ -458,7 +458,7 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
             if html_lei:
                 from bs4 import BeautifulSoup as _bs
                 texto_lei = _bs(html_lei, "html.parser").get_text()[:8000]
-                define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo="geral")
+                define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo=leg.get("_modo_verificacao","geral"))
                 if not define:
                     # REGRA 2: Verificar se altera/complementa/regulamenta outra lei antes de descartar
                     prompt_altera = (
@@ -555,7 +555,7 @@ def _buscar_site_prefeitura(municipio, estado, tipo, numero, ano, logs, chamar_l
                 if html_lei:
                     from bs4 import BeautifulSoup as _bs
                     texto_lei = _bs(html_lei, "html.parser").get_text()[:12000]
-                    define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo="geral")
+                    define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo=leg.get("_modo_verificacao","geral"))
                     if not define:
                         logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros urbanisticos — descartando"})
                         continue
