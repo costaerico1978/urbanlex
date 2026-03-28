@@ -186,7 +186,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             html_enc = enc.get("html", "") or ""
             if html_enc:
                 from bs4 import BeautifulSoup as _bsr
-                texto_enc = _bsr(html_enc, "html.parser").get_text()[:6000]
+                texto_enc = _bsr(html_enc, "html.parser").get_text()
             else:
                 texto_enc = ""
             # Montar lista das demais legislacoes para verificar revogacao
@@ -194,11 +194,19 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             if outras_legs and texto_enc:
                 lista_outras = ", ".join(f"{l.get('tipo','')} {l.get('numero','')}/{l.get('ano','')}" for l in outras_legs)
                 prompt_rev = (
-                    f"Analise o texto da {tipo} {numero}/{ano} de {municipio}/{estado} abaixo.\n"
-                    f"Verifique se esta legislacao revoga ou substitui alguma das seguintes legislacoes: {lista_outras}.\n\n"
+                    f"Analise o texto COMPLETO da {tipo} {numero}/{ano} de {municipio}/{estado} abaixo.\n"
+                    f"Verifique se esta legislacao REVOGA TOTALMENTE alguma das seguintes: {lista_outras}.\n\n"
+                    f"ATENCAO — distinga claramente:\n"
+                    f"  - REVOGACAO TOTAL: a lei anterior perde completamente a vigencia (use 'revogadas')\n"
+                    f"  - ALTERACAO PARCIAL: a lei nova altera apenas alguns artigos da anterior — a lei anterior CONTINUA VIGENTE no restante (NAO inclua em 'revogadas')\n"
+                    f"  - Uma lei que 'altera', 'acrescenta' ou 'modifica artigos' de outra NAO a revoga — ambas continuam vigentes\n\n"
                     f"TEXTO:\n{texto_enc}\n\n"
-                    "Responda APENAS com JSON: {\"revogadas\": [\"Lei X 123/2010\", ...]}"
-                    " — liste apenas as que sao explicitamente revogadas. Se nenhuma, use []."
+                    "Responda APENAS com JSON:\n"
+                    "{\n"
+                    "  \"revogadas\": [\"tipo numero/ano\"],\n"
+                    "  \"alteradas\": [{\"lei\": \"tipo numero/ano\", \"descricao\": \"descreva o que foi alterado\"}]\n"
+                    "}\n"
+                    "Se nenhuma lei for revogada totalmente, use revogadas: []."
                 )
                 resp_rev = chamar_llm(prompt_rev, logs, f"Verif revogacao {tipo} {numero}")
                 if resp_rev:
