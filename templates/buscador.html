@@ -185,7 +185,7 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
         <button class="btn btn-secondary btn-sm" onclick="sincronizarPlataforma()">
             🔄 Sincronizar com Plataforma
         </button>
-        <button id="btn-baixar-log-auto" class="btn btn-secondary btn-sm" style="display:none;" onclick="const _hid=window._munHistId||document.getElementById('btn-baixar-log-mun')?._histId; if(_hid){window.location.href='/api/buscador/historico/log/'+_hid+'/download'}else{alert('Log ainda nao disponivel. Aguarde a conclusao da busca.')}">
+        <button id="btn-baixar-log-auto" class="btn btn-secondary btn-sm" style="display:none;" onclick="const _logEl=document.getElementById('log-municipio'); if(_logEl){const _txt=Array.from(_logEl.querySelectorAll('div')).map(d=>d.textContent).join('\n'); const _a=document.createElement('a'); _a.href=URL.createObjectURL(new Blob([_txt],{type:'text/plain'})); const _nd=new Date(); _a.download='Log_busca_automatica_'+_nd.getDate().toString().padStart(2,'0')+'_'+(+_nd.getMonth()+1).toString().padStart(2,'0')+'_'+_nd.getFullYear()+'_'+_nd.getHours()+'h'+_nd.getMinutes()+'.txt'; _a.click()}else{alert('Log nao disponivel')}">
             📥 Baixar Log .txt
         </button>
     </div>
