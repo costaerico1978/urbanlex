@@ -290,8 +290,11 @@
         document.getElementById('strength-label').style.color = cores[forca];
 
         // Requisitos
-        setReq('req-len',   senha.length >= 8);
-        setReq('req-num',   /[0-9]/.test(senha));
+        setReq('req-len', senha.length >= 8 && senha.length <= 20);
+        setReq('req-mai', /[A-Z]/.test(senha));
+        setReq('req-min', /[a-z]/.test(senha));
+        setReq('req-num', /[0-9]/.test(senha));
+        setReq('req-esp', /[@$!%*?&-_#]/.test(senha));
         verificarMatch();
     }
 
