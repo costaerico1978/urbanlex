@@ -136,6 +136,21 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         enc = _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
         if enc:
             resultado["encontradas"].append(enc)
+            # Buscar leis referenciadas na legislacao encontrada
+            _leis_ref_enc = enc.get("_leis_referenciadas", [])
+            for lr in _leis_ref_enc:
+                lr_tipo = lr.get("tipo", "").strip()
+                lr_num = lr.get("numero", "").strip()
+                lr_ano = lr.get("ano", "").strip()
+                if not lr_num:
+                    continue
+                lr_chave = f"{lr_tipo.lower()}_{lr_num}_{lr_ano}"
+                if lr_chave in analisadas or lr_chave in revogadas:
+                    continue
+                logs.append({"nivel": "info", "msg": f"  Buscando lei referenciada: {lr_tipo} {lr_num}/{lr_ano} ({lr.get('motivo','')[:60]})"})
+                enc_ref = _buscar_leismunicipais(municipio, estado, lr_tipo, lr_num, lr_ano, logs, chamar_llm, analisadas)
+                if enc_ref:
+                    resultado["encontradas"].append(enc_ref)
             # Verificar se esta legislacao revoga outras da lista
             html_enc = enc.get("html", "") or ""
             if html_enc:
@@ -198,6 +213,7 @@ def _verificar_parametros(texto, municipio, estado, tipo, numero, ano, logs, cha
         "- define_zoneamento = true se a lei divide o municipio em zonas, macrozonas ou setores urbanisticos.\n"
         "- parametros_encontrados: liste APENAS os que aparecem claramente no trecho acima. Se nenhum, use [].\n"
         "- referencias: liste APENAS artigos ou anexos vistos no trecho acima. Se nenhum, use [].\n"
+        "- leis_referenciadas: identifique OUTRAS leis/decretos/decretos-lei citados no texto que possam estabelecer zoneamento ou parametros urbanisticos para areas especificas do municipio. Inclua tipo, numero e ano se mencionados. Se nenhum, use [].\n"
         "- No motivo negativo use: A [tipo] n [numero]/[ano] nao define os parametros urbanisticos de ocupacao no municipio de [municipio]."
     )
     resp = chamar_llm(prompt, logs, f"Verif {tipo} {numero}")
@@ -221,12 +237,17 @@ def _verificar_parametros(texto, municipio, estado, tipo, numero, ano, logs, cha
                 logs.append({"nivel": "info", "msg": f"  Parametros: {', '.join(parametros[:10])}"})
             if referencias:
                 logs.append({"nivel": "info", "msg": f"  Referencias: {', '.join(referencias[:10])}"})
-            return True
+            leis_ref = dados.get("leis_referenciadas", [])
+            if leis_ref:
+                logs.append({"nivel": "info", "msg": f"  Leis referenciadas encontradas: {len(leis_ref)}"})
+                for lr in leis_ref:
+                    logs.append({"nivel": "info", "msg": f"    -> {lr.get('tipo','')} {lr.get('numero','')} ({lr.get('motivo','')[:80]})"})
+            return True, leis_ref
         else:
             logs.append({"nivel": "info", "msg": f"  {motivo}"})
-            return False
+            return False, []
     except:
-        return False
+        return False, []
 
 
 def _buscar_plano_diretor_lm(municipio, estado, logs, chamar_llm, analisadas):
@@ -290,7 +311,7 @@ def _buscar_plano_diretor_lm(municipio, estado, logs, chamar_llm, analisadas):
                 tipo_enc = m.group(1).replace("-", " ").title() if m else "Legislacao"
                 numero_enc = m.group(3) if m else "?"
                 ano_enc = m.group(2) if m else "?"
-                define = _verificar_parametros(texto_lei, municipio, estado, tipo_enc, numero_enc, ano_enc, logs, chamar_llm)
+                define, _leis_ref_pd = _verificar_parametros(texto_lei, municipio, estado, tipo_enc, numero_enc, ano_enc, logs, chamar_llm)
                 if not define:
                     logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros urbanisticos — descartando"})
                     return None
@@ -336,13 +357,13 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
             if html_lei:
                 from bs4 import BeautifulSoup as _bs
                 texto_lei = _bs(html_lei, "html.parser").get_text()[:8000]
-                define = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm)
+                define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm)
                 if not define:
                     logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros urbanisticos — descartando"})
                     return None
             _pdf = fs_result.get("pdf_nativo_s3") or fs_result.get("pdf_path") or ""
             _anexos = fs_result.get("anexos_lm") or []
-            return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc, "pdf_path": _pdf, "anexos_lm": _anexos}
+            return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc, "pdf_path": _pdf, "anexos_lm": _anexos, "_leis_referenciadas": _leis_ref if "_leis_ref" in dir() else []}
         logs.append({"nivel": "aviso", "msg": f"  {tipo} {numero}/{ano} nao encontrada no LeisMunicipais — buscando site da prefeitura..."})
         return _buscar_site_prefeitura(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
     except Exception as e:
@@ -409,7 +430,7 @@ def _buscar_site_prefeitura(municipio, estado, tipo, numero, ano, logs, chamar_l
                 if html_lei:
                     from bs4 import BeautifulSoup as _bs
                     texto_lei = _bs(html_lei, "html.parser").get_text()[:12000]
-                    define = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm)
+                    define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm)
                     if not define:
                         logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros urbanisticos — descartando"})
                         continue
@@ -443,7 +464,7 @@ def _buscar_google(termo, municipio, estado, logs, chamar_llm, analisadas):
                 tipo_u = m.group(1).replace("-", " ").title() if m else "Legislacao"
                 ano_u = "20" + m.group(2) if m else ""
                 num_u = m.group(4) if m else ""
-                if _verificar_parametros(texto, municipio, estado, tipo_u, num_u, ano_u, logs, chamar_llm):
+                if _verificar_parametros(texto, municipio, estado, tipo_u, num_u, ano_u, logs, chamar_llm)[0]:
                     return {"tipo": tipo_u, "numero": num_u, "ano": ano_u, "link": link}
             except Exception as e2:
                 logs.append({"nivel": "aviso", "msg": f"  Erro link: {str(e2)[:50]}"})
