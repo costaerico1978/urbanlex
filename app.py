@@ -614,7 +614,7 @@ def api_perfil():
         import re
         if not re.match(r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&\-_#])[A-Za-z\d@$!%*?&\-_#]{8,20}$', senha_nova):
             return jsonify({'success':False,'error':'Nova senha fraca. Use 8-20 chars com maiuscula, minuscula, numero e especial'}), 400
-        qry("UPDATE users SET senha_hash=%s WHERE id=%s", (generate_password_hash(senha_nova), session['user_id']), commit=True, fetch=None)
+        qry("UPDATE users SET senha_hash=%s WHERE id=%s", (hash_senha(senha_nova), session['user_id']), commit=True, fetch=None)
     return jsonify({'success':True})
 
 # -------------------------------------------------------------------
