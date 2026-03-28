@@ -151,25 +151,40 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                 enc_ref = _buscar_leismunicipais(municipio, estado, lr_tipo, lr_num, lr_ano, logs, chamar_llm, analisadas)
                 if enc_ref:
                     resultado["encontradas"].append(enc_ref)
-            # Verificar se esta legislacao revoga outras da lista
+            # Verificar via IA se esta legislacao revoga outras da lista
             html_enc = enc.get("html", "") or ""
             if html_enc:
                 from bs4 import BeautifulSoup as _bsr
-                texto_enc = _bsr(html_enc, "html.parser").get_text()[:5000]
+                texto_enc = _bsr(html_enc, "html.parser").get_text()[:6000]
             else:
                 texto_enc = ""
-            for outra in legs:
-                if outra is leg:
-                    continue
-                num_outra = outra.get("numero", "").strip()
-                ano_outra = outra.get("ano", "").strip()
-                chave_outra = f"{outra.get('tipo','').lower()}_{num_outra}_{ano_outra}".lower()
-                if chave_outra in revogadas or chave_outra in analisadas:
-                    continue
-                # Verificar revogacao no texto
-                if num_outra and (f"revoga" in texto_enc.lower() and num_outra in texto_enc):
-                    revogadas.add(chave_outra)
-                    logs.append({"nivel": "aviso", "msg": f"  {tipo} {numero}/{ano} revoga {outra.get('tipo')} {num_outra}/{ano_outra} — nao sera analisada"})
+            # Montar lista das demais legislacoes para verificar revogacao
+            outras_legs = [l for l in legs if f"{l.get('tipo','').lower()}_{l.get('numero','').strip()}_{l.get('ano','')}" != chave and f"{l.get('tipo','').lower()}_{l.get('numero','').strip()}_{l.get('ano','')}" not in revogadas and f"{l.get('tipo','').lower()}_{l.get('numero','').strip()}_{l.get('ano','')}" not in analisadas]
+            if outras_legs and texto_enc:
+                lista_outras = ", ".join(f"{l.get('tipo','')} {l.get('numero','')}/{l.get('ano','')}" for l in outras_legs)
+                prompt_rev = (
+                    f"Analise o texto da {tipo} {numero}/{ano} de {municipio}/{estado} abaixo.\n"
+                    f"Verifique se esta legislacao revoga ou substitui alguma das seguintes legislacoes: {lista_outras}.\n\n"
+                    f"TEXTO:\n{texto_enc}\n\n"
+                    "Responda APENAS com JSON: {\"revogadas\": [\"Lei X 123/2010\", ...]}"
+                    " — liste apenas as que sao explicitamente revogadas. Se nenhuma, use []."
+                )
+                resp_rev = chamar_llm(prompt_rev, logs, f"Verif revogacao {tipo} {numero}")
+                if resp_rev:
+                    try:
+                        import re as _re_rev
+                        resp_rev_c = _re_rev.sub(r"^```json\s*|\s*```$", "", (resp_rev or "").strip())
+                        revogadas_ia = _json.loads(resp_rev_c).get("revogadas", [])
+                        for outra in outras_legs:
+                            num_outra = outra.get("numero", "").strip()
+                            chave_outra = f"{outra.get('tipo','').lower()}_{num_outra}_{outra.get('ano','')}".lower()
+                            for rev_str in revogadas_ia:
+                                if num_outra and num_outra in rev_str:
+                                    revogadas.add(chave_outra)
+                                    logs.append({"nivel": "aviso", "msg": f"  IA confirmou: {tipo} {numero}/{ano} revoga {outra.get('tipo')} {num_outra}/{outra.get('ano','')} — nao sera analisada"})
+                                    break
+                    except Exception as _e_rev:
+                        logs.append({"nivel": "aviso", "msg": f"  Erro verificacao revogacao: {str(_e_rev)[:60]}"})
 
     # ETAPA 3: Fallback Google
     if not resultado["encontradas"]:
