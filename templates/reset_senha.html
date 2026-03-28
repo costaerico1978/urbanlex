@@ -253,7 +253,7 @@
             Sua senha foi atualizada com sucesso.<br>
             Você já pode fazer login com a nova senha.
         </div>
-        <a href="/login" class="btn-login">Ir para o login →</a>
+        <a href="/logout?next=/login" class="btn-login">Ir para o login →</a>
     </div>
     {% endif %}
 </div>
@@ -342,8 +342,8 @@
             if (data.success) {
                 document.getElementById('form-state').style.display = 'none';
                 document.getElementById('success-state').style.display = 'block';
-                // Redirecionar automaticamente após 4s
-                setTimeout(() => window.location.href = '/login', 4000);
+                // Redirecionar automaticamente após 4s — forçar logout antes
+                setTimeout(() => window.location.href = '/logout?next=/login', 4000);
             } else {
                 mostrarErro(data.error || 'Erro ao salvar senha');
             }
