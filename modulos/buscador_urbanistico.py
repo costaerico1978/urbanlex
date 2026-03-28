@@ -200,16 +200,53 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             if enc:
                 resultado["encontradas"].append(enc)
 
-    # Resultado final
-    if resultado["encontradas"]:
-        logs.append({"nivel": "ok", "msg": "-" * 50})
-        logs.append({"nivel": "ok", "msg": "Legislacao com os parametros urbanisticos encontrada:"})
-        for leg in resultado["encontradas"]:
-            logs.append({"nivel": "ok", "msg": f'  - {leg["tipo"]} No {leg["numero"]} de {leg["ano"]} ({leg["link"]})'})
-    else:
+    # Resultado final — resumo por pergunta
+    LABELS_PERGUNTAS = [
+        "Parametros urbanisticos",
+        "Zoneamento",
+        "Uso e ocupacao do solo",
+        "Parcelamento do solo",
+        "Codigo de obras",
+    ]
+    logs.append({"nivel": "ok", "msg": "=" * 50})
+    logs.append({"nivel": "ok", "msg": f"RESUMO DA BUSCA — {municipio}/{estado}"})
+    logs.append({"nivel": "ok", "msg": "=" * 50})
+
+    # Associar cada legislacao encontrada a uma pergunta pelo tipo/descricao
+    KEYWORDS_PERGUNTAS = [
+        ["parametro", "plano diretor", "desenvolvimento"],
+        ["zoneamento", "zona", "macrozona"],
+        ["uso e ocupacao", "uso do solo", "ocupacao do solo"],
+        ["parcelamento", "loteamento", "subdivis"],
+        ["codigo de obras", "edificacoes", "construcoes"],
+    ]
+
+    for idx, (label, keywords) in enumerate(zip(LABELS_PERGUNTAS, KEYWORDS_PERGUNTAS)):
+        # Buscar legislacao correspondente
+        leg_match = None
+        for enc in resultado["encontradas"]:
+            desc = (enc.get("descricao", "") + " " + enc.get("tipo", "")).lower()
+            if any(kw in desc for kw in keywords):
+                leg_match = enc
+                break
+        if not leg_match and idx == 0 and resultado["encontradas"]:
+            leg_match = resultado["encontradas"][0]
+
+        if leg_match:
+            link = leg_match.get("link", "")
+            pdf = leg_match.get("pdf_path", "") or ""
+            logs.append({"nivel": "ok", "msg": f"{idx+1}. {label}: {leg_match.get('tipo','')} No {leg_match.get('numero','')} de {leg_match.get('ano','')} — ENCONTRADA"})
+            if pdf:
+                logs.append({"nivel": "ok", "msg": f"   Download PDF: {pdf}"})
+            elif link:
+                logs.append({"nivel": "ok", "msg": f"   Link: {link}"})
+        else:
+            logs.append({"nivel": "aviso", "msg": f"{idx+1}. {label}: nao encontrada"})
+
+    logs.append({"nivel": "ok", "msg": "=" * 50})
+
+    if not resultado["encontradas"]:
         resultado["nao_encontrada"] = True
-        logs.append({"nivel": "aviso", "msg": "-" * 50})
-        logs.append({"nivel": "aviso", "msg": "Legislacao com os parametros urbanisticos nao encontrada"})
     return resultado
 
 
