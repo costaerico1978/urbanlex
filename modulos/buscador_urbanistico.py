@@ -14,6 +14,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         f"qual legislacao define atualmente os parametros urbanisticos de {municipio} {estado}?",
         f"qual e a legislacao atual de zoneamento de {municipio} {estado}?",
         f"qual e a legislacao atual de uso e ocupacao do solo de {municipio} {estado}?",
+        f"qual e atualmente a legislacao de parcelamento do solo de {municipio} {estado}?",
+        f"qual e atualmente o codigo de obras de {municipio} {estado}?",
     ]
     legs = []
     _chaves_legs = set()
