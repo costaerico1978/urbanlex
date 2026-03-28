@@ -164,7 +164,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             continue
         analisadas.add(chave)
         logs.append({"nivel": "info", "msg": f"Buscando {tipo} n {numero}/{ano} ({descricao}) no LeisMunicipais..."})
-        enc = _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, modo=modo)
+        enc = _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, modo=leg.get("_modo_verificacao","geral"))
         if enc:
             resultado["encontradas"].append(enc)
             # Buscar leis referenciadas na legislacao encontrada
