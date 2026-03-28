@@ -105,7 +105,19 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             resultado["nao_encontrada"] = True
         return resultado
 
-    legs = legs_com_numero
+    # Ordenar por ano mais recente primeiro, depois por numero
+    def _sort_key(l):
+        try: ano_k = int(l.get("ano", "0") or "0")
+        except: ano_k = 0
+        try: num_k = int(l.get("numero", "0") or "0")
+        except: num_k = 0
+        return (-ano_k, -num_k)
+    legs = sorted(legs_com_numero, key=_sort_key)
+    logs.append({"nivel": "ok", "msg": f"Legislacoes ordenadas por ano (mais recente primeiro): {', '.join(l.get('tipo','')+ ' ' + l.get('numero','') + '/' + l.get('ano','') for l in legs)}"})
+
+    # Conjunto de legislacoes revogadas identificadas durante a busca
+    revogadas = set()
+
     # ETAPA 2: Buscar no LeisMunicipais
     for leg in legs:
         tipo = leg.get("tipo", "")
@@ -113,6 +125,10 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         ano = leg.get("ano", "")
         descricao = leg.get("descricao", "")
         chave = f"{tipo}_{numero}_{ano}".lower()
+        # Verificar se foi revogada por legislacao ja analisada
+        if chave in revogadas:
+            logs.append({"nivel": "aviso", "msg": f"Pulando {tipo} {numero}/{ano} — revogada por legislacao mais recente ja analisada"})
+            continue
         if chave in analisadas:
             continue
         analisadas.add(chave)
@@ -120,7 +136,25 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         enc = _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
         if enc:
             resultado["encontradas"].append(enc)
-            break  # Para na primeira legislacao que define parametros urbanisticos
+            # Verificar se esta legislacao revoga outras da lista
+            html_enc = enc.get("html", "") or ""
+            if html_enc:
+                from bs4 import BeautifulSoup as _bsr
+                texto_enc = _bsr(html_enc, "html.parser").get_text()[:5000]
+            else:
+                texto_enc = ""
+            for outra in legs:
+                if outra is leg:
+                    continue
+                num_outra = outra.get("numero", "").strip()
+                ano_outra = outra.get("ano", "").strip()
+                chave_outra = f"{outra.get('tipo','').lower()}_{num_outra}_{ano_outra}".lower()
+                if chave_outra in revogadas or chave_outra in analisadas:
+                    continue
+                # Verificar revogacao no texto
+                if num_outra and (f"revoga" in texto_enc.lower() and num_outra in texto_enc):
+                    revogadas.add(chave_outra)
+                    logs.append({"nivel": "aviso", "msg": f"  {tipo} {numero}/{ano} revoga {outra.get('tipo')} {num_outra}/{ano_outra} — nao sera analisada"})
 
     # ETAPA 3: Fallback Google
     if not resultado["encontradas"]:
