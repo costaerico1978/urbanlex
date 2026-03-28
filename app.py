@@ -489,7 +489,7 @@ def pagina_config_email(): return render_template('configuracoes.html', active_p
 
 @app.route('/config/perfil')
 @login_required
-def pagina_perfil(): return render_template('configuracoes.html', active_page='perfil', active_group='config', **tmpl_ctx())
+def pagina_perfil(): return render_template('perfil.html', active_page='perfil', active_group='config', **tmpl_ctx())
 
 # -------------------------------------------------------------------
 # API: AUTH
@@ -588,13 +588,33 @@ def api_alterar_senha():
 @login_required
 def api_perfil():
     if request.method == 'GET':
-        user = qry("SELECT id,nome,email,role FROM users WHERE id=%s", (session['user_id'],), 'one')
+        user = qry("SELECT id,nome,email,role,criado_em FROM users WHERE id=%s", (session['user_id'],), 'one')
         return jsonify({'success':True,'data':user})
+    from werkzeug.security import generate_password_hash, check_password_hash
     d = request.json or {}
     nome = d.get('nome','').strip()
+    email = d.get('email','').strip().lower()
+    senha_atual = d.get('senha_atual','').strip()
+    senha_nova = d.get('senha_nova','').strip()
     if not nome: return jsonify({'success':False,'error':'Nome obrigatorio'}), 400
-    qry("UPDATE users SET nome=%s WHERE id=%s", (nome, session['user_id']), commit=True, fetch=None)
+    if not email: return jsonify({'success':False,'error':'E-mail obrigatorio'}), 400
+    # Verificar se email ja existe em outro usuario
+    outro = qry("SELECT id FROM users WHERE email=%s AND id!=%s", (email, session['user_id']), 'one')
+    if outro: return jsonify({'success':False,'error':'E-mail ja cadastrado por outro usuario'}), 400
+    # Atualizar nome e email
+    qry("UPDATE users SET nome=%s, email=%s WHERE id=%s", (nome, email, session['user_id']), commit=True, fetch=None)
     session['nome'] = nome
+    session['email'] = email
+    # Atualizar senha se fornecida
+    if senha_nova:
+        user = qry("SELECT senha_hash FROM users WHERE id=%s", (session['user_id'],), 'one')
+        if not senha_atual: return jsonify({'success':False,'error':'Informe a senha atual para alterar a senha'}), 400
+        if not check_password_hash(user['senha_hash'], senha_atual):
+            return jsonify({'success':False,'error':'Senha atual incorreta'}), 400
+        import re
+        if not re.match(r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&\-_#])[A-Za-z\d@$!%*?&\-_#]{8,20}$', senha_nova):
+            return jsonify({'success':False,'error':'Nova senha fraca. Use 8-20 chars com maiuscula, minuscula, numero e especial'}), 400
+        qry("UPDATE users SET senha_hash=%s WHERE id=%s", (generate_password_hash(senha_nova), session['user_id']), commit=True, fetch=None)
     return jsonify({'success':True})
 
 # -------------------------------------------------------------------

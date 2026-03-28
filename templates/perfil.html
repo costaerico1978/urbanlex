@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Meu Perfil · UrbanLex{% endblock %}
+{% block topbar %}
+<span class="topbar-title">👤 Meu Perfil</span>
+{% endblock %}
+{% block content %}
+<div class="card" style="max-width:520px;margin:0 auto;">
+    <div style="padding:20px 24px;border-bottom:1px solid var(--border);">
+        <h2 style="font-size:16px;font-weight:700;margin:0;">Meu Perfil</h2>
+        <p style="font-size:12px;color:var(--muted);margin:4px 0 0;">Atualize suas informações de acesso.</p>
+    </div>
+    <div style="padding:24px;" id="perfil-form">
+        <div class="form-group">
+            <label>Nome</label>
+            <input type="text" id="p-nome" class="field-input" style="width:100%">
+        </div>
+        <div class="form-group" style="margin-top:14px;">
+            <label>E-mail</label>
+            <input type="email" id="p-email" class="field-input" style="width:100%">
+        </div>
+        <div class="form-group" style="margin-top:14px;">
+            <label>Senha atual <span style="color:var(--muted);font-size:10px;">(só preencha se quiser alterar)</span></label>
+            <input type="password" id="p-senha-atual" class="field-input" placeholder="Senha atual" style="width:100%">
+        </div>
+        <div class="form-group" style="margin-top:14px;">
+            <label>Nova senha</label>
+            <input type="password" id="p-senha-nova" class="field-input" placeholder="Nova senha (8-20 chars)" style="width:100%">
+        </div>
+        <div style="margin-top:16px;padding:12px 16px;background:var(--bg);border-radius:8px;border:1px solid var(--border);">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.5px;">Informações</div>
+            <div style="font-size:13px;margin-bottom:4px;">📅 Cadastro em: <span id="p-criado-em" style="color:var(--muted)">—</span></div>
+            <div style="font-size:13px;">🔑 Perfil: <span id="p-role" style="color:var(--accent)">—</span></div>
+        </div>
+        <div id="p-msg" style="display:none;margin-top:14px;padding:10px 14px;border-radius:6px;font-size:13px;"></div>
+        <div style="margin-top:20px;">
+            <button class="btn btn-primary" onclick="salvarPerfil()" id="btn-salvar-perfil">💾 Salvar Alterações</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const roleLabel = {admin:'Administrador', editor:'Editor', apenas_leitura:'Leitor'};
+
+async function carregarPerfil() {
+    const r = await api('GET', '/api/auth/perfil');
+    if (!r.success) return;
+    const u = r.data;
+    document.getElementById('p-nome').value = u.nome || '';
+    document.getElementById('p-email').value = u.email || '';
+    document.getElementById('p-role').textContent = roleLabel[u.role] || u.role;
+    if (u.criado_em) {
+        const d = new Date(u.criado_em);
+        document.getElementById('p-criado-em').textContent =
+            String(d.getDate()).padStart(2,'0') + '/' +
+            String(d.getMonth()+1).padStart(2,'0') + '/' +
+            d.getFullYear();
+    }
+}
+
+function showMsg(texto, tipo) {
+    const m = document.getElementById('p-msg');
+    m.textContent = texto;
+    m.style.background = tipo === 'ok' ? 'rgba(0,229,160,0.08)' : 'rgba(255,77,109,0.08)';
+    m.style.border = tipo === 'ok' ? '1px solid rgba(0,229,160,0.2)' : '1px solid rgba(255,77,109,0.2)';
+    m.style.color = tipo === 'ok' ? 'var(--accent)' : '#ff4d6d';
+    m.style.display = 'block';
+}
+
+async function salvarPerfil() {
+    const nome = document.getElementById('p-nome').value.trim();
+    const email = document.getElementById('p-email').value.trim();
+    const senha_atual = document.getElementById('p-senha-atual').value;
+    const senha_nova = document.getElementById('p-senha-nova').value;
+    const btn = document.getElementById('btn-salvar-perfil');
+
+    if (!nome || !email) { showMsg('Nome e e-mail são obrigatórios.', 'erro'); return; }
+
+    btn.disabled = true; btn.textContent = '⏳ Salvando...';
+    try {
+        const r = await api('POST', '/api/auth/perfil', {nome, email, senha_atual, senha_nova});
+        if (r.success) {
+            showMsg('✅ Perfil atualizado com sucesso!', 'ok');
+            document.getElementById('p-senha-atual').value = '';
+            document.getElementById('p-senha-nova').value = '';
+        } else {
+            showMsg('Erro: ' + (r.error || 'desconhecido'), 'erro');
+        }
+    } catch(e) {
+        showMsg('Erro de conexão.', 'erro');
+    }
+    btn.disabled = false; btn.textContent = '💾 Salvar Alterações';
+}
+
+carregarPerfil();
+</script>
+{% endblock %}
