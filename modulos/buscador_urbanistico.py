@@ -154,7 +154,11 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         chave = f"{tipo}_{numero}_{ano}".lower()
         # Verificar se foi revogada por legislacao ja analisada
         if chave in revogadas:
-            logs.append({"nivel": "aviso", "msg": f"Pulando {tipo} {numero}/{ano} — revogada por legislacao mais recente ja analisada"})
+            # Encontrar qual lei revogou esta
+            _revogador = next((l for l in legs if f"{l.get('tipo','').lower()}_{l.get('numero','').strip()}_{l.get('ano','')}" in analisadas and f"{l.get('tipo','').lower()}_{l.get('numero','').strip()}_{l.get('ano','')}" != chave), None)
+            _rev_info = f"{_revogador.get('tipo','')} {_revogador.get('numero','')}/{_revogador.get('ano','')}" if _revogador else "legislacao mais recente"
+            logs.append({"nivel": "aviso", "msg": f"⚠️ REVOGADA — {tipo} {numero}/{ano} foi revogada por {_rev_info} e NAO sera analisada"})
+            logs.append({"nivel": "aviso", "msg": f"   Motivo: legislacao mais recente ({_rev_info}) revoga explicitamente esta"})
             continue
         if chave in analisadas:
             continue
@@ -208,7 +212,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                             for rev_str in revogadas_ia:
                                 if num_outra and num_outra in rev_str:
                                     revogadas.add(chave_outra)
-                                    logs.append({"nivel": "aviso", "msg": f"  IA confirmou: {tipo} {numero}/{ano} revoga {outra.get('tipo')} {num_outra}/{outra.get('ano','')} — nao sera analisada"})
+                                    logs.append({"nivel": "aviso", "msg": f"  ⚠️ REVOGACAO CONFIRMADA PELA IA: {tipo} {numero}/{ano} revoga {outra.get('tipo')} {num_outra}/{outra.get('ano','')}"})
+                                    logs.append({"nivel": "aviso", "msg": f"     A {outra.get('tipo')} {num_outra}/{outra.get('ano','')} NAO sera analisada — foi revogada pela legislacao mais recente"})
                                     break
                     except Exception as _e_rev:
                         logs.append({"nivel": "aviso", "msg": f"  Erro verificacao revogacao: {str(_e_rev)[:60]}"})
