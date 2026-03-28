@@ -609,7 +609,7 @@ def api_perfil():
     if senha_nova:
         user = qry("SELECT senha_hash FROM users WHERE id=%s", (session['user_id'],), 'one')
         if not senha_atual: return jsonify({'success':False,'error':'Informe a senha atual para alterar a senha'}), 400
-        if not user['senha_hash'] or not check_password_hash(user['senha_hash'], senha_atual):
+        if not user['senha_hash'] or not verificar_senha(senha_atual, user['senha_hash']):
             return jsonify({'success':False,'error':'Senha atual incorreta'}), 400
         import re
         if not re.match(r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&\-_#])[A-Za-z\d@$!%*?&\-_#]{8,20}$', senha_nova):
