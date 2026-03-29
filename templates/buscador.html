@@ -185,11 +185,10 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
         <button class="btn btn-secondary btn-sm" onclick="sincronizarPlataforma()">
             🔄 Sincronizar com Plataforma
         </button>
-        <button id="btn-baixar-log-auto" class="btn btn-secondary btn-sm" style="display:inline-block;" onclick="const _logEl=document.getElementById('log-municipio'); const _logMun=document.getElementById('log-mun-content'); const _elUsado=_logMun||_logEl; if(_elUsado){const _txt=Array.from(_elUsado.querySelectorAll?_elUsado.querySelectorAll('div'):[]||[_elUsado]).map(d=>d.textContent).join('\n')||_elUsado.textContent; const _a=document.createElement('a'); _a.href=URL.createObjectURL(new Blob([_txt],{type:'text/plain'})); const _nd=new Date(); _a.download='Log_busca_automatica_'+_nd.getDate().toString().padStart(2,'0')+'_'+(+_nd.getMonth()+1).toString().padStart(2,'0')+'_'+_nd.getFullYear()+'_'+_nd.getHours()+'h'+_nd.getMinutes()+'.txt'; _a.click()}else{alert('Log nao disponivel')}">
+        <button id="btn-baixar-log-auto" class="btn btn-secondary btn-sm" style="display:none;" onclick="const _logEl=document.getElementById('log-municipio'); if(_logEl){const _txt=Array.from(_logEl.querySelectorAll('div')).map(d=>d.textContent).join('\n'); const _a=document.createElement('a'); _a.href=URL.createObjectURL(new Blob([_txt],{type:'text/plain'})); const _nd=new Date(); _a.download='Log_busca_automatica_'+_nd.getDate().toString().padStart(2,'0')+'_'+(+_nd.getMonth()+1).toString().padStart(2,'0')+'_'+_nd.getFullYear()+'_'+_nd.getHours()+'h'+_nd.getMinutes()+'.txt'; _a.click()}else{alert('Log nao disponivel')}">
             📥 Baixar Log .txt
+        </button>
     </div>
-    
-    <div id="tabela-legs-auto" style="margin-top:16px;overflow-x:auto;padding:0 8px"></div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
@@ -1057,9 +1056,6 @@ async function confirmarBuscaNovoMun() {
         document.getElementById("panel-auto").appendChild(logEl);
     }
     localStorage.removeItem('mun_log_cache');
-    localStorage.removeItem('mun_tabela_legs');
-    _tabelaLegsData = {};
-    const _tblEl = document.getElementById("tabela-legs-auto"); if(_tblEl){ _tblEl.innerHTML=""; }
     logEl.innerHTML = '<div style="color:var(--accent);margin-bottom:8px;">🔍 Buscando legislações urbanísticas de ' + mun + "/" + est + '...</div>';
     const _btnParar = document.getElementById('btn-parar-auto');
     if (_btnParar) _btnParar.style.display = 'inline-block';
@@ -1102,7 +1098,6 @@ async function confirmarBuscaNovoMun() {
         loadingMun.innerHTML = '<div class="spinner-busca"></div><div style="font-size:13px;font-weight:600;margin-top:12px;">Pesquisando e analisando fontes com IA...</div><div style="font-size:11px;margin-top:4px;color:var(--muted2);">Acompanhe o progresso no log acima ↑</div><div style="margin-top:12px;"><button class="btn btn-ghost btn-sm" style="color:#e74c3c;border-color:rgba(231,76,60,.3);" onclick="pararBuscaAuto()">✕ Cancelar e iniciar nova busca</button></div>';
         logEl.insertAdjacentElement("afterend", loadingMun);
     }
-    try { _renderTabelaLegs(); } catch(e) { console.warn("tabela:", e); }
     try {
         const r = await api("POST", "/api/buscador/municipio", {municipio: mun, estado: est, cadastrar, monitorar: cadastrar});
         if (!r.success) { alert("Erro: " + (r.error || "desconhecido")); btn.disabled = false; btn.textContent = "🔎 Buscar"; return; }
@@ -1117,14 +1112,6 @@ async function confirmarBuscaNovoMun() {
                 const poll = await api("GET", `/api/buscador/job/${jobId}?cursor=${cursor}`);
                 if (poll.logs && poll.logs.length) {
                     poll.logs.forEach(l => {
-                        // Processar evento de tabela
-                        if (l.nivel === "tabela") {
-                            try {
-                                const dados = JSON.parse(l.msg);
-                                _atualizarTabelaLegs(dados);
-                            } catch(e) {}
-                            return; // nao adicionar ao log visual
-                        }
                         const c = l.nivel === "erro" ? "#ff6b6b" : l.nivel === "aviso" ? "#ffb347" : l.nivel === "ok" ? "var(--accent)" : "var(--muted)";
                         const d = document.createElement("div");
                         d.style.color = c;
@@ -1177,44 +1164,400 @@ async function sincronizarPlataforma() {
         if (r.success) {
             const d = r.data || {};
             alert(`Consultados: ${d.municipios_consultados || 0}\nNovos: ${d.novos_detectados || 0}\nLegislações cadastradas: ${d.legislacoes_cadastradas || 0}`);
+            carregarFila();
+
 
         }
-    } catch(e) { alert("Erro: " + e.message); }
+    } catch(e) { alert('Erro: ' + e.message); }
 }
+
+// ── Referências Cruzadas ──
+async function varrerReferencias() {
+    document.getElementById('ref-status').textContent = 'Analisando legislações...';
+    try {
+        const r = await api('POST', '/api/buscador/varrer-referencias');
+        document.getElementById('ref-status').textContent = '';
+        const el = document.getElementById('lista-refs');
+        if (!r.success || !r.referencias || r.referencias.length === 0) {
+            el.innerHTML = `<div class="empty-busca"><div class="empty-icon">✅</div>
+                <div class="empty-title">Nenhuma referência pendente</div>
+                <div class="empty-sub">Todas as legislações referenciadas já estão na biblioteca</div></div>`;
+            return;
+        }
+        const badge = document.getElementById('badge-ref');
+        badge.textContent = r.referencias.length; badge.style.display = '';
+
+        el.innerHTML = r.referencias.map(ref => `
+            <div class="fila-item">
+                <div class="fila-icon">🔗</div>
+                <div class="fila-info">
+                    <div class="fila-titulo">${ref.tipo || 'Lei'} nº ${ref.numero || '?'}/${ref.ano || '?'}</div>
+                    <div class="fila-sub">Referenciada por: ${ref.referenciada_por || '—'} · ${ref.municipio || ''}/${ref.estado || ''}</div>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="buscarReferencia(${JSON.stringify(ref).replace(/"/g,'&quot;')})">
+                    🔎 Buscar
+                </button>
+            </div>`).join('');
+    } catch(e) {
+        document.getElementById('ref-status').textContent = 'Erro: ' + e.message;
+    }
+}
+
+async function buscarReferencia(ref) {
+    // Preencher busca manual e executar
+    document.getElementById('bm-esfera').value = ref.esfera || 'municipal';
+    document.getElementById('bm-estado').value = ref.estado || '';
+    document.getElementById('bm-municipio').value = ref.municipio || '';
+    document.getElementById('bm-tipo').value = ref.tipo || '';
+    document.getElementById('bm-numero').value = ref.numero || '';
+    document.getElementById('bm-ano').value = ref.ano || '';
+    bmEsferaChanged();
+    mudarTab('manual');
+    executarBuscaManual();
+}
+
+// ── Carregar fila de buscas ──
+async function carregarFila() {
+    try {
+        const r = await api('GET', '/api/buscador/fila');
+        const el = document.getElementById('fila-auto');
+        if (!r.success || !r.data || r.data.length === 0) return;
+
+        const statusIcon = { pendente:'⏳', rodando:'🔄', concluido:'✅', erro:'❌' };
+        const badge = document.getElementById('badge-auto');
+        const pendentes = r.data.filter(b => b.status === 'pendente').length;
+        if (pendentes > 0) { badge.textContent = pendentes; badge.style.display = ''; }
+
+        el.innerHTML = r.data.map(b => `
+            <div class="fila-item">
+                <div class="fila-icon">${statusIcon[b.status] || '•'}</div>
+                <div class="fila-info">
+                    <div class="fila-titulo">${b.municipio || ''}/${b.estado || ''}</div>
+                    <div class="fila-sub">${b.mensagem || b.tipo || ''} · ${b.legislacoes_encontradas || 0} legislação(ões)</div>
+                </div>
+                <span class="fila-status ${b.status}">${b.status}</span>
+                <span class="fila-data">${fmtData(b.criado_em)}</span>
+            </div>`).join('');
+    } catch(e) {}
+}
+
+// ── Status plataforma ──
+async function carregarStatusPlataforma() {
+    try {
+        const r = await api('GET', '/api/integracao-plataforma/config');
+        const dot = document.getElementById('dot-plataforma');
+        const txt = document.getElementById('txt-plataforma');
+        if (r.configurada) {
+            dot.className = 'status-dot verde';
+            txt.textContent = 'Integração ativa — sincroniza diariamente';
+        } else {
+            dot.className = 'status-dot cinza';
+            txt.textContent = 'API não configurada (PLATAFORMA_API_URL)';
+        }
+    } catch(e) {
+        document.getElementById('dot-plataforma').className = 'status-dot cinza';
+        document.getElementById('txt-plataforma').textContent = 'Erro ao verificar';
+    }
+}
+
+function fmtData(d) {
+    if (!d) return '';
+    const dt = new Date(d);
+    return dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+}
+
+async function api(method, url, body) {
+    const opts = { method, headers: {'Content-Type':'application/json'} };
+    if (body) opts.body = JSON.stringify(body);
+    const r = await fetch(url, opts);
+    return r.json();
+}
+
+// ── Autocomplete de Municípios ──
+let _acTimer = null;
+let _acCache = {};
+let _acIdx = -1;
+
+async function acBuscar(query, prefix) {
+    prefix = prefix || 'bm';
+    const listEl = document.getElementById(prefix + '-ac-list');
+    const estado = document.getElementById(prefix === 'bm' ? 'bm-estado' : 'nm-estado').value;
+    query = (query || '').trim();
+
+    if (query.length < 2) { listEl.classList.remove('open'); return; }
+
+    clearTimeout(_acTimer);
+    _acTimer = setTimeout(async () => {
+        const cacheKey = query.toLowerCase() + '|' + estado;
+        let items = _acCache[cacheKey];
+
+        if (!items) {
+            try {
+                const qs = `q=${encodeURIComponent(query)}${estado ? '&estado=' + estado : ''}`;
+                const r = await api('GET', '/api/buscador/autocomplete-municipios?' + qs);
+                items = r.municipios || [];
+                _acCache[cacheKey] = items;
+            } catch(e) { items = []; }
+        }
+
+        if (!items.length) {
+            listEl.innerHTML = '<div class="ac-empty">Nenhum município encontrado — digite o nome completo</div>';
+            listEl.classList.add('open');
+            return;
+        }
+
+        _acIdx = -1;
+        listEl.innerHTML = items.map((m, i) => `
+            <div class="ac-item" data-idx="${i}" data-nome="${m.nome}" data-estado="${m.estado}"
+                 data-sites="${m.tem_sites ? '1' : '0'}"
+                 onclick="acSelecionar(this, '${prefix}')"
+                 onmouseenter="this.classList.add('selected')" onmouseleave="this.classList.remove('selected')">
+                <span class="ac-estado">${m.estado}</span>
+                <span class="ac-sep">–</span>
+                <span class="ac-nome">${m.nome}</span>
+                ${m.tem_sites ? '<span class="ac-sites">🌐 Sites salvos</span>' : ''}
+            </div>`).join('');
+        listEl.classList.add('open');
+    }, 200);
+}
+
+function acKeydown(e, prefix) {
+    prefix = prefix || 'bm';
+    const listEl = document.getElementById(prefix + '-ac-list');
+    const items = listEl.querySelectorAll('.ac-item');
+    if (!items.length || !listEl.classList.contains('open')) return;
+
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        _acIdx = Math.min(_acIdx + 1, items.length - 1);
+        items.forEach((it,i) => it.classList.toggle('selected', i === _acIdx));
+        items[_acIdx].scrollIntoView({block:'nearest'});
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        _acIdx = Math.max(_acIdx - 1, 0);
+        items.forEach((it,i) => it.classList.toggle('selected', i === _acIdx));
+        items[_acIdx].scrollIntoView({block:'nearest'});
+    } else if (e.key === 'Enter' && _acIdx >= 0) {
+        e.preventDefault();
+        acSelecionar(items[_acIdx], prefix);
+    } else if (e.key === 'Escape') {
+        listEl.classList.remove('open');
+    }
+}
+
+function acSelecionar(el, prefix) {
+    prefix = prefix || 'bm';
+    const nome = el.dataset.nome;
+    const estado = el.dataset.estado;
+    document.getElementById(prefix === 'bm' ? 'bm-municipio' : 'nm-municipio').value = nome;
+    document.getElementById(prefix === 'bm' ? 'bm-estado' : 'nm-estado').value = estado;
+    document.getElementById(prefix + '-ac-list').classList.remove('open');
+
+    // Se é busca manual, carregar sites de referência automaticamente
+    if (prefix === 'bm') {
+        carregarSitesReferencia(nome, estado);
+    }
+}
+
+// Fechar autocomplete ao clicar fora
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.ac-wrapper')) {
+        document.querySelectorAll('.ac-list').forEach(l => l.classList.remove('open'));
+    }
+});
+
+// ── Sites de Referência por Município ──
+async function carregarSitesReferencia(municipio, estado) {
+    if (!municipio) return;
+    const badge = document.getElementById('sites-badge');
+
+    try {
+        const qs = `municipio=${encodeURIComponent(municipio)}&estado=${encodeURIComponent(estado || '')}`;
+        const r = await api('GET', '/api/buscador/sites-referencia?' + qs);
+
+        if (r.success && r.sites) {
+            const fontes = r.sites.fontes_prioritarias || [];
+            document.getElementById('bm-fonte-1').value = fontes[0] || '';
+            document.getElementById('bm-fonte-2').value = fontes[1] || '';
+            document.getElementById('bm-fonte-3').value = fontes[2] || '';
+
+            const total = fontes.filter(f => f).length;
+            if (total > 0) {
+                badge.textContent = `${total} fonte(s) carregada(s)`;
+                badge.className = 'sites-badge';
+            } else {
+                badge.textContent = 'Nenhum salvo';
+                badge.className = 'sites-badge empty';
+            }
+        } else {
+            badge.textContent = 'Nenhum salvo';
+            badge.className = 'sites-badge empty';
+        }
+    } catch(e) {
+        badge.textContent = 'Erro ao carregar';
+        badge.className = 'sites-badge empty';
+    }
+}
+
+async function salvarSitesReferencia() {
+    const municipio = document.getElementById('bm-municipio').value.trim();
+    const estado = document.getElementById('bm-estado').value;
+
+    if (!municipio) { alert('Informe o município antes de salvar as fontes.'); return; }
+
+    const fontes = [
+        (document.getElementById('bm-fonte-1').value || '').trim(),
+        (document.getElementById('bm-fonte-2').value || '').trim(),
+        (document.getElementById('bm-fonte-3').value || '').trim(),
+    ].filter(u => u);
+
+    if (!fontes.length) {
+        alert('Preencha pelo menos uma fonte para salvar.');
+        return;
+    }
+
+    const btn = document.getElementById('btn-salvar-sites');
+    btn.disabled = true; btn.textContent = '⏳ Salvando...';
+
+    try {
+        const r = await api('POST', '/api/buscador/sites-referencia', {
+            municipio, estado, fontes_prioritarias: fontes
+        });
+
+        btn.disabled = false;
+        if (r.success) {
+            btn.textContent = '✅ Salvo!';
+            const badge = document.getElementById('sites-badge');
+            badge.textContent = `${fontes.length} fonte(s) salva(s)`;
+            badge.className = 'sites-badge';
+            _acCache = {};
+            setTimeout(() => { btn.textContent = '💾 Salvar para este Município'; }, 2000);
+        } else {
+            btn.textContent = '❌ Erro';
+            setTimeout(() => { btn.textContent = '💾 Salvar para este Município'; }, 2000);
+        }
+    } catch(e) {
+        btn.disabled = false; btn.textContent = '💾 Salvar para este Município';
+        alert('Erro: ' + e.message);
+    }
+}
+
+// Carregar sites quando campo de município perde foco (caso digitado manualmente sem autocomplete)
+document.getElementById('bm-municipio').addEventListener('blur', () => {
+    setTimeout(() => {
+        const mun = document.getElementById('bm-municipio').value.trim();
+        const est = document.getElementById('bm-estado').value;
+        if (mun.length >= 3) carregarSitesReferencia(mun, est);
+    }, 300);
+});
+
+// ── Seleção de Resultados ──
+function toggleSelecionarTodos(checked) {
+    document.querySelectorAll('.resultado-check').forEach(c => c.checked = checked);
+    atualizarContagemSelecionados();
+}
+
+function atualizarContagemSelecionados() {
+    const total = document.querySelectorAll('.resultado-check').length;
+    const selecionados = document.querySelectorAll('.resultado-check:checked').length;
+    const span = document.getElementById('contagem-selecionados');
+    if (span) span.textContent = total > 0 ? `(${selecionados} de ${total})` : '';
+    const chkTodos = document.getElementById('chk-selecionar-todos');
+    if (chkTodos) chkTodos.checked = selecionados === total && total > 0;
+}
+
+// Delegated event para checkboxes de resultado
+document.addEventListener('change', (e) => {
+    if (e.target.classList.contains('resultado-check')) atualizarContagemSelecionados();
+});
+
+// ── Histórico de Buscas ──
+async function carregarHistorico() {
+    const el = document.getElementById('historico-lista');
+    if (!el) return;
+    el.innerHTML = '<div style="text-align:center;padding:30px;"><span class="spinner" style="margin:0 auto"></span></div>';
+    try {
+        const r = await api('GET', '/api/buscador/historico?limit=100');
+        if (!r.success || !r.data || !r.data.length) {
+            el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:28px;opacity:.35;margin-bottom:10px">&#x1F4CB;</div><div style="font-size:14px;">Nenhuma busca no hist&#xF3;rico</div><div style="font-size:12px;margin-top:4px;color:var(--muted2)">As buscas aparecer&#xE3;o aqui quando executadas</div></div>';
+            return;
+        }
+        let items = r.data;
+        const filtro = document.getElementById('hist-filtro-tipo');
+        if (filtro && filtro.value) items = items.filter(i => (i.tipo||'').includes(filtro.value));
+        if (!items.length) {
+            el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">Nenhum resultado para este filtro</div>';
+            return;
+        }
+        el.innerHTML = items.map(item => {
+            const sucesso = item.sucesso;
+            const statusIcon = sucesso ? '&#x2705;' : (item.concluido_em ? '&#x274C;' : '&#x23F3;');
+            const statusCls = sucesso ? 'background:rgba(0,229,160,.12);color:#00e5a0' : (item.concluido_em ? 'background:rgba(255,77,109,.12);color:#ff4d6d' : 'background:rgba(240,173,78,.12);color:#f0ad4e');
+            const statusTxt = sucesso ? 'Encontrada' : (item.concluido_em ? 'N&#xE3;o encontrada' : 'Em andamento');
+            const mun = item.municipio ? `${item.municipio}/${item.estado||''}` : '—';
+            const leg = item.legislacao_numero ? `${item.legislacao_tipo||''} n&#xBA; ${item.legislacao_numero}/${item.legislacao_ano||''}` : '—';
+            const _fmtDT = (s) => { if (!s) return '—'; const d = new Date(new Date(s).getTime() - 3*60*60*1000); return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit'}); };
+            const ini = _fmtDT(item.iniciado_em);
+            const fim = _fmtDT(item.concluido_em);
+            const tipoBadge = item.tipo === 'manual' ? '&#x1F527; Manual' : '&#x1F916; Auto';
+            const pdfBtn = (item.pdf_path || (item.anexos_paths && item.anexos_paths !== '[]')) ? `<a href="/api/buscador/historico/download/${item.id}" title="Download PDF + Anexos (ZIP)" style="color:var(--accent);text-decoration:none;font-size:16px;">&#x1F4E5;</a>` : `<span title="Sem downloads disponíveis" style="color:var(--border);font-size:16px;cursor:pointer;" onclick="alert('Não há downloads disponíveis para essa busca.')">&#x1F4E5;</span>`;
+            return `<div style="display:grid;grid-template-columns:32px 80px 1fr 210px 110px 1fr 110px;gap:0;padding:10px 12px;border-bottom:1px solid var(--border);align-items:center;font-size:12px;" data-id="${item.id}">
+                <div><input type="checkbox" class="hist-check" value="${item.id}" style="cursor:pointer"></div>
+                <div style="color:var(--muted);font-size:11px;">${tipoBadge}</div>
+                <div style="font-weight:600;">${mun}</div>
+                <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);line-height:1.8;white-space:nowrap;"><span style="color:var(--muted2)">in&#xED;cio:</span> ${ini}<br><span style="color:var(--muted2)">t&#xE9;rm.:</span> ${fim}</div>
+                <div><span style="font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;${statusCls}">${statusIcon} ${statusTxt}</span></div>
+                <div style="color:var(--muted);font-size:11px;">${item.legislacao_link ? `<a href="${item.legislacao_link}" target="_blank" style="color:var(--accent);text-decoration:none;">${leg}</a>` : leg}</div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <button onclick="histVerLog(${item.id},'${mun}')" title="Ver log" style="background:none;border:none;cursor:pointer;font-size:16px;padding:0;">&#x1F4DC;</button>
+                    <a href="/api/buscador/historico/log/${item.id}/download" title="Baixar log" style="text-decoration:none;font-size:16px;">&#x2B07;&#xFE0F;</a>
+                    ${pdfBtn}
+                </div>
+            </div>`;
+        }).join('');
+        // Sincronizar checkbox all
+        document.getElementById('hist-check-all').checked = false;
+        // Auto-refresh enquanto houver buscas em andamento
+        clearTimeout(window._histRefreshTimer);
+        if (items.some(i => !i.concluido_em)) {
+            window._histRefreshTimer = setTimeout(carregarHistorico, 5000);
+        }
+    } catch(e) {
+        el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">Erro ao carregar hist&#xF3;rico</div>';
+    }
+}
+function histSelecionarTodos(checked) {
+    document.querySelectorAll('.hist-check').forEach(c => c.checked = checked);
+}
+async function histVerLog(id, mun) {
+    const modal = document.getElementById('hist-modal-log');
+    const titulo = document.getElementById('hist-modal-titulo');
+    const conteudo = document.getElementById('hist-modal-conteudo');
+    titulo.textContent = `Log — ${mun}`;
+    conteudo.textContent = 'Carregando...';
+    modal.style.display = 'flex';
+    try {
+        const r = await api('GET', `/api/buscador/historico/log/${id}`);
+        conteudo.textContent = r.log || '(log vazio)';
+    } catch(e) {
+        conteudo.textContent = 'Erro ao carregar log';
+    }
+}
+async function histApagarSelecionados() {
+    const checks = Array.from(document.querySelectorAll('.hist-check:checked')).map(c => parseInt(c.value));
+    if (!checks.length) { alert('Selecione ao menos uma busca para apagar.'); return; }
+    if (!confirm(`Apagar ${checks.length} busca(s) do hist&#xF3;rico?`)) return;
+    try {
+        const r = await api('POST', '/api/buscador/historico/apagar', {ids: checks});
+        if (r.success) { carregarHistorico(); }
+        else alert('Erro: ' + (r.error || 'desconhecido'));
+    } catch(e) { alert('Erro: ' + e.message); }
+}
+
 
 // ── Init ──
 const BUSCA_PAGINA = '{{ active_page }}';
 carregarStatusPlataforma();
-// ===== TABELA DE LEGISLACOES EM TEMPO REAL =====
-let _tabelaLegsData = {};
-// Restaurar tabela do localStorage se existir
-try {
-    const _tblSalva = localStorage.getItem("mun_tabela_legs");
-    if (_tblSalva) {
-        _tabelaLegsData = JSON.parse(_tblSalva);
-        if (Object.keys(_tabelaLegsData).length > 0) setTimeout(_renderTabelaLegs, 500);
-    }
-} catch(e) {}
-
-function _atualizarTabelaLegs(dados) {
-    const chave = `${dados.tipo}_${dados.numero}_${dados.ano}`.toLowerCase();
-    // Mesclar com dados existentes
-    if (_tabelaLegsData[chave]) {
-        const ex = _tabelaLegsData[chave];
-        dados.altera = [...new Set([...(ex.altera||[]), ...(dados.altera||[])])];
-        dados.alterado_por = [...new Set([...(ex.alterado_por||[]), ...(dados.alterado_por||[])])];
-        dados.revoga = [...new Set([...(ex.revoga||[]), ...(dados.revoga||[])])];
-        dados.revogado_por = [...new Set([...(ex.revogado_por||[]), ...(dados.revogado_por||[])])];
-        dados.cita = [...new Set([...(ex.cita||[]), ...(dados.cita||[])])];
-        dados.citado_em = [...new Set([...(ex.citado_em||[]), ...(dados.citado_em||[])])];
-        if (dados.status === "analisando" && ex.status !== "analisando") dados.status = ex.status;
-    }
-    _tabelaLegsData[chave] = dados;
-    try { localStorage.setItem("mun_tabela_legs", JSON.stringify(_tabelaLegsData)); } catch(e) {}
-    _renderTabelaLegs();
-}
-
-
 carregarFila();
 // Restaurar log manual do cache ao recarregar
 (function() {
