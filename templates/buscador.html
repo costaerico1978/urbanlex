@@ -1060,7 +1060,7 @@ async function confirmarBuscaNovoMun() {
     _tabelaLegsData = {};
     const _tblEl = document.getElementById('tabela-legs-auto'); if(_tblEl) _tblEl.remove();
     logEl.innerHTML = '<div style="color:var(--accent);margin-bottom:8px;">🔍 Buscando legislações urbanísticas de ' + mun + "/" + est + '...</div>';
-    _renderTabelaLegs(); // mostrar tabela vazia imediatamente apos log
+    try { _renderTabelaLegs(); } catch(e) { console.warn("tabela:", e); } // mostrar tabela vazia
     const _btnParar = document.getElementById('btn-parar-auto');
     if (_btnParar) _btnParar.style.display = 'inline-block';
     // Botão baixar log
@@ -1231,8 +1231,8 @@ function _renderTabelaLegs() {
         "ignorada": "⬜ Ignorada"
     };
 
-    if (rows.length === 0) { tbl.innerHTML = `<div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:8px;font-family:monospace">📋 LEGISLAÇÕES IDENTIFICADAS</div><div style="font-size:11px;color:var(--muted);font-family:monospace;padding:12px;background:#0d1117;border:1px solid var(--border);border-radius:6px">⏳ Aguardando identificação das legislações...</div>`; return; }
     const rows = Object.values(_tabelaLegsData);
+    if (rows.length === 0) { tbl.innerHTML = `<div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:8px;font-family:monospace">📋 LEGISLAÇÕES IDENTIFICADAS</div><div style="font-size:11px;color:var(--muted);font-family:monospace;padding:12px;background:#0d1117;border:1px solid var(--border);border-radius:6px">⏳ Aguardando identificação das legislações...</div>`; return; }
     const cols = ["Estado","Município","Tipo","N°","Ano","Pergunta","Status",
                   "Regulamenta/Altera","Regulamentado por","Revoga","Revogado por",
                   "Faz referência à legislação","Referenciada em","Link"];
