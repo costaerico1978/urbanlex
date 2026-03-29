@@ -1562,7 +1562,8 @@ carregarStatusPlataforma();
 
 // ===== TABELA DE LEGISLACOES =====
 let _tabelaLegsData = {};
-try { const _s=localStorage.getItem("mun_tabela_legs"); if(_s){_tabelaLegsData=JSON.parse(_s); setTimeout(_renderTabelaLegs,300);} } catch(e) {}
+try { const _s=localStorage.getItem("mun_tabela_legs"); if(_s){_tabelaLegsData=JSON.parse(_s);} } catch(e) {}
+setTimeout(_renderTabelaLegs, 300);
 
 function _atualizarTabelaLegs(dados) {
     const k=`${dados.tipo}_${dados.numero}_${dados.ano}`.toLowerCase();
