@@ -1178,6 +1178,9 @@ async function sincronizarPlataforma() {
             const d = r.data || {};
             alert(`Consultados: ${d.municipios_consultados || 0}\nNovos: ${d.novos_detectados || 0}\nLegislações cadastradas: ${d.legislacoes_cadastradas || 0}`);
 
+        }
+    } catch(e) { alert("Erro: " + e.message); }
+}
 
 // ── Init ──
 const BUSCA_PAGINA = '{{ active_page }}';
