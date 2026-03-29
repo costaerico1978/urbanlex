@@ -712,6 +712,7 @@ async function executarBuscaManual() {
                 if (poll.logs && poll.logs.length) {
                     logRemoveSpinner();
                     poll.logs.forEach(l => {
+                        if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
                         const c = l.nivel === 'erro' ? 'var(--red)' : l.nivel === 'aviso' ? 'var(--amber)' : l.nivel === 'ok' ? 'var(--accent)' : 'var(--muted)';
                         const icon = l.nivel === 'erro' ? '❌' : l.nivel === 'aviso' ? '⚠️' : l.nivel === 'ok' ? '✅' : '🔹';
                         logLine(icon, l.msg, c);
