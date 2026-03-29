@@ -1058,7 +1058,7 @@ async function confirmarBuscaNovoMun() {
     localStorage.removeItem('mun_log_cache');
     localStorage.removeItem('mun_tabela_legs');
     _tabelaLegsData = {};
-    const _tblEl = document.getElementById('tabela-legs-auto'); if(_tblEl) _tblEl.remove();
+    const _tblEl = document.getElementById('tabela-legs-auto'); if(_tblEl){ _tblEl.innerHTML=''; _tblEl.style.display='none'; }
     logEl.innerHTML = '<div style="color:var(--accent);margin-bottom:8px;">🔍 Buscando legislações urbanísticas de ' + mun + "/" + est + '...</div>';
     const _btnParar = document.getElementById('btn-parar-auto');
     if (_btnParar) _btnParar.style.display = 'inline-block';
