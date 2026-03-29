@@ -188,6 +188,7 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
         <button id="btn-baixar-log-auto" class="btn btn-secondary btn-sm" style="display:inline-block;" onclick="const _logEl=document.getElementById('log-municipio'); const _logMun=document.getElementById('log-mun-content'); const _elUsado=_logMun||_logEl; if(_elUsado){const _txt=Array.from(_elUsado.querySelectorAll?_elUsado.querySelectorAll('div'):[]||[_elUsado]).map(d=>d.textContent).join('\n')||_elUsado.textContent; const _a=document.createElement('a'); _a.href=URL.createObjectURL(new Blob([_txt],{type:'text/plain'})); const _nd=new Date(); _a.download='Log_busca_automatica_'+_nd.getDate().toString().padStart(2,'0')+'_'+(+_nd.getMonth()+1).toString().padStart(2,'0')+'_'+_nd.getFullYear()+'_'+_nd.getHours()+'h'+_nd.getMinutes()+'.txt'; _a.click()}else{alert('Log nao disponivel')}">
             📥 Baixar Log .txt
     </div>
+    <div id="tabela-legs-auto" style="display:none;margin-top:16px;overflow-x:auto;padding:0 8px"></div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
