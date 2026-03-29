@@ -1056,6 +1056,9 @@ async function confirmarBuscaNovoMun() {
         document.getElementById("panel-auto").appendChild(logEl);
     }
     localStorage.removeItem('mun_log_cache');
+    localStorage.removeItem('mun_tabela_legs');
+    _tabelaLegsData = {};
+    const _tblEl = document.getElementById('tabela-legs-auto'); if(_tblEl) _tblEl.remove();
     logEl.innerHTML = '<div style="color:var(--accent);margin-bottom:8px;">🔍 Buscando legislações urbanísticas de ' + mun + "/" + est + '...</div>';
     const _btnParar = document.getElementById('btn-parar-auto');
     if (_btnParar) _btnParar.style.display = 'inline-block';
@@ -1173,7 +1176,15 @@ async function sincronizarPlataforma() {
             const d = r.data || {};
             alert(`Consultados: ${d.municipios_consultados || 0}\nNovos: ${d.novos_detectados || 0}\nLegislações cadastradas: ${d.legislacoes_cadastradas || 0}`);
             // ===== TABELA DE LEGISLACOES EM TEMPO REAL =====
-let _tabelaLegsData = {}; // chave: tipo_numero_ano -> dados
+let _tabelaLegsData = {};
+// Restaurar tabela do localStorage se existir
+try {
+    const _tblSalva = localStorage.getItem("mun_tabela_legs");
+    if (_tblSalva) {
+        _tabelaLegsData = JSON.parse(_tblSalva);
+        if (Object.keys(_tabelaLegsData).length > 0) _renderTabelaLegs();
+    }
+} catch(e) {}
 
 function _atualizarTabelaLegs(dados) {
     const chave = `${dados.tipo}_${dados.numero}_${dados.ano}`.toLowerCase();
@@ -1189,6 +1200,7 @@ function _atualizarTabelaLegs(dados) {
         if (dados.status === "analisando" && ex.status !== "analisando") dados.status = ex.status;
     }
     _tabelaLegsData[chave] = dados;
+    try { localStorage.setItem("mun_tabela_legs", JSON.stringify(_tabelaLegsData)); } catch(e) {}
     _renderTabelaLegs();
 }
 
@@ -1652,7 +1664,15 @@ async function histApagarSelecionados() {
 const BUSCA_PAGINA = '{{ active_page }}';
 carregarStatusPlataforma();
 // ===== TABELA DE LEGISLACOES EM TEMPO REAL =====
-let _tabelaLegsData = {}; // chave: tipo_numero_ano -> dados
+let _tabelaLegsData = {};
+// Restaurar tabela do localStorage se existir
+try {
+    const _tblSalva = localStorage.getItem("mun_tabela_legs");
+    if (_tblSalva) {
+        _tabelaLegsData = JSON.parse(_tblSalva);
+        if (Object.keys(_tabelaLegsData).length > 0) _renderTabelaLegs();
+    }
+} catch(e) {}
 
 function _atualizarTabelaLegs(dados) {
     const chave = `${dados.tipo}_${dados.numero}_${dados.ano}`.toLowerCase();
@@ -1668,6 +1688,7 @@ function _atualizarTabelaLegs(dados) {
         if (dados.status === "analisando" && ex.status !== "analisando") dados.status = ex.status;
     }
     _tabelaLegsData[chave] = dados;
+    try { localStorage.setItem("mun_tabela_legs", JSON.stringify(_tabelaLegsData)); } catch(e) {}
     _renderTabelaLegs();
 }
 
