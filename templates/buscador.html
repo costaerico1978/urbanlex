@@ -1059,6 +1059,7 @@ async function confirmarBuscaNovoMun() {
     localStorage.removeItem('mun_tabela_legs');
     _tabelaLegsData = {};
     const _tblEl = document.getElementById('tabela-legs-auto'); if(_tblEl) _tblEl.remove();
+    _renderTabelaLegs(); // mostrar tabela vazia imediatamente
     logEl.innerHTML = '<div style="color:var(--accent);margin-bottom:8px;">🔍 Buscando legislações urbanísticas de ' + mun + "/" + est + '...</div>';
     const _btnParar = document.getElementById('btn-parar-auto');
     if (_btnParar) _btnParar.style.display = 'inline-block';
@@ -1230,6 +1231,7 @@ function _renderTabelaLegs() {
         "ignorada": "⬜ Ignorada"
     };
 
+    if (rows.length === 0) { tbl.innerHTML = `<div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:8px;font-family:monospace">📋 LEGISLAÇÕES IDENTIFICADAS</div><div style="font-size:11px;color:var(--muted);font-family:monospace;padding:12px;background:#0d1117;border:1px solid var(--border);border-radius:6px">⏳ Aguardando identificação das legislações...</div>`; return; }
     const rows = Object.values(_tabelaLegsData);
     const cols = ["Estado","Município","Tipo","N°","Ano","Pergunta","Status",
                   "Regulamenta/Altera","Regulamentado por","Revoga","Revogado por",
@@ -1699,77 +1701,6 @@ function _atualizarTabelaLegs(dados) {
     _renderTabelaLegs();
 }
 
-function _renderTabelaLegs() {
-    let tbl = document.getElementById("tabela-legs-auto");
-    if (!tbl) {
-        tbl = document.createElement("div");
-        tbl.id = "tabela-legs-auto";
-        tbl.style = "margin-top:16px;overflow-x:auto;";
-        const logEl = document.getElementById("log-municipio");
-        if (logEl) logEl.insertAdjacentElement("afterend", tbl);
-        else return;
-    }
-
-    const statusCor = {
-        "analisando": "#f5a623",
-        "encontrada": "#00e5a0",
-        "nao_encontrada": "#6b7d8f",
-        "revogada": "#ff4d6d",
-        "ignorada": "#6b7d8f"
-    };
-    const statusLabel = {
-        "analisando": "⏳ Analisando",
-        "encontrada": "✅ Encontrada",
-        "nao_encontrada": "❌ Não encontrada",
-        "revogada": "🚫 Revogada",
-        "ignorada": "⬜ Ignorada"
-    };
-
-    const rows = Object.values(_tabelaLegsData);
-    const cols = ["Estado","Município","Tipo","N°","Ano","Pergunta","Status",
-                  "Regulamenta/Altera","Regulamentado por","Revoga","Revogado por",
-                  "Faz referência à legislação","Referenciada em","Link"];
-
-    let html = `<div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:8px;font-family:var(--font-mono)">📋 LEGISLAÇÕES IDENTIFICADAS (${rows.length})</div>`;
-    html += `<table style="width:100%;border-collapse:collapse;font-size:10px;font-family:var(--font-mono)">`;
-    html += `<thead><tr>`;
-    cols.forEach(c => {
-        html += `<th style="padding:5px 8px;background:#111418;border:1px solid var(--border);color:var(--muted);text-align:left;white-space:nowrap">${c}</th>`;
-    });
-    html += `</tr></thead><tbody>`;
-
-    rows.forEach(r => {
-        const cor = statusCor[r.status] || "#6b7d8f";
-        const sl = statusLabel[r.status] || r.status;
-        const cel = (v) => `<td style="padding:4px 8px;border:1px solid var(--border);color:var(--text);vertical-align:top">${v||"—"}</td>`;
-        html += `<tr style="background:rgba(${r.status==='revogada'?'255,77,109':'0,0,0'},0.05)">`;
-        html += cel(r.estado);
-        html += cel(r.municipio);
-        html += cel(r.tipo);
-        html += cel(r.numero);
-        html += cel(r.ano);
-        html += cel(r.pergunta);
-        html += `<td style="padding:4px 8px;border:1px solid var(--border);color:${cor};white-space:nowrap;font-weight:700">${sl}</td>`;
-        if (r.status === "revogada") {
-            // Lei revogada: mostrar apenas quem revogou, demais colunas vazias
-            const _colspan = 6;
-            html += `<td colspan="${_colspan}" style="padding:4px 8px;border:1px solid var(--border);color:#ff4d6d;font-style:italic">Revogada por: ${(r.revogado_por||[]).join(", ")||"—"} — não analisada</td>`;
-            html += cel("");
-        } else {
-            html += cel((r.altera||[]).join(", "));
-            html += cel((r.alterado_por||[]).join(", "));
-            html += cel((r.revoga||[]).join(", "));
-            html += cel((r.revogado_por||[]).join(", "));
-            html += cel((r.cita||[]).join(", "));
-            html += cel((r.citado_em||[]).join(", "));
-        }
-        html += `<td style="padding:4px 8px;border:1px solid var(--border)">${r.link ? `<a href="${r.link}" target="_blank" style="color:var(--accent)">🔗</a>` : "—"}</td>`;
-        html += `</tr>`;
-    });
-
-    html += `</tbody></table>`;
-    tbl.innerHTML = html;
-}
 
 carregarFila();
 // Restaurar log manual do cache ao recarregar
