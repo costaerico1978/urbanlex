@@ -1233,7 +1233,7 @@ function _renderTabelaLegs() {
     const rows = Object.values(_tabelaLegsData);
     const cols = ["Estado","Município","Tipo","N°","Ano","Pergunta","Status",
                   "Regulamenta/Altera","Regulamentado por","Revoga","Revogado por",
-                  "Cita","Citada em","Link"];
+                  "Faz referência à legislação","Referenciada em","Link"];
 
     let html = `<div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:8px;font-family:var(--font-mono)">📋 LEGISLAÇÕES IDENTIFICADAS (${rows.length})</div>`;
     html += `<table style="width:100%;border-collapse:collapse;font-size:10px;font-family:var(--font-mono)">`;
@@ -1255,12 +1255,19 @@ function _renderTabelaLegs() {
         html += cel(r.ano);
         html += cel(r.pergunta);
         html += `<td style="padding:4px 8px;border:1px solid var(--border);color:${cor};white-space:nowrap;font-weight:700">${sl}</td>`;
-        html += cel((r.altera||[]).join(", "));
-        html += cel((r.alterado_por||[]).join(", "));
-        html += cel((r.revoga||[]).join(", "));
-        html += cel((r.revogado_por||[]).join(", "));
-        html += cel((r.cita||[]).join(", "));
-        html += cel((r.citado_em||[]).join(", "));
+        if (r.status === "revogada") {
+            // Lei revogada: mostrar apenas quem revogou, demais colunas vazias
+            const _colspan = 6;
+            html += `<td colspan="${_colspan}" style="padding:4px 8px;border:1px solid var(--border);color:#ff4d6d;font-style:italic">Revogada por: ${(r.revogado_por||[]).join(", ")||"—"} — não analisada</td>`;
+            html += cel("");
+        } else {
+            html += cel((r.altera||[]).join(", "));
+            html += cel((r.alterado_por||[]).join(", "));
+            html += cel((r.revoga||[]).join(", "));
+            html += cel((r.revogado_por||[]).join(", "));
+            html += cel((r.cita||[]).join(", "));
+            html += cel((r.citado_em||[]).join(", "));
+        }
         html += `<td style="padding:4px 8px;border:1px solid var(--border)">${r.link ? `<a href="${r.link}" target="_blank" style="color:var(--accent)">🔗</a>` : "—"}</td>`;
         html += `</tr>`;
     });
@@ -1721,7 +1728,7 @@ function _renderTabelaLegs() {
     const rows = Object.values(_tabelaLegsData);
     const cols = ["Estado","Município","Tipo","N°","Ano","Pergunta","Status",
                   "Regulamenta/Altera","Regulamentado por","Revoga","Revogado por",
-                  "Cita","Citada em","Link"];
+                  "Faz referência à legislação","Referenciada em","Link"];
 
     let html = `<div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:8px;font-family:var(--font-mono)">📋 LEGISLAÇÕES IDENTIFICADAS (${rows.length})</div>`;
     html += `<table style="width:100%;border-collapse:collapse;font-size:10px;font-family:var(--font-mono)">`;
@@ -1743,12 +1750,19 @@ function _renderTabelaLegs() {
         html += cel(r.ano);
         html += cel(r.pergunta);
         html += `<td style="padding:4px 8px;border:1px solid var(--border);color:${cor};white-space:nowrap;font-weight:700">${sl}</td>`;
-        html += cel((r.altera||[]).join(", "));
-        html += cel((r.alterado_por||[]).join(", "));
-        html += cel((r.revoga||[]).join(", "));
-        html += cel((r.revogado_por||[]).join(", "));
-        html += cel((r.cita||[]).join(", "));
-        html += cel((r.citado_em||[]).join(", "));
+        if (r.status === "revogada") {
+            // Lei revogada: mostrar apenas quem revogou, demais colunas vazias
+            const _colspan = 6;
+            html += `<td colspan="${_colspan}" style="padding:4px 8px;border:1px solid var(--border);color:#ff4d6d;font-style:italic">Revogada por: ${(r.revogado_por||[]).join(", ")||"—"} — não analisada</td>`;
+            html += cel("");
+        } else {
+            html += cel((r.altera||[]).join(", "));
+            html += cel((r.alterado_por||[]).join(", "));
+            html += cel((r.revoga||[]).join(", "));
+            html += cel((r.revogado_por||[]).join(", "));
+            html += cel((r.cita||[]).join(", "));
+            html += cel((r.citado_em||[]).join(", "));
+        }
         html += `<td style="padding:4px 8px;border:1px solid var(--border)">${r.link ? `<a href="${r.link}" target="_blank" style="color:var(--accent)">🔗</a>` : "—"}</td>`;
         html += `</tr>`;
     });
