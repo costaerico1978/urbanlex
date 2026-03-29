@@ -5,6 +5,22 @@ import re
 import requests
 import json as _json
 
+def _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta="", status="analisando",
+                   altera=None, alterado_por=None, revoga=None, revogado_por=None,
+                   cita=None, citado_em=None, link=None):
+    """Emite evento estruturado para atualizar a tabela de legislacoes em tempo real."""
+    import json as _j
+    dados = {
+        "municipio": municipio, "estado": estado,
+        "tipo": tipo, "numero": numero, "ano": ano,
+        "pergunta": pergunta, "status": status,
+        "altera": altera or [], "alterado_por": alterado_por or [],
+        "revoga": revoga or [], "revogado_por": revogado_por or [],
+        "cita": cita or [], "citado_em": citado_em or [],
+        "link": link or ""
+    }
+    logs.append({"nivel": "tabela", "msg": _j.dumps(dados, ensure_ascii=False)})
+
 def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
     resultado = {"encontradas": [], "nao_encontrada": False}
     analisadas = set()
@@ -190,6 +206,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             _rev_info = f"{_revogador.get('tipo','')} {_revogador.get('numero','')}/{_revogador.get('ano','')}" if _revogador else "legislacao mais recente"
             logs.append({"nivel": "aviso", "msg": f"⚠️ REVOGADA — {tipo} {numero}/{ano} foi revogada por {_rev_info} e NAO sera analisada"})
             logs.append({"nivel": "aviso", "msg": f"   Motivo: legislacao mais recente ({_rev_info}) revoga explicitamente esta"})
+            _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=leg.get("_pergunta_label",""), status="revogada", revogado_por=[_rev_info])
             continue
         # 2. Verificar via IA com variacoes de nomenclatura
         if revogadas_lista:
@@ -198,12 +215,15 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             if _esta_rev:
                 logs.append({"nivel": "aviso", "msg": f"⚠️ REVOGADA (IA confirmou) — {tipo} {numero}/{ano} consta da lista de revogadas"})
                 logs.append({"nivel": "aviso", "msg": f"   Revogada por: {_rev_por} — NAO sera analisada"})
+                _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=leg.get("_pergunta_label",""), status="revogada", revogado_por=[_rev_por or ""])
                 revogadas.add(chave)
                 continue
         if chave in analisadas:
             continue
         analisadas.add(chave)
         logs.append({"nivel": "info", "msg": f"Buscando {tipo} n {numero}/{ano} ({descricao}) no LeisMunicipais..."})
+        _pergunta_origem = leg.get("_pergunta_label", "")
+        _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=_pergunta_origem, status="analisando")
         enc = _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, modo=leg.get("_modo_verificacao","geral"))
         if enc:
             resultado["encontradas"].append(enc)

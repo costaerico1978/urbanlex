@@ -1112,6 +1112,14 @@ async function confirmarBuscaNovoMun() {
                 const poll = await api("GET", `/api/buscador/job/${jobId}?cursor=${cursor}`);
                 if (poll.logs && poll.logs.length) {
                     poll.logs.forEach(l => {
+                        // Processar evento de tabela
+                        if (l.nivel === "tabela") {
+                            try {
+                                const dados = JSON.parse(l.msg);
+                                _atualizarTabelaLegs(dados);
+                            } catch(e) {}
+                            return; // nao adicionar ao log visual
+                        }
                         const c = l.nivel === "erro" ? "#ff6b6b" : l.nivel === "aviso" ? "#ffb347" : l.nivel === "ok" ? "var(--accent)" : "var(--muted)";
                         const d = document.createElement("div");
                         d.style.color = c;
@@ -1164,7 +1172,92 @@ async function sincronizarPlataforma() {
         if (r.success) {
             const d = r.data || {};
             alert(`Consultados: ${d.municipios_consultados || 0}\nNovos: ${d.novos_detectados || 0}\nLegislações cadastradas: ${d.legislacoes_cadastradas || 0}`);
-            carregarFila();
+            // ===== TABELA DE LEGISLACOES EM TEMPO REAL =====
+let _tabelaLegsData = {}; // chave: tipo_numero_ano -> dados
+
+function _atualizarTabelaLegs(dados) {
+    const chave = `${dados.tipo}_${dados.numero}_${dados.ano}`.toLowerCase();
+    // Mesclar com dados existentes
+    if (_tabelaLegsData[chave]) {
+        const ex = _tabelaLegsData[chave];
+        dados.altera = [...new Set([...(ex.altera||[]), ...(dados.altera||[])])];
+        dados.alterado_por = [...new Set([...(ex.alterado_por||[]), ...(dados.alterado_por||[])])];
+        dados.revoga = [...new Set([...(ex.revoga||[]), ...(dados.revoga||[])])];
+        dados.revogado_por = [...new Set([...(ex.revogado_por||[]), ...(dados.revogado_por||[])])];
+        dados.cita = [...new Set([...(ex.cita||[]), ...(dados.cita||[])])];
+        dados.citado_em = [...new Set([...(ex.citado_em||[]), ...(dados.citado_em||[])])];
+        if (dados.status === "analisando" && ex.status !== "analisando") dados.status = ex.status;
+    }
+    _tabelaLegsData[chave] = dados;
+    _renderTabelaLegs();
+}
+
+function _renderTabelaLegs() {
+    let tbl = document.getElementById("tabela-legs-auto");
+    if (!tbl) {
+        tbl = document.createElement("div");
+        tbl.id = "tabela-legs-auto";
+        tbl.style = "margin-top:16px;overflow-x:auto;";
+        const logEl = document.getElementById("log-municipio");
+        if (logEl) logEl.insertAdjacentElement("afterend", tbl);
+        else return;
+    }
+
+    const statusCor = {
+        "analisando": "#f5a623",
+        "encontrada": "#00e5a0",
+        "nao_encontrada": "#6b7d8f",
+        "revogada": "#ff4d6d",
+        "ignorada": "#6b7d8f"
+    };
+    const statusLabel = {
+        "analisando": "⏳ Analisando",
+        "encontrada": "✅ Encontrada",
+        "nao_encontrada": "❌ Não encontrada",
+        "revogada": "🚫 Revogada",
+        "ignorada": "⬜ Ignorada"
+    };
+
+    const rows = Object.values(_tabelaLegsData);
+    const cols = ["Estado","Município","Tipo","N°","Ano","Pergunta","Status",
+                  "Regulamenta/Altera","Regulamentado por","Revoga","Revogado por",
+                  "Cita","Citada em","Link"];
+
+    let html = `<div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:8px;font-family:var(--font-mono)">📋 LEGISLAÇÕES IDENTIFICADAS (${rows.length})</div>`;
+    html += `<table style="width:100%;border-collapse:collapse;font-size:10px;font-family:var(--font-mono)">`;
+    html += `<thead><tr>`;
+    cols.forEach(c => {
+        html += `<th style="padding:5px 8px;background:#111418;border:1px solid var(--border);color:var(--muted);text-align:left;white-space:nowrap">${c}</th>`;
+    });
+    html += `</tr></thead><tbody>`;
+
+    rows.forEach(r => {
+        const cor = statusCor[r.status] || "#6b7d8f";
+        const sl = statusLabel[r.status] || r.status;
+        const cel = (v) => `<td style="padding:4px 8px;border:1px solid var(--border);color:var(--text);vertical-align:top">${v||"—"}</td>`;
+        html += `<tr style="background:rgba(${r.status==='revogada'?'255,77,109':'0,0,0'},0.05)">`;
+        html += cel(r.estado);
+        html += cel(r.municipio);
+        html += cel(r.tipo);
+        html += cel(r.numero);
+        html += cel(r.ano);
+        html += cel(r.pergunta);
+        html += `<td style="padding:4px 8px;border:1px solid var(--border);color:${cor};white-space:nowrap;font-weight:700">${sl}</td>`;
+        html += cel((r.altera||[]).join(", "));
+        html += cel((r.alterado_por||[]).join(", "));
+        html += cel((r.revoga||[]).join(", "));
+        html += cel((r.revogado_por||[]).join(", "));
+        html += cel((r.cita||[]).join(", "));
+        html += cel((r.citado_em||[]).join(", "));
+        html += `<td style="padding:4px 8px;border:1px solid var(--border)">${r.link ? `<a href="${r.link}" target="_blank" style="color:var(--accent)">🔗</a>` : "—"}</td>`;
+        html += `</tr>`;
+    });
+
+    html += `</tbody></table>`;
+    tbl.innerHTML = html;
+}
+
+carregarFila();
 
 
         }
@@ -1558,6 +1651,91 @@ async function histApagarSelecionados() {
 // ── Init ──
 const BUSCA_PAGINA = '{{ active_page }}';
 carregarStatusPlataforma();
+// ===== TABELA DE LEGISLACOES EM TEMPO REAL =====
+let _tabelaLegsData = {}; // chave: tipo_numero_ano -> dados
+
+function _atualizarTabelaLegs(dados) {
+    const chave = `${dados.tipo}_${dados.numero}_${dados.ano}`.toLowerCase();
+    // Mesclar com dados existentes
+    if (_tabelaLegsData[chave]) {
+        const ex = _tabelaLegsData[chave];
+        dados.altera = [...new Set([...(ex.altera||[]), ...(dados.altera||[])])];
+        dados.alterado_por = [...new Set([...(ex.alterado_por||[]), ...(dados.alterado_por||[])])];
+        dados.revoga = [...new Set([...(ex.revoga||[]), ...(dados.revoga||[])])];
+        dados.revogado_por = [...new Set([...(ex.revogado_por||[]), ...(dados.revogado_por||[])])];
+        dados.cita = [...new Set([...(ex.cita||[]), ...(dados.cita||[])])];
+        dados.citado_em = [...new Set([...(ex.citado_em||[]), ...(dados.citado_em||[])])];
+        if (dados.status === "analisando" && ex.status !== "analisando") dados.status = ex.status;
+    }
+    _tabelaLegsData[chave] = dados;
+    _renderTabelaLegs();
+}
+
+function _renderTabelaLegs() {
+    let tbl = document.getElementById("tabela-legs-auto");
+    if (!tbl) {
+        tbl = document.createElement("div");
+        tbl.id = "tabela-legs-auto";
+        tbl.style = "margin-top:16px;overflow-x:auto;";
+        const logEl = document.getElementById("log-municipio");
+        if (logEl) logEl.insertAdjacentElement("afterend", tbl);
+        else return;
+    }
+
+    const statusCor = {
+        "analisando": "#f5a623",
+        "encontrada": "#00e5a0",
+        "nao_encontrada": "#6b7d8f",
+        "revogada": "#ff4d6d",
+        "ignorada": "#6b7d8f"
+    };
+    const statusLabel = {
+        "analisando": "⏳ Analisando",
+        "encontrada": "✅ Encontrada",
+        "nao_encontrada": "❌ Não encontrada",
+        "revogada": "🚫 Revogada",
+        "ignorada": "⬜ Ignorada"
+    };
+
+    const rows = Object.values(_tabelaLegsData);
+    const cols = ["Estado","Município","Tipo","N°","Ano","Pergunta","Status",
+                  "Regulamenta/Altera","Regulamentado por","Revoga","Revogado por",
+                  "Cita","Citada em","Link"];
+
+    let html = `<div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:8px;font-family:var(--font-mono)">📋 LEGISLAÇÕES IDENTIFICADAS (${rows.length})</div>`;
+    html += `<table style="width:100%;border-collapse:collapse;font-size:10px;font-family:var(--font-mono)">`;
+    html += `<thead><tr>`;
+    cols.forEach(c => {
+        html += `<th style="padding:5px 8px;background:#111418;border:1px solid var(--border);color:var(--muted);text-align:left;white-space:nowrap">${c}</th>`;
+    });
+    html += `</tr></thead><tbody>`;
+
+    rows.forEach(r => {
+        const cor = statusCor[r.status] || "#6b7d8f";
+        const sl = statusLabel[r.status] || r.status;
+        const cel = (v) => `<td style="padding:4px 8px;border:1px solid var(--border);color:var(--text);vertical-align:top">${v||"—"}</td>`;
+        html += `<tr style="background:rgba(${r.status==='revogada'?'255,77,109':'0,0,0'},0.05)">`;
+        html += cel(r.estado);
+        html += cel(r.municipio);
+        html += cel(r.tipo);
+        html += cel(r.numero);
+        html += cel(r.ano);
+        html += cel(r.pergunta);
+        html += `<td style="padding:4px 8px;border:1px solid var(--border);color:${cor};white-space:nowrap;font-weight:700">${sl}</td>`;
+        html += cel((r.altera||[]).join(", "));
+        html += cel((r.alterado_por||[]).join(", "));
+        html += cel((r.revoga||[]).join(", "));
+        html += cel((r.revogado_por||[]).join(", "));
+        html += cel((r.cita||[]).join(", "));
+        html += cel((r.citado_em||[]).join(", "));
+        html += `<td style="padding:4px 8px;border:1px solid var(--border)">${r.link ? `<a href="${r.link}" target="_blank" style="color:var(--accent)">🔗</a>` : "—"}</td>`;
+        html += `</tr>`;
+    });
+
+    html += `</tbody></table>`;
+    tbl.innerHTML = html;
+}
+
 carregarFila();
 // Restaurar log manual do cache ao recarregar
 (function() {
