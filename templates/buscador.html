@@ -1567,6 +1567,7 @@ try { const _s=localStorage.getItem("mun_tabela_legs"); if(_s){_tabelaLegsData=J
 setTimeout(function(){ console.log("tabela div:", document.getElementById("tabela-legs-auto")); _renderTabelaLegs(); console.log("tabela rendered"); }, 300);
 
 function _atualizarTabelaLegs(dados) {
+    if (dados.msg && typeof dados.msg === 'string') { try { dados = JSON.parse(dados.msg); } catch(e) {} }
     if (dados.leg) Object.assign(dados, dados.leg);
     const k=`${dados.tipo}_${dados.numero}_${dados.ano}`.toLowerCase();
     const ex=_tabelaLegsData[k]||{};
