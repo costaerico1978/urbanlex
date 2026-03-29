@@ -1206,15 +1206,9 @@ function _atualizarTabelaLegs(dados) {
 }
 
 function _renderTabelaLegs() {
-    let tbl = document.getElementById("tabela-legs-auto");
-    if (!tbl) {
-        tbl = document.createElement("div");
-        tbl.id = "tabela-legs-auto";
-        tbl.style = "margin-top:16px;overflow-x:auto;";
-        const logEl = document.getElementById("log-municipio");
-        if (logEl) logEl.insertAdjacentElement("afterend", tbl);
-        else { const _pa = document.getElementById("panel-auto"); if(_pa) _pa.appendChild(tbl); else return; }
-    }
+    const tbl = document.getElementById("tabela-legs-auto");
+    if (!tbl) return;
+    tbl.style.display = "block";
 
     const statusCor = {
         "analisando": "#f5a623",
