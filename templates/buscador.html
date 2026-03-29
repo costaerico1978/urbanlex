@@ -1059,8 +1059,8 @@ async function confirmarBuscaNovoMun() {
     localStorage.removeItem('mun_tabela_legs');
     _tabelaLegsData = {};
     const _tblEl = document.getElementById('tabela-legs-auto'); if(_tblEl) _tblEl.remove();
-    _renderTabelaLegs(); // mostrar tabela vazia imediatamente
     logEl.innerHTML = '<div style="color:var(--accent);margin-bottom:8px;">🔍 Buscando legislações urbanísticas de ' + mun + "/" + est + '...</div>';
+    _renderTabelaLegs(); // mostrar tabela vazia imediatamente apos log
     const _btnParar = document.getElementById('btn-parar-auto');
     if (_btnParar) _btnParar.style.display = 'inline-block';
     // Botão baixar log
