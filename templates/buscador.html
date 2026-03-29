@@ -1183,7 +1183,7 @@ try {
     const _tblSalva = localStorage.getItem("mun_tabela_legs");
     if (_tblSalva) {
         _tabelaLegsData = JSON.parse(_tblSalva);
-        if (Object.keys(_tabelaLegsData).length > 0) _renderTabelaLegs();
+        if (Object.keys(_tabelaLegsData).length > 0) setTimeout(_renderTabelaLegs, 500);
     }
 } catch(e) {}
 
@@ -1679,7 +1679,7 @@ try {
     const _tblSalva = localStorage.getItem("mun_tabela_legs");
     if (_tblSalva) {
         _tabelaLegsData = JSON.parse(_tblSalva);
-        if (Object.keys(_tabelaLegsData).length > 0) _renderTabelaLegs();
+        if (Object.keys(_tabelaLegsData).length > 0) setTimeout(_renderTabelaLegs, 500);
     }
 } catch(e) {}
 
