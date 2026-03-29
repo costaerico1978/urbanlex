@@ -144,6 +144,38 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
 
     # Conjunto de legislacoes revogadas identificadas durante a busca
     revogadas = set()
+    revogadas_lista = []  # lista enriquecida para verificacao por IA
+
+    def _verificar_se_revogada_ia(tipo, numero, ano, rev_lista, logs, chamar_llm):
+        if not rev_lista:
+            return False, None
+        lista_str = "; ".join(
+            f"{r['tipo']} {r['numero']}/{r['ano']} (revogada por {r['revogada_por']})"
+            for r in rev_lista
+        )
+        prompt = (
+            "Verifique se a legislacao abaixo consta da lista de legislacoes revogadas.\n\n"
+            f"LEGISLACAO A VERIFICAR: {tipo} {numero}/{ano}\n\n"
+            f"LISTA DE REVOGADAS:\n{lista_str}\n\n"
+            "Considere TODAS as formas de nomear a mesma lei:\n"
+            "  Dec., Decreto, Decreto N, Decreto no; LC, L.C., Lei Comp., Lei Complementar;\n"
+            "  LO, Lei, Lei Ordinaria; numeros com/sem zeros; com/sem ano\n\n"
+            "Responda APENAS com JSON (sem markdown):\n"
+            '{"esta_revogada": true, "revogada_por": "nome da lei"}'
+            "\nou\n"
+            '{"esta_revogada": false, "revogada_por": null}'
+        )
+        resp = chamar_llm(prompt, logs, f"Verif revogada {tipo} {numero}")
+        if resp:
+            try:
+                import re as _re_rv
+                resp_c = _re_rv.sub(r"^```json\s*|\s*```$", "", (resp or "").strip())
+                dados = _json.loads(resp_c)
+                if dados.get("esta_revogada"):
+                    return True, dados.get("revogada_por", "legislacao mais recente")
+            except Exception:
+                pass
+        return False, None
 
     # ETAPA 2: Buscar no LeisMunicipais
     for leg in legs:
@@ -152,14 +184,22 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         ano = leg.get("ano", "")
         descricao = leg.get("descricao", "")
         chave = f"{tipo}_{numero}_{ano}".lower()
-        # Verificar se foi revogada por legislacao ja analisada
+        # 1. Verificar por chave exata
         if chave in revogadas:
-            # Encontrar qual lei revogou esta
             _revogador = next((l for l in legs if f"{l.get('tipo','').lower()}_{l.get('numero','').strip()}_{l.get('ano','')}" in analisadas and f"{l.get('tipo','').lower()}_{l.get('numero','').strip()}_{l.get('ano','')}" != chave), None)
             _rev_info = f"{_revogador.get('tipo','')} {_revogador.get('numero','')}/{_revogador.get('ano','')}" if _revogador else "legislacao mais recente"
             logs.append({"nivel": "aviso", "msg": f"⚠️ REVOGADA — {tipo} {numero}/{ano} foi revogada por {_rev_info} e NAO sera analisada"})
             logs.append({"nivel": "aviso", "msg": f"   Motivo: legislacao mais recente ({_rev_info}) revoga explicitamente esta"})
             continue
+        # 2. Verificar via IA com variacoes de nomenclatura
+        if revogadas_lista:
+            logs.append({"nivel": "info", "msg": f"Verificando se {tipo} {numero}/{ano} consta da lista de revogadas ({len(revogadas_lista)} legislacoes)..."})
+            _esta_rev, _rev_por = _verificar_se_revogada_ia(tipo, numero, ano, revogadas_lista, logs, chamar_llm)
+            if _esta_rev:
+                logs.append({"nivel": "aviso", "msg": f"⚠️ REVOGADA (IA confirmou) — {tipo} {numero}/{ano} consta da lista de revogadas"})
+                logs.append({"nivel": "aviso", "msg": f"   Revogada por: {_rev_por} — NAO sera analisada"})
+                revogadas.add(chave)
+                continue
         if chave in analisadas:
             continue
         analisadas.add(chave)
@@ -225,6 +265,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                             for rev_str in revogadas_ia:
                                 if num_outra and num_outra in rev_str:
                                     revogadas.add(chave_outra)
+                                    revogadas_lista.append({"tipo": outra.get("tipo",""), "numero": num_outra, "ano": outra.get("ano",""), "revogada_por": f"{tipo} {numero}/{ano}"})
                                     logs.append({"nivel": "aviso", "msg": f"  ⚠️ REVOGACAO TOTAL: {tipo} {numero}/{ano} revoga integralmente {outra.get('tipo')} {num_outra}/{outra.get('ano','')}"})
                                     logs.append({"nivel": "aviso", "msg": f"     {outra.get('tipo')} {num_outra}/{outra.get('ano','')} NAO sera analisada — perdeu vigencia"})
                                     break
@@ -480,30 +521,12 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
                 # Incluir texto dos anexos na verificacao
                 _anexos_lm = fs_result.get("anexos_lm") or []
                 for _anx in _anexos_lm:
-                    if not isinstance(_anx, dict):
-                        continue
-                    _anx_nome = _anx.get("nome", "Anexo")
-                    _anx_url = _anx.get("url", "")
-                    # Tentar extrair texto do PDF do anexo
-                    _anx_texto = ""
-                    if _anx_url:
-                        try:
-                            import os as _os_anx
-                            _anx_file = _anx_url.replace("/static/downloads/", "/var/www/urbanlex/static/downloads/")
-                            if _os_anx.path.exists(_anx_file):
-                                import subprocess as _sp_anx
-                                _r_anx = _sp_anx.run(["pdftotext", "-layout", _anx_file, "-"], capture_output=True, timeout=30)
-                                if _r_anx.returncode == 0:
-                                    _anx_texto = _r_anx.stdout.decode("utf-8", errors="ignore")
-                                    logs.append({"nivel": "info", "msg": f"  Anexo '{_anx_nome}' extraido ({len(_anx_texto)} chars)"})
-                        except Exception as _e_anx_txt:
-                            logs.append({"nivel": "aviso", "msg": f"  Erro extrai texto anexo: {str(_e_anx_txt)[:60]}"})
+                    _anx_path = _anx.get("path", "") or _anx.get("pdf_path", "") if isinstance(_anx, dict) else ""
+                    _anx_texto = _anx.get("texto", "") if isinstance(_anx, dict) else ""
                     if _anx_texto:
-                        texto_lei += f"\n\n=== ANEXO: {_anx_nome} ===\n{_anx_texto}"
-                    else:
-                        texto_lei += f"\n\n=== ANEXO: {_anx_nome} (sem texto extraido) ==="
+                        texto_lei += f"\n\nANEXO: {_anx_texto}"
                 if _anexos_lm:
-                    logs.append({"nivel": "info", "msg": f"  {len(_anexos_lm)} anexo(s) incluidos na analise"})
+                    logs.append({"nivel": "info", "msg": f"  Incluindo {len(_anexos_lm)} anexo(s) na verificacao"})
                 define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo=modo)
                 if not define:
                     # REGRA 2: Verificar se altera/complementa/regulamenta outra lei antes de descartar
