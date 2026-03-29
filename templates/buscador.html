@@ -189,6 +189,7 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
             📥 Baixar Log .txt
         </button>
     </div>
+    <div id="tabela-legs-auto" style="margin-top:16px;overflow-x:auto"></div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
@@ -1558,6 +1559,57 @@ async function histApagarSelecionados() {
 // ── Init ──
 const BUSCA_PAGINA = '{{ active_page }}';
 carregarStatusPlataforma();
+
+// ===== TABELA DE LEGISLACOES =====
+let _tabelaLegsData = {};
+try { const _s=localStorage.getItem("mun_tabela_legs"); if(_s){_tabelaLegsData=JSON.parse(_s); setTimeout(_renderTabelaLegs,300);} } catch(e) {}
+
+function _atualizarTabelaLegs(dados) {
+    const k=`${dados.tipo}_${dados.numero}_${dados.ano}`.toLowerCase();
+    const ex=_tabelaLegsData[k]||{};
+    dados.altera=[...new Set([...(ex.altera||[]),...(dados.altera||[])])];
+    dados.alterado_por=[...new Set([...(ex.alterado_por||[]),...(dados.alterado_por||[])])];
+    dados.revoga=[...new Set([...(ex.revoga||[]),...(dados.revoga||[])])];
+    dados.revogado_por=[...new Set([...(ex.revogado_por||[]),...(dados.revogado_por||[])])];
+    dados.cita=[...new Set([...(ex.cita||[]),...(dados.cita||[])])];
+    dados.citado_em=[...new Set([...(ex.citado_em||[]),...(dados.citado_em||[])])];
+    _tabelaLegsData[k]=dados;
+    try{localStorage.setItem("mun_tabela_legs",JSON.stringify(_tabelaLegsData));}catch(e){}
+    _renderTabelaLegs();
+}
+
+function _renderTabelaLegs() {
+    const tbl=document.getElementById("tabela-legs-auto");
+    if(!tbl) return;
+    const rows=Object.values(_tabelaLegsData);
+    const sc={"analisando":"#f5a623","encontrada":"#00e5a0","nao_encontrada":"#6b7d8f","revogada":"#ff4d6d"};
+    const sl={"analisando":"⏳ Analisando","encontrada":"✅ Encontrada","nao_encontrada":"❌ Não encontrada","revogada":"🚫 Revogada"};
+    if(rows.length===0){
+        tbl.innerHTML='<div style="font-size:11px;color:var(--muted);font-family:monospace;padding:10px;background:#0d1117;border:1px solid var(--border);border-radius:6px">📋 Aguardando identificação das legislações...</div>';
+        return;
+    }
+    const cols=["Estado","Município","Tipo","N°","Ano","Pergunta","Status","Regulamenta/Altera","Regulamentado por","Revoga","Revogado por","Faz referência à legislação","Referenciada em","Link"];
+    let h=`<div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:6px;font-family:monospace">📋 LEGISLAÇÕES IDENTIFICADAS (${rows.length})</div>`;
+    h+=`<table style="width:100%;border-collapse:collapse;font-size:10px;font-family:monospace">`;
+    h+=`<thead><tr>${cols.map(c=>`<th style="padding:4px 6px;background:#111418;border:1px solid var(--border);color:var(--muted);text-align:left;white-space:nowrap">${c}</th>`).join("")}</tr></thead><tbody>`;
+    const cel=v=>`<td style="padding:3px 6px;border:1px solid var(--border);color:var(--text);vertical-align:top">${v||"—"}</td>`;
+    rows.forEach(r=>{
+        const cor=sc[r.status]||"#6b7d8f";
+        h+=`<tr>`;
+        h+=cel(r.estado)+cel(r.municipio)+cel(r.tipo)+cel(r.numero)+cel(r.ano)+cel(r.pergunta);
+        h+=`<td style="padding:3px 6px;border:1px solid var(--border);color:${cor};font-weight:700;white-space:nowrap">${sl[r.status]||r.status}</td>`;
+        if(r.status==="revogada"){
+            h+=`<td colspan="6" style="padding:3px 6px;border:1px solid var(--border);color:#ff4d6d;font-style:italic">Revogada por: ${(r.revogado_por||[]).join(", ")||"—"}</td>`;
+        } else {
+            h+=cel((r.altera||[]).join(", "))+cel((r.alterado_por||[]).join(", "))+cel((r.revoga||[]).join(", "))+cel((r.revogado_por||[]).join(", "))+cel((r.cita||[]).join(", "))+cel((r.citado_em||[]).join(", "));
+        }
+        h+=`<td style="padding:3px 6px;border:1px solid var(--border)">${r.link?`<a href="${r.link}" target="_blank" style="color:var(--accent)">🔗</a>`:"—"}</td>`;
+        h+=`</tr>`;
+    });
+    h+=`</tbody></table>`;
+    tbl.innerHTML=h;
+}
+
 carregarFila();
 // Restaurar log manual do cache ao recarregar
 (function() {
