@@ -307,6 +307,19 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                                     break
                     except Exception as _e_rev:
                         logs.append({"nivel": "aviso", "msg": f"  Erro verificacao revogacao: {str(_e_rev)[:60]}"})
+        # Extrair altera/revoga da ementa do link (rapido, sem LLM extra)
+        if not _altera_enc and not _revoga_enc:
+            try:
+                _desc = (enc.get('descricao','') or enc.get('link','')).lower()
+                import re as _re_desc
+                # Detectar "altera" no titulo/descricao
+                _alts = _re_desc.findall(r'altera.*?lei[^,;\.]*(?:n[o°]?\s*[\d\.]+[/\d]*)', _desc)
+                _altera_enc = [a.strip() for a in _alts[:5]]
+                # Detectar "revoga" no titulo/descricao
+                _revs = _re_desc.findall(r'revoga.*?lei[^,;\.]*(?:n[o°]?\s*[\d\.]+[/\d]*)', _desc)
+                _revoga_enc = [r.strip() for r in _revs[:5]]
+            except Exception:
+                pass
         # Emitir evento final com todos os relacionamentos (sempre, independente da analise)
         _tabela_evento(logs, municipio, estado,
             enc.get('tipo', tipo), enc.get('numero', numero), enc.get('ano', ano),
