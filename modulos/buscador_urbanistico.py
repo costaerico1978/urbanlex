@@ -241,21 +241,6 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             resultado["encontradas"].append(enc)
             _altera_enc = []
             _revoga_enc = []
-            # Buscar leis referenciadas na legislacao encontrada
-            _leis_ref_enc = enc.get("_leis_referenciadas", [])
-            for lr in _leis_ref_enc:
-                lr_tipo = lr.get("tipo", "").strip()
-                lr_num = lr.get("numero", "").strip()
-                lr_ano = lr.get("ano", "").strip()
-                if not lr_num:
-                    continue
-                lr_chave = f"{lr_tipo.lower()}_{lr_num}_{lr_ano}"
-                if lr_chave in analisadas or lr_chave in revogadas:
-                    continue
-                logs.append({"nivel": "info", "msg": f"  Buscando lei referenciada: {lr_tipo} {lr_num}/{lr_ano} ({lr.get('motivo','')[:60]})"})
-                enc_ref = _buscar_leismunicipais(municipio, estado, lr_tipo, lr_num, lr_ano, logs, chamar_llm, analisadas)
-                if enc_ref:
-                    resultado["encontradas"].append(enc_ref)
             # Verificar via IA se esta legislacao revoga outras da lista
             html_enc = enc.get("html", "") or ""
             if html_enc:
@@ -310,14 +295,14 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         # Extrair altera/revoga da ementa do link (rapido, sem LLM extra)
         if not _altera_enc and not _revoga_enc:
             try:
-                _desc = (enc.get('descricao','') or enc.get('link','')).lower()
+                _desc = (enc.get('descricao','') or enc.get('link','')).lower().replace('-', ' ')
                 import re as _re_desc
-                # Detectar "altera" no titulo/descricao
-                _alts = _re_desc.findall(r'altera.*?lei[^,;\.]*(?:n[o°]?\s*[\d\.]+[/\d]*)', _desc)
-                _altera_enc = [a.strip() for a in _alts[:5]]
-                # Detectar "revoga" no titulo/descricao
-                _revs = _re_desc.findall(r'revoga.*?lei[^,;\.]*(?:n[o°]?\s*[\d\.]+[/\d]*)', _desc)
-                _revoga_enc = [r.strip() for r in _revs[:5]]
+                # Detectar "altera" + numero no titulo/descricao/link
+                _alts = _re_desc.findall(r'altera[^,;]{0,80}lei[^,;]{0,30}n[o ]?\s*([\d]+)', _desc)
+                _altera_enc = [f"Lei n {n}" for n in _alts[:5]]
+                # Detectar "revoga" + numero no titulo/descricao/link
+                _revs = _re_desc.findall(r'revoga[^,;]{0,80}lei[^,;]{0,30}n[o ]?\s*([\d]+)', _desc)
+                _revoga_enc = [f"Lei n {n}" for n in _revs[:5]]
             except Exception:
                 pass
         # Emitir evento final com todos os relacionamentos (sempre, independente da analise)
