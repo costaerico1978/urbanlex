@@ -227,6 +227,10 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         enc = _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, modo=leg.get("_modo_verificacao","geral"))
         if enc:
             resultado["encontradas"].append(enc)
+            _tabela_evento(logs, municipio, estado,
+                enc.get('tipo', tipo), enc.get('numero', numero), enc.get('ano', ano),
+                pergunta=_pergunta_origem, status="encontrada",
+                link=enc.get('link',''))
             # Buscar leis referenciadas na legislacao encontrada
             _leis_ref_enc = enc.get("_leis_referenciadas", [])
             for lr in _leis_ref_enc:
