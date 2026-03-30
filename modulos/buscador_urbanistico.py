@@ -239,10 +239,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         enc = _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, modo=leg.get("_modo_verificacao","geral"))
         if enc:
             resultado["encontradas"].append(enc)
-            _tabela_evento(logs, municipio, estado,
-                enc.get('tipo', tipo), enc.get('numero', numero), enc.get('ano', ano),
-                pergunta=_pergunta_origem, status="encontrada",
-                link=enc.get('link',''))
+            _altera_enc = []
+            _revoga_enc = []
             # Buscar leis referenciadas na legislacao encontrada
             _leis_ref_enc = enc.get("_leis_referenciadas", [])
             for lr in _leis_ref_enc:
@@ -295,6 +293,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                         for alt in alteradas_ia:
                             logs.append({"nivel": "ok", "msg": f"  ℹ️ ALTERACAO PARCIAL: {tipo} {numero}/{ano} altera {alt.get('lei','')}: {alt.get('descricao','')[:120]}"})
                             logs.append({"nivel": "ok", "msg": "     Ambas continuam vigentes e serao analisadas"})
+                            _altera_enc.append(alt.get('lei',''))
                         for outra in outras_legs:
                             num_outra = outra.get("numero", "").strip()
                             chave_outra = f"{outra.get('tipo','').lower()}_{num_outra}_{outra.get('ano','')}".lower()
@@ -302,11 +301,18 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                                 if num_outra and num_outra in rev_str:
                                     revogadas.add(chave_outra)
                                     revogadas_lista.append({"tipo": outra.get("tipo",""), "numero": num_outra, "ano": outra.get("ano",""), "revogada_por": f"{tipo} {numero}/{ano}"})
+                                    _revoga_enc.append(f"{outra.get('tipo','')} {num_outra}/{outra.get('ano','')}")
                                     logs.append({"nivel": "aviso", "msg": f"  ⚠️ REVOGACAO TOTAL: {tipo} {numero}/{ano} revoga integralmente {outra.get('tipo')} {num_outra}/{outra.get('ano','')}"})
                                     logs.append({"nivel": "aviso", "msg": f"     {outra.get('tipo')} {num_outra}/{outra.get('ano','')} NAO sera analisada — perdeu vigencia"})
                                     break
                     except Exception as _e_rev:
                         logs.append({"nivel": "aviso", "msg": f"  Erro verificacao revogacao: {str(_e_rev)[:60]}"})
+            # Emitir evento final com relacionamentos preenchidos
+            _tabela_evento(logs, municipio, estado,
+                enc.get('tipo', tipo), enc.get('numero', numero), enc.get('ano', ano),
+                pergunta=_pergunta_origem, status="encontrada",
+                altera=_altera_enc, revoga=_revoga_enc,
+                link=enc.get('link',''))
 
     # ETAPA 3: Fallback Google
     if not resultado["encontradas"]:
