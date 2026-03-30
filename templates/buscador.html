@@ -1035,6 +1035,13 @@ function pararBuscaAuto() {
     dispararBuscaNovoMunicipio();
 }
 function dispararBuscaNovoMunicipio() {
+    // Cancelar busca em andamento antes de abrir modal
+    const _jobAtivo = localStorage.getItem('mun_job_id');
+    if (_jobAtivo) {
+        window._buscadorCancelado = true;
+        fetch('/api/buscador/cancelar', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({job_id: _jobAtivo})}).catch(()=>{});
+        localStorage.removeItem('mun_job_id');
+    }
     document.getElementById('modal-novo-mun').style.display = 'flex';
 }
 function fecharModalNovoMun() {
@@ -1729,6 +1736,7 @@ carregarFila();
                 if (poll.logs && poll.logs.length) {
                     logRemoveSpinner();
                     poll.logs.forEach(l => {
+                        if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
                         const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : 'var(--muted)';
                         const d = document.createElement('div');
                         d.style.color = c;
