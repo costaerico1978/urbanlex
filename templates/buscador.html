@@ -1016,6 +1016,10 @@ function pararBuscaAuto() {
         localStorage.removeItem('mun_job_id');
         localStorage.removeItem('mun_campos');
         localStorage.removeItem('mun_log_cache');
+    localStorage.removeItem('mun_tabela_legs');
+    window._tabelaLegsData = {};
+    const _tblReset = document.getElementById('tabela-legs-auto');
+    if (_tblReset) _tblReset.textContent = 'Aguardando identificacao das legislacoes...';
     }
     const _bpa = document.getElementById('btn-parar-auto');
     if (_bpa) _bpa.style.display = 'none';
