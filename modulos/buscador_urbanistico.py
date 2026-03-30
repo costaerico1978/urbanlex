@@ -134,6 +134,17 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             legs_municipais.append(_l)
     legs = legs_municipais
 
+    # Filtrar apenas tipos aceitos
+    _TIPOS_ACEITOS = {"lei", "lei complementar", "decreto", "resolucao", "resolução"}
+    legs_tipo_ok = []
+    for _l in legs:
+        _t = _l.get("tipo", "").strip().lower()
+        if any(_t == _ta or _t.startswith(_ta) for _ta in _TIPOS_ACEITOS):
+            legs_tipo_ok.append(_l)
+        else:
+            logs.append({"nivel": "aviso", "msg": f"  Ignorando tipo nao aceito: {_l.get('tipo','')} {_l.get('numero','')}/{_l.get('ano','')} - fora do escopo"})
+    legs = legs_tipo_ok
+
     legs_com_numero = [l for l in legs if l.get("numero", "").strip()]
 
     if not legs_com_numero:
