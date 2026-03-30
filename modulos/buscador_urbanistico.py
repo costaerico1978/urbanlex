@@ -307,6 +307,26 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                                     break
                     except Exception as _e_rev:
                         logs.append({"nivel": "aviso", "msg": f"  Erro verificacao revogacao: {str(_e_rev)[:60]}"})
+        # Extrair altera/revoga do texto mesmo sem outras_legs
+        if texto_enc and not _altera_enc and not _revoga_enc:
+            try:
+                prompt_rel = (
+                    f"Analise o texto da {tipo} {numero}/{ano} de {municipio}/{estado}.\n"
+                    f"Identifique APENAS leis que esta legislacao ALTERA ou REVOGA.\n"
+                    f"Responda APENAS com JSON:\n"
+                    f'{{\n  "altera": ["tipo numero/ano"],\n  "revoga": ["tipo numero/ano"]\n}}\n'
+                    f"Se nao altera nem revoga nada, use listas vazias.\n\n"
+                    f"TEXTO:\n{texto_enc[:8000]}"
+                )
+                resp_rel = chamar_llm(prompt_rel, logs, f"Relacoes {tipo} {numero}")
+                if resp_rel:
+                    import re as _re_rel
+                    resp_rel_c = _re_rel.sub(r"^```json\s*|\s*```$", "", (resp_rel or "").strip())
+                    dados_rel = _json.loads(resp_rel_c)
+                    _altera_enc = dados_rel.get("altera", [])
+                    _revoga_enc = dados_rel.get("revoga", [])
+            except Exception as _e_rel:
+                pass
         # Emitir evento final com todos os relacionamentos (sempre, independente da analise)
         _tabela_evento(logs, municipio, estado,
             enc.get('tipo', tipo), enc.get('numero', numero), enc.get('ano', ano),
