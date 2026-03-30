@@ -307,12 +307,12 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                                     break
                     except Exception as _e_rev:
                         logs.append({"nivel": "aviso", "msg": f"  Erro verificacao revogacao: {str(_e_rev)[:60]}"})
-            # Emitir evento final com relacionamentos preenchidos
-            _tabela_evento(logs, municipio, estado,
-                enc.get('tipo', tipo), enc.get('numero', numero), enc.get('ano', ano),
-                pergunta=_pergunta_origem, status="encontrada",
-                altera=_altera_enc, revoga=_revoga_enc,
-                link=enc.get('link',''))
+        # Emitir evento final com todos os relacionamentos (sempre, independente da analise)
+        _tabela_evento(logs, municipio, estado,
+            enc.get('tipo', tipo), enc.get('numero', numero), enc.get('ano', ano),
+            pergunta=_pergunta_origem, status="encontrada",
+            altera=_altera_enc, revoga=_revoga_enc,
+            link=enc.get('link',''))
 
     # ETAPA 3: Fallback Google
     if not resultado["encontradas"]:
