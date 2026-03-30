@@ -1114,6 +1114,7 @@ async function confirmarBuscaNovoMun() {
                 const poll = await api("GET", `/api/buscador/job/${jobId}?cursor=${cursor}`);
                 if (poll.logs && poll.logs.length) {
                     poll.logs.forEach(l => {
+                        if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
                         const c = l.nivel === "erro" ? "#ff6b6b" : l.nivel === "aviso" ? "#ffb347" : l.nivel === "ok" ? "var(--accent)" : "var(--muted)";
                         const d = document.createElement("div");
                         d.style.color = c;
