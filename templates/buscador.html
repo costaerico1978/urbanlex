@@ -1050,6 +1050,14 @@ function dispararBuscaNovoMunicipio() {
     window._tabelaLegsData = {};
     const _tblEl = document.getElementById('tabela-legs-auto');
     if (_tblEl) _tblEl.textContent = 'Aguardando identificacao das legislacoes...';
+    // Zerar log e tabela
+    const _logEl = document.getElementById('log-municipio');
+    if (_logEl) _logEl.innerHTML = '';
+    localStorage.removeItem('mun_log_cache');
+    localStorage.removeItem('mun_tabela_legs');
+    window._tabelaLegsData = {};
+    const _tblEl = document.getElementById('tabela-legs-auto');
+    if (_tblEl) _tblEl.innerHTML = '<p style="color:var(--muted);padding:8px">Aguardando identificacao das legislacoes...</p>';
     document.getElementById('modal-novo-mun').style.display = 'flex';
 }
 function fecharModalNovoMun() {
