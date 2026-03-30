@@ -58,7 +58,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             logs.append({"nivel": "ok", "msg": f"Gemini respondeu ({len(resp_texto)} chars)"})
             prompt_e = (
                 f"Com base na resposta abaixo, extraia as legislacoes mencionadas de {municipio}/{estado}.\n"
-                f"Use APENAS informacoes presentes — nao invente numeros.\n\n"
+                f"Use APENAS informacoes presentes — nao invente numeros.\n"
+                f"Considere APENAS atos do tipo: Lei, Lei Complementar, Decreto, Decreto-Lei, Resolucao. Ignore Portaria, Instrucao Normativa, Edital, Aviso ou qualquer outro tipo.\n\n"
                 f"RESPOSTA:\n{resp_texto}\n\n"
                 "Responda APENAS com JSON: {\"legislacoes\": [{\"tipo\": \"Lei Complementar\", \"numero\": \"148\", \"ano\": \"2023\", \"descricao\": \"Plano Diretor\"}]}"
             )
@@ -135,7 +136,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
     legs = legs_municipais
 
     # Filtrar apenas tipos aceitos
-    _TIPOS_ACEITOS = {"lei", "lei complementar", "decreto", "resolucao", "resolução"}
+    _TIPOS_ACEITOS = {"lei", "lei complementar", "decreto", "decreto-lei", "resolucao", "resolução"}
     legs_tipo_ok = []
     for _l in legs:
         _t = _l.get("tipo", "").strip().lower()
