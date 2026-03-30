@@ -1035,13 +1035,21 @@ function pararBuscaAuto() {
     dispararBuscaNovoMunicipio();
 }
 function dispararBuscaNovoMunicipio() {
-    // Cancelar busca em andamento antes de abrir modal
     const _jobAtivo = localStorage.getItem('mun_job_id');
     if (_jobAtivo) {
+        if (!confirm('Há uma busca em andamento. Deseja interrompê-la e iniciar uma nova busca?')) return;
         window._buscadorCancelado = true;
         fetch('/api/buscador/cancelar', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({job_id: _jobAtivo})}).catch(()=>{});
         localStorage.removeItem('mun_job_id');
     }
+        // Zerar log
+    const _logEl = document.getElementById('log-municipio');
+    if (_logEl) _logEl.innerHTML = '';
+    // Zerar tabela
+    localStorage.removeItem('mun_tabela_legs');
+    window._tabelaLegsData = {};
+    const _tblEl = document.getElementById('tabela-legs-auto');
+    if (_tblEl) _tblEl.textContent = 'Aguardando identificacao das legislacoes...';
     document.getElementById('modal-novo-mun').style.display = 'flex';
 }
 function fecharModalNovoMun() {
