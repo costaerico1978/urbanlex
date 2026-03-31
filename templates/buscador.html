@@ -713,7 +713,7 @@ async function executarBuscaManual() {
                     logRemoveSpinner();
                     poll.logs.forEach(l => {
                         if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
-                        const c = l.nivel === 'erro' ? 'var(--red)' : l.nivel === 'aviso' ? 'var(--amber)' : l.nivel === 'ok' ? 'var(--accent)' : 'var(--muted)';
+                        const c = l.nivel === 'erro' ? 'var(--red)' : l.nivel === 'aviso' ? 'var(--amber)' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : 'var(--muted)';
                         const icon = l.nivel === 'erro' ? '❌' : l.nivel === 'aviso' ? '⚠️' : l.nivel === 'ok' ? '✅' : '🔹';
                         logLine(icon, l.msg, c);
                         logCount++;
@@ -783,7 +783,7 @@ async function executarBuscaManual() {
 
             if (r.logs && r.logs.length) {
                 r.logs.forEach(l => {
-                    const c = l.nivel === 'erro' ? 'var(--red)' : l.nivel === 'aviso' ? 'var(--amber)' : l.nivel === 'ok' ? 'var(--accent)' : 'var(--muted)';
+                    const c = l.nivel === 'erro' ? 'var(--red)' : l.nivel === 'aviso' ? 'var(--amber)' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : 'var(--muted)';
                     const icon = l.nivel === 'erro' ? '❌' : l.nivel === 'aviso' ? '⚠️' : l.nivel === 'ok' ? '✅' : '🔹';
                     logLine(icon, l.msg, c);
                 });
@@ -1695,7 +1695,7 @@ carregarFila();
         // Restaurar cache do localStorage
         const _cachedLogs = JSON.parse(localStorage.getItem('mun_log_cache') || '[]');
         _cachedLogs.forEach(l => {
-            const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : 'var(--muted)';
+            const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : 'var(--muted)';
             const d = document.createElement('div');
             d.style.color = c;
             d.textContent = l.msg;
@@ -1721,7 +1721,7 @@ carregarFila();
         const _srvLogs = check.logs || [];
         if (_srvLogs.length > _cachedLogs.length) {
             _srvLogs.slice(_cachedLogs.length).forEach(l => {
-                const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : 'var(--muted)';
+                const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : 'var(--muted)';
                 const d = document.createElement('div');
                 d.style.color = c;
                 d.textContent = l.msg;
@@ -1749,7 +1749,7 @@ carregarFila();
                     logRemoveSpinner();
                     poll.logs.forEach(l => {
                         if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
-                        const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : 'var(--muted)';
+                        const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : 'var(--muted)';
                         const d = document.createElement('div');
                         d.style.color = c;
                         d.textContent = l.msg;
@@ -1813,7 +1813,7 @@ carregarFila();
         // Mostrar logs existentes do servidor
         const _srvLogs = check.logs || [];
         _srvLogs.forEach(l => {
-            const c = l.nivel === 'erro' ? 'var(--red)' : l.nivel === 'aviso' ? 'var(--amber)' : l.nivel === 'ok' ? 'var(--accent)' : 'var(--muted)';
+            const c = l.nivel === 'erro' ? 'var(--red)' : l.nivel === 'aviso' ? 'var(--amber)' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : 'var(--muted)';
             const icon = l.nivel === 'erro' ? '❌ ' : l.nivel === 'aviso' ? '⚠️' : l.nivel === 'ok' ? '✅ ' : '🔹';
             logLine(icon, l.msg, c);
         });
@@ -1838,7 +1838,7 @@ carregarFila();
                 if (poll.logs && poll.logs.length) {
                     logRemoveSpinner();
                     poll.logs.forEach(l => {
-                        const c = l.nivel === 'erro' ? 'var(--red)' : l.nivel === 'aviso' ? 'var(--amber)' : l.nivel === 'ok' ? 'var(--accent)' : 'var(--muted)';
+                        const c = l.nivel === 'erro' ? 'var(--red)' : l.nivel === 'aviso' ? 'var(--amber)' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : 'var(--muted)';
                         const icon = l.nivel === 'erro' ? '❌ ' : l.nivel === 'aviso' ? '⚠️' : l.nivel === 'ok' ? '✅ ' : '🔹';
                         logLine(icon, l.msg, c);
                     });
