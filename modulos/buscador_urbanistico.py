@@ -248,6 +248,24 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                 texto_enc = _bsr(html_enc, "html.parser").get_text()
             else:
                 texto_enc = ""
+            # Incluir texto dos anexos no texto_enc (HTML ou PDF)
+            _anexos_enc = enc.get("anexos_lm") or []
+            for _anx_e in _anexos_enc:
+                _anx_txt = _anx_e.get("texto", "") if isinstance(_anx_e, dict) else ""
+                if not _anx_txt:
+                    _anx_path_e = _anx_e.get("path", "") or _anx_e.get("pdf_path", "") if isinstance(_anx_e, dict) else ""
+                    if _anx_path_e and __import__('os').path.exists(_anx_path_e):
+                        try:
+                            import subprocess as _sp_anx
+                            _res_anx = _sp_anx.run(['pdftotext', _anx_path_e, '-'], capture_output=True, text=True, timeout=30)
+                            if _res_anx.returncode == 0:
+                                _anx_txt = _res_anx.stdout
+                        except Exception:
+                            pass
+                if _anx_txt:
+                    texto_enc += f"\n\nANEXO:\n{_anx_txt}"
+            if _anexos_enc:
+                logs.append({"nivel": "info", "msg": f"  Incluindo {len(_anexos_enc)} anexo(s) na analise de relacoes"})
             # Fallback: usar texto do PDF se HTML vazio
             if not texto_enc.strip():
                 _pdf_path = enc.get("pdf_path", "") or ""
