@@ -293,6 +293,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                     except Exception as _e_rev:
                         logs.append({"nivel": "aviso", "msg": f"  Erro verificacao revogacao: {str(_e_rev)[:60]}"})
         # Perguntar ao Gemini sobre todas as relacoes da legislacao
+        logs.append({"nivel": "info", "msg": f"  [RELACOES] texto_enc={len(texto_enc)} chars, iniciando analise de relacoes..."})
         if texto_enc:
             try:
                 prompt_rel = (
@@ -326,8 +327,9 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                     _alterado_por_enc = dados_rel.get("alterado_por", [])
                     _revogado_por_enc = dados_rel.get("revogado_por", [])
                     _regulamentado_por_enc = dados_rel.get("regulamentado_por", [])
-                    logs.append({"nivel": "ok", "msg": f"  Relacoes: altera={len(_altera_enc)} revoga={len(_revoga_enc)} regulamenta={len(_regulamenta_enc)}"})
+                    logs.append({"nivel": "ok", "msg": f"  [RELACOES] altera={_altera_enc} revoga={_revoga_enc} regulamenta={_regulamenta_enc} alterado_por={_alterado_por_enc}"})
             except Exception as _e_rel:
+                logs.append({"nivel": "aviso", "msg": f"  [RELACOES] ERRO: {str(_e_rel)[:100]}"})
                 _regulamenta_enc = []
                 _alterado_por_enc = []
                 _revogado_por_enc = []
