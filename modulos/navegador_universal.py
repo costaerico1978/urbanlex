@@ -3398,7 +3398,70 @@ def navegar_com_cookies_flaresolverr(
                         except Exception as _e_anx2:
                             logs.append({'nivel': 'aviso', 'msg': f'{label}: 📎 Erro anexos sessao: {str(_e_anx2)[:80]}'})
                     elif _lm_loading:
-                        logs.append({'nivel': 'aviso', 'msg': f'{label}: HTML sessao ainda em loading — descartando'})
+                        logs.append({'nivel': 'aviso', 'msg': f'{label}: HTML sessao ainda em loading — tentando retry reCAPTCHA...'})
+                        # ABORDAGEM 1: Retry do reCAPTCHA
+                        _retry_ok = False
+                        try:
+                            import requests as _rq_retry, time as _t_retry
+                            _2ck_r = os.environ.get('TWOCAPTCHA_API_KEY', '')
+                            _sk_r = "6Lcsu0AUAAAAAPGiUWm7uBfmctlz8sokhRldd3d6"
+                            if _2ck_r and "leismunicipais" in _pg2.url:
+                                logs.append({'nivel': 'info', 'msg': f'{label}: [2C] Retry reCAPTCHA invisivel...'})
+                                _r_rt = _rq_retry.post('http://2captcha.com/in.php', data={'key': _2ck_r, 'method': 'userrecaptcha', 'googlekey': _sk_r, 'pageurl': _pg2.url, 'invisible': 1, 'json': 1}, timeout=30)
+                                _cid_rt = _r_rt.json().get('request')
+                                if _cid_rt and str(_cid_rt) not in ('ERROR_WRONG_USER_KEY', 'ERROR_KEY_DOES_NOT_EXIST', 'ERROR_ZERO_BALANCE'):
+                                    _sol_rt = None
+                                    for _ in range(30):
+                                        _t_retry.sleep(5)
+                                        _r_rt2 = _rq_retry.get(f'http://2captcha.com/res.php?key={_2ck_r}&action=get&id={_cid_rt}&json=1', timeout=15)
+                                        _j_rt = _r_rt2.json()
+                                        if _j_rt.get('status') == 1:
+                                            _sol_rt = _j_rt.get('request')
+                                            break
+                                        elif _j_rt.get('request') not in ('CAPCHA_NOT_READY', 'CAPTCHA_NOT_READY'):
+                                            break
+                                    if _sol_rt:
+                                        _pass_url_rt = _pg2.url + ('&' if '?' in _pg2.url else '?') + 'pass=' + _sol_rt
+                                        _pg2.goto(_pass_url_rt, wait_until='domcontentloaded', timeout=30000)
+                                        import time as _t_rt2
+                                        _t_rt2.sleep(5)
+                                        _html_retry = _pg2.content()
+                                        _loading_kws_rt = ['norma requisitada está sendo carregada', 'just a moment', 'checking your browser']
+                                        if _html_retry and len(_html_retry) > 50000 and not any(kw in _html_retry.lower() for kw in _loading_kws_rt):
+                                            resultado['html'] = _html_retry
+                                            logs.append({'nivel': 'ok', 'msg': f'{label}: [2C] Retry OK — HTML obtido ({len(_html_retry)} chars)'})
+                                            _retry_ok = True
+                        except Exception as _e_rt:
+                            logs.append({'nivel': 'aviso', 'msg': f'{label}: [2C] Retry erro: {str(_e_rt)[:80]}'})
+                        # ABORDAGEM 2: Fallback para PDF se retry falhou
+                        if not _retry_ok:
+                            logs.append({'nivel': 'aviso', 'msg': f'{label}: HTML descartado — tentando PDF como fallback...'})
+                            try:
+                                _pdf_links = _pg2.query_selector_all('a[href*=".pdf"], a[href*="download"], a[title*="PDF"], a[title*="pdf"]')
+                                for _pl in _pdf_links[:3]:
+                                    _pdf_href = _pl.get_attribute('href')
+                                    if _pdf_href:
+                                        if not _pdf_href.startswith('http'):
+                                            _pdf_href = 'https://leismunicipais.com.br' + _pdf_href
+                                        import requests as _rq_pdf2, os as _os_pdf2
+                                        _pdf_dir2 = _os_pdf2.path.join(_os_pdf2.path.dirname(_os_pdf2.path.dirname(__file__)), 'static', 'downloads')
+                                        _os_pdf2.makedirs(_pdf_dir2, exist_ok=True)
+                                        _fname_pdf2 = _gerar_nome_pdf(legislacao)
+                                        _fpath_pdf2 = _os_pdf2.path.join(_pdf_dir2, _fname_pdf2)
+                                        _rp2 = _rq_pdf2.get(_pdf_href, timeout=60, stream=True)
+                                        if _rp2.status_code == 200:
+                                            _sz2 = 0
+                                            with open(_fpath_pdf2, 'wb') as _fp2:
+                                                for _ch2 in _rp2.iter_content(65536):
+                                                    if _ch2:
+                                                        _fp2.write(_ch2)
+                                                        _sz2 += len(_ch2)
+                                            if _sz2 > 10000:
+                                                resultado['pdf_path'] = _fpath_pdf2
+                                                logs.append({'nivel': 'ok', 'msg': f'{label}: PDF fallback baixado ({_sz2//1024}KB)'})
+                                                break
+                            except Exception as _e_pdf2:
+                                logs.append({'nivel': 'aviso', 'msg': f'{label}: PDF fallback erro: {str(_e_pdf2)[:80]}'})
                     else:
                         logs.append({'nivel': 'aviso', 'msg': f'{label}: HTML via sessao pequeno ({len(_html_sessao) if _html_sessao else 0} chars)'})
                     _pg2.close()
