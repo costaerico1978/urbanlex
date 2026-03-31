@@ -1141,6 +1141,11 @@ async function confirmarBuscaNovoMun() {
         fecharModalNovoMun();
         const jobId = r.job_id;
         localStorage.setItem("mun_job_id", jobId);
+        // Resetar tabela ao iniciar nova busca
+        localStorage.removeItem('mun_tabela_legs');
+        window._tabelaLegsData = {};
+        const _tblRst = document.getElementById('tabela-legs-auto');
+        if (_tblRst) _tblRst.textContent = 'Aguardando identificacao das legislacoes...';
         localStorage.setItem("mun_campos", JSON.stringify({mun, est}));
         let cursor = 0;
         while (true) {
