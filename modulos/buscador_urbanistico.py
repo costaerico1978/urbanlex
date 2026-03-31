@@ -411,17 +411,33 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         ["codigo de obras", "edificacoes", "construcoes"],
     ]
 
-    for idx, (label, keywords) in enumerate(zip(LABELS_PERGUNTAS, KEYWORDS_PERGUNTAS)):
-        # Buscar legislacao correspondente
+    PERGUNTAS_CONFIRMACAO = [
+        f"Esta legislacao define ou trata dos parametros urbanisticos de {municipio}/{estado}?",
+        f"Esta legislacao define ou trata do zoneamento de {municipio}/{estado}?",
+        f"Esta legislacao define ou trata do uso e ocupacao do solo de {municipio}/{estado}?",
+        f"Esta legislacao define ou trata do parcelamento do solo de {municipio}/{estado}?",
+        f"Esta legislacao e o codigo de obras ou edificacoes de {municipio}/{estado}?",
+    ]
+    for idx, (label, pergunta_conf) in enumerate(zip(LABELS_PERGUNTAS, PERGUNTAS_CONFIRMACAO)):
         leg_match = None
         for enc in resultado["encontradas"]:
-            desc = (enc.get("descricao", "") + " " + enc.get("tipo", "")).lower()
-            if any(kw in desc for kw in keywords):
-                leg_match = enc
-                break
-        if not leg_match and idx == 0 and resultado["encontradas"]:
-            leg_match = resultado["encontradas"][0]
-
+            _t = enc.get("tipo", "")
+            _n = enc.get("numero", "")
+            _a = enc.get("ano", "")
+            _link = enc.get("link", "")
+            prompt_conf = (
+                f"{pergunta_conf}\n\n"
+                f"Legislacao: {_t} {_n}/{_a} de {municipio}/{estado}\n"
+                f"Ementa/link: {_link[:200]}\n\n"
+                f"Responda APENAS: sim ou nao"
+            )
+            try:
+                resp_conf = chamar_llm(prompt_conf, logs, f"Conf {idx+1} {_t} {_n}")
+                if resp_conf and "sim" in resp_conf.lower():
+                    leg_match = enc
+                    break
+            except Exception:
+                pass
         if leg_match:
             link = leg_match.get("link", "")
             pdf = leg_match.get("pdf_path", "") or ""
