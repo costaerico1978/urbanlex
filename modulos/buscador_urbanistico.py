@@ -352,7 +352,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                     resp_rel_c = _re_rel.sub(r"^```json\s*|\s*```$", "", (resp_rel or "").strip())
                     dados_rel = _json.loads(resp_rel_c)
                     _altera_enc = dados_rel.get("altera", [])
-                    _revoga_enc = dados_rel.get("revoga", [])
+                    _revoga_enc = list(set(_revoga_enc + dados_rel.get("revoga", [])))
                     _regulamenta_enc = dados_rel.get("regulamenta", [])
                     _alterado_por_enc = dados_rel.get("alterado_por", [])
                     _revogado_por_enc = dados_rel.get("revogado_por", [])
