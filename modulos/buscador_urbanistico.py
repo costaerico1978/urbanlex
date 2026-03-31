@@ -248,6 +248,18 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                 texto_enc = _bsr(html_enc, "html.parser").get_text()
             else:
                 texto_enc = ""
+            # Fallback: usar texto do PDF se HTML vazio
+            if not texto_enc.strip():
+                _pdf_path = enc.get("pdf_path", "") or ""
+                if _pdf_path and __import__('os').path.exists(_pdf_path):
+                    try:
+                        import subprocess as _sp
+                        _res = _sp.run(['pdftotext', _pdf_path, '-'], capture_output=True, text=True, timeout=30)
+                        if _res.returncode == 0 and _res.stdout.strip():
+                            texto_enc = _res.stdout
+                            logs.append({"nivel": "info", "msg": f"  Texto extraido do PDF: {len(texto_enc)} chars"})
+                    except Exception:
+                        pass
             # Montar lista das demais legislacoes para verificar revogacao
             outras_legs = [l for l in legs if f"{l.get('tipo','').lower()}_{l.get('numero','').strip()}_{l.get('ano','')}" != chave and f"{l.get('tipo','').lower()}_{l.get('numero','').strip()}_{l.get('ano','')}" not in revogadas and f"{l.get('tipo','').lower()}_{l.get('numero','').strip()}_{l.get('ano','')}" not in analisadas]
             if outras_legs and texto_enc:
