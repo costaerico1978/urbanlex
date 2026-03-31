@@ -292,24 +292,58 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                                     break
                     except Exception as _e_rev:
                         logs.append({"nivel": "aviso", "msg": f"  Erro verificacao revogacao: {str(_e_rev)[:60]}"})
-        # Extrair altera/revoga da ementa do link (rapido, sem LLM extra)
-        if not _altera_enc and not _revoga_enc:
+        # Perguntar ao Gemini sobre todas as relacoes da legislacao
+        if texto_enc:
             try:
-                _desc = (enc.get('descricao','') or enc.get('link','')).lower().replace('-', ' ')
-                import re as _re_desc
-                # Detectar "altera" + numero no titulo/descricao/link
-                _alts = _re_desc.findall(r'altera[^,;]{0,80}lei[^,;]{0,30}n[o ]?\s*([\d]+)', _desc)
-                _altera_enc = [f"Lei n {n}" for n in _alts[:5]]
-                # Detectar "revoga" + numero no titulo/descricao/link
-                _revs = _re_desc.findall(r'revoga[^,;]{0,80}lei[^,;]{0,30}n[o ]?\s*([\d]+)', _desc)
-                _revoga_enc = [f"Lei n {n}" for n in _revs[:5]]
-            except Exception:
-                pass
+                prompt_rel = (
+                    f"Analise o texto da {tipo} {numero}/{ano} de {municipio}/{estado} e responda:\n\n"
+                    f"1. Esta lei ALTERA outra lei? Liste todas as leis que ela altera (parcialmente).\n"
+                    f"2. Esta lei REVOGA outra lei? Liste todas as leis que ela revoga totalmente.\n"
+                    f"3. Esta lei REGULAMENTA outra lei? Liste as leis que ela regulamenta.\n"
+                    f"4. Esta lei e ALTERADA por alguma lei mais recente mencionada no texto? Liste.\n"
+                    f"5. Esta lei e REVOGADA por alguma lei mais recente mencionada no texto? Liste.\n"
+                    f"6. Esta lei e REGULAMENTADA por alguma lei mencionada no texto? Liste.\n\n"
+                    f"Use formato 'Tipo Numero/Ano' para cada lei (ex: 'Lei Complementar 270/2024').\n"
+                    f"Responda APENAS com JSON:\n"
+                    f'{{\n'
+                    f'  "altera": ["Lei X/ano"],\n'
+                    f'  "revoga": ["Lei X/ano"],\n'
+                    f'  "regulamenta": ["Lei X/ano"],\n'
+                    f'  "alterado_por": ["Lei X/ano"],\n'
+                    f'  "revogado_por": ["Lei X/ano"],\n'
+                    f'  "regulamentado_por": ["Lei X/ano"]\n'
+                    f'}}\n\n'
+                    f"TEXTO:\n{texto_enc[:6000]}"
+                )
+                resp_rel = chamar_llm(prompt_rel, logs, f"Relacoes {tipo} {numero}")
+                if resp_rel:
+                    import re as _re_rel
+                    resp_rel_c = _re_rel.sub(r"^```json\s*|\s*```$", "", (resp_rel or "").strip())
+                    dados_rel = _json.loads(resp_rel_c)
+                    _altera_enc = dados_rel.get("altera", [])
+                    _revoga_enc = dados_rel.get("revoga", [])
+                    _regulamenta_enc = dados_rel.get("regulamenta", [])
+                    _alterado_por_enc = dados_rel.get("alterado_por", [])
+                    _revogado_por_enc = dados_rel.get("revogado_por", [])
+                    _regulamentado_por_enc = dados_rel.get("regulamentado_por", [])
+                    logs.append({"nivel": "ok", "msg": f"  Relacoes: altera={len(_altera_enc)} revoga={len(_revoga_enc)} regulamenta={len(_regulamenta_enc)}"})
+            except Exception as _e_rel:
+                _regulamenta_enc = []
+                _alterado_por_enc = []
+                _revogado_por_enc = []
+                _regulamentado_por_enc = []
+        else:
+            _regulamenta_enc = []
+            _alterado_por_enc = []
+            _revogado_por_enc = []
+            _regulamentado_por_enc = []
         # Emitir evento final com todos os relacionamentos (sempre, independente da analise)
         _tabela_evento(logs, municipio, estado,
             enc.get('tipo', tipo), enc.get('numero', numero), enc.get('ano', ano),
             pergunta=_pergunta_origem, status="encontrada",
-            altera=_altera_enc, revoga=_revoga_enc,
+            altera=_altera_enc, alterado_por=_alterado_por_enc,
+            revoga=_revoga_enc, revogado_por=_revogado_por_enc,
+            cita=_regulamenta_enc, citado_em=_regulamentado_por_enc,
             link=enc.get('link',''))
 
     # ETAPA 3: Fallback Google
