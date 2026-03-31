@@ -645,7 +645,7 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
                     # Se altera outra lei, manter mesmo sem definir parametros diretamente
             _pdf = fs_result.get("pdf_nativo_s3") or fs_result.get("pdf_path") or ""
             _anexos = fs_result.get("anexos_lm") or []
-            return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc, "pdf_path": _pdf, "anexos_lm": _anexos, "_leis_referenciadas": _leis_ref if "_leis_ref" in dir() else []}
+            return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc, "pdf_path": _pdf, "html": html_lei if "html_lei" in dir() else "", "anexos_lm": _anexos, "_leis_referenciadas": _leis_ref if "_leis_ref" in dir() else []}
         logs.append({"nivel": "aviso", "msg": f"  {tipo} {numero}/{ano} nao encontrada no LeisMunicipais — buscando site da prefeitura..."})
         return _buscar_site_prefeitura(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
     except Exception as e:
