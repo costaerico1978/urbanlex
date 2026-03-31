@@ -3143,7 +3143,7 @@ def navegar_com_cookies_flaresolverr(
                                         if _cid3 and str(_cid3) not in ('ERROR_WRONG_USER_KEY', 'ERROR_KEY_DOES_NOT_EXIST', 'ERROR_ZERO_BALANCE'):
                                             logs.append({'nivel': 'info', 'msg': f'{label}: [2C] Aguardando solucao (id={_cid3})...'})
                                             _sol3 = None
-                                            for _ in range(36):
+                                            for _ in range(60):
                                                 _t2.sleep(5)
                                                 _r4 = _req2.get(f'http://2captcha.com/res.php?key={_2ck}&action=get&id={_cid3}&json=1', timeout=15)
                                                 _j4 = _r4.json()
@@ -3422,7 +3422,7 @@ def navegar_com_cookies_flaresolverr(
                                             break
                                     if _sol_rt:
                                         _pass_url_rt = _pg2.url + ('&' if '?' in _pg2.url else '?') + 'pass=' + _sol_rt
-                                        _pg2.goto(_pass_url_rt, wait_until='domcontentloaded', timeout=30000)
+                                        _pg2.goto(_pass_url_rt, wait_until='domcontentloaded', timeout=60000)
                                         import time as _t_rt2
                                         _t_rt2.sleep(5)
                                         _html_retry = _pg2.content()
