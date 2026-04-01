@@ -424,7 +424,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                     f"4. Esta lei e ALTERADA por alguma lei mais recente mencionada no texto? Liste.\n"
                     f"5. Esta lei e REVOGADA por alguma lei mais recente mencionada no texto? Liste.\n"
                     f"6. Esta lei e REGULAMENTADA por alguma lei mencionada no texto? Liste.\n"
-                    f"7. Ha trechos tachados/riscados no texto (tags <s>, <del>, text-decoration:line-through) indicando revogacao parcial por lei posterior? Se sim, identifique qual lei posterior causou isso.\n\n"
+                    f"7. Ha trechos tachados/riscados no texto (tags <s>, <del>, text-decoration:line-through) indicando revogacao parcial por lei posterior? Se sim, identifique qual lei posterior causou isso.\n"
+                    f"8. Ha anotacoes de 'Redacao dada por', 'Acrescido por', 'Incluido por', 'Nova redacao' ou similares indicando que uma lei posterior alterou trechos desta lei? Liste todas as leis posteriores mencionadas.\n\n"
                     f"Use formato 'Tipo Numero/Ano' para cada lei (ex: 'Lei Complementar 270/2024').\n"
                     f"Responda APENAS com JSON:\n"
                     f'{{\n'
@@ -435,7 +436,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                     f'  "revogado_por": ["Lei X/ano"],\n'
                     f'  "regulamentado_por": ["Lei X/ano"],\n'
                     f'  "cita": ["Lei X/ano"],\n'
-                    f'  "tachado_por": ["Lei X/ano"]\n'
+                    f'  "tachado_por": ["Lei X/ano"],\n'
+                    f'  "redacao_dada_por": ["Lei X/ano"]\n'
                     f'}}\n\n'
                     f"Para o campo 'cita': liste APENAS leis citadas em contexto de definicao de zoneamento, zonas, subzonas, parametros de parcelamento do solo, uso e ocupacao do solo. Ignore citacoes em contexto de competencia, procedimento ou referencia generica.\n\n"
                     f"TEXTO:\n{texto_enc[:6000]}"
@@ -472,6 +474,11 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                         if _tachado_por:
                             logs.append({"nivel": "aviso", "msg": f"  [TACHADO] Trechos riscados identificados — revogado parcialmente por: {_tachado_por}"})
                             _revogado_por_enc = list(set(_revogado_por_enc + _tachado_por))
+                        _redacao_dada_por = dados_rel.get("redacao_dada_por", [])
+                        for _rdp in _redacao_dada_por:
+                            logs.append({"nivel": "relacao", "msg": f"  [REDACAO] {_rdp} alterou trechos desta lei (Redacao dada por)"})
+                        if _redacao_dada_por:
+                            _alterado_por_enc = list(set(_alterado_por_enc + _redacao_dada_por))
                     except Exception as _eb:
                         logs.append({"nivel": "aviso", "msg": f"  [RELACOES] Erro bloco {_bi+1}: {str(_eb)[:60]}"})
                 logs.append({"nivel": "relacao", "msg": f"  [RELACOES] altera={_altera_enc} revoga={_revoga_enc} regulamenta={_regulamenta_enc} alterado_por={_alterado_por_enc}"})
