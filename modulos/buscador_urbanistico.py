@@ -438,19 +438,37 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                     f"Para o campo 'cita': liste APENAS leis citadas em contexto de definicao de zoneamento, zonas, subzonas, parametros de parcelamento do solo, uso e ocupacao do solo. Ignore citacoes em contexto de competencia, procedimento ou referencia generica.\n\n"
                     f"TEXTO:\n{texto_enc[:6000]}"
                 )
-                resp_rel = chamar_llm(prompt_rel, logs, f"Relacoes {tipo} {numero}")
-                if resp_rel:
-                    import re as _re_rel
-                    resp_rel_c = _re_rel.sub(r"^```json\s*|\s*```$", "", (resp_rel or "").strip())
-                    dados_rel = _json.loads(resp_rel_c)
-                    _altera_enc = dados_rel.get("altera", [])
-                    _revoga_enc = list(set(_revoga_enc + dados_rel.get("revoga", [])))
-                    _regulamenta_enc = dados_rel.get("regulamenta", [])
-                    _alterado_por_enc = dados_rel.get("alterado_por", [])
-                    _revogado_por_enc = dados_rel.get("revogado_por", [])
-                    _regulamentado_por_enc = dados_rel.get("regulamentado_por", [])
-                    _cita_enc = dados_rel.get("cita", [])
-                    logs.append({"nivel": "ok", "msg": f"  [RELACOES] altera={_altera_enc} revoga={_revoga_enc} regulamenta={_regulamenta_enc} alterado_por={_alterado_por_enc}", "nivel": "relacao"})
+                # Processar texto em blocos de 30000 chars
+                _BLOCO = 30000
+                _OVERLAP = 2000
+                _blocos = []
+                _pos = 0
+                while _pos < len(texto_enc):
+                    _blocos.append(texto_enc[_pos:_pos + _BLOCO])
+                    _pos += _BLOCO - _OVERLAP
+                logs.append({"nivel": "relacao", "msg": f"  [RELACOES] Analisando {len(_blocos)} bloco(s) de texto ({len(texto_enc)} chars total)..."})
+                import re as _re_rel
+                for _bi, _bloco in enumerate(_blocos):
+                    _prompt_bloco = prompt_rel.replace(
+                        f"TEXTO:\n{texto_enc[:6000]}",
+                        f"TEXTO (bloco {_bi+1}/{len(_blocos)}):\n{_bloco}"
+                    )
+                    resp_rel = chamar_llm(_prompt_bloco, logs, f"Relacoes {tipo} {numero} bloco {_bi+1}/{len(_blocos)}")
+                    if not resp_rel:
+                        continue
+                    try:
+                        resp_rel_c = _re_rel.sub(r"^```json\s*|\s*```$", "", (resp_rel or "").strip())
+                        dados_rel = _json.loads(resp_rel_c)
+                        _altera_enc = list(set(_altera_enc + dados_rel.get("altera", [])))
+                        _revoga_enc = list(set(_revoga_enc + dados_rel.get("revoga", [])))
+                        _regulamenta_enc = list(set(_regulamenta_enc + dados_rel.get("regulamenta", [])))
+                        _alterado_por_enc = list(set(_alterado_por_enc + dados_rel.get("alterado_por", [])))
+                        _revogado_por_enc = list(set(_revogado_por_enc + dados_rel.get("revogado_por", [])))
+                        _regulamentado_por_enc = list(set(_regulamentado_por_enc + dados_rel.get("regulamentado_por", [])))
+                        _cita_enc = list(set(locals().get('_cita_enc', []) + dados_rel.get("cita", [])))
+                    except Exception as _eb:
+                        logs.append({"nivel": "aviso", "msg": f"  [RELACOES] Erro bloco {_bi+1}: {str(_eb)[:60]}"})
+                logs.append({"nivel": "relacao", "msg": f"  [RELACOES] altera={_altera_enc} revoga={_revoga_enc} regulamenta={_regulamenta_enc} alterado_por={_alterado_por_enc}"})
             except Exception as _e_rel:
                 logs.append({"nivel": "aviso", "msg": f"  [RELACOES] ERRO: {str(_e_rel)[:100]}", "nivel": "relacao"})
                 _regulamenta_enc = []
