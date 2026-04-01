@@ -222,8 +222,9 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         chave = f"{tipo}_{numero}_{ano}".lower()
         # 1. Verificar por chave exata
         if chave in revogadas:
-            _revogador = next((l for l in legs if f"{l.get('tipo','').lower()}_{l.get('numero','').strip()}_{l.get('ano','')}" in analisadas and f"{l.get('tipo','').lower()}_{l.get('numero','').strip()}_{l.get('ano','')}" != chave), None)
-            _rev_info = f"{_revogador.get('tipo','')} {_revogador.get('numero','')}/{_revogador.get('ano','')}" if _revogador else "legislacao mais recente"
+            # Buscar quem revogou na lista enriquecida
+            _rev_entry = next((r for r in revogadas_lista if f"{r.get('tipo','').lower()}_{r.get('numero','').strip()}_{r.get('ano','')}" == chave), None)
+            _rev_info = _rev_entry.get("revogada_por", "legislacao mais recente") if _rev_entry else "legislacao mais recente"
             logs.append({"nivel": "aviso", "msg": f"⚠️ REVOGADA — {tipo} {numero}/{ano} foi revogada por {_rev_info} e NAO sera analisada"})
             logs.append({"nivel": "aviso", "msg": f"   Motivo: legislacao mais recente ({_rev_info}) revoga explicitamente esta"})
             _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=leg.get("_pergunta_label",""), status="revogada", revogado_por=[_rev_info])
@@ -260,7 +261,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             _anexos_enc = enc.get("anexos_lm") or []
             if _anexos_enc:
                 logs.append({"nivel": "relacao", "msg": f"  [ANEXOS] {len(_anexos_enc)} anexo(s): {[str(a)[:100] for a in _anexos_enc]}"})
-            def _extrair_texto_arquivo(path, logs, label="Anexo"):
+            def _extrair_texto_arquivo(path, logs, label="Anexo", chamar_llm_fn=None):
                 import subprocess as _sp_ax, os as _os_ax
                 if not path or not _os_ax.path.exists(path):
                     return ""
@@ -269,16 +270,30 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                 if ext == '.zip':
                     import zipfile as _zf, tempfile as _tmp_ax
                     _txt_zip = ""
+                    logs.append({"nivel": "anexo", "msg": f"  📦 Descompactando anexo ZIP: {label}"})
                     try:
                         with _zf.ZipFile(path, 'r') as _z:
                             _tmpdir = _tmp_ax.mkdtemp()
                             _z.extractall(_tmpdir)
+                            _all_files = []
                             for _root, _dirs, _files in _os_ax.walk(_tmpdir):
                                 for _fname in sorted(_files):
-                                    _fpath = _os_ax.path.join(_root, _fname)
-                                    _ftxt = _extrair_texto_arquivo(_fpath, logs, _fname)
-                                    if _ftxt:
-                                        _txt_zip += f"\n\n--- {_fname} ---\n{_ftxt}"
+                                    _all_files.append((_fname, _os_ax.path.join(_root, _fname)))
+                            logs.append({"nivel": "anexo", "msg": f"  📂 {len(_all_files)} arquivo(s) encontrado(s) no ZIP"})
+                            for _fname, _fpath in _all_files:
+                                logs.append({"nivel": "anexo", "msg": f"  📄 Analisando: {_fname}..."})
+                                _ftxt = _extrair_texto_arquivo(_fpath, logs, _fname, chamar_llm_fn)
+                                if _ftxt:
+                                    # Pedir ao Gemini uma descricao rapida do assunto
+                                    if chamar_llm_fn:
+                                        try:
+                                            _desc_prompt = f"Em uma linha, descreva o assunto deste documento municipal:\n\n{_ftxt[:2000]}"
+                                            _desc = chamar_llm_fn(_desc_prompt, [], f"Desc {_fname}")
+                                            if _desc:
+                                                logs.append({"nivel": "anexo", "msg": f"  📋 {_fname}: {_desc.strip()[:150]}"})
+                                        except Exception:
+                                            pass
+                                    _txt_zip += f"\n\n--- {_fname} ---\n{_ftxt}"
                     except Exception as _ez:
                         logs.append({"nivel": "aviso", "msg": f"  [ANEXOS] Erro ZIP {label}: {str(_ez)[:80]}"})
                     return _txt_zip
@@ -319,15 +334,22 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                     except Exception as _ev:
                         logs.append({"nivel": "aviso", "msg": f"  [ANEXOS] Gemini Vision erro {label}: {str(_ev)[:80]}"})
                 return ""
+            if _anexos_enc:
+                logs.append({"nivel": "anexo", "msg": f"  🔍 Iniciando analise de {len(_anexos_enc)} anexo(s) da {tipo} {numero}/{ano}..."})
             for _anx_e in _anexos_enc:
+                _anx_nome = _anx_e.get("nome", "Anexo") if isinstance(_anx_e, dict) else "Anexo"
                 _anx_txt = _anx_e.get("texto", "") if isinstance(_anx_e, dict) else ""
                 if not _anx_txt:
                     _anx_path_e = _anx_e.get("path", "") or _anx_e.get("pdf_path", "") if isinstance(_anx_e, dict) else ""
-                    _anx_txt = _extrair_texto_arquivo(_anx_path_e, logs, _anx_e.get("nome", "Anexo") if isinstance(_anx_e, dict) else "Anexo")
+                    logs.append({"nivel": "anexo", "msg": f"  📄 Processando anexo: {_anx_nome}"})
+                    _anx_txt = _extrair_texto_arquivo(_anx_path_e, logs, _anx_nome, chamar_llm)
                 if _anx_txt:
-                    texto_enc += f"\n\nANEXO:\n{_anx_txt}"
+                    texto_enc += f"\n\nANEXO ({_anx_nome}):\n{_anx_txt}"
+                    logs.append({"nivel": "anexo", "msg": f"  ✅ Anexo {_anx_nome}: {len(_anx_txt)} chars extraidos"})
+                else:
+                    logs.append({"nivel": "aviso", "msg": f"  ⚠️ Anexo {_anx_nome}: nao foi possivel extrair texto"})
             if _anexos_enc:
-                logs.append({"nivel": "info", "msg": f"  Incluindo {len(_anexos_enc)} anexo(s) na analise de relacoes ({len(texto_enc)} chars total)"})
+                logs.append({"nivel": "anexo", "msg": f"  📊 Total apos anexos: {len(texto_enc)} chars para analise do Gemini"})
             # Fallback: usar texto do PDF se HTML vazio
             if not texto_enc.strip():
                 _pdf_path = enc.get("pdf_path", "") or ""
