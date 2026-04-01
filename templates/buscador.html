@@ -1644,7 +1644,7 @@ function _renderTabelaLegs() {
     let h=`<div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:6px;font-family:monospace">📋 LEGISLAÇÕES IDENTIFICADAS (${rows.length})</div>`;
     h+=`<table style="width:100%;border-collapse:collapse;font-size:10px;font-family:monospace">`;
     h+=`<thead><tr>${cols.map(c=>`<th style="padding:4px 6px;background:#111418;border:1px solid var(--border);color:var(--muted);text-align:left;white-space:nowrap">${c}</th>`).join("")}</tr></thead><tbody>`;
-    const cel=v=>`<td style="padding:3px 6px;border:1px solid var(--border);color:var(--text);vertical-align:top">${v||"—"}</td>`;
+    const cel=v=>`<td style="padding:3px 6px;border:1px solid var(--border);color:var(--text);vertical-align:top;white-space:pre-line">${v||"—"}</td>`;
     rows.forEach(r=>{
         const cor=sc[r.status]||"#6b7d8f";
         h+=`<tr>`;
@@ -1653,7 +1653,7 @@ function _renderTabelaLegs() {
         if(r.status==="revogada"){
             h+=`<td colspan="6" style="padding:3px 6px;border:1px solid var(--border);color:#ff4d6d;font-style:italic">Revogada por: ${(r.revogado_por||[]).join(", ")||"—"}</td>`;
         } else {
-            h+=cel((r.altera||[]).join(", "))+cel((r.alterado_por||[]).join(", "))+cel((r.revoga||[]).join(", "))+cel((r.revogado_por||[]).join(", "))+cel((r.cita||[]).join(", "))+cel((r.citado_em||[]).join(", "));
+            h+=cel((r.altera||[]).join("\n"))+cel((r.alterado_por||[]).join("\n"))+cel((r.revoga||[]).join("\n"))+cel((r.revogado_por||[]).join("\n"))+cel((r.cita||[]).join("\n"))+cel((r.citado_em||[]).join("\n"));
         }
         h+=`<td style="padding:3px 6px;border:1px solid var(--border)">${r.link?`<a href="${r.link}" target="_blank" style="color:var(--accent)">🔗</a>`:"—"}</td>`;
         h+=`</tr>`;
