@@ -242,6 +242,12 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         if chave in analisadas:
             continue
         analisadas.add(chave)
+        # Nivel 2: apenas listar na tabela, sem busca completa
+        _nivel_leg = leg.get("_nivel", 0)
+        if _nivel_leg >= 2:
+            logs.append({"nivel": "info", "msg": f"  [FILA] {tipo} {numero}/{ano} nivel=2 — apenas listada na tabela, sem busca"})
+            _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=leg.get("_pergunta_label",""), status="referenciada", link="")
+            continue
         logs.append({"nivel": "info", "msg": f"Buscando {tipo} n {numero}/{ano} ({descricao}) no LeisMunicipais..."})
         _pergunta_origem = leg.get("_pergunta_label", "")
         _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=_pergunta_origem, status="analisando")
@@ -426,8 +432,10 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                     f'  "regulamenta": ["Lei X/ano"],\n'
                     f'  "alterado_por": ["Lei X/ano"],\n'
                     f'  "revogado_por": ["Lei X/ano"],\n'
-                    f'  "regulamentado_por": ["Lei X/ano"]\n'
+                    f'  "regulamentado_por": ["Lei X/ano"],\n'
+                    f'  "cita": ["Lei X/ano"]\n'
                     f'}}\n\n'
+                    f"Para o campo 'cita': liste APENAS leis citadas em contexto de definicao de zoneamento, zonas, subzonas, parametros de parcelamento do solo, uso e ocupacao do solo. Ignore citacoes em contexto de competencia, procedimento ou referencia generica.\n\n"
                     f"TEXTO:\n{texto_enc[:6000]}"
                 )
                 resp_rel = chamar_llm(prompt_rel, logs, f"Relacoes {tipo} {numero}")
@@ -441,6 +449,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                     _alterado_por_enc = dados_rel.get("alterado_por", [])
                     _revogado_por_enc = dados_rel.get("revogado_por", [])
                     _regulamentado_por_enc = dados_rel.get("regulamentado_por", [])
+                    _cita_enc = dados_rel.get("cita", [])
                     logs.append({"nivel": "ok", "msg": f"  [RELACOES] altera={_altera_enc} revoga={_revoga_enc} regulamenta={_regulamenta_enc} alterado_por={_alterado_por_enc}", "nivel": "relacao"})
             except Exception as _e_rel:
                 logs.append({"nivel": "aviso", "msg": f"  [RELACOES] ERRO: {str(_e_rel)[:100]}", "nivel": "relacao"})
@@ -459,7 +468,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             pergunta=_pergunta_origem, status="encontrada",
             altera=_altera_enc, alterado_por=_alterado_por_enc,
             revoga=_revoga_enc, revogado_por=_revogado_por_enc,
-            cita=_regulamenta_enc, citado_em=_regulamentado_por_enc,
+            cita=list(set(_regulamenta_enc + locals().get('_cita_enc', []))), citado_em=_regulamentado_por_enc,
             link=enc.get('link',''))
         # Adicionar leis descobertas nas relacoes a fila dinamica
         _nivel_atual = leg.get("_nivel", 0)
@@ -489,6 +498,38 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             _adicionar_na_fila(_regulamenta_enc, _nivel_atual + 1, "regulamentada por lei atual")
             _adicionar_na_fila(_alterado_por_enc, _nivel_atual + 1, "altera lei atual")
             _adicionar_na_fila(_regulamentado_por_enc, _nivel_atual + 1, "regulamenta lei atual")
+            # Leis citadas: avaliar contexto antes de adicionar na fila
+            _cita_enc_local = locals().get('_cita_enc', [])
+            for _cit_str in (_cita_enc_local or []):
+                _num_c, _ano_c = _extrair_num_ano_fila(_cit_str)
+                if not _num_c or not _ano_c:
+                    continue
+                _tipo_c = "Lei"
+                for _tp in ["Lei Complementar", "Decreto-Lei", "Decreto", "Resolucao", "Lei"]:
+                    if _tp.lower() in _cit_str.lower():
+                        _tipo_c = _tp
+                        break
+                _chave_c = f"{_tipo_c.lower()}_{_num_c}_{_ano_c}"
+                if _chave_c in analisadas or _chave_c in revogadas:
+                    continue
+                if any(f"{l.get('tipo','').lower()}_{l.get('numero','')}_{l.get('ano','')}" == _chave_c for l in fila):
+                    continue
+                # IA avalia se a citacao e em contexto urbanistico relevante
+                try:
+                    _prompt_ctx = (
+                        f"No texto da {tipo} {numero}/{ano} de {municipio}/{estado}, "
+                        f"a legislacao '{_cit_str}' e citada em contexto de zoneamento, zonas, subzonas, "
+                        f"parametros de parcelamento do solo ou uso e ocupacao do solo?\n"
+                        f"Responda APENAS: sim ou nao"
+                    )
+                    _resp_ctx = chamar_llm(_prompt_ctx, logs, f"Ctx cita {_num_c}")
+                    if _resp_ctx and "sim" in _resp_ctx.lower():
+                        logs.append({"nivel": "info", "msg": f"  [FILA] {_cit_str} citada em contexto urbanistico — adicionando nivel={_nivel_atual+1}"})
+                        fila.append({"tipo": _tipo_c, "numero": _num_c, "ano": _ano_c, "descricao": "citada em contexto urbanistico", "_nivel": _nivel_atual + 1, "_pergunta_label": ""})
+                    else:
+                        logs.append({"nivel": "info", "msg": f"  [FILA] {_cit_str} citada mas contexto nao urbanistico — ignorando"})
+                except Exception:
+                    pass
             for _rev_str in (_revoga_enc or []):
                 _num_r, _ano_r = _extrair_num_ano_fila(_rev_str)
                 if _num_r and _ano_r:
