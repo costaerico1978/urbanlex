@@ -256,26 +256,78 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                 texto_enc = _bsr(html_enc, "html.parser").get_text()
             else:
                 texto_enc = ""
-            # Incluir texto dos anexos no texto_enc (HTML ou PDF)
+            # Incluir texto dos anexos no texto_enc (ZIP/PDF/rasterizado)
             _anexos_enc = enc.get("anexos_lm") or []
             if _anexos_enc:
                 logs.append({"nivel": "relacao", "msg": f"  [ANEXOS] {len(_anexos_enc)} anexo(s): {[str(a)[:100] for a in _anexos_enc]}"})
+            def _extrair_texto_arquivo(path, logs, label="Anexo"):
+                import subprocess as _sp_ax, os as _os_ax
+                if not path or not _os_ax.path.exists(path):
+                    return ""
+                ext = _os_ax.path.splitext(path)[1].lower()
+                # ZIP: descompactar e processar cada arquivo
+                if ext == '.zip':
+                    import zipfile as _zf, tempfile as _tmp_ax
+                    _txt_zip = ""
+                    try:
+                        with _zf.ZipFile(path, 'r') as _z:
+                            _tmpdir = _tmp_ax.mkdtemp()
+                            _z.extractall(_tmpdir)
+                            for _root, _dirs, _files in _os_ax.walk(_tmpdir):
+                                for _fname in sorted(_files):
+                                    _fpath = _os_ax.path.join(_root, _fname)
+                                    _ftxt = _extrair_texto_arquivo(_fpath, logs, _fname)
+                                    if _ftxt:
+                                        _txt_zip += f"\n\n--- {_fname} ---\n{_ftxt}"
+                    except Exception as _ez:
+                        logs.append({"nivel": "aviso", "msg": f"  [ANEXOS] Erro ZIP {label}: {str(_ez)[:80]}"})
+                    return _txt_zip
+                # PDF: tentar pdftotext primeiro
+                if ext == '.pdf':
+                    try:
+                        _res = _sp_ax.run(['pdftotext', path, '-'], capture_output=True, text=True, timeout=60)
+                        if _res.returncode == 0 and len(_res.stdout.strip()) > 100:
+                            logs.append({"nivel": "info", "msg": f"  [ANEXOS] {label}: {len(_res.stdout)} chars via pdftotext"})
+                            return _res.stdout
+                    except Exception:
+                        pass
+                    # Fallback: Gemini Vision para PDF rasterizado
+                    try:
+                        import base64 as _b64_ax
+                        import subprocess as _sp_gs
+                        import tempfile as _tmp_gs, os as _os_gs
+                        _tmpdir_gs = _tmp_gs.mkdtemp()
+                        _png_pattern = _os_gs.path.join(_tmpdir_gs, 'page')
+                        _sp_gs.run(['gs', '-dNOPAUSE', '-dBATCH', '-sDEVICE=png16m', '-r150',
+                                    f'-sOutputFile={_png_pattern}_%03d.png', path],
+                                   capture_output=True, timeout=120)
+                        _pages = sorted([f for f in _os_gs.listdir(_tmpdir_gs) if f.endswith('.png')])[:10]
+                        if _pages:
+                            import google.generativeai as _gai_ax
+                            _gai_ax.configure(api_key=__import__('os').environ.get('GEMINI_API_KEY',''))
+                            _model_ax = _gai_ax.GenerativeModel('gemini-2.5-flash')
+                            _parts = [f"Extraia todo o texto desta pagina de documento municipal brasileiro. Retorne apenas o texto, sem comentarios."]
+                            for _pg_name in _pages:
+                                _pg_path = _os_gs.path.join(_tmpdir_gs, _pg_name)
+                                with open(_pg_path, 'rb') as _f_pg:
+                                    _parts.append({"mime_type": "image/png", "data": _b64_ax.b64encode(_f_pg.read()).decode()})
+                            _resp_ax = _model_ax.generate_content(_parts)
+                            _txt_vision = _resp_ax.text or ""
+                            if _txt_vision:
+                                logs.append({"nivel": "info", "msg": f"  [ANEXOS] {label}: {len(_txt_vision)} chars via Gemini Vision"})
+                                return _txt_vision
+                    except Exception as _ev:
+                        logs.append({"nivel": "aviso", "msg": f"  [ANEXOS] Gemini Vision erro {label}: {str(_ev)[:80]}"})
+                return ""
             for _anx_e in _anexos_enc:
                 _anx_txt = _anx_e.get("texto", "") if isinstance(_anx_e, dict) else ""
                 if not _anx_txt:
                     _anx_path_e = _anx_e.get("path", "") or _anx_e.get("pdf_path", "") if isinstance(_anx_e, dict) else ""
-                    if _anx_path_e and __import__('os').path.exists(_anx_path_e):
-                        try:
-                            import subprocess as _sp_anx
-                            _res_anx = _sp_anx.run(['pdftotext', _anx_path_e, '-'], capture_output=True, text=True, timeout=30)
-                            if _res_anx.returncode == 0:
-                                _anx_txt = _res_anx.stdout
-                        except Exception:
-                            pass
+                    _anx_txt = _extrair_texto_arquivo(_anx_path_e, logs, _anx_e.get("nome", "Anexo") if isinstance(_anx_e, dict) else "Anexo")
                 if _anx_txt:
                     texto_enc += f"\n\nANEXO:\n{_anx_txt}"
             if _anexos_enc:
-                logs.append({"nivel": "info", "msg": f"  Incluindo {len(_anexos_enc)} anexo(s) na analise de relacoes"})
+                logs.append({"nivel": "info", "msg": f"  Incluindo {len(_anexos_enc)} anexo(s) na analise de relacoes ({len(texto_enc)} chars total)"})
             # Fallback: usar texto do PDF se HTML vazio
             if not texto_enc.strip():
                 _pdf_path = enc.get("pdf_path", "") or ""

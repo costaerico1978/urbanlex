@@ -3243,7 +3243,7 @@ def navegar_com_cookies_flaresolverr(
                                                                     _ext_anx = '.zip' if 'zip' in _href_anx.lower() else '.pdf'
                                                                     _fname_anx = f'lm_anexo_{len(_anexos_anx)+1}{_ext_anx}'
                                                                     open(_os_anx.path.join(_pdf_dir_anx, _fname_anx), 'wb').write(_r_anx.content)
-                                                                    _anexos_anx.append({'url': f'/static/downloads/{_fname_anx}', 'nome': _txt_anx})
+                                                                    _anexos_anx.append({'url': f'/static/downloads/{_fname_anx}', 'nome': _txt_anx, 'path': _os_anx.path.join(_pdf_dir_anx, _fname_anx)})
                                                                     logs.append({'nivel': 'ok', 'msg': f'{label}: 📎 Anexo "{_txt_anx}" baixado ({len(_r_anx.content)//1024}KB)'})
                                                                 else:
                                                                     logs.append({'nivel': 'aviso', 'msg': f'{label}: 📎 Anexo status {_r_anx.status_code}'})
@@ -3391,7 +3391,7 @@ def navegar_com_cookies_flaresolverr(
                                     _ext2 = '.zip' if 'zip' in _href2.lower() else '.pdf'
                                     _fname2 = f'lm_anexo_{len(_anexos_anx2)+1}{_ext2}'
                                     open(_os_anx2.path.join(_pdf_dir_anx2, _fname2), 'wb').write(_r2.content)
-                                    _anexos_anx2.append({'url': f'/static/downloads/{_fname2}', 'nome': _txt2})
+                                    _anexos_anx2.append({'url': f'/static/downloads/{_fname2}', 'nome': _txt2, 'path': _os_anx2.path.join(_pdf_dir_anx2, _fname2)})
                                     logs.append({'nivel': 'ok', 'msg': f'{label}: 📎 Anexo "{_txt2}" baixado ({len(_r2.content)//1024}KB)'})
                             if _anexos_anx2:
                                 resultado['anexos_lm'] = _anexos_anx2
