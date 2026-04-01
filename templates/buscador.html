@@ -1634,8 +1634,8 @@ function _renderTabelaLegs() {
     const tbl=document.getElementById("tabela-legs-auto");
     if(!tbl) return;
     const rows=Object.values(_tabelaLegsData);
-    const sc={"analisando":"#f5a623","encontrada":"#00e5a0","nao_encontrada":"#6b7d8f","revogada":"#ff4d6d"};
-    const sl={"analisando":"⏳ Analisando","encontrada":"✅ Encontrada","nao_encontrada":"❌ Não encontrada","revogada":"🚫 Revogada"};
+    const sc={"analisando":"#f5a623","encontrada":"#00e5a0","nao_encontrada":"#6b7d8f","revogada":"#ff4d6d","referenciada":"#9b59b6"};
+    const sl={"analisando":"⏳ Analisando","encontrada":"✅ Encontrada","nao_encontrada":"❌ Não encontrada","revogada":"🚫 Revogada","referenciada":"🔗 Referenciada"};
     if(rows.length===0){
         tbl.innerHTML='<div style="font-size:11px;color:var(--muted);font-family:monospace;padding:10px;background:#0d1117;border:1px solid var(--border);border-radius:6px">📋 Aguardando identificação das legislações...</div>';
         return;
