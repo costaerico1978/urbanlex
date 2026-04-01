@@ -423,7 +423,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                     f"3. Esta lei REGULAMENTA outra lei? Liste as leis que ela regulamenta.\n"
                     f"4. Esta lei e ALTERADA por alguma lei mais recente mencionada no texto? Liste.\n"
                     f"5. Esta lei e REVOGADA por alguma lei mais recente mencionada no texto? Liste.\n"
-                    f"6. Esta lei e REGULAMENTADA por alguma lei mencionada no texto? Liste.\n\n"
+                    f"6. Esta lei e REGULAMENTADA por alguma lei mencionada no texto? Liste.\n"
+                    f"7. Ha trechos tachados/riscados no texto (tags <s>, <del>, text-decoration:line-through) indicando revogacao parcial por lei posterior? Se sim, identifique qual lei posterior causou isso.\n\n"
                     f"Use formato 'Tipo Numero/Ano' para cada lei (ex: 'Lei Complementar 270/2024').\n"
                     f"Responda APENAS com JSON:\n"
                     f'{{\n'
@@ -433,7 +434,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                     f'  "alterado_por": ["Lei X/ano"],\n'
                     f'  "revogado_por": ["Lei X/ano"],\n'
                     f'  "regulamentado_por": ["Lei X/ano"],\n'
-                    f'  "cita": ["Lei X/ano"]\n'
+                    f'  "cita": ["Lei X/ano"],\n'
+                    f'  "tachado_por": ["Lei X/ano"]\n'
                     f'}}\n\n'
                     f"Para o campo 'cita': liste APENAS leis citadas em contexto de definicao de zoneamento, zonas, subzonas, parametros de parcelamento do solo, uso e ocupacao do solo. Ignore citacoes em contexto de competencia, procedimento ou referencia generica.\n\n"
                     f"TEXTO:\n{texto_enc[:6000]}"
@@ -466,6 +468,10 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                         _revogado_por_enc = list(set(_revogado_por_enc + dados_rel.get("revogado_por", [])))
                         _regulamentado_por_enc = list(set(_regulamentado_por_enc + dados_rel.get("regulamentado_por", [])))
                         _cita_enc = list(set(locals().get('_cita_enc', []) + dados_rel.get("cita", [])))
+                        _tachado_por = dados_rel.get("tachado_por", [])
+                        if _tachado_por:
+                            logs.append({"nivel": "aviso", "msg": f"  [TACHADO] Trechos riscados identificados — revogado parcialmente por: {_tachado_por}"})
+                            _revogado_por_enc = list(set(_revogado_por_enc + _tachado_por))
                     except Exception as _eb:
                         logs.append({"nivel": "aviso", "msg": f"  [RELACOES] Erro bloco {_bi+1}: {str(_eb)[:60]}"})
                 logs.append({"nivel": "relacao", "msg": f"  [RELACOES] altera={_altera_enc} revoga={_revoga_enc} regulamenta={_regulamenta_enc} alterado_por={_alterado_por_enc}"})
