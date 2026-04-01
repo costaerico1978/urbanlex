@@ -1639,7 +1639,7 @@ function _abrevTipo(t) {
              .replace(/Decreto/gi, 'Dec.')
              .replace(/Resolução/gi, 'Res.')
              .replace(/Resolucao/gi, 'Res.')
-             .replace(/Lei/g, 'Lei');
+             .replace(/\bLei\b/g, 'Lei');
 }
 function _renderTabelaLegs() {
     const tbl=document.getElementById("tabela-legs-auto");
