@@ -250,6 +250,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                 texto_enc = ""
             # Incluir texto dos anexos no texto_enc (HTML ou PDF)
             _anexos_enc = enc.get("anexos_lm") or []
+            if _anexos_enc:
+                logs.append({"nivel": "relacao", "msg": f"  [ANEXOS] {len(_anexos_enc)} anexo(s): {[str(a)[:100] for a in _anexos_enc]}"})
             for _anx_e in _anexos_enc:
                 _anx_txt = _anx_e.get("texto", "") if isinstance(_anx_e, dict) else ""
                 if not _anx_txt:
