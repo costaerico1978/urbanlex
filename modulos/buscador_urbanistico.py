@@ -205,8 +205,16 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                 pass
         return False, None
 
-    # ETAPA 2: Buscar no LeisMunicipais
-    for leg in legs:
+    # ETAPA 2: Buscar no LeisMunicipais — fila dinamica com niveis de profundidade
+    from collections import deque as _deque
+    # Adicionar nivel 0 a todas as legs iniciais
+    for _l in legs:
+        if "_nivel" not in _l:
+            _l["_nivel"] = 0
+    fila = _deque(legs)
+    while fila:
+      leg = fila.popleft()
+      if True:
         tipo = leg.get("tipo", "")
         numero = leg.get("numero", "")
         ano = leg.get("ano", "")
@@ -379,6 +387,44 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             revoga=_revoga_enc, revogado_por=_revogado_por_enc,
             cita=_regulamenta_enc, citado_em=_regulamentado_por_enc,
             link=enc.get('link',''))
+        # Adicionar leis descobertas nas relacoes a fila dinamica
+        _nivel_atual = leg.get("_nivel", 0)
+        def _extrair_num_ano_fila(s):
+            import re as _refa
+            m = _refa.search(r'(\d+)[/\-](\d{4})', s)
+            return (m.group(1), m.group(2)) if m else (None, None)
+        def _adicionar_na_fila(lista_leis, nivel, motivo):
+            for _lei_str in (lista_leis or []):
+                _num, _ano = _extrair_num_ano_fila(_lei_str)
+                if not _num or not _ano:
+                    continue
+                _tipo_f = "Lei"
+                for _tp in ["Lei Complementar", "Decreto-Lei", "Decreto", "Resolucao", "Resolucao", "Lei"]:
+                    if _tp.lower() in _lei_str.lower():
+                        _tipo_f = _tp
+                        break
+                _chave_f = f"{_tipo_f.lower()}_{_num}_{_ano}"
+                if _chave_f in analisadas or _chave_f in revogadas:
+                    continue
+                if any(f"{l.get('tipo','').lower()}_{l.get('numero','')}_{l.get('ano','')}" == _chave_f for l in fila):
+                    continue
+                logs.append({"nivel": "info", "msg": f"  [FILA] Adicionando {_tipo_f} {_num}/{_ano} nivel={nivel} — {motivo}"})
+                fila.append({"tipo": _tipo_f, "numero": _num, "ano": _ano, "descricao": motivo, "_nivel": nivel, "_pergunta_label": ""})
+        if _nivel_atual < 2:
+            _adicionar_na_fila(_altera_enc, _nivel_atual + 1, "alterada por lei atual")
+            _adicionar_na_fila(_regulamenta_enc, _nivel_atual + 1, "regulamentada por lei atual")
+            _adicionar_na_fila(_alterado_por_enc, _nivel_atual + 1, "altera lei atual")
+            _adicionar_na_fila(_regulamentado_por_enc, _nivel_atual + 1, "regulamenta lei atual")
+            for _rev_str in (_revoga_enc or []):
+                _num_r, _ano_r = _extrair_num_ano_fila(_rev_str)
+                if _num_r and _ano_r:
+                    for _tp in ["Lei Complementar", "Decreto-Lei", "Decreto", "Resolucao", "Lei"]:
+                        if _tp.lower() in _rev_str.lower():
+                            _chave_r = f"{_tp.lower()}_{_num_r}_{_ano_r}"
+                            revogadas.add(_chave_r)
+                            revogadas_lista.append({"tipo": _tp, "numero": _num_r, "ano": _ano_r, "revogada_por": f"{tipo} {numero}/{ano}"})
+                            logs.append({"nivel": "aviso", "msg": f"  [FILA] {_rev_str} marcada como revogada por {tipo} {numero}/{ano}"})
+                            break
 
     # ETAPA 3: Fallback Google
     if not resultado["encontradas"]:
