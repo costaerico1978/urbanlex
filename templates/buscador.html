@@ -618,7 +618,7 @@ function logLine(icon, msg, color) {
     // Remove spinner line se existir
     const sp = lines.querySelector('.log-line-spinner');
     if (sp) sp.remove();
-    const ts = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const ts = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit', timeZone:'America/Sao_Paulo'});
     const c = color || 'var(--muted)';
     const text = `[${ts}] ${icon} ${msg}`;
     _logBuffer.push(text);
@@ -630,7 +630,7 @@ function logSpinner(msg) {
     // Remove spinner anterior
     const sp = lines.querySelector('.log-line-spinner');
     if (sp) sp.remove();
-    const ts = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const ts = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit', timeZone:'America/Sao_Paulo'});
     lines.innerHTML += `<div class="log-line-spinner" style="color:var(--muted)"><span style="color:var(--muted2)">[${ts}]</span> <span class="log-spinner"></span> ${msg || 'Processando...'}</div>`;
     lines.scrollTop = lines.scrollHeight;
 }
@@ -1158,7 +1158,8 @@ async function confirmarBuscaNovoMun() {
                         const c = l.nivel === "erro" ? "#ff6b6b" : l.nivel === "aviso" ? "#ffb347" : l.nivel === "ok" ? "var(--accent)" : "var(--muted)";
                         const d = document.createElement("div");
                         d.style.color = c;
-                        d.textContent = l.msg;
+                        const _tsBRT = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'America/Sao_Paulo'});
+                        d.textContent = '[' + _tsBRT + '] ' + (l.msg || '');
                         logEl.appendChild(d);
                         logEl.scrollTop = logEl.scrollHeight;
                         try {

@@ -5,6 +5,10 @@ import re
 import requests
 import json as _json
 
+def _brt_now():
+    from datetime import datetime, timezone, timedelta
+    return datetime.now(timezone(timedelta(hours=-3))).strftime('%H:%M:%S')
+
 def _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta="", status="analisando",
                    altera=None, alterado_por=None, revoga=None, revogado_por=None,
                    cita=None, citado_em=None, link=None):
