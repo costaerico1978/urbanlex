@@ -2567,6 +2567,7 @@ def api_reiniciar_worker():
         subprocess.run(['pkill', '-9', '-f', 'chromium'], capture_output=True)
         subprocess.run(['pkill', '-9', '-f', 'gunicorn'], capture_output=True)
         time.sleep(2)
+        subprocess.run(['bash', '-c', 'cd /var/www/urbanlex && git pull'], capture_output=True)
         subprocess.run(['systemctl', 'start', 'urbanlex'])
     threading.Thread(target=_restart, daemon=True).start()
     return jsonify({'success': True, 'msg': 'Worker reiniciando em 1s...'})
