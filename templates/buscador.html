@@ -1535,9 +1535,10 @@ async function carregarHistorico() {
         }
         el.innerHTML = items.map(item => {
             const sucesso = item.sucesso;
-            const statusIcon = sucesso ? '&#x2705;' : (item.concluido_em ? '&#x274C;' : '&#x23F3;');
-            const statusCls = sucesso ? 'background:rgba(0,229,160,.12);color:#00e5a0' : (item.concluido_em ? 'background:rgba(255,77,109,.12);color:#ff4d6d' : 'background:rgba(240,173,78,.12);color:#f0ad4e');
-            const statusTxt = sucesso ? 'Encontrada' : (item.concluido_em ? 'N&#xE3;o encontrada' : 'Em andamento');
+            const _st = item.status || (item.concluido_em ? 'concluida' : 'interrompida');
+            const statusIcon = _st === 'em_andamento' ? '&#x23F3;' : _st === 'concluida' ? '&#x2705;' : '&#x26A0;&#xFE0F;';
+            const statusCls = _st === 'em_andamento' ? 'background:rgba(240,173,78,.12);color:#f0ad4e' : _st === 'concluida' ? 'background:rgba(0,229,160,.12);color:#00e5a0' : 'background:rgba(255,77,109,.12);color:#ff4d6d';
+            const statusTxt = _st === 'em_andamento' ? 'Em andamento' : _st === 'concluida' ? 'Conclu&#xED;da' : 'Interrompida';
             const mun = item.municipio ? `${item.municipio}/${item.estado||''}` : '—';
             const leg = item.legislacao_numero ? `${item.legislacao_tipo||''} n&#xBA; ${item.legislacao_numero}/${item.legislacao_ano||''}` : '—';
             const _fmtDT = (s) => { if (!s) return '—'; const d = new Date(new Date(s).getTime() - 3*60*60*1000); return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit'}); };

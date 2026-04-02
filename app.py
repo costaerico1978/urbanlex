@@ -3047,6 +3047,7 @@ def api_buscador_historico():
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("""SELECT id, tipo, municipio, estado,
                               iniciado_em, concluido_em, sucesso,
+                              job_id,
                               legislacao_tipo, legislacao_numero,
                               legislacao_ano, legislacao_link,
                               pdf_path, anexos_paths
@@ -3057,6 +3058,20 @@ def api_buscador_historico():
         conn.close()
         data = []
         for r in (rows or []):
+            # Calcular status
+            _job_id = r.get('job_id') if 'job_id' in r else None
+            if r['concluido_em']:
+                _status = 'concluida'
+            elif _job_id and _buscador_jobs.get(_job_id) and not _buscador_jobs[_job_id].get('done'):
+                _status = 'em_andamento'
+            else:
+                # Verificar arquivo JSONL recente
+                import os as _os_h, time as _time_h
+                _log_path_h = f"/var/www/urbanlex/static/downloads/job_{_job_id}.jsonl" if _job_id else ""
+                if _job_id and _os_h.path.exists(_log_path_h) and (_time_h.time() - _os_h.path.getmtime(_log_path_h)) < 600:
+                    _status = 'em_andamento'
+                else:
+                    _status = 'interrompida'
             data.append({
                 'id': r['id'],
                 'tipo': r['tipo'],
@@ -3065,6 +3080,7 @@ def api_buscador_historico():
                 'iniciado_em': r['iniciado_em'].isoformat() if r['iniciado_em'] else None,
                 'concluido_em': r['concluido_em'].isoformat() if r['concluido_em'] else None,
                 'sucesso': r['sucesso'],
+                'status': _status,
                 'legislacao_tipo': r['legislacao_tipo'],
                 'legislacao_numero': r['legislacao_numero'],
                 'legislacao_ano': r['legislacao_ano'],
