@@ -1731,7 +1731,6 @@ carregarFila();
     try {
         const check = await api('GET', `/api/buscador/job/${jobId}?cursor=0`);
         if (!check || check.error === 'Job não encontrado') {
-        if (!check || check.error === 'Job não encontrado') {
             localStorage.removeItem('mun_job_id');
             localStorage.removeItem('mun_campos');
             return;
