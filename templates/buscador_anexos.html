@@ -21,6 +21,8 @@
             <input id="anx-arquivo" type="file" accept=".zip,.pdf" style="width:100%;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
         </div>
         <button onclick="analisarAnexo()" id="btn-anx" class="btn btn-primary">🔍 Analisar Anexos</button>
+        <button onclick="novaAnalise()" class="btn btn-secondary" style="margin-left:8px">🔄 Nova Análise</button>
+        <button onclick="baixarLogAnexo()" id="btn-baixar-anx" class="btn btn-secondary" style="margin-left:8px;display:none">📥 Baixar Log .txt</button>
     </div>
 
     <div id="anx-log" style="display:none;background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;max-height:400px;overflow-y:auto;margin-bottom:20px"></div>
@@ -32,6 +34,57 @@
 </div>
 
 <script>
+let _anx_log_buffer = [];
+
+function _anx_addLog(msg, nivel) {
+    const logEl = document.getElementById('anx-log');
+    const c = nivel === 'erro' ? '#ff6b6b' : nivel === 'aviso' ? '#ffb347' : nivel === 'ok' ? 'var(--accent)' : nivel === 'relacao' ? '#4fc3f7' : nivel === 'anexo' ? '#ff9800' : 'var(--muted)';
+    const ts = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'America/Sao_Paulo'});
+    const txt = `[${ts}] ${msg||''}`;
+    _anx_log_buffer.push(txt);
+    logEl.innerHTML += `<div style="color:${c}">${txt}</div>`;
+    logEl.scrollTop = logEl.scrollHeight;
+    // Persistir no localStorage
+    try { localStorage.setItem('anx_log_cache', JSON.stringify(_anx_log_buffer)); } catch(e) {}
+}
+
+function novaAnalise() {
+    _anx_log_buffer = [];
+    localStorage.removeItem('anx_log_cache');
+    const logEl = document.getElementById('anx-log');
+    logEl.innerHTML = '';
+    logEl.style.display = 'none';
+    document.getElementById('anx-resultado').style.display = 'none';
+    document.getElementById('btn-baixar-anx').style.display = 'none';
+    document.getElementById('anx-arquivo').value = '';
+}
+
+function baixarLogAnexo() {
+    const txt = _anx_log_buffer.join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([txt], {type:'text/plain'}));
+    const nd = new Date();
+    a.download = 'Log_anexos_' + nd.getDate().toString().padStart(2,'0') + '_' + (nd.getMonth()+1).toString().padStart(2,'0') + '_' + nd.getFullYear() + '_' + nd.getHours() + 'h' + nd.getMinutes() + '.txt';
+    a.click();
+}
+
+// Restaurar log anterior ao carregar
+(function() {
+    try {
+        const cache = JSON.parse(localStorage.getItem('anx_log_cache') || '[]');
+        if (!cache.length) return;
+        _anx_log_buffer = cache;
+        const logEl = document.getElementById('anx-log');
+        logEl.style.display = 'block';
+        document.getElementById('btn-baixar-anx').style.display = 'inline-block';
+        cache.forEach(txt => {
+            const c = txt.includes('[RELACOES]') || txt.includes('Bloco') ? '#4fc3f7' : txt.includes('📎') || txt.includes('📦') || txt.includes('📄') || txt.includes('📋') ? '#ff9800' : txt.includes('❌') ? '#ff6b6b' : txt.includes('⚠️') ? '#ffb347' : txt.includes('✅') ? 'var(--accent)' : 'var(--muted)';
+            logEl.innerHTML += `<div style="color:${c}">${txt}</div>`;
+        });
+        logEl.scrollTop = logEl.scrollHeight;
+    } catch(e) {}
+})();
+
 async function analisarAnexo() {
     const municipio = document.getElementById('anx-municipio').value.trim();
     const estado = document.getElementById('anx-estado').value.trim().toUpperCase();
@@ -41,10 +94,11 @@ async function analisarAnexo() {
     const btn = document.getElementById('btn-anx');
     btn.disabled = true; btn.textContent = '⏳ Analisando...';
 
+    novaAnalise();
     const logEl = document.getElementById('anx-log');
     logEl.style.display = 'block';
-    logEl.innerHTML = '<div style="color:var(--accent)">🚀 Iniciando análise...</div>';
     document.getElementById('anx-resultado').style.display = 'none';
+    _anx_addLog('🚀 Iniciando análise de ' + arquivo.name, 'ok');
 
     const fd = new FormData();
     fd.append('arquivo', arquivo);
@@ -63,10 +117,7 @@ async function analisarAnexo() {
             const poll = await fetch(`/api/buscador/job/${jobId}?cursor=${cursor}`).then(r=>r.json());
             if (poll.logs && poll.logs.length) {
                 poll.logs.forEach(l => {
-                    const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : l.nivel === 'anexo' ? '#ff9800' : 'var(--muted)';
-                    const ts = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'America/Sao_Paulo'});
-                    logEl.innerHTML += `<div style="color:${c}">[${ts}] ${l.msg||''}</div>`;
-                    logEl.scrollTop = logEl.scrollHeight;
+                    _anx_addLog(l.msg||'', l.nivel);
                 });
             }
             cursor = poll.cursor || cursor;
