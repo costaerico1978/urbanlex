@@ -52,7 +52,7 @@ async function analisarAnexo() {
     fd.append('estado', estado || 'XX');
 
     try {
-        const r = await fetch('/api/buscador/analisar-anexo', {method:'POST', body: fd});
+        const r = await fetch('/api/buscador/analisar-anexo', {method:'POST', body: fd, credentials:'same-origin'});
         const d = await r.json();
         if (!d.success) { alert('Erro: ' + d.error); btn.disabled=false; btn.textContent='🔍 Analisar Anexos'; return; }
 
