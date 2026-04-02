@@ -2655,6 +2655,11 @@ def api_buscador_manual_start():
         if not _jv.get('done') and not _jv.get('cancelled'):
             _jv['cancelled'] = True
             _jv['logs'].append({'nivel': 'aviso', 'msg': '⚠️ Busca cancelada — nova busca iniciada'})
+            try:
+                import os as _os_del
+                _old_log = f"/var/www/urbanlex/static/downloads/job_{_jid}.jsonl"
+                if _os_del.path.exists(_old_log): _os_del.remove(_old_log)
+            except Exception: pass
 
 
     d = request.json or {}
