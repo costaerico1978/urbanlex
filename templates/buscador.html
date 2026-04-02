@@ -1620,12 +1620,25 @@ function _atualizarTabelaLegs(dados) {
     if (dados.leg) Object.assign(dados, dados.leg);
     const k=`${dados.tipo}_${dados.numero}_${dados.ano}`.toLowerCase();
     const ex=_tabelaLegsData[k]||{};
-    dados.altera=[...new Set([...(ex.altera||[]),...(dados.altera||[])])];
-    dados.alterado_por=[...new Set([...(ex.alterado_por||[]),...(dados.alterado_por||[])])];
-    dados.revoga=[...new Set([...(ex.revoga||[]),...(dados.revoga||[])])];
-    dados.revogado_por=[...new Set([...(ex.revogado_por||[]),...(dados.revogado_por||[])])];
-    dados.cita=[...new Set([...(ex.cita||[]),...(dados.cita||[])])];
-    dados.citado_em=[...new Set([...(ex.citado_em||[]),...(dados.citado_em||[])])];
+    // Se chegou encontrada, substituir campos de relacoes completamente
+    // Se chegou analisando, preservar campos ja preenchidos de evento anterior
+    if (dados.status === 'encontrada') {
+        // Substituir completamente — dados do Gemini sao definitivos
+        dados.altera = dados.altera || [];
+        dados.alterado_por = dados.alterado_por || [];
+        dados.revoga = dados.revoga || [];
+        dados.revogado_por = dados.revogado_por || [];
+        dados.cita = dados.cita || [];
+        dados.citado_em = dados.citado_em || [];
+    } else {
+        // Preservar campos ja preenchidos
+        dados.altera = dados.altera && dados.altera.length ? dados.altera : (ex.altera||[]);
+        dados.alterado_por = dados.alterado_por && dados.alterado_por.length ? dados.alterado_por : (ex.alterado_por||[]);
+        dados.revoga = dados.revoga && dados.revoga.length ? dados.revoga : (ex.revoga||[]);
+        dados.revogado_por = dados.revogado_por && dados.revogado_por.length ? dados.revogado_por : (ex.revogado_por||[]);
+        dados.cita = dados.cita && dados.cita.length ? dados.cita : (ex.cita||[]);
+        dados.citado_em = dados.citado_em && dados.citado_em.length ? dados.citado_em : (ex.citado_em||[]);
+    }
     _tabelaLegsData[k]=dados;
     try{localStorage.setItem("mun_tabela_legs",JSON.stringify(_tabelaLegsData)); localStorage.setItem("mun_tabela_job_id", localStorage.getItem("mun_job_id")||'');}catch(e){}
     _renderTabelaLegs();
