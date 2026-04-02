@@ -2302,6 +2302,165 @@ def api_descobrir_legislacoes():
 
 @app.route('/buscador')
 @app.route('/buscador/manual')
+@app.route('/buscador/anexos')
+@login_required
+def buscador_anexos():
+    return render_template('buscador_anexos.html',
+        active_page='buscador-anexos',
+        active_group='buscador')
+
+@app.route('/api/buscador/analisar-anexo', methods=['POST'])
+@login_required
+def api_analisar_anexo():
+    import threading, uuid, json as _json
+    job_id = str(uuid.uuid4())[:12]
+    f = request.files.get('arquivo')
+    municipio = request.form.get('municipio', 'Municipio')
+    estado = request.form.get('estado', 'XX')
+    if not f:
+        return jsonify({'success': False, 'error': 'Nenhum arquivo enviado'})
+    import os, tempfile
+    tmp = tempfile.mkdtemp()
+    fpath = os.path.join(tmp, f.filename)
+    f.save(fpath)
+    job = {'logs': [], 'done': False, 'result': None}
+    _buscador_jobs[job_id] = job
+    def _run():
+        try:
+            logs = job['logs']
+            def chamar_llm(prompt, logs, label=""):
+                try:
+                    from modulos.buscador_urbanistico import chamar_llm as _cllm
+                    return _cllm(prompt, logs, label)
+                except Exception:
+                    from google import genai as _gai
+                    import os as _os2
+                    client = _gai.Client(api_key=_os2.environ.get('GEMINI_API_KEY',''))
+                    resp = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+                    return resp.text
+            # Importar funcao de extracao de anexos
+            import sys
+            sys.path.insert(0, '/var/www/urbanlex')
+            from modulos.buscador_urbanistico import _buscar_leismunicipais
+            # Processar o arquivo diretamente
+            logs.append({'nivel': 'ok', 'msg': f'📎 Arquivo recebido: {f.filename} ({os.path.getsize(fpath)//1024}KB)'})
+            ext = os.path.splitext(fpath)[1].lower()
+            texto_total = ""
+            if ext == '.zip':
+                import zipfile
+                logs.append({'nivel': 'anexo', 'msg': f'📦 Descompactando ZIP...'})
+                with zipfile.ZipFile(fpath, 'r') as z:
+                    arquivos = sorted(z.namelist())
+                    logs.append({'nivel': 'anexo', 'msg': f'📂 {len(arquivos)} arquivo(s) encontrado(s)'})
+                    z.extractall(tmp)
+                for fname in arquivos:
+                    fpath2 = os.path.join(tmp, fname)
+                    if not os.path.isfile(fpath2): continue
+                    logs.append({'nivel': 'anexo', 'msg': f'📄 Analisando: {fname}...'})
+                    ext2 = os.path.splitext(fname)[1].lower()
+                    txt = ""
+                    if ext2 == '.pdf':
+                        import subprocess
+                        r = subprocess.run(['pdftotext', fpath2, '-'], capture_output=True, text=True, timeout=60)
+                        if r.returncode == 0 and len(r.stdout.strip()) > 100:
+                            txt = r.stdout
+                            logs.append({'nivel': 'anexo', 'msg': f'  ✅ {fname}: {len(txt)} chars via pdftotext'})
+                        else:
+                            logs.append({'nivel': 'aviso', 'msg': f'  ⚠️ {fname}: PDF rasterizado — usando Gemini Vision...'})
+                            # Gemini Vision
+                            try:
+                                import base64
+                                r2 = subprocess.run(['gs','-dNOPAUSE','-dBATCH','-sDEVICE=png16m','-r150',f'-sOutputFile={tmp}/page_%03d.png',fpath2], capture_output=True, timeout=120)
+                                pages = sorted([x for x in os.listdir(tmp) if x.startswith('page_') and x.endswith('.png')])[:10]
+                                if pages:
+                                    from google import genai as _gv
+                                    client_v = _gv.Client(api_key=os.environ.get('GEMINI_API_KEY',''))
+                                    parts = ['Extraia todo o texto deste documento municipal brasileiro:']
+                                    for pg in pages:
+                                        with open(os.path.join(tmp,pg),'rb') as fp:
+                                            parts.append({'mime_type':'image/png','data':base64.b64encode(fp.read()).decode()})
+                                    resp_v = client_v.models.generate_content(model='gemini-2.5-flash', contents=parts)
+                                    txt = resp_v.text or ""
+                                    logs.append({'nivel': 'anexo', 'msg': f'  ✅ {fname}: {len(txt)} chars via Gemini Vision'})
+                            except Exception as ev:
+                                logs.append({'nivel': 'aviso', 'msg': f'  ❌ {fname}: Gemini Vision falhou: {str(ev)[:80]}'})
+                    if txt:
+                        # Pedir descricao ao Gemini
+                        try:
+                            desc = chamar_llm(f"Em uma linha, descreva o assunto deste documento municipal:\n\n{txt[:2000]}", logs, f"Desc {fname}")
+                            if desc:
+                                logs.append({'nivel': 'anexo', 'msg': f'  📋 {fname}: {desc.strip()[:150]}'})
+                        except Exception: pass
+                        texto_total += f"\n\n--- {fname} ---\n{txt}"
+            elif ext == '.pdf':
+                import subprocess
+                r = subprocess.run(['pdftotext', fpath, '-'], capture_output=True, text=True, timeout=60)
+                if r.returncode == 0:
+                    texto_total = r.stdout
+                    logs.append({'nivel': 'ok', 'msg': f'✅ PDF: {len(texto_total)} chars extraidos'})
+            if not texto_total.strip():
+                logs.append({'nivel': 'aviso', 'msg': '⚠️ Nao foi possivel extrair texto dos anexos'})
+                job['done'] = True
+                return
+            # Analisar relacoes em blocos
+            logs.append({'nivel': 'relacao', 'msg': f'🔍 Analisando relacoes em {max(1, len(texto_total)//30000)} bloco(s)...'})
+            _BLOCO = 30000
+            _OVERLAP = 2000
+            altera, revoga, regulamenta, alterado_por, revogado_por, regulamentado_por, cita = [], [], [], [], [], [], []
+            pos = 0
+            bi = 0
+            total_blocos = max(1, (len(texto_total) + _BLOCO - 1) // _BLOCO)
+            while pos < len(texto_total):
+                bi += 1
+                bloco = texto_total[pos:pos+_BLOCO]
+                prompt = (
+                    f"Analise este trecho de anexo legislativo de {municipio}/{estado} (bloco {bi}/{total_blocos}).\n"
+                    f"Identifique leis mencionadas e suas relacoes:\n"
+                    f'1. Leis que este documento ALTERA\n'
+                    f'2. Leis que este documento REVOGA\n'
+                    f'3. Leis que este documento REGULAMENTA\n'
+                    f'4. Leis que ALTERAM este documento\n'
+                    f'5. Leis que REVOGAM este documento\n'
+                    f'6. Leis que REGULAMENTAM este documento\n'
+                    f'7. Leis CITADAS em contexto urbanistico (zoneamento, uso do solo, parcelamento)\n\n'
+                    f'Responda APENAS com JSON:\n'
+                    f'{{"altera":[],"revoga":[],"regulamenta":[],"alterado_por":[],"revogado_por":[],"regulamentado_por":[],"cita":[]}}\n\n'
+                    f'TEXTO:\n{bloco}'
+                )
+                try:
+                    resp = chamar_llm(prompt, logs, f"Bloco {bi}/{total_blocos}")
+                    if resp:
+                        import re, json as _j
+                        resp_c = re.sub(r'^```json\s*|\s*```$', '', resp.strip())
+                        d = _j.loads(resp_c)
+                        altera = list(set(altera + d.get('altera',[])))
+                        revoga = list(set(revoga + d.get('revoga',[])))
+                        regulamenta = list(set(regulamenta + d.get('regulamenta',[])))
+                        alterado_por = list(set(alterado_por + d.get('alterado_por',[])))
+                        revogado_por = list(set(revogado_por + d.get('revogado_por',[])))
+                        regulamentado_por = list(set(regulamentado_por + d.get('regulamentado_por',[])))
+                        cita = list(set(cita + d.get('cita',[])))
+                        logs.append({'nivel': 'relacao', 'msg': f'[Bloco {bi}] altera={len(altera)} revoga={len(revoga)} cita={len(cita)}'})
+                except Exception as eb:
+                    logs.append({'nivel': 'aviso', 'msg': f'Erro bloco {bi}: {str(eb)[:80]}'})
+                pos += _BLOCO - _OVERLAP
+            resultado = {'altera': altera, 'revoga': revoga, 'regulamenta': regulamenta,
+                        'alterado_por': alterado_por, 'revogado_por': revogado_por,
+                        'regulamentado_por': regulamentado_por, 'cita': cita}
+            logs.append({'nivel': 'ok', 'msg': f'✅ Analise concluida!'})
+            logs.append({'nivel': 'ok', 'msg': f'  Altera: {altera}'})
+            logs.append({'nivel': 'ok', 'msg': f'  Revoga: {revoga}'})
+            logs.append({'nivel': 'ok', 'msg': f'  Regulamenta: {regulamenta}'})
+            logs.append({'nivel': 'ok', 'msg': f'  Alterado por: {alterado_por}'})
+            logs.append({'nivel': 'ok', 'msg': f'  Cita: {cita}'})
+            job['result'] = resultado
+        except Exception as e:
+            job['logs'].append({'nivel': 'erro', 'msg': f'Erro: {str(e)[:200]}'})
+        finally:
+            job['done'] = True
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({'success': True, 'job_id': job_id})
+
 @app.route('/buscador/historico')
 @login_required
 def pg_buscador():

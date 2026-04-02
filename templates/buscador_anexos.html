@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Análise de Anexos · UrbanLex{% endblock %}
+{% block content %}
+<div style="padding:24px;max-width:900px">
+    <h2 style="color:var(--accent);margin-bottom:4px">📎 Análise de Anexos</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:24px">Faça upload de um ZIP ou PDF com anexos de uma legislação para analisar as relações urbanísticas.</p>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div>
+                <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Município</label>
+                <input id="anx-municipio" type="text" placeholder="Ex: Rio de Janeiro" style="width:100%;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
+            </div>
+            <div>
+                <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Estado</label>
+                <input id="anx-estado" type="text" placeholder="Ex: RJ" maxlength="2" style="width:100%;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
+            </div>
+        </div>
+        <div style="margin-bottom:12px">
+            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Arquivo (ZIP ou PDF)</label>
+            <input id="anx-arquivo" type="file" accept=".zip,.pdf" style="width:100%;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
+        </div>
+        <button onclick="analisarAnexo()" id="btn-anx" class="btn btn-primary">🔍 Analisar Anexos</button>
+    </div>
+
+    <div id="anx-log" style="display:none;background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;max-height:400px;overflow-y:auto;margin-bottom:20px"></div>
+
+    <div id="anx-resultado" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px">
+        <h3 style="color:var(--accent);margin-bottom:16px">📊 Resultado da Análise</h3>
+        <div id="anx-tabela"></div>
+    </div>
+</div>
+
+<script>
+async function analisarAnexo() {
+    const municipio = document.getElementById('anx-municipio').value.trim();
+    const estado = document.getElementById('anx-estado').value.trim().toUpperCase();
+    const arquivo = document.getElementById('anx-arquivo').files[0];
+    if (!arquivo) { alert('Selecione um arquivo'); return; }
+
+    const btn = document.getElementById('btn-anx');
+    btn.disabled = true; btn.textContent = '⏳ Analisando...';
+
+    const logEl = document.getElementById('anx-log');
+    logEl.style.display = 'block';
+    logEl.innerHTML = '<div style="color:var(--accent)">🚀 Iniciando análise...</div>';
+    document.getElementById('anx-resultado').style.display = 'none';
+
+    const fd = new FormData();
+    fd.append('arquivo', arquivo);
+    fd.append('municipio', municipio || 'Municipio');
+    fd.append('estado', estado || 'XX');
+
+    try {
+        const r = await fetch('/api/buscador/analisar-anexo', {method:'POST', body: fd});
+        const d = await r.json();
+        if (!d.success) { alert('Erro: ' + d.error); btn.disabled=false; btn.textContent='🔍 Analisar Anexos'; return; }
+
+        const jobId = d.job_id;
+        let cursor = 0;
+        while (true) {
+            await new Promise(ok => setTimeout(ok, 1500));
+            const poll = await fetch(`/api/buscador/job/${jobId}?cursor=${cursor}`).then(r=>r.json());
+            if (poll.logs && poll.logs.length) {
+                poll.logs.forEach(l => {
+                    const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : l.nivel === 'anexo' ? '#ff9800' : 'var(--muted)';
+                    const ts = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'America/Sao_Paulo'});
+                    logEl.innerHTML += `<div style="color:${c}">[${ts}] ${l.msg||''}</div>`;
+                    logEl.scrollTop = logEl.scrollHeight;
+                });
+            }
+            cursor = poll.cursor || cursor;
+            if (poll.done) {
+                if (poll.result) mostrarResultado(poll.result);
+                break;
+            }
+        }
+    } catch(e) {
+        logEl.innerHTML += `<div style="color:#ff6b6b">Erro: ${e}</div>`;
+    }
+    btn.disabled = false; btn.textContent = '🔍 Analisar Anexos';
+}
+
+function mostrarResultado(r) {
+    const el = document.getElementById('anx-resultado');
+    el.style.display = 'block';
+    const campos = [
+        ['Altera', r.altera],
+        ['Revoga', r.revoga],
+        ['Regulamenta', r.regulamenta],
+        ['Alterado por', r.alterado_por],
+        ['Revogado por', r.revogado_por],
+        ['Regulamentado por', r.regulamentado_por],
+        ['Faz referência à', r.cita],
+    ];
+    let h = '<table style="width:100%;border-collapse:collapse;font-size:12px">';
+    campos.forEach(([label, lista]) => {
+        if (!lista || !lista.length) return;
+        h += `<tr>
+            <td style="padding:8px 12px;border:1px solid var(--border);color:var(--muted);width:180px;font-weight:600">${label}</td>
+            <td style="padding:8px 12px;border:1px solid var(--border);white-space:pre-line">${lista.join('\n')}</td>
+        </tr>`;
+    });
+    h += '</table>';
+    document.getElementById('anx-tabela').innerHTML = h;
+}
+</script>
+{% endblock %}
