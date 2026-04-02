@@ -1691,13 +1691,33 @@ carregarFila();
 // Reconectar busca automática se houver job ativo
 (async function reconectarMunJob() {
     await new Promise(ok => setTimeout(ok, 300)); // aguardar DOM e funções prontos
-    const jobId = localStorage.getItem('mun_job_id');
-    if (!jobId) return;
-    const campos = JSON.parse(localStorage.getItem('mun_campos') || '{}');
-    const mun = campos.mun || '';
-    const est = campos.est || '';
+    // Sempre consultar servidor — independente do localStorage
+    let jobId = localStorage.getItem('mun_job_id');
+    let mun = '', est = '';
+    try {
+        const ativo = await api('GET', '/api/buscador/job-ativo');
+        if (ativo && ativo.ativo) {
+            jobId = ativo.job_id;
+            mun = ativo.municipio || '';
+            est = ativo.estado || '';
+            localStorage.setItem('mun_job_id', jobId);
+            if (ativo.hist_id) { window._munHistId = ativo.hist_id; const _ba = document.getElementById('btn-baixar-log-auto'); if(_ba) _ba.style.display='inline-block'; }
+        } else if (!jobId) {
+            return;
+        } else {
+            const campos = JSON.parse(localStorage.getItem('mun_campos') || '{}');
+            mun = campos.mun || '';
+            est = campos.est || '';
+        }
+    } catch(e) {
+        if (!jobId) return;
+        const campos = JSON.parse(localStorage.getItem('mun_campos') || '{}');
+        mun = campos.mun || '';
+        est = campos.est || '';
+    }
     try {
         const check = await api('GET', `/api/buscador/job/${jobId}?cursor=0`);
+        if (!check || check.error === 'Job não encontrado') {
         if (!check || check.error === 'Job não encontrado') {
             localStorage.removeItem('mun_job_id');
             localStorage.removeItem('mun_campos');

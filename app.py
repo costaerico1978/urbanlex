@@ -2589,13 +2589,21 @@ def api_buscador_job_ativo():
             return jsonify({'ativo': False})
         job_id = r['job_id']
         job = _buscador_jobs.get(job_id)
-        if not job or job.get('done') or job.get('tipo') != 'manual':
+        if not job or job.get('done'):
             return jsonify({'ativo': False})
+        # Buscar hist_id para botao de download
+        conn2 = get_db()
+        cur2 = conn2.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur2.execute("SELECT id FROM buscas_historico WHERE job_id=%s LIMIT 1", (job_id,))
+        h = cur2.fetchone()
+        cur2.close()
+        conn2.close()
         return jsonify({
             'ativo': True,
             'job_id': job_id,
             'municipio': r['municipio'],
-            'estado': r['estado']
+            'estado': r['estado'],
+            'hist_id': h['id'] if h else None
         })
     except Exception as e:
         return jsonify({'ativo': False})
