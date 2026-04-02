@@ -2906,7 +2906,19 @@ def api_buscador_job_poll(job_id):
                 with open(_log_path, 'r', encoding='utf-8') as _lf:
                     _logs_rec = [_json_rec.loads(l) for l in _lf if l.strip()]
                 cursor = int(request.args.get('cursor', 0))
-                return jsonify({'success': True, 'logs': _logs_rec[cursor:], 'cursor': len(_logs_rec), 'done': True, 'recuperado': True})
+                # Buscar hist_id no banco
+                _hist_id_rec = None
+                try:
+                    _conn_rec = get_db()
+                    _cur_rec = _conn_rec.cursor()
+                    _cur_rec.execute("SELECT id FROM buscas_historico WHERE job_id=%s LIMIT 1", (job_id,))
+                    _h_rec = _cur_rec.fetchone()
+                    if _h_rec: _hist_id_rec = _h_rec[0]
+                    _cur_rec.close()
+                    _conn_rec.close()
+                except Exception:
+                    pass
+                return jsonify({'success': True, 'logs': _logs_rec[cursor:], 'cursor': len(_logs_rec), 'done': True, 'recuperado': True, 'hist_id': _hist_id_rec})
             except Exception:
                 pass
         return jsonify({'success': False, 'error': 'Job não encontrado', 'done': False, 'logs': [], 'cursor': 0})
