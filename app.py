@@ -2590,6 +2590,19 @@ def api_buscador_job_ativo():
         job_id = r['job_id']
         job = _buscador_jobs.get(job_id)
         if not job or job.get('done'):
+            # Verificar se ha arquivo de log persistido (worker reiniciou)
+            import json as _json_at
+            _log_path_at = f"/var/www/urbanlex/static/downloads/job_{job_id}.jsonl"
+            if os.path.exists(_log_path_at):
+                try:
+                    with open(_log_path_at, 'r', encoding='utf-8') as _lf_at:
+                        _logs_at = [_json_at.loads(l) for l in _lf_at if l.strip()]
+                    # Verificar se a ultima linha indica conclusao
+                    _last = _logs_at[-1] if _logs_at else {}
+                    if not _last.get('msg','').startswith('CONCLUIDO'):
+                        return jsonify({'ativo': True, 'job_id': job_id, 'municipio': r['municipio'], 'estado': r['estado'], 'hist_id': None, 'recuperado': True})
+                except Exception:
+                    pass
             return jsonify({'ativo': False})
         # Buscar hist_id para botao de download
         conn2 = get_db()
@@ -2668,6 +2681,14 @@ def api_buscador_manual_start():
 
     def log_cb(entry):
         job['logs'].append(entry)
+        # Persistir log em arquivo para sobreviver restart do worker
+        try:
+            import json as _json_log
+            _log_path = f"/var/www/urbanlex/static/downloads/job_{job_id}.jsonl"
+            with open(_log_path, 'a', encoding='utf-8') as _lf:
+                _lf.write(_json_log.dumps(entry, ensure_ascii=False) + '\n')
+        except Exception:
+            pass
         # Interromper thread se job foi cancelado
         if job.get('cancelled'):
             raise InterruptedError('Job cancelado')
@@ -2871,7 +2892,17 @@ def api_buscador_job_poll(job_id):
     """Polling: retorna logs novos + resultado quando pronto."""
     job = _buscador_jobs.get(job_id)
     if not job:
-        # Pode ter sido limpo por restart do worker — não encerrar o frontend ainda
+        # Tentar recuperar logs do arquivo persistido
+        import json as _json_rec
+        _log_path = f"/var/www/urbanlex/static/downloads/job_{job_id}.jsonl"
+        if os.path.exists(_log_path):
+            try:
+                with open(_log_path, 'r', encoding='utf-8') as _lf:
+                    _logs_rec = [_json_rec.loads(l) for l in _lf if l.strip()]
+                cursor = int(request.args.get('cursor', 0))
+                return jsonify({'success': True, 'logs': _logs_rec[cursor:], 'cursor': len(_logs_rec), 'done': True, 'recuperado': True})
+            except Exception:
+                pass
         return jsonify({'success': False, 'error': 'Job não encontrado', 'done': False, 'logs': [], 'cursor': 0})
 
     cursor = int(request.args.get('cursor', 0))
