@@ -1756,14 +1756,20 @@ carregarFila();
             localStorage.removeItem('mun_log_cache');
             return;
         }
-        // Complementar com logs do servidor além do cache
+        // Restaurar hist_id para botao de download
+        if (check.hist_id) { window._munHistId = check.hist_id; const _btnAuto = document.getElementById('btn-baixar-log-auto'); if(_btnAuto) _btnAuto.style.display='inline-block'; }
+        // Restaurar tabela com eventos tabela do servidor
         const _srvLogs = check.logs || [];
+        _srvLogs.filter(l => l.nivel === 'tabela').forEach(l => _atualizarTabelaLegs(l));
+        // Complementar log com entradas do servidor além do cache
         if (_srvLogs.length > _cachedLogs.length) {
             _srvLogs.slice(_cachedLogs.length).forEach(l => {
+                if (l.nivel === 'tabela') return;
                 const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : l.nivel === 'anexo' ? '#ff9800' : 'var(--muted)';
                 const d = document.createElement('div');
                 d.style.color = c;
-                d.textContent = l.msg;
+                const _tsBRT2 = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'America/Sao_Paulo'});
+                d.textContent = '[' + _tsBRT2 + '] ' + (l.msg || '');
                 logEl.appendChild(d);
             });
         }
@@ -1791,11 +1797,13 @@ carregarFila();
                         const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : l.nivel === 'anexo' ? '#ff9800' : 'var(--muted)';
                         const d = document.createElement('div');
                         d.style.color = c;
-                        d.textContent = l.msg;
+                        const _tsBRT3 = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'America/Sao_Paulo'});
+                        d.textContent = '[' + _tsBRT3 + '] ' + (l.msg || '');
                         logEl.appendChild(d);
                         logEl.scrollTop = logEl.scrollHeight;
                     });
                 }
+                if (poll.hist_id) { window._munHistId = poll.hist_id; const _btnA2 = document.getElementById('btn-baixar-log-auto'); if(_btnA2) _btnA2.style.display='inline-block'; }
                 cursor = poll.cursor || cursor;
                 if (poll.done) break;
             } catch(e) {}
