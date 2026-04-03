@@ -181,3 +181,42 @@ function acSelecionar(el, prefix) {
 }
 </script>
 {% endblock %}
+<script>
+let _acTimer=null,_acCache={},_acIdx=-1;
+async function acBuscar(query,prefix){
+    prefix=prefix||'anx';
+    const listEl=document.getElementById(prefix+'-ac-list');
+    if(!listEl)return;
+    query=(query||'').trim();
+    if(query.length<2){listEl.classList.remove('open');return;}
+    clearTimeout(_acTimer);
+    _acTimer=setTimeout(async()=>{
+        const ck=query.toLowerCase();
+        let items=_acCache[ck];
+        if(!items){
+            try{
+                const r=await fetch('/api/buscador/autocomplete-municipios?q='+encodeURIComponent(query),{credentials:'same-origin'});
+                const d=await r.json();
+                items=d.municipios||[];
+                _acCache[ck]=items;
+            }catch(e){items=[];}
+        }
+        if(!items.length){listEl.innerHTML='<div style="padding:8px;font-size:12px;color:var(--muted)">Nenhum município encontrado</div>';listEl.classList.add('open');return;}
+        _acIdx=-1;
+        listEl.innerHTML=items.map(m=>`<div class="ac-item" data-nome="${m.nome}" data-estado="${m.estado}" onclick="acSelecionar(this,'anx')" onmouseenter="this.classList.add('selected')" onmouseleave="this.classList.remove('selected')" style="padding:8px 12px;cursor:pointer;font-size:12px"><span style="color:var(--muted);margin-right:6px">${m.estado}</span>${m.nome}</div>`).join('');
+        listEl.classList.add('open');
+    },200);
+}
+function acKeydown(e,prefix){
+    prefix=prefix||'anx';
+    const listEl=document.getElementById(prefix+'-ac-list');
+    if(!listEl)return;
+    const items=listEl.querySelectorAll('.ac-item');
+    if(!items.length||!listEl.classList.contains('open'))return;
+    if(e.key==='ArrowDown'){e.preventDefault();_acIdx=Math.min(_acIdx+1,items.length-1);items.forEach((it,i)=>it.classList.toggle('selected',i===_acIdx));items[_acIdx].scrollIntoView({block:'nearest'});}
+    else if(e.key==='ArrowUp'){e.preventDefault();_acIdx=Math.max(_acIdx-1,0);items.forEach((it,i)=>it.classList.toggle('selected',i===_acIdx));items[_acIdx].scrollIntoView({block:'nearest'});}
+    else if(e.key==='Enter'&&_acIdx>=0){e.preventDefault();acSelecionar(items[_acIdx],prefix);}
+    else if(e.key==='Escape'){listEl.classList.remove('open');}
+}
+document.addEventListener('click',e=>{if(!e.target.closest('.ac-wrapper'))document.querySelectorAll('.ac-list').forEach(l=>l.classList.remove('open'));});
+</script>
