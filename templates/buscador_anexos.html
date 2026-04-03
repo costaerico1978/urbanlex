@@ -113,7 +113,12 @@ async function analisarAnexo() {
 
     try {
         const r = await fetch('/api/buscador/analisar-anexo', {method:'POST', body: fd, credentials:'same-origin'});
-        const d = await r.json();
+        const respText = await r.text();
+        let d;
+        try { d = JSON.parse(respText); } catch(e) {
+            _anx_addLog('Erro do servidor: ' + respText.substring(0,200), 'erro');
+            btn.disabled=false; btn.textContent='🔍 Analisar Anexos'; return;
+        }
         if (!d.success) { alert('Erro: ' + d.error); btn.disabled=false; btn.textContent='🔍 Analisar Anexos'; return; }
 
         const jobId = d.job_id;
