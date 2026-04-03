@@ -2350,13 +2350,26 @@ def api_analisar_anexo():
                 import zipfile
                 logs.append({'nivel': 'anexo', 'msg': f'📦 Descompactando ZIP...'})
                 with zipfile.ZipFile(fpath, 'r') as z:
-                    arquivos = sorted(z.namelist())
+                    # Corrigir encoding dos nomes de arquivos (Windows cp437/cp1252)
+                    _raw_names = z.namelist()
+                    _arquivos_map = {}
+                    for _info in z.infolist():
+                        try:
+                            _nome_correto = _info.filename.encode('cp437').decode('utf-8')
+                        except Exception:
+                            try:
+                                _nome_correto = _info.filename.encode('cp437').decode('cp1252')
+                            except Exception:
+                                _nome_correto = _info.filename
+                        _arquivos_map[_info.filename] = _nome_correto
+                    arquivos = sorted(_raw_names)
                     logs.append({'nivel': 'anexo', 'msg': f'📂 {len(arquivos)} arquivo(s) encontrado(s)'})
                     z.extractall(tmp)
                 for fname in arquivos:
+                    fname_display = _arquivos_map.get(fname, fname)
                     fpath2 = os.path.join(tmp, fname)
                     if not os.path.isfile(fpath2): continue
-                    logs.append({'nivel': 'anexo', 'msg': f'📄 Analisando: {fname}...'})
+                    logs.append({'nivel': 'anexo', 'msg': f'📄 Analisando: {fname_display}...'})
                     ext2 = os.path.splitext(fname)[1].lower()
                     txt = ""
                     if ext2 == '.pdf':
@@ -2364,9 +2377,9 @@ def api_analisar_anexo():
                         r = subprocess.run(['pdftotext', fpath2, '-'], capture_output=True, text=True, timeout=60)
                         if r.returncode == 0 and len(r.stdout.strip()) > 100:
                             txt = r.stdout
-                            logs.append({'nivel': 'anexo', 'msg': f'  ✅ {fname}: {len(txt)} chars via pdftotext'})
+                            logs.append({'nivel': 'anexo', 'msg': f'  ✅ {fname_display}: {len(txt)} chars via pdftotext'})
                         else:
-                            logs.append({'nivel': 'aviso', 'msg': f'  ⚠️ {fname}: PDF rasterizado — usando Gemini Vision...'})
+                            logs.append({'nivel': 'aviso', 'msg': f'  ⚠️ {fname_display}: PDF rasterizado — usando Gemini Vision...'})
                             # Gemini Vision
                             try:
                                 import base64
