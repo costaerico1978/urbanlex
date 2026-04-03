@@ -102,6 +102,7 @@ async function analisarAnexo() {
             const poll = await fetch('/api/buscador/job/'+d.job_id+'?cursor='+cursor,{credentials:'same-origin'}).then(r=>r.json());
             if (poll.logs && poll.logs.length) {
                 poll.logs.forEach(l => anxAddLog(l.msg||'', l.nivel));
+                document.getElementById('btn-baixar-anx').style.display = 'inline-block';
             }
             cursor = poll.cursor || cursor;
             if (poll.done) {
