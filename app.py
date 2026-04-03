@@ -2362,7 +2362,8 @@ def api_analisar_anexo():
                             except Exception:
                                 _nome_correto = _info.filename
                         _arquivos_map[_info.filename] = _nome_correto
-                    arquivos = sorted(_raw_names)
+                    import re as _re_sort
+                    arquivos = sorted(_raw_names, key=lambda x: [int(c) if c.isdigit() else c.lower() for c in _re_sort.split(r"(\d+)", x)])
                     logs.append({'nivel': 'anexo', 'msg': f'📂 {len(arquivos)} arquivo(s) encontrado(s)'})
                     z.extractall(tmp)
                 for fname in arquivos:
@@ -2389,7 +2390,7 @@ def api_analisar_anexo():
                                     from google import genai as _gv
                                     from google.genai import types as _gv_types
                                     client_v = _gv.Client(api_key=os.environ.get('GEMINI_API_KEY',''))
-                                    parts = [_gv_types.Part.from_text('Extraia todo o texto deste documento municipal brasileiro:')]
+                                    parts = [_gv_types.Part.from_text(text='Extraia todo o texto deste documento municipal brasileiro:')]
                                     for pg in pages:
                                         with open(os.path.join(tmp,pg),'rb') as fp:
                                             parts.append(_gv_types.Part.from_bytes(data=fp.read(), mime_type='image/png'))
