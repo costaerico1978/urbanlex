@@ -97,18 +97,27 @@ async function analisarAnexo() {
         try { d = JSON.parse(txt); } catch(e) { anxAddLog('Erro do servidor: '+txt.substring(0,200),'erro'); btn.disabled=false; btn.textContent='🔍 Analisar Anexos'; return; }
         if (!d.success) { anxAddLog('Erro: '+(d.error||'desconhecido'),'erro'); btn.disabled=false; btn.textContent='🔍 Analisar Anexos'; return; }
         let cursor = 0;
+        let erros = 0;
         while (true) {
-            await new Promise(ok=>setTimeout(ok,1500));
-            const poll = await fetch('/api/buscador/job/'+d.job_id+'?cursor='+cursor,{credentials:'same-origin'}).then(r=>r.json());
-            if (poll.logs && poll.logs.length) {
-                poll.logs.forEach(l => anxAddLog(l.msg||'', l.nivel));
-                document.getElementById('btn-baixar-anx').style.display = 'inline-block';
-            }
-            cursor = poll.cursor || cursor;
-            if (poll.done) {
-                document.getElementById('btn-baixar-anx').style.display = 'inline-block';
-                if (poll.result) mostrarResultado(poll.result);
-                break;
+            await new Promise(ok=>setTimeout(ok,2000));
+            try {
+                const poll = await fetch('/api/buscador/job/'+d.job_id+'?cursor='+cursor,{credentials:'same-origin'}).then(r=>r.json());
+                erros = 0;
+                if (poll.logs && poll.logs.length) {
+                    poll.logs.forEach(l => anxAddLog(l.msg||'', l.nivel));
+                    document.getElementById('btn-baixar-anx').style.display = 'inline-block';
+                }
+                cursor = poll.cursor || cursor;
+                if (poll.done) {
+                    document.getElementById('btn-baixar-anx').style.display = 'inline-block';
+                    if (poll.result) mostrarResultado(poll.result);
+                    break;
+                }
+            } catch(e) {
+                erros++;
+                anxAddLog('Reconectando... (tentativa '+erros+')', 'aviso');
+                if (erros >= 10) { anxAddLog('Conexão perdida — o processamento continua no servidor. Recarregue a página para ver o resultado.', 'aviso'); break; }
+                await new Promise(ok=>setTimeout(ok,3000));
             }
         }
     } catch(e) { anxAddLog('Erro: '+e,'erro'); }
