@@ -2328,6 +2328,19 @@ def api_analisar_anexo():
     def _run():
         try:
             logs = job['logs']
+            _anx_log_path = f"/var/www/urbanlex/static/downloads/job_{job_id}.jsonl"
+            # Sobrescrever lista para persistir logs em arquivo
+            import json as _json_anx
+            class _PersistList(list):
+                def append(self, item):
+                    super().append(item)
+                    try:
+                        with open(_anx_log_path, 'a', encoding='utf-8') as _lf:
+                            _lf.write(_json_anx.dumps(item, ensure_ascii=False) + '\n')
+                    except Exception:
+                        pass
+            logs = _PersistList()
+            job['logs'] = logs
             def chamar_llm(prompt, logs, label=""):
                 try:
                     from modulos.buscador_urbanistico import chamar_llm as _cllm
