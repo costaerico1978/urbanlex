@@ -2387,11 +2387,12 @@ def api_analisar_anexo():
                                 pages = sorted([x for x in os.listdir(tmp) if x.startswith('page_') and x.endswith('.png')])
                                 if pages:
                                     from google import genai as _gv
+                                    from google.genai import types as _gv_types
                                     client_v = _gv.Client(api_key=os.environ.get('GEMINI_API_KEY',''))
-                                    parts = ['Extraia todo o texto deste documento municipal brasileiro:']
+                                    parts = [_gv_types.Part.from_text('Extraia todo o texto deste documento municipal brasileiro:')]
                                     for pg in pages:
                                         with open(os.path.join(tmp,pg),'rb') as fp:
-                                            parts.append({'mime_type':'image/png','data':base64.b64encode(fp.read()).decode()})
+                                            parts.append(_gv_types.Part.from_bytes(data=fp.read(), mime_type='image/png'))
                                     resp_v = client_v.models.generate_content(model='gemini-2.5-flash', contents=parts)
                                     txt = resp_v.text or ""
                                     logs.append({'nivel': 'anexo', 'msg': f'  ✅ {fname}: {len(txt)} chars via Gemini Vision'})
