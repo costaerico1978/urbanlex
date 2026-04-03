@@ -2453,6 +2453,31 @@ def api_analisar_anexo():
             logs.append({'nivel': 'ok', 'msg': f'  Regulamenta: {regulamenta}'})
             logs.append({'nivel': 'ok', 'msg': f'  Alterado por: {alterado_por}'})
             logs.append({'nivel': 'ok', 'msg': f'  Cita: {cita}'})
+            # Analise de contexto das citacoes
+            contexto_citas = []
+            if cita and texto_total:
+                logs.append({'nivel': 'relacao', 'msg': f'\U0001f50e Analisando contexto de {len(cita)} legislacoes citadas...'})
+                prompt_ctx = (
+                    f"Analise o texto dos anexos de {municipio}/{estado} e para cada legislacao citada, identifique:\n"
+                    f"1. Em que zona(s) ou subzona(s) ela e referenciada (ex: ZRM-2B, ZR-1, ZOP-2)\n"
+                    f"2. O contexto da citacao (parametros urbanisticos, indice construtivo, uso permitido, etc.)\n"
+                    f"3. Se e a lei principal que rege aquela zona ou apenas referencia secundaria\n\n"
+                    f"LEGISLACOES CITADAS:\n" + "\n".join(f"- {c}" for c in cita) + "\n\n"
+                    f'Responda APENAS com JSON: [{{"lei":"nome","zonas":["ZRM-2B"],"contexto":"descricao","lei_principal":true}}]\n\n'
+                    f"TEXTO (primeiros 15000 chars):\n{texto_total[:15000]}"
+                )
+                try:
+                    resp_ctx = chamar_llm(prompt_ctx, logs, "Contexto citacoes")
+                    if resp_ctx:
+                        import re as _re_ctx, json as _jctx
+                        resp_ctx_c = _re_ctx.sub(r'^```json\s*|\s*```$', '', resp_ctx.strip())
+                        contexto_citas = _jctx.loads(resp_ctx_c)
+                        logs.append({'nivel': 'relacao', 'msg': f'  \u2705 Contexto identificado para {len(contexto_citas)} legislacoes'})
+                        for ct in contexto_citas:
+                            if ct.get('zonas'):
+                                logs.append({'nivel': 'relacao', 'msg': f"  \U0001f4cd {ct['lei']}: zonas={ct['zonas']} — {ct.get('contexto','')[:100]}"})
+                except Exception as _ectx:
+                    logs.append({'nivel': 'aviso', 'msg': f'Erro contexto: {str(_ectx)[:80]}'})
             job['result'] = resultado
         except Exception as e:
             job['logs'].append({'nivel': 'erro', 'msg': f'Erro: {str(e)[:200]}'})

@@ -118,6 +118,22 @@ function mostrarResultado(r) {
     const el = document.getElementById('anx-resultado');
     el.style.display = 'block';
     const campos = [['Altera',r.altera],['Revoga',r.revoga],['Regulamenta',r.regulamenta],['Alterado por',r.alterado_por],['Revogado por',r.revogado_por],['Regulamentado por',r.regulamentado_por],['Faz referência à',r.cita]];
+    // Tabela de contexto das citacoes
+    if (r.contexto_citas && r.contexto_citas.length) {
+        let hctx = '<h4 style="color:var(--accent);margin:20px 0 10px">📍 Contexto das Legislações Citadas</h4>';
+        hctx += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
+        hctx += '<tr><th style="padding:8px 12px;border:1px solid var(--border);background:var(--surface2);text-align:left">Legislação</th><th style="padding:8px 12px;border:1px solid var(--border);background:var(--surface2);text-align:left">Zonas/Subzonas</th><th style="padding:8px 12px;border:1px solid var(--border);background:var(--surface2);text-align:left">Contexto</th><th style="padding:8px 12px;border:1px solid var(--border);background:var(--surface2);text-align:left">Principal?</th></tr>';
+        r.contexto_citas.forEach(ct => {
+            hctx += '<tr>';
+            hctx += '<td style="padding:8px 12px;border:1px solid var(--border)">' + (ct.lei||'') + '</td>';
+            hctx += '<td style="padding:8px 12px;border:1px solid var(--border);white-space:pre-line">' + ((ct.zonas||[]).join('\n')||'—') + '</td>';
+            hctx += '<td style="padding:8px 12px;border:1px solid var(--border)">' + (ct.contexto||'—') + '</td>';
+            hctx += '<td style="padding:8px 12px;border:1px solid var(--border);text-align:center">' + (ct.lei_principal ? '✅' : '—') + '</td>';
+            hctx += '</tr>';
+        });
+        hctx += '</table>';
+        document.getElementById('anx-tabela').innerHTML += hctx;
+    }
     let h = '<table style="width:100%;border-collapse:collapse;font-size:12px">';
     campos.forEach(([label,lista]) => {
         if (!lista||!lista.length) return;
