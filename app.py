@@ -2371,7 +2371,7 @@ def api_analisar_anexo():
                             try:
                                 import base64
                                 r2 = subprocess.run(['gs','-dNOPAUSE','-dBATCH','-sDEVICE=png16m','-r150',f'-sOutputFile={tmp}/page_%03d.png',fpath2], capture_output=True, timeout=120)
-                                pages = sorted([x for x in os.listdir(tmp) if x.startswith('page_') and x.endswith('.png')])[:10]
+                                pages = sorted([x for x in os.listdir(tmp) if x.startswith('page_') and x.endswith('.png')])
                                 if pages:
                                     from google import genai as _gv
                                     client_v = _gv.Client(api_key=os.environ.get('GEMINI_API_KEY',''))
