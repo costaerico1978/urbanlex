@@ -193,8 +193,9 @@ function acSelecionar(el, prefix) {
 let _acTimer=null,_acCache={},_acIdx=-1;
 async function acBuscar(query,prefix){
     prefix=prefix||'anx';
+    console.log('acBuscar chamado:', query, prefix);
     const listEl=document.getElementById(prefix+'-ac-list');
-    if(!listEl)return;
+    if(!listEl){console.log('listEl nao encontrado');return;}
     query=(query||'').trim();
     if(query.length<2){listEl.classList.remove('open');return;}
     clearTimeout(_acTimer);
