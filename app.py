@@ -2472,9 +2472,27 @@ def api_analisar_anexo():
                 except Exception as eb:
                     logs.append({'nivel': 'aviso', 'msg': f'Erro bloco {bi}: {str(eb)[:80]}'})
                 pos += _BLOCO - _OVERLAP
+            # Deduplicar e filtrar legislacoes
+            import re as _rn
+            def _eleg(s):
+                return bool(_rn.search(r'\b(lei|decreto|resolucao|portaria|medida|emenda|complementar|LC|LO)\b|\d+[./]\d{4}', s, _rn.IGNORECASE))
+            def _norm(s):
+                s = _rn.sub(r'Lei Complementar n[ºo°.]*\s*', 'Lei Complementar ', s, flags=_rn.IGNORECASE)
+                s = _rn.sub(r'\bLC\s+', 'Lei Complementar ', s, flags=_rn.IGNORECASE)
+                return _rn.sub(r'\s+', ' ', s).strip().lower()
+            def _dedup(lst):
+                seen, out = {}, []
+                for x in lst:
+                    if _eleg(x) and _norm(x) not in seen:
+                        seen[_norm(x)] = True; out.append(x)
+                return out
+            altera=_dedup(altera); revoga=_dedup(revoga); regulamenta=_dedup(regulamenta)
+            alterado_por=_dedup(alterado_por); revogado_por=_dedup(revogado_por)
+            regulamentado_por=_dedup(regulamentado_por); cita=_dedup(cita)
+            logs.append({'nivel':'relacao','msg':f'Apos deduplicacao: altera={len(altera)} cita={len(cita)} alterado_por={len(alterado_por)}'})
             resultado = {'altera': altera, 'revoga': revoga, 'regulamenta': regulamenta,
                         'alterado_por': alterado_por, 'revogado_por': revogado_por,
-                        'regulamentado_por': regulamentado_por, 'cita': cita}
+                        'regulamentado_por': regulamentado_por, 'cita': cita, 'contexto_citas': contexto_citas}
             logs.append({'nivel': 'ok', 'msg': f'✅ Analise concluida!'})
             logs.append({'nivel': 'ok', 'msg': f'  Altera: {altera}'})
             logs.append({'nivel': 'ok', 'msg': f'  Revoga: {revoga}'})
