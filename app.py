@@ -2368,7 +2368,10 @@ def api_analisar_anexo():
                     _arquivos_map = {}
                     for _info in z.infolist():
                         try:
-                            _nome_correto = _info.filename.encode('cp437').decode('utf-8')
+                            if _info.flag_bits & 0x800:
+                                _nome_correto = _info.filename  # ja e UTF-8
+                            else:
+                                _nome_correto = _info.filename.encode('cp437').decode('utf-8')
                         except Exception:
                             try:
                                 _nome_correto = _info.filename.encode('cp437').decode('cp1252')
