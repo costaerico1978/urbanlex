@@ -61,6 +61,7 @@ function anxAddLog(msg, nivel) {
 function novaAnalise() {
     _anxLogBuffer = [];
     localStorage.removeItem('anx_log_cache');
+    localStorage.removeItem('anx_job_id');
     document.getElementById('anx-log').innerHTML = '';
     document.getElementById('anx-log').style.display = 'none';
     document.getElementById('anx-resultado').style.display = 'none';
@@ -96,6 +97,7 @@ async function analisarAnexo() {
         let d;
         try { d = JSON.parse(txt); } catch(e) { anxAddLog('Erro do servidor: '+txt.substring(0,200),'erro'); btn.disabled=false; btn.textContent='🔍 Analisar Anexos'; return; }
         if (!d.success) { anxAddLog('Erro: '+(d.error||'desconhecido'),'erro'); btn.disabled=false; btn.textContent='🔍 Analisar Anexos'; return; }
+        localStorage.setItem('anx_job_id', d.job_id);
         let cursor = 0;
         let erros = 0;
         while (true) {
@@ -197,11 +199,12 @@ document.addEventListener('click', e => {
     if (!e.target.closest('.ac-wrapper')) document.getElementById('anx-ac-list').classList.remove('open');
 });
 
-// Restaurar log anterior
-(function(){
+// Restaurar log anterior e reconectar job se ainda em andamento
+(async function(){
     try {
+        const jobId = localStorage.getItem('anx_job_id');
         const cache = JSON.parse(localStorage.getItem('anx_log_cache')||'[]');
-        if (!cache.length) return;
+        if (!cache.length && !jobId) return;
         _anxLogBuffer = cache;
         const logEl = document.getElementById('anx-log');
         logEl.style.display = 'block';
@@ -209,6 +212,36 @@ document.addEventListener('click', e => {
         if (_btnBaixar) _btnBaixar.style.display = 'inline-block';
         cache.forEach(txt => { logEl.innerHTML += '<div style="color:var(--muted)">'+txt+'</div>'; });
         logEl.scrollTop = logEl.scrollHeight;
+        // Tentar reconectar job ativo
+        if (jobId) {
+            try {
+                const check = await fetch('/api/buscador/job/'+jobId+'?cursor='+(cache.length||0),{credentials:'same-origin'}).then(r=>r.json());
+                if (check && !check.error) {
+                    if (check.logs && check.logs.length) {
+                        check.logs.forEach(l => { if (l.nivel !== 'tabela') anxAddLog(l.msg||'', l.nivel); });
+                    }
+                    if (check.done) {
+                        document.getElementById('btn-baixar-anx').style.display = 'inline-block';
+                        if (check.result) mostrarResultado(check.result);
+                    } else {
+                        anxAddLog('🔄 Reconectando análise em andamento...', 'ok');
+                        // Retomar polling
+                        let cursor = check.cursor || (cache.length||0);
+                        let erros = 0;
+                        while (true) {
+                            await new Promise(ok=>setTimeout(ok,2000));
+                            try {
+                                const poll = await fetch('/api/buscador/job/'+jobId+'?cursor='+cursor,{credentials:'same-origin'}).then(r=>r.json());
+                                erros = 0;
+                                if (poll.logs && poll.logs.length) poll.logs.forEach(l => anxAddLog(l.msg||'', l.nivel));
+                                cursor = poll.cursor || cursor;
+                                if (poll.done) { document.getElementById('btn-baixar-anx').style.display='inline-block'; if(poll.result) mostrarResultado(poll.result); break; }
+                            } catch(e) { erros++; if(erros>=10) break; await new Promise(ok=>setTimeout(ok,3000)); }
+                        }
+                    }
+                }
+            } catch(e) {}
+        }
     } catch(e){}
 })();
 </script>
