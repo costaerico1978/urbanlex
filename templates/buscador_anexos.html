@@ -1,143 +1,187 @@
 {% extends "base.html" %}
+{% block title %}Análise de Anexos · UrbanLex{% endblock %}
+{% block content %}
+<style>
+.ac-wrapper{position:relative}
+.ac-list{position:absolute;top:100%;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:6px;max-height:200px;overflow-y:auto;z-index:1000;display:none}
+.ac-list.open{display:block}
+.ac-item{padding:8px 12px;cursor:pointer;font-size:12px;color:var(--text)}
+.ac-item.selected,.ac-item:hover{background:var(--surface)}
+</style>
+<div style="padding:24px;max-width:900px">
+    <h2 style="color:var(--accent);margin-bottom:4px">📎 Análise de Anexos</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:24px">Upload de ZIP ou PDF com anexos de uma legislação para analisar relações urbanísticas.</p>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div>
+                <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Município</label>
+                <div class="ac-wrapper">
+                    <input id="anx-municipio" type="text" placeholder="Ex: Rio de Janeiro" autocomplete="off"
+                           style="width:100%;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px"
+                           oninput="anxAcBuscar(this.value)" onfocus="anxAcBuscar(this.value)" onkeydown="anxAcKeydown(event)">
+                    <div class="ac-list" id="anx-ac-list"></div>
+                </div>
+            </div>
+            <div>
+                <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Estado</label>
+                <input id="anx-estado" type="text" placeholder="Preenchido automaticamente" readonly
+                       style="width:100%;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;opacity:0.7">
+            </div>
+        </div>
+        <div style="margin-bottom:12px">
+            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Arquivo (ZIP ou PDF)</label>
+            <input id="anx-arquivo" type="file" accept=".zip,.pdf"
+                   style="width:100%;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
+        </div>
+        <button onclick="analisarAnexo()" id="btn-anx" class="btn btn-primary">🔍 Analisar Anexos</button>
+        <button onclick="novaAnalise()" class="btn btn-secondary" style="margin-left:8px">🔄 Nova Análise</button>
+        <button onclick="baixarLogAnexo()" id="btn-baixar-anx" class="btn btn-secondary" style="margin-left:8px;display:none">📥 Baixar Log .txt</button>
+    </div>
+    <div id="anx-log" style="display:none;background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;max-height:400px;overflow-y:auto;margin-bottom:20px"></div>
+    <div id="anx-resultado" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px">
+        <h3 style="color:var(--accent);margin-bottom:16px">📊 Resultado da Análise</h3>
+        <div id="anx-tabela"></div>
+    </div>
+</div>
 <script>
-let _anx_log_buffer = [];
+let _anxLogBuffer = [];
+let _anxAcTimer = null, _anxAcCache = {}, _anxAcIdx = -1;
 
-function _anx_addLog(msg, nivel) {
+function anxAddLog(msg, nivel) {
     const logEl = document.getElementById('anx-log');
-    const c = nivel === 'erro' ? '#ff6b6b' : nivel === 'aviso' ? '#ffb347' : nivel === 'ok' ? 'var(--accent)' : nivel === 'relacao' ? '#4fc3f7' : nivel === 'anexo' ? '#ff9800' : 'var(--muted)';
-    const ts = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'America/Sao_Paulo'});
-    const txt = `[${ts}] ${msg||''}`;
-    _anx_log_buffer.push(txt);
-    logEl.innerHTML += `<div style="color:${c}">${txt}</div>`;
+    const c = nivel==='erro'?'#ff6b6b':nivel==='aviso'?'#ffb347':nivel==='ok'?'var(--accent)':nivel==='relacao'?'#4fc3f7':nivel==='anexo'?'#ff9800':'var(--muted)';
+    const ts = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'America/Sao_Paulo'});
+    const txt = '['+ts+'] '+(msg||'');
+    _anxLogBuffer.push(txt);
+    logEl.innerHTML += '<div style="color:'+c+'">'+txt+'</div>';
     logEl.scrollTop = logEl.scrollHeight;
-    // Persistir no localStorage
-    try { localStorage.setItem('anx_log_cache', JSON.stringify(_anx_log_buffer)); } catch(e) {}
+    try { localStorage.setItem('anx_log_cache', JSON.stringify(_anxLogBuffer)); } catch(e) {}
 }
 
 function novaAnalise() {
-    _anx_log_buffer = [];
+    _anxLogBuffer = [];
     localStorage.removeItem('anx_log_cache');
-    const logEl = document.getElementById('anx-log');
-    logEl.innerHTML = '';
-    logEl.style.display = 'none';
+    document.getElementById('anx-log').innerHTML = '';
+    document.getElementById('anx-log').style.display = 'none';
     document.getElementById('anx-resultado').style.display = 'none';
     document.getElementById('btn-baixar-anx').style.display = 'none';
     document.getElementById('anx-arquivo').value = '';
 }
 
 function baixarLogAnexo() {
-    const txt = _anx_log_buffer.join('\n');
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([txt], {type:'text/plain'}));
+    a.href = URL.createObjectURL(new Blob([_anxLogBuffer.join('\n')],{type:'text/plain'}));
     const nd = new Date();
-    a.download = 'Log_anexos_' + nd.getDate().toString().padStart(2,'0') + '_' + (nd.getMonth()+1).toString().padStart(2,'0') + '_' + nd.getFullYear() + '_' + nd.getHours() + 'h' + nd.getMinutes() + '.txt';
+    a.download = 'Log_anexos_'+nd.getDate().toString().padStart(2,'0')+'_'+(nd.getMonth()+1).toString().padStart(2,'0')+'_'+nd.getFullYear()+'_'+nd.getHours()+'h'+nd.getMinutes()+'.txt';
     a.click();
 }
 
-// Restaurar log anterior ao carregar
-(function() {
-    try {
-        const cache = JSON.parse(localStorage.getItem('anx_log_cache') || '[]');
-        if (!cache.length) return;
-        _anx_log_buffer = cache;
-        const logEl = document.getElementById('anx-log');
-        logEl.style.display = 'block';
-        document.getElementById('btn-baixar-anx').style.display = 'inline-block';
-        cache.forEach(txt => {
-            const c = txt.includes('[RELACOES]') || txt.includes('Bloco') ? '#4fc3f7' : txt.includes('📎') || txt.includes('📦') || txt.includes('📄') || txt.includes('📋') ? '#ff9800' : txt.includes('❌') ? '#ff6b6b' : txt.includes('⚠️') ? '#ffb347' : txt.includes('✅') ? 'var(--accent)' : 'var(--muted)';
-            logEl.innerHTML += `<div style="color:${c}">${txt}</div>`;
-        });
-        logEl.scrollTop = logEl.scrollHeight;
-    } catch(e) {}
-})();
-
 async function analisarAnexo() {
-    const municipio = document.getElementById('anx-municipio').value.trim();
-    const estado = document.getElementById('anx-estado').value.trim().toUpperCase();
     const arquivo = document.getElementById('anx-arquivo').files[0];
     if (!arquivo) { alert('Selecione um arquivo'); return; }
-
+    const municipio = document.getElementById('anx-municipio').value.trim();
+    const estado = document.getElementById('anx-estado').value.trim();
     const btn = document.getElementById('btn-anx');
     btn.disabled = true; btn.textContent = '⏳ Analisando...';
-
     novaAnalise();
-    const logEl = document.getElementById('anx-log');
-    logEl.style.display = 'block';
-    document.getElementById('anx-resultado').style.display = 'none';
-    _anx_addLog('🚀 Iniciando análise de ' + arquivo.name, 'ok');
-
+    document.getElementById('anx-log').style.display = 'block';
+    anxAddLog('🚀 Iniciando análise de '+arquivo.name, 'ok');
     const fd = new FormData();
     fd.append('arquivo', arquivo);
-    fd.append('municipio', municipio || 'Municipio');
-    fd.append('estado', estado || 'XX');
-
+    fd.append('municipio', municipio||'Municipio');
+    fd.append('estado', estado||'XX');
     try {
-        const r = await fetch('/api/buscador/analisar-anexo', {method:'POST', body: fd, credentials:'same-origin'});
-        const respText = await r.text();
+        const resp = await fetch('/api/buscador/analisar-anexo',{method:'POST',body:fd,credentials:'same-origin'});
+        const txt = await resp.text();
         let d;
-        try { d = JSON.parse(respText); } catch(e) {
-            _anx_addLog('Erro do servidor: ' + respText.substring(0,200), 'erro');
-            btn.disabled=false; btn.textContent='🔍 Analisar Anexos'; return;
-        }
-        if (!d.success) { alert('Erro: ' + d.error); btn.disabled=false; btn.textContent='🔍 Analisar Anexos'; return; }
-
-        const jobId = d.job_id;
+        try { d = JSON.parse(txt); } catch(e) { anxAddLog('Erro do servidor: '+txt.substring(0,200),'erro'); btn.disabled=false; btn.textContent='🔍 Analisar Anexos'; return; }
+        if (!d.success) { anxAddLog('Erro: '+(d.error||'desconhecido'),'erro'); btn.disabled=false; btn.textContent='🔍 Analisar Anexos'; return; }
         let cursor = 0;
         while (true) {
-            await new Promise(ok => setTimeout(ok, 1500));
-            const poll = await fetch(`/api/buscador/job/${jobId}?cursor=${cursor}`).then(r=>r.json());
+            await new Promise(ok=>setTimeout(ok,1500));
+            const poll = await fetch('/api/buscador/job/'+d.job_id+'?cursor='+cursor,{credentials:'same-origin'}).then(r=>r.json());
             if (poll.logs && poll.logs.length) {
-                poll.logs.forEach(l => {
-                    _anx_addLog(l.msg||'', l.nivel);
-                });
+                poll.logs.forEach(l => anxAddLog(l.msg||'', l.nivel));
             }
             cursor = poll.cursor || cursor;
             if (poll.done) {
+                document.getElementById('btn-baixar-anx').style.display = 'inline-block';
                 if (poll.result) mostrarResultado(poll.result);
                 break;
             }
         }
-    } catch(e) {
-        logEl.innerHTML += `<div style="color:#ff6b6b">Erro: ${e}</div>`;
-    }
+    } catch(e) { anxAddLog('Erro: '+e,'erro'); }
     btn.disabled = false; btn.textContent = '🔍 Analisar Anexos';
 }
 
 function mostrarResultado(r) {
     const el = document.getElementById('anx-resultado');
     el.style.display = 'block';
-    const campos = [
-        ['Altera', r.altera],
-        ['Revoga', r.revoga],
-        ['Regulamenta', r.regulamenta],
-        ['Alterado por', r.alterado_por],
-        ['Revogado por', r.revogado_por],
-        ['Regulamentado por', r.regulamentado_por],
-        ['Faz referência à', r.cita],
-    ];
+    const campos = [['Altera',r.altera],['Revoga',r.revoga],['Regulamenta',r.regulamenta],['Alterado por',r.alterado_por],['Revogado por',r.revogado_por],['Regulamentado por',r.regulamentado_por],['Faz referência à',r.cita]];
     let h = '<table style="width:100%;border-collapse:collapse;font-size:12px">';
-    campos.forEach(([label, lista]) => {
-        if (!lista || !lista.length) return;
-        h += `<tr>
-            <td style="padding:8px 12px;border:1px solid var(--border);color:var(--muted);width:180px;font-weight:600">${label}</td>
-            <td style="padding:8px 12px;border:1px solid var(--border);white-space:pre-line">${lista.join('\n')}</td>
-        </tr>`;
+    campos.forEach(([label,lista]) => {
+        if (!lista||!lista.length) return;
+        h += '<tr><td style="padding:8px 12px;border:1px solid var(--border);color:var(--muted);width:180px;font-weight:600">'+label+'</td><td style="padding:8px 12px;border:1px solid var(--border);white-space:pre-line">'+lista.join('\n')+'</td></tr>';
     });
     h += '</table>';
     document.getElementById('anx-tabela').innerHTML = h;
 }
-// Sobrescrever acSelecionar para tratar prefix anx
-const _acSelecionarOrig = typeof acSelecionar !== 'undefined' ? acSelecionar : null;
-function acSelecionar(el, prefix) {
-    const nome = el.dataset.nome;
-    const estado = el.dataset.estado;
-    if (prefix === 'anx') {
-        document.getElementById('anx-municipio').value = nome;
-        document.getElementById('anx-estado').value = estado;
-        document.getElementById('anx-ac-list').classList.remove('open');
-        return;
-    }
-    if (_acSelecionarOrig) _acSelecionarOrig(el, prefix);
+
+// Autocomplete
+async function anxAcBuscar(query) {
+    const listEl = document.getElementById('anx-ac-list');
+    query = (query||'').trim();
+    if (query.length < 2) { listEl.classList.remove('open'); return; }
+    clearTimeout(_anxAcTimer);
+    _anxAcTimer = setTimeout(async () => {
+        let items = _anxAcCache[query.toLowerCase()];
+        if (!items) {
+            try {
+                const r = await fetch('/api/buscador/autocomplete-municipios?q='+encodeURIComponent(query),{credentials:'same-origin'});
+                const d = await r.json();
+                items = d.municipios || [];
+                _anxAcCache[query.toLowerCase()] = items;
+            } catch(e) { items = []; }
+        }
+        if (!items.length) { listEl.innerHTML='<div style="padding:8px;font-size:12px;color:var(--muted)">Nenhum município encontrado</div>'; listEl.classList.add('open'); return; }
+        _anxAcIdx = -1;
+        listEl.innerHTML = items.map(m=>'<div class="ac-item" data-nome="'+m.nome+'" data-estado="'+m.estado+'" onclick="anxAcSelecionar(this)" onmouseenter="this.classList.add(\'selected\')" onmouseleave="this.classList.remove(\'selected\')"><span style="color:var(--muted);margin-right:6px">'+m.estado+'</span>'+m.nome+'</div>').join('');
+        listEl.classList.add('open');
+    }, 200);
 }
+
+function anxAcKeydown(e) {
+    const listEl = document.getElementById('anx-ac-list');
+    const items = listEl.querySelectorAll('.ac-item');
+    if (!items.length || !listEl.classList.contains('open')) return;
+    if (e.key==='ArrowDown') { e.preventDefault(); _anxAcIdx=Math.min(_anxAcIdx+1,items.length-1); items.forEach((it,i)=>it.classList.toggle('selected',i===_anxAcIdx)); items[_anxAcIdx].scrollIntoView({block:'nearest'}); }
+    else if (e.key==='ArrowUp') { e.preventDefault(); _anxAcIdx=Math.max(_anxAcIdx-1,0); items.forEach((it,i)=>it.classList.toggle('selected',i===_anxAcIdx)); items[_anxAcIdx].scrollIntoView({block:'nearest'}); }
+    else if (e.key==='Enter'&&_anxAcIdx>=0) { e.preventDefault(); anxAcSelecionar(items[_anxAcIdx]); }
+    else if (e.key==='Escape') { listEl.classList.remove('open'); }
+}
+
+function anxAcSelecionar(el) {
+    document.getElementById('anx-municipio').value = el.dataset.nome;
+    document.getElementById('anx-estado').value = el.dataset.estado;
+    document.getElementById('anx-ac-list').classList.remove('open');
+}
+
+document.addEventListener('click', e => {
+    if (!e.target.closest('.ac-wrapper')) document.getElementById('anx-ac-list').classList.remove('open');
+});
+
+// Restaurar log anterior
+(function(){
+    try {
+        const cache = JSON.parse(localStorage.getItem('anx_log_cache')||'[]');
+        if (!cache.length) return;
+        _anxLogBuffer = cache;
+        const logEl = document.getElementById('anx-log');
+        logEl.style.display = 'block';
+        document.getElementById('btn-baixar-anx').style.display = 'inline-block';
+        cache.forEach(txt => { logEl.innerHTML += '<div style="color:var(--muted)">'+txt+'</div>'; });
+        logEl.scrollTop = logEl.scrollHeight;
+    } catch(e){}
+})();
 </script>
-{% block title %}Análise de Anexos · UrbanLex{% endblock %}
+{% endblock %}
