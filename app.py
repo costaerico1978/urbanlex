@@ -2463,6 +2463,9 @@ def api_analisar_anexo():
                     if resp:
                         import re, json as _j
                         resp_c = re.sub(r'^```json\s*|\s*```$', '', resp.strip())
+                        # Tentar reparar JSON truncado
+                        if resp_c and not resp_c.rstrip().endswith(']') and not resp_c.rstrip().endswith('}'):
+                            resp_c = resp_c[:resp_c.rfind('}')+1] + ']' if '{' in resp_c else resp_c
                         d = _j.loads(resp_c)
                         altera = list(set(altera + d.get('altera',[])))
                         revoga = list(set(revoga + d.get('revoga',[])))
@@ -2493,6 +2496,7 @@ def api_analisar_anexo():
             alterado_por=_dedup(alterado_por); revogado_por=_dedup(revogado_por)
             regulamentado_por=_dedup(regulamentado_por); cita=_dedup(cita)
             logs.append({'nivel':'relacao','msg':f'Apos deduplicacao: altera={len(altera)} cita={len(cita)} alterado_por={len(alterado_por)}'})
+            contexto_citas = locals().get('contexto_citas', [])
             resultado = {'altera': altera, 'revoga': revoga, 'regulamenta': regulamenta,
                         'alterado_por': alterado_por, 'revogado_por': revogado_por,
                         'regulamentado_por': regulamentado_por, 'cita': cita, 'contexto_citas': contexto_citas}
