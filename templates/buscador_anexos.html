@@ -111,6 +111,7 @@ async function analisarAnexo() {
             }
         }
     } catch(e) { anxAddLog('Erro: '+e,'erro'); }
+    document.getElementById('btn-baixar-anx').style.display = 'inline-block';
     btn.disabled = false; btn.textContent = '🔍 Analisar Anexos';
 }
 
@@ -194,7 +195,8 @@ document.addEventListener('click', e => {
         _anxLogBuffer = cache;
         const logEl = document.getElementById('anx-log');
         logEl.style.display = 'block';
-        document.getElementById('btn-baixar-anx').style.display = 'inline-block';
+        const _btnBaixar = document.getElementById('btn-baixar-anx');
+        if (_btnBaixar) _btnBaixar.style.display = 'inline-block';
         cache.forEach(txt => { logEl.innerHTML += '<div style="color:var(--muted)">'+txt+'</div>'; });
         logEl.scrollTop = logEl.scrollHeight;
     } catch(e){}
