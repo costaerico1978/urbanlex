@@ -9,11 +9,17 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
             <div>
                 <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Município</label>
-                <input id="anx-municipio" type="text" placeholder="Ex: Rio de Janeiro" style="width:100%;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
+                <div class="ac-wrapper">
+                    <input id="anx-municipio" type="text" placeholder="Ex: Rio de Janeiro" autocomplete="off"
+                           style="width:100%;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px"
+                           oninput="acBuscar(this.value, 'anx')" onfocus="acBuscar(this.value, 'anx')" onkeydown="acKeydown(event, 'anx')">
+                    <div class="ac-list" id="anx-ac-list"></div>
+                </div>
             </div>
             <div>
                 <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Estado</label>
-                <input id="anx-estado" type="text" placeholder="Ex: RJ" maxlength="2" style="width:100%;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
+                <input id="anx-estado" type="text" placeholder="Preenchido automaticamente" maxlength="2" readonly
+                       style="width:100%;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;opacity:0.7">
             </div>
         </div>
         <div style="margin-bottom:12px">
@@ -154,6 +160,19 @@ function mostrarResultado(r) {
     });
     h += '</table>';
     document.getElementById('anx-tabela').innerHTML = h;
+}
+// Sobrescrever acSelecionar para tratar prefix anx
+const _acSelecionarOrig = typeof acSelecionar !== 'undefined' ? acSelecionar : null;
+function acSelecionar(el, prefix) {
+    const nome = el.dataset.nome;
+    const estado = el.dataset.estado;
+    if (prefix === 'anx') {
+        document.getElementById('anx-municipio').value = nome;
+        document.getElementById('anx-estado').value = estado;
+        document.getElementById('anx-ac-list').classList.remove('open');
+        return;
+    }
+    if (_acSelecionarOrig) _acSelecionarOrig(el, prefix);
 }
 </script>
 {% endblock %}
