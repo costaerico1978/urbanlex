@@ -16,46 +16,26 @@ def deploy():
         deploy._lock = threading.Lock()
     if deploy._lock.locked():
         return 'Deploy em andamento', 200
+    payload = request.get_json(force=True, silent=True) or {}
+    commit_github = payload.get('after', '')
     def _run():
         with deploy._lock:
             subprocess.run(['bash', '-c', '''
 cd /var/www/urbanlex
-HASH_ANTES=$(git rev-parse HEAD)
-CHANGES=$(git pull)
-HASH_DEPOIS=$(git rev-parse HEAD)
-echo "$CHANGES"
-# Reiniciar se houver mudancas em arquivos Python
-if [ "$HASH_ANTES" != "$HASH_DEPOIS" ] && git diff "$HASH_ANTES" "$HASH_DEPOIS" --name-only | grep -qE "\.py$"; then
-touch /tmp/urbanlex_restart_pendente
-while true; do
-    ATIVOS=$(curl -sf http://localhost:5000/api/buscador/jobs-ativos 2>/dev/null)
-    if echo "$ATIVOS" | grep -q '"ativos": true'; then
-        echo "$(date): Jobs ativos, aguardando 30s..." >> /var/log/urbanlex-deploy.log
+git pull
+ATIVOS=$(curl -sf http://localhost:5000/api/buscador/jobs-ativos 2>/dev/null)
+if echo "$ATIVOS" | grep -q '"ativos": true'; then
+    echo "$(date): Jobs ativos — restart adiado" >> /var/log/urbanlex-deploy.log
+    for i in $(seq 1 20); do
         sleep 30
-    else
-        echo "$(date): Sem jobs ativos, aguardando 15s antes de reiniciar..." >> /var/log/urbanlex-deploy.log
-        sleep 15
-        # Verificar novamente se nao iniciou novo job no intervalo
         ATIVOS2=$(curl -sf http://localhost:5000/api/buscador/jobs-ativos 2>/dev/null)
-        if echo "$ATIVOS2" | grep -q '"ativos": true'; then
-            continue
+        if ! echo "$ATIVOS2" | grep -q '"ativos": true'; then
+            break
         fi
-        git pull
-        systemctl restart urbanlex
-        rm -f /tmp/urbanlex_restart_pendente
-        echo "$(date): Restart executado" >> /var/log/urbanlex-deploy.log
-        break
-    fi
-done
-else
-    if [ -f /tmp/urbanlex_restart_pendente ]; then
-        echo "$(date): Restart pendente — executando..." >> /var/log/urbanlex-deploy.log
-        git pull && systemctl restart urbanlex && rm -f /tmp/urbanlex_restart_pendente
-        echo "$(date): Restart pendente executado" >> /var/log/urbanlex-deploy.log
-    else
-        echo "$(date): Sem mudancas em .py — restart nao necessario" >> /var/log/urbanlex-deploy.log
-    fi
+    done
 fi
+systemctl restart urbanlex
+echo "$(date): Deploy executado" >> /var/log/urbanlex-deploy.log
 '''])
     threading.Thread(target=_run, daemon=True).start()
     return 'OK', 200
