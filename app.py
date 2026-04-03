@@ -2502,26 +2502,30 @@ def api_analisar_anexo():
             # Analise de contexto das citacoes
             contexto_citas = []
             if cita and texto_total:
-                logs.append({'nivel': 'relacao', 'msg': f'\U0001f50e Analisando contexto de {len(cita)} legislacoes citadas...'})
-                prompt_ctx = (
-                    f"Analise o texto dos anexos de {municipio}/{estado} e para cada legislacao citada, identifique:\n"
-                    f"1. Em que zona(s) ou subzona(s) ela e referenciada (ex: ZRM-2B, ZR-1, ZOP-2)\n"
-                    f"2. O contexto da citacao (parametros urbanisticos, indice construtivo, uso permitido, etc.)\n"
-                    f"3. Se e a lei principal que rege aquela zona ou apenas referencia secundaria\n\n"
-                    f"LEGISLACOES CITADAS:\n" + "\n".join(f"- {c}" for c in cita) + "\n\n"
-                    f'Responda APENAS com JSON: [{{"lei":"nome","zonas":["ZRM-2B"],"contexto":"descricao","lei_principal":true}}]\n\n'
-                    f"TEXTO (primeiros 15000 chars):\n{texto_total[:15000]}"
-                )
+                logs.append({'nivel': 'relacao', 'msg': f'\U0001f50e Analisando contexto de {len(cita)} legislacoes em lotes...'})
+                import re as _re_ctx, json as _jctx
+                _lote_size = 20
+                _lotes = [cita[x:x+_lote_size] for x in range(0, len(cita), _lote_size)]
                 try:
-                    resp_ctx = chamar_llm(prompt_ctx, logs, "Contexto citacoes")
-                    if resp_ctx:
-                        import re as _re_ctx, json as _jctx
-                        resp_ctx_c = _re_ctx.sub(r'^```json\s*|\s*```$', '', resp_ctx.strip())
-                        contexto_citas = _jctx.loads(resp_ctx_c)
-                        logs.append({'nivel': 'relacao', 'msg': f'  \u2705 Contexto identificado para {len(contexto_citas)} legislacoes'})
-                        for ct in contexto_citas:
-                            if ct.get('zonas'):
-                                logs.append({'nivel': 'relacao', 'msg': f"  \U0001f4cd {ct['lei']}: zonas={ct['zonas']} — {ct.get('contexto','')[:100]}"})
+                    for _li, _lote in enumerate(_lotes):
+                        logs.append({'nivel': 'relacao', 'msg': f'  Lote {_li+1}/{len(_lotes)}: {len(_lote)} legislacoes...'})
+                        prompt_ctx = (
+                            f"Analise o texto dos anexos de {municipio}/{estado} e para cada legislacao citada, identifique:\n"
+                            f"1. Em que zona(s) ou subzona(s) ela e referenciada (ex: ZRM-2B, ZR-1, ZOP-2)\n"
+                            f"2. O contexto da citacao (parametros urbanisticos, indice construtivo, uso permitido)\n"
+                            f"3. Se e a lei principal que rege aquela zona ou apenas referencia secundaria\n\n"
+                            f"LEGISLACOES CITADAS:\n" + "\n".join(f"- {c}" for c in _lote) + "\n\n"
+                            f'Responda APENAS com JSON: [{{\'lei\':\'nome\',\'zonas\':[],\'contexto\':\'descricao\',\'lei_principal\':\'\'}}]\n\n'
+                            f"TEXTO (primeiros 40000 chars):\n{texto_total[:40000]}"
+                        )
+                        resp_ctx = chamar_llm(prompt_ctx, logs, f'Contexto lote {_li+1}/{len(_lotes)}')
+                        if resp_ctx:
+                            resp_ctx_c = _re_ctx.sub(r'^```json\s*|\s*```$', '', resp_ctx.strip())
+                            _lote_result = _jctx.loads(resp_ctx_c)
+                            if isinstance(_lote_result, list): contexto_citas.extend(_lote_result)
+                            for ct in _lote_result:
+                                logs.append({'nivel': 'relacao', 'msg': f"  \U0001f4cd {ct.get('lei','')}: zonas={ct.get('zonas',[])} — {ct.get('contexto','')[:100]}"})
+                    logs.append({'nivel': 'relacao', 'msg': f'  \u2705 Contexto total: {len(contexto_citas)} legislacoes'})
                 except Exception as _ectx:
                     logs.append({'nivel': 'aviso', 'msg': f'Erro contexto: {str(_ectx)[:80]}'})
             job['result'] = resultado
