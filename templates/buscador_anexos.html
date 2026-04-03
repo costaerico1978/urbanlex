@@ -1,6 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Análise de Anexos · UrbanLex{% endblock %}
 {% block content %}
+<style>
+.ac-wrapper{position:relative}
+.ac-list{position:absolute;top:100%;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:6px;max-height:200px;overflow-y:auto;z-index:1000;display:none}
+.ac-list.open{display:block}
+.ac-item{padding:8px 12px;cursor:pointer;font-size:12px;color:var(--text)}
+.ac-item.selected,.ac-item:hover{background:var(--surface)}
+.ac-empty{padding:8px 12px;font-size:12px;color:var(--muted)}
+</style>
 <div style="padding:24px;max-width:900px">
     <h2 style="color:var(--accent);margin-bottom:4px">📎 Análise de Anexos</h2>
     <p style="color:var(--muted);font-size:13px;margin-bottom:24px">Faça upload de um ZIP ou PDF com anexos de uma legislação para analisar as relações urbanísticas.</p>
