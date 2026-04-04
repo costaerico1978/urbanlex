@@ -2690,6 +2690,57 @@ def api_analisar_anexo():
                     logs.append({'nivel': 'relacao', 'msg': f'  \u2705 Contexto total: {len(contexto_citas)} legislacoes'})
                 except Exception as _ectx:
                     logs.append({'nivel': 'aviso', 'msg': f'Erro contexto: {str(_ectx)[:80]}'})
+            # Analise de zonas e subzonas
+            zonas_analise = {'tem_zonas': False, 'agrupamento': '', 'subzonas': []}
+            if texto_total:
+                logs.append({'nivel': 'relacao', 'msg': '\U0001f5fa\ufe0f Analisando zonas e subzonas do municipio...'})
+                import json as _jz, re as _rz
+                _ZBL = 40000
+                _ZOV = 2000
+                _z_blocos = []
+                _zp = 0
+                while _zp < len(texto_total):
+                    _z_blocos.append(texto_total[_zp:_zp+_ZBL])
+                    _zp += _ZBL - _ZOV
+                _z_map = {}  # subzona_norm -> {subzona, divisao, usos}
+                _tem_zonas = False
+                _agrupamento = ''
+                for _zbi, _zbloco in enumerate(_z_blocos):
+                    logs.append({'nivel': 'relacao', 'msg': f'  Zonas bloco {_zbi+1}/{len(_z_blocos)}...'})
+                    _zprompt = (
+                        f"Analise este trecho dos anexos legislativos de {municipio}/{estado} e responda:\n"
+                        f"1. Este trecho menciona zonas ou subzonas urbanisticas do municipio? (sim/nao)\n"
+                        f"2. Se sim, as zonas sao agrupadas por alguma divisao administrativa ou de planejamento? Qual?\n"
+                        f"3. Liste todas as subzonas mencionadas neste trecho com seus usos permitidos.\n\n"
+                        f"Responda APENAS com JSON:\n"
+                        f"{{\"tem_zonas\": true/false, \"agrupamento\": \"descricao ou vazio\", \"subzonas\": [{{\"subzona\": \"nome\", \"divisao\": \"divisao administrativa ou vazio\", \"usos\": \"usos permitidos\"}}]}}\n\n"
+                        f"TRECHO {_zbi+1}/{len(_z_blocos)}:\n{_zbloco}"
+                    )
+                    try:
+                        _zresp = chamar_llm(_zprompt, logs, f'Zonas bloco {_zbi+1}/{len(_z_blocos)}')
+                        if _zresp:
+                            _zresp_c = _rz.sub(r'^```json\s*|\s*```$', '', _zresp.strip())
+                            _zdata = _jz.loads(_zresp_c)
+                            if _zdata.get('tem_zonas'):
+                                _tem_zonas = True
+                            if _zdata.get('agrupamento') and not _agrupamento:
+                                _agrupamento = _zdata['agrupamento']
+                            for _sz in (_zdata.get('subzonas') or []):
+                                _szn = _sz.get('subzona','').strip()
+                                if not _szn: continue
+                                _szk = _szn.lower()
+                                if _szk not in _z_map:
+                                    _z_map[_szk] = _sz
+                                else:
+                                    if _sz.get('usos') and len(_sz.get('usos','')) > len(_z_map[_szk].get('usos','')):
+                                        _z_map[_szk]['usos'] = _sz['usos']
+                                    if _sz.get('divisao') and not _z_map[_szk].get('divisao'):
+                                        _z_map[_szk]['divisao'] = _sz['divisao']
+                    except Exception as _ze:
+                        logs.append({'nivel': 'aviso', 'msg': f'  Erro zonas bloco {_zbi+1}: {str(_ze)[:60]}'})
+                zonas_analise = {'tem_zonas': _tem_zonas, 'agrupamento': _agrupamento, 'subzonas': list(_z_map.values())}
+                logs.append({'nivel': 'ok', 'msg': f'\U0001f5fa\ufe0f Zonas: tem_zonas={_tem_zonas} agrupamento={_agrupamento[:60]} subzonas={len(_z_map)}'})
+            resultado['zonas_analise'] = zonas_analise
             job['result'] = resultado
             # Persistir resultado no arquivo JSONL
             try:

@@ -185,6 +185,34 @@ function mostrarResultado(r) {
     });
     h += '</table>';
     document.getElementById('anx-tabela').innerHTML = h;
+
+    // Zonas e subzonas
+    if (r.zonas_analise && r.zonas_analise.tem_zonas) {
+        const za = r.zonas_analise;
+        let hz = '<h4 style="color:var(--accent);margin:20px 0 10px">\U0001f5fa\ufe0f Zonas e Subzonas do Mun\u00edcipio</h4>';
+        hz += '<p style="font-size:12px;margin-bottom:8px"><strong>Agrupamento:</strong> ' + (za.agrupamento || '\u2014') + '</p>';
+        if (za.subzonas && za.subzonas.length) {
+            const grupos = {};
+            za.subzonas.forEach(sz => {
+                const div = sz.divisao || 'Geral';
+                if (!grupos[div]) grupos[div] = [];
+                grupos[div].push(sz);
+            });
+            Object.entries(grupos).forEach(([div, szs]) => {
+                if (Object.keys(grupos).length > 1) {
+                    hz += '<h5 style="color:var(--text);margin:12px 0 6px;font-size:12px">' + div + '</h5>';
+                }
+                hz += '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px">';
+                hz += '<tr><th style="padding:8px 12px;border:1px solid var(--border);background:var(--surface2);text-align:left;width:120px">Subzona</th><th style="padding:8px 12px;border:1px solid var(--border);background:var(--surface2);text-align:left">Usos Permitidos</th></tr>';
+                szs.forEach(sz => {
+                    hz += '<tr><td style="padding:8px 12px;border:1px solid var(--border);font-weight:600;white-space:nowrap">' + (sz.subzona||'') + '</td>';
+                    hz += '<td style="padding:8px 12px;border:1px solid var(--border)">' + (sz.usos||'\u2014') + '</td></tr>';
+                });
+                hz += '</table>';
+            });
+        }
+        document.getElementById('anx-tabela').innerHTML += hz;
+    }
 }
 
 // Autocomplete
