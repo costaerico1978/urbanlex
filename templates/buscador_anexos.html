@@ -98,6 +98,7 @@ async function analisarAnexo() {
         try { d = JSON.parse(txt); } catch(e) { anxAddLog('Erro do servidor: '+txt.substring(0,200),'erro'); btn.disabled=false; btn.textContent='🔍 Analisar Anexos'; return; }
         if (!d.success) { anxAddLog('Erro: '+(d.error||'desconhecido'),'erro'); btn.disabled=false; btn.textContent='🔍 Analisar Anexos'; return; }
         localStorage.setItem('anx_job_id', d.job_id);
+        sessionStorage.setItem('anx_job_sessao', d.job_id);
         let cursor = 0;
         let erros = 0;
         while (true) {
@@ -213,7 +214,8 @@ document.addEventListener('click', e => {
         cache.forEach(txt => { logEl.innerHTML += '<div style="color:var(--muted)">'+txt+'</div>'; });
         logEl.scrollTop = logEl.scrollHeight;
         // Tentar reconectar job ativo
-        if (jobId) {
+        const _jobSessao = sessionStorage.getItem('anx_job_sessao');
+        if (jobId && jobId !== _jobSessao) {
             try {
                 const check = await fetch('/api/buscador/job/'+jobId+'?cursor='+(cache.length||0),{credentials:'same-origin'}).then(r=>r.json());
                 if (check && !check.error) {
@@ -224,7 +226,6 @@ document.addEventListener('click', e => {
                         document.getElementById('btn-baixar-anx').style.display = 'inline-block';
                         if (check.result) mostrarResultado(check.result);
                     } else {
-                        anxAddLog('🔄 Reconectando análise em andamento...', 'ok');
                         // Retomar polling
                         let cursor = check.cursor || (cache.length||0);
                         let erros = 0;
