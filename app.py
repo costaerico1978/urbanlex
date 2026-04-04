@@ -3299,7 +3299,8 @@ def api_buscador_job_poll(job_id):
                     if '_result' in _lr:
                         _result_rec = _lr['_result']
                 _logs_rec_clean = [l for l in _logs_rec if '_result' not in l]
-                return jsonify({'success': True, 'logs': _logs_rec_clean[cursor:], 'cursor': len(_logs_rec_clean), 'done': True, 'recuperado': True, 'hist_id': _hist_id_rec, 'result': _result_rec})
+                _job_done = _result_rec is not None
+                return jsonify({'success': True, 'logs': _logs_rec_clean[cursor:], 'cursor': len(_logs_rec_clean), 'done': _job_done, 'recuperado': True, 'hist_id': _hist_id_rec, 'result': _result_rec})
             except Exception:
                 pass
         return jsonify({'success': False, 'error': 'Job não encontrado', 'done': False, 'logs': [], 'cursor': 0})
