@@ -2302,6 +2302,133 @@ def api_descobrir_legislacoes():
 
 @app.route('/buscador')
 @app.route('/buscador/manual')
+def _extrair_texto_arquivo(fpath, fname, ext, logs, tmp, chamar_llm):
+    """Extrai texto de um arquivo de acordo com sua extensão."""
+    import os, subprocess
+    txt = ""
+    fname_display = os.path.basename(fname)
+
+    if ext == '.pdf':
+        r = subprocess.run(['pdftotext', fpath, '-'], capture_output=True, text=True, timeout=60)
+        if r.returncode == 0 and len(r.stdout.strip()) > 100:
+            txt = r.stdout
+            logs.append({'nivel': 'anexo', 'msg': f'  ✅ {fname_display}: {len(txt)} chars via pdftotext'})
+        else:
+            logs.append({'nivel': 'aviso', 'msg': f'  ⚠️ {fname_display}: PDF rasterizado — usando Gemini Vision...'})
+            try:
+                import base64
+                subprocess.run(['gs','-dNOPAUSE','-dBATCH','-sDEVICE=png16m','-r150',
+                    f'-sOutputFile={tmp}/page_%03d.png', fpath],
+                    capture_output=True, timeout=120)
+                pages = sorted([x for x in os.listdir(tmp) if x.startswith('page_') and x.endswith('.png')])
+                if pages:
+                    from google import genai as _gv
+                    from google.genai import types as _gv_types
+                    client_v = _gv.Client(api_key=os.environ.get('GEMINI_API_KEY',''))
+                    parts = [_gv_types.Part.from_text(text='Extraia todo o texto deste documento municipal brasileiro:')]
+                    for pg in pages:
+                        with open(os.path.join(tmp, pg), 'rb') as fp:
+                            parts.append(_gv_types.Part.from_bytes(data=fp.read(), mime_type='image/png'))
+                    resp_v = client_v.models.generate_content(model='gemini-2.5-flash', contents=parts)
+                    txt = resp_v.text or ""
+                    logs.append({'nivel': 'anexo', 'msg': f'  ✅ {fname_display}: {len(txt)} chars via Gemini Vision'})
+                    # Limpar PNGs gerados para nao acumular
+                    for pg in pages:
+                        try: os.remove(os.path.join(tmp, pg))
+                        except: pass
+            except Exception as ev:
+                logs.append({'nivel': 'aviso', 'msg': f'  ❌ {fname_display}: Gemini Vision falhou: {str(ev)[:80]}'})
+
+    elif ext in ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'):
+        try:
+            from google import genai as _gv
+            from google.genai import types as _gv_types
+            import mimetypes
+            mime = mimetypes.guess_type(fpath)[0] or 'image/jpeg'
+            client_v = _gv.Client(api_key=os.environ.get('GEMINI_API_KEY',''))
+            with open(fpath, 'rb') as fp:
+                img_bytes = fp.read()
+            parts = [
+                _gv_types.Part.from_text(text='Extraia todo o texto visível nesta imagem de documento municipal brasileiro:'),
+                _gv_types.Part.from_bytes(data=img_bytes, mime_type=mime)
+            ]
+            resp_v = client_v.models.generate_content(model='gemini-2.5-flash', contents=parts)
+            txt = resp_v.text or ""
+            logs.append({'nivel': 'anexo', 'msg': f'  ✅ {fname_display}: {len(txt)} chars via Gemini Vision (imagem)'})
+        except Exception as ev:
+            logs.append({'nivel': 'aviso', 'msg': f'  ❌ {fname_display}: Gemini Vision falhou: {str(ev)[:80]}'})
+
+    elif ext == '.docx':
+        try:
+            import docx as _docx
+            doc = _docx.Document(fpath)
+            txt = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+            logs.append({'nivel': 'anexo', 'msg': f'  ✅ {fname_display}: {len(txt)} chars via python-docx'})
+        except Exception as ed:
+            logs.append({'nivel': 'aviso', 'msg': f'  ❌ {fname_display}: python-docx falhou: {str(ed)[:80]}'})
+
+    elif ext == '.doc':
+        try:
+            r = subprocess.run(['antiword', fpath], capture_output=True, text=True, timeout=60)
+            if r.returncode == 0 and r.stdout.strip():
+                txt = r.stdout
+                logs.append({'nivel': 'anexo', 'msg': f'  ✅ {fname_display}: {len(txt)} chars via antiword'})
+            else:
+                logs.append({'nivel': 'aviso', 'msg': f'  ❌ {fname_display}: antiword falhou ({r.stderr[:60]})'})
+        except Exception as ed:
+            logs.append({'nivel': 'aviso', 'msg': f'  ❌ {fname_display}: antiword erro: {str(ed)[:80]}'})
+
+    elif ext == '.xlsx':
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(fpath, data_only=True)
+            linhas = []
+            for ws in wb.worksheets:
+                linhas.append(f"[Aba: {ws.title}]")
+                for row in ws.iter_rows(values_only=True):
+                    linha = "\t".join(str(c) if c is not None else "" for c in row)
+                    if linha.strip():
+                        linhas.append(linha)
+            txt = "\n".join(linhas)
+            logs.append({'nivel': 'anexo', 'msg': f'  ✅ {fname_display}: {len(txt)} chars via openpyxl'})
+        except Exception as ex:
+            logs.append({'nivel': 'aviso', 'msg': f'  ❌ {fname_display}: openpyxl falhou: {str(ex)[:80]}'})
+
+    elif ext == '.xls':
+        try:
+            import xlrd
+            wb = xlrd.open_workbook(fpath)
+            linhas = []
+            for ws in wb.sheets():
+                linhas.append(f"[Aba: {ws.name}]")
+                for rx in range(ws.nrows):
+                    linha = "\t".join(str(ws.cell_value(rx, cx)) for cx in range(ws.ncols))
+                    if linha.strip():
+                        linhas.append(linha)
+            txt = "\n".join(linhas)
+            logs.append({'nivel': 'anexo', 'msg': f'  ✅ {fname_display}: {len(txt)} chars via xlrd'})
+        except Exception as ex:
+            logs.append({'nivel': 'aviso', 'msg': f'  ❌ {fname_display}: xlrd falhou: {str(ex)[:80]}'})
+
+    elif ext in ('.txt', '.csv', '.md', '.html', '.htm', '.xml'):
+        try:
+            for enc in ('utf-8', 'cp1252', 'latin-1'):
+                try:
+                    with open(fpath, 'r', encoding=enc) as fp:
+                        txt = fp.read()
+                    logs.append({'nivel': 'anexo', 'msg': f'  ✅ {fname_display}: {len(txt)} chars via leitura texto ({enc})'})
+                    break
+                except UnicodeDecodeError:
+                    continue
+        except Exception as et:
+            logs.append({'nivel': 'aviso', 'msg': f'  ❌ {fname_display}: leitura texto falhou: {str(et)[:80]}'})
+
+    else:
+        logs.append({'nivel': 'aviso', 'msg': f'  ⏭️ {fname_display}: tipo não suportado ({ext})'})
+
+    return txt
+
+
 @app.route('/buscador/anexos')
 @login_required
 def buscador_anexos():
@@ -2356,20 +2483,32 @@ def api_analisar_anexo():
             sys.path.insert(0, '/var/www/urbanlex')
             from modulos.buscador_urbanistico import _buscar_leismunicipais
             # Processar o arquivo diretamente
-            logs.append({'nivel': 'ok', 'msg': f'📎 Arquivo recebido: {f.filename} ({os.path.getsize(fpath)//1024}KB)'})
+            logs.append({'nivel': 'ok', 'msg': f'\U0001f4ce Arquivo recebido: {f.filename} ({os.path.getsize(fpath)//1024}KB)'})
             ext = os.path.splitext(fpath)[1].lower()
             texto_total = ""
+
+            def _processar_arquivo(fpath2, fname2, logs2):
+                ext2 = os.path.splitext(fname2)[1].lower()
+                logs2.append({'nivel': 'anexo', 'msg': f'\U0001f4c4 Analisando: {os.path.basename(fname2)}...'})
+                txt2 = _extrair_texto_arquivo(fpath2, fname2, ext2, logs2, tmp, chamar_llm)
+                if txt2:
+                    try:
+                        desc = chamar_llm(f"Em uma linha, descreva o assunto deste documento municipal:\n\n{txt2[:2000]}", logs2, f"Desc {os.path.basename(fname2)}")
+                        if desc:
+                            logs2.append({'nivel': 'anexo', 'msg': f'  \U0001f4cb {os.path.basename(fname2)}: {desc.strip()[:150]}'})
+                    except Exception:
+                        pass
+                return txt2
+
             if ext == '.zip':
-                import zipfile
-                logs.append({'nivel': 'anexo', 'msg': f'📦 Descompactando ZIP...'})
+                import zipfile, re as _re_sort
+                logs.append({'nivel': 'anexo', 'msg': '\U0001f4e6 Descompactando ZIP...'})
                 with zipfile.ZipFile(fpath, 'r') as z:
-                    # Corrigir encoding dos nomes de arquivos (Windows cp437/cp1252)
-                    _raw_names = z.namelist()
                     _arquivos_map = {}
                     for _info in z.infolist():
                         try:
                             if _info.flag_bits & 0x800:
-                                _nome_correto = _info.filename  # ja e UTF-8
+                                _nome_correto = _info.filename
                             else:
                                 _nome_correto = _info.filename.encode('cp437').decode('utf-8')
                         except Exception:
@@ -2378,61 +2517,25 @@ def api_analisar_anexo():
                             except Exception:
                                 _nome_correto = _info.filename
                         _arquivos_map[_info.filename] = _nome_correto
-                    import re as _re_sort
-                    arquivos = sorted(_raw_names, key=lambda x: [int(c) if c.isdigit() else c.lower() for c in _re_sort.split(r"(\d+)", x)])
-                    logs.append({'nivel': 'anexo', 'msg': f'📂 {len(arquivos)} arquivo(s) encontrado(s)'})
+                    _raw_names = z.namelist()
+                    arquivos = sorted(_raw_names, key=lambda x: [int(c) if c.isdigit() else c.lower() for c in _re_sort.split(r'(\d+)', x)])
+                    logs.append({'nivel': 'anexo', 'msg': f'\U0001f4c2 {len(arquivos)} arquivo(s) encontrado(s)'})
                     z.extractall(tmp)
                 for fname in arquivos:
                     fname_display = _arquivos_map.get(fname, fname)
                     fpath2 = os.path.join(tmp, fname)
-                    if not os.path.isfile(fpath2): continue
-                    logs.append({'nivel': 'anexo', 'msg': f'📄 Analisando: {fname_display}...'})
-                    ext2 = os.path.splitext(fname)[1].lower()
-                    txt = ""
-                    if ext2 == '.pdf':
-                        import subprocess
-                        r = subprocess.run(['pdftotext', fpath2, '-'], capture_output=True, text=True, timeout=60)
-                        if r.returncode == 0 and len(r.stdout.strip()) > 100:
-                            txt = r.stdout
-                            logs.append({'nivel': 'anexo', 'msg': f'  ✅ {fname_display}: {len(txt)} chars via pdftotext'})
-                        else:
-                            logs.append({'nivel': 'aviso', 'msg': f'  ⚠️ {fname_display}: PDF rasterizado — usando Gemini Vision...'})
-                            # Gemini Vision
-                            try:
-                                import base64
-                                r2 = subprocess.run(['gs','-dNOPAUSE','-dBATCH','-sDEVICE=png16m','-r150',f'-sOutputFile={tmp}/page_%03d.png',fpath2], capture_output=True, timeout=120)
-                                pages = sorted([x for x in os.listdir(tmp) if x.startswith('page_') and x.endswith('.png')])
-                                if pages:
-                                    from google import genai as _gv
-                                    from google.genai import types as _gv_types
-                                    client_v = _gv.Client(api_key=os.environ.get('GEMINI_API_KEY',''))
-                                    parts = [_gv_types.Part.from_text(text='Extraia todo o texto deste documento municipal brasileiro:')]
-                                    for pg in pages:
-                                        with open(os.path.join(tmp,pg),'rb') as fp:
-                                            parts.append(_gv_types.Part.from_bytes(data=fp.read(), mime_type='image/png'))
-                                    resp_v = client_v.models.generate_content(model='gemini-2.5-flash', contents=parts)
-                                    txt = resp_v.text or ""
-                                    logs.append({'nivel': 'anexo', 'msg': f'  ✅ {fname}: {len(txt)} chars via Gemini Vision'})
-                            except Exception as ev:
-                                logs.append({'nivel': 'aviso', 'msg': f'  ❌ {fname}: Gemini Vision falhou: {str(ev)[:80]}'})
+                    if not os.path.isfile(fpath2):
+                        continue
+                    txt = _processar_arquivo(fpath2, fname_display, logs)
                     if txt:
-                        # Pedir descricao ao Gemini
-                        try:
-                            desc = chamar_llm(f"Em uma linha, descreva o assunto deste documento municipal:\n\n{txt[:2000]}", logs, f"Desc {fname}")
-                            if desc:
-                                logs.append({'nivel': 'anexo', 'msg': f'  📋 {fname}: {desc.strip()[:150]}'})
-                        except Exception: pass
-                        texto_total += f"\n\n--- {fname} ---\n{txt}"
-            elif ext == '.pdf':
-                import subprocess
-                r = subprocess.run(['pdftotext', fpath, '-'], capture_output=True, text=True, timeout=60)
-                if r.returncode == 0:
-                    texto_total = r.stdout
-                    logs.append({'nivel': 'ok', 'msg': f'✅ PDF: {len(texto_total)} chars extraidos'})
-            if not texto_total.strip():
-                logs.append({'nivel': 'aviso', 'msg': '⚠️ Nao foi possivel extrair texto dos anexos'})
-                job['done'] = True
-                return
+                        texto_total += f"\n\n--- {fname_display} ---\n{txt}"
+            else:
+                txt = _processar_arquivo(fpath, f.filename, logs)
+                if txt:
+                    texto_total = txt
+            logs.append({'nivel': 'aviso', 'msg': '⚠️ Nao foi possivel extrair texto dos anexos'})
+            job['done'] = True
+            return
             # Analisar relacoes em blocos
             logs.append({'nivel': 'relacao', 'msg': f'🔍 Analisando relacoes em {max(1, len(texto_total)//30000)} bloco(s)...'})
             _BLOCO = 30000
