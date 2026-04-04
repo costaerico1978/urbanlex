@@ -2325,17 +2325,25 @@ def _extrair_texto_arquivo(fpath, fname, ext, logs, tmp, chamar_llm):
                     from google import genai as _gv
                     from google.genai import types as _gv_types
                     client_v = _gv.Client(api_key=os.environ.get('GEMINI_API_KEY',''))
-                    parts = [_gv_types.Part.from_text(text='Extraia todo o texto deste documento municipal brasileiro:')]
-                    for pg in pages:
-                        with open(os.path.join(tmp, pg), 'rb') as fp:
-                            parts.append(_gv_types.Part.from_bytes(data=fp.read(), mime_type='image/png'))
-                    resp_v = client_v.models.generate_content(model='gemini-2.5-flash', contents=parts)
-                    txt = resp_v.text or ""
-                    logs.append({'nivel': 'anexo', 'msg': f'  ✅ {fname_display}: {len(txt)} chars via Gemini Vision'})
-                    # Limpar PNGs gerados para nao acumular
-                    for pg in pages:
-                        try: os.remove(os.path.join(tmp, pg))
-                        except: pass
+                    _LOTE = 10
+                    _txt_partes = []
+                    for _li in range(0, len(pages), _LOTE):
+                        _lote_pgs = pages[_li:_li+_LOTE]
+                        parts = [_gv_types.Part.from_text(text='Extraia todo o texto deste documento municipal brasileiro (parte):')]
+                        for pg in _lote_pgs:
+                            _pg_path = os.path.join(tmp, pg)
+                            with open(_pg_path, 'rb') as fp:
+                                parts.append(_gv_types.Part.from_bytes(data=fp.read(), mime_type='image/png'))
+                            try: os.remove(_pg_path)
+                            except: pass
+                        try:
+                            _resp_lote = client_v.models.generate_content(model='gemini-2.5-flash', contents=parts)
+                            if _resp_lote.text: _txt_partes.append(_resp_lote.text)
+                        except Exception as _el:
+                            logs.append({'nivel': 'aviso', 'msg': f'  ⚠️ {fname_display}: lote {_li//_LOTE+1} falhou: {str(_el)[:60]}'})
+                        parts = None  # liberar memoria
+                    txt = '\n'.join(_txt_partes)
+                    logs.append({'nivel': 'anexo', 'msg': f'  ✅  {fname_display}: {len(txt)} chars via Gemini Vision ({len(pages)} pgs, lotes de {_LOTE})'})
             except Exception as ev:
                 logs.append({'nivel': 'aviso', 'msg': f'  ❌ {fname_display}: Gemini Vision falhou: {str(ev)[:80]}'})
 
