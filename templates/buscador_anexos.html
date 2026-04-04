@@ -241,7 +241,7 @@ document.addEventListener('click', e => {
         logEl.style.display = 'block';
         const _btnBaixar = document.getElementById('btn-baixar-anx');
         if (_btnBaixar) _btnBaixar.style.display = 'inline-block';
-        cache.forEach(txt => { logEl.innerHTML += '<div style="color:var(--muted)">'+txt+'</div>'; });
+        cache.forEach(txt => { logEl.innerHTML += '<div style="color:var(--text)">'+txt+'</div>'; });
         logEl.scrollTop = logEl.scrollHeight;
         // Tentar reconectar job ativo
         const _jobSessao = sessionStorage.getItem('anx_job_sessao');
