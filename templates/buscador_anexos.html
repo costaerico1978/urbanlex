@@ -46,6 +46,56 @@
 <script>
 let _anxLogBuffer = [];
 let _anxAcTimer = null, _anxAcCache = {}, _anxAcIdx = -1;
+let _anxJobId = null, _anxCursor = 0, _anxPolling = false;
+
+async function _anxStartPolling(jobId, cursor) {
+    if (_anxPolling) return;
+    _anxPolling = true;
+    _anxJobId = jobId;
+    _anxCursor = cursor || 0;
+    let erros = 0;
+    while (_anxPolling) {
+        await new Promise(ok => setTimeout(ok, 2000));
+        if (document.hidden) {
+            await new Promise(ok => {
+                const h = () => { if (!document.hidden) { document.removeEventListener('visibilitychange', h); ok(); } };
+                document.addEventListener('visibilitychange', h);
+            });
+        }
+        try {
+            const poll = await fetch('/api/buscador/job/' + _anxJobId + '?cursor=' + _anxCursor, {credentials: 'same-origin'}).then(r => r.json());
+            erros = 0;
+            if (poll.logs && poll.logs.length) {
+                poll.logs.forEach(l => anxAddLog(l.msg || '', l.nivel));
+                document.getElementById('btn-baixar-anx').style.display = 'inline-block';
+            }
+            _anxCursor = poll.cursor || _anxCursor;
+            if (poll.done) {
+                document.getElementById('btn-baixar-anx').style.display = 'inline-block';
+                if (poll.result) mostrarResultado(poll.result);
+                _anxPolling = false;
+                break;
+            }
+        } catch(e) {
+            if (document.hidden) continue;
+            erros++;
+            if (erros <= 3) anxAddLog('Reconectando... (tentativa ' + erros + ')', 'aviso');
+            if (erros >= 60) {
+                anxAddLog('Conexão perdida — o processamento continua no servidor. Recarregue a página para ver o resultado.', 'aviso');
+                _anxPolling = false;
+                break;
+            }
+            await new Promise(ok => setTimeout(ok, 3000));
+        }
+    }
+}
+
+window.addEventListener('pageshow', e => {
+    if (e.persisted && _anxJobId && !_anxPolling) {
+        anxAddLog('Retomando após navegação...', 'aviso');
+        _anxStartPolling(_anxJobId, _anxCursor);
+    }
+});
 
 function anxAddLog(msg, nivel) {
     const logEl = document.getElementById('anx-log');
@@ -99,37 +149,10 @@ async function analisarAnexo() {
         if (!d.success) { anxAddLog('Erro: '+(d.error||'desconhecido'),'erro'); btn.disabled=false; btn.textContent='🔍 Analisar Anexos'; return; }
         localStorage.setItem('anx_job_id', d.job_id);
         sessionStorage.setItem('anx_job_sessao', d.job_id);
-        let cursor = 0;
-        let erros = 0;
-        const _waitVisible = () => new Promise(ok => {
-            if (!document.hidden) { ok(); return; }
-            const h = () => { if (!document.hidden) { document.removeEventListener('visibilitychange', h); ok(); } };
-            document.addEventListener('visibilitychange', h);
+        _anxStartPolling(d.job_id, 0);
+        await new Promise(ok => {
+            const _check = setInterval(() => { if (!_anxPolling) { clearInterval(_check); ok(); } }, 1000);
         });
-        while (true) {
-            await new Promise(ok=>setTimeout(ok,2000));
-            await _waitVisible();
-            try {
-                const poll = await fetch('/api/buscador/job/'+d.job_id+'?cursor='+cursor,{credentials:'same-origin'}).then(r=>r.json());
-                erros = 0;
-                if (poll.logs && poll.logs.length) {
-                    poll.logs.forEach(l => anxAddLog(l.msg||'', l.nivel));
-                    document.getElementById('btn-baixar-anx').style.display = 'inline-block';
-                }
-                cursor = poll.cursor || cursor;
-                if (poll.done) {
-                    document.getElementById('btn-baixar-anx').style.display = 'inline-block';
-                    if (poll.result) mostrarResultado(poll.result);
-                    break;
-                }
-            } catch(e) {
-                if (document.hidden) { continue; }
-                erros++;
-                anxAddLog('Reconectando... (tentativa '+erros+')', 'aviso');
-                if (erros >= 60) { anxAddLog('Conexão perdida após 60 tentativas — o processamento continua no servidor. Recarregue a página para ver o resultado.', 'aviso'); break; }
-                await new Promise(ok=>setTimeout(ok,3000));
-            }
-        }
     } catch(e) { anxAddLog('Erro: '+e,'erro'); }
     document.getElementById('btn-baixar-anx').style.display = 'inline-block';
     btn.disabled = false; btn.textContent = '🔍 Analisar Anexos';
@@ -233,19 +256,7 @@ document.addEventListener('click', e => {
                         document.getElementById('btn-baixar-anx').style.display = 'inline-block';
                         if (check.result) mostrarResultado(check.result);
                     } else {
-                        // Retomar polling
-                        let cursor = check.cursor || (cache.length||0);
-                        let erros = 0;
-                        while (true) {
-                            await new Promise(ok=>setTimeout(ok,2000));
-                            try {
-                                const poll = await fetch('/api/buscador/job/'+jobId+'?cursor='+cursor,{credentials:'same-origin'}).then(r=>r.json());
-                                erros = 0;
-                                if (poll.logs && poll.logs.length) poll.logs.forEach(l => anxAddLog(l.msg||'', l.nivel));
-                                cursor = poll.cursor || cursor;
-                                if (poll.done) { document.getElementById('btn-baixar-anx').style.display='inline-block'; if(poll.result) mostrarResultado(poll.result); break; }
-                            } catch(e) { erros++; if(erros>=60) break; await new Promise(ok=>setTimeout(ok,3000)); }
-                        }
+                        _anxStartPolling(jobId, check.cursor || (cache.length||0));
                     }
                 }
             } catch(e) {}
