@@ -2557,11 +2557,10 @@ def api_analisar_anexo():
                 txt = _processar_arquivo(fpath, f.filename, logs)
                 if txt:
                     texto_total = txt
-            logs.append({'nivel': 'aviso', 'msg': '⚠️ Nao foi possivel extrair texto dos anexos'})
-            job['done'] = True
-            return
-            # Analisar relacoes em blocos
-            logs.append({'nivel': 'relacao', 'msg': f'🔍 Analisando relacoes em {max(1, len(texto_total)//30000)} bloco(s)...'})
+            if not texto_total.strip():
+                logs.append({'nivel': 'aviso', 'msg': '⚠️ Nao foi possivel extrair texto dos anexos'})
+                job['done'] = True
+                return
             _BLOCO = 30000
             _OVERLAP = 2000
             altera, revoga, regulamenta, alterado_por, revogado_por, regulamentado_por, cita = [], [], [], [], [], [], []
