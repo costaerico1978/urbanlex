@@ -2464,15 +2464,26 @@ def buscador_anexos():
 def api_analisar_anexo():
     import threading, uuid, json as _json
     job_id = str(uuid.uuid4())[:12]
-    f = request.files.get('arquivo')
+    arquivos_upload = request.files.getlist('arquivo')
+    if not arquivos_upload:
+        arquivos_upload = [request.files.get('arquivo')] if request.files.get('arquivo') else []
     municipio = request.form.get('municipio', 'Municipio')
     estado = request.form.get('estado', 'XX')
-    if not f:
+    if not arquivos_upload:
         return jsonify({'success': False, 'error': 'Nenhum arquivo enviado'})
     import os, tempfile
     tmp = tempfile.mkdtemp()
-    fpath = os.path.join(tmp, f.filename)
-    f.save(fpath)
+    fpaths = []
+    for f in arquivos_upload:
+        if f and f.filename:
+            fpath = os.path.join(tmp, f.filename)
+            f.save(fpath)
+            fpaths.append((fpath, f.filename))
+    if not fpaths:
+        return jsonify({'success': False, 'error': 'Nenhum arquivo válido enviado'})
+    # Compatibilidade: fpath/f.filename apontam para o primeiro arquivo
+    fpath, _ = fpaths[0]
+    f = type('F', (), {'filename': fpaths[0][1]})()
     job = {'logs': [], 'done': False, 'result': None}
     _buscador_jobs[job_id] = job
     def _run():
@@ -2505,9 +2516,8 @@ def api_analisar_anexo():
             import sys
             sys.path.insert(0, '/var/www/urbanlex')
             from modulos.buscador_urbanistico import _buscar_leismunicipais
-            # Processar o arquivo diretamente
-            logs.append({'nivel': 'ok', 'msg': f'\U0001f4ce Arquivo recebido: {f.filename} ({os.path.getsize(fpath)//1024}KB)'})
-            ext = os.path.splitext(fpath)[1].lower()
+            # Processar arquivos
+            logs.append({'nivel': 'ok', 'msg': f'\U0001f4ce {len(fpaths)} arquivo(s) recebido(s)'})
             texto_total = ""
 
             def _processar_arquivo(fpath2, fname2, logs2):
@@ -2523,40 +2533,42 @@ def api_analisar_anexo():
                         pass
                 return txt2
 
-            if ext == '.zip':
-                import zipfile, re as _re_sort
-                logs.append({'nivel': 'anexo', 'msg': '\U0001f4e6 Descompactando ZIP...'})
-                with zipfile.ZipFile(fpath, 'r') as z:
-                    _arquivos_map = {}
-                    for _info in z.infolist():
-                        if _info.flag_bits & 0x800:
-                            _nome_correto = _info.filename  # ja UTF-8
-                        else:
-                            _raw = _info.filename.encode('cp437')
-                            try:
-                                _nome_correto = _raw.decode('utf-8', errors='strict')
-                            except UnicodeDecodeError:
+            for _fp, _fn in fpaths:
+                _fext = os.path.splitext(_fn)[1].lower()
+                if _fext == '.zip':
+                    import zipfile, re as _re_sort
+                    logs.append({'nivel': 'anexo', 'msg': f'\U0001f4e6 Descompactando ZIP: {_fn}...'})
+                    with zipfile.ZipFile(_fp, 'r') as z:
+                        _arquivos_map = {}
+                        for _info in z.infolist():
+                            if _info.flag_bits & 0x800:
+                                _nome_correto = _info.filename
+                            else:
+                                _raw = _info.filename.encode('cp437')
                                 try:
-                                    _nome_correto = _raw.decode('cp1252')
-                                except Exception:
-                                    _nome_correto = _info.filename
-                        _arquivos_map[_info.filename] = _nome_correto
-                    _raw_names = z.namelist()
-                    arquivos = sorted(_raw_names, key=lambda x: [int(c) if c.isdigit() else c.lower() for c in _re_sort.split(r'(\d+)', x)])
-                    logs.append({'nivel': 'anexo', 'msg': f'\U0001f4c2 {len(arquivos)} arquivo(s) encontrado(s)'})
-                    z.extractall(tmp)
-                for fname in arquivos:
-                    fname_display = _arquivos_map.get(fname, fname)
-                    fpath2 = os.path.join(tmp, fname)
-                    if not os.path.isfile(fpath2):
-                        continue
-                    txt = _processar_arquivo(fpath2, fname_display, logs)
+                                    _nome_correto = _raw.decode('utf-8', errors='strict')
+                                except UnicodeDecodeError:
+                                    try:
+                                        _nome_correto = _raw.decode('cp1252')
+                                    except Exception:
+                                        _nome_correto = _info.filename
+                            _arquivos_map[_info.filename] = _nome_correto
+                        _raw_names = z.namelist()
+                        arquivos = sorted(_raw_names, key=lambda x: [int(c) if c.isdigit() else c.lower() for c in _re_sort.split(r'(\d+)', x)])
+                        logs.append({'nivel': 'anexo', 'msg': f'\U0001f4c2 {len(arquivos)} arquivo(s) no ZIP'})
+                        z.extractall(tmp)
+                    for fname in arquivos:
+                        fname_display = _arquivos_map.get(fname, fname)
+                        fpath2 = os.path.join(tmp, fname)
+                        if not os.path.isfile(fpath2):
+                            continue
+                        txt = _processar_arquivo(fpath2, fname_display, logs)
+                        if txt:
+                            texto_total += f"\n\n--- {fname_display} ---\n{txt}"
+                else:
+                    txt = _processar_arquivo(_fp, _fn, logs)
                     if txt:
-                        texto_total += f"\n\n--- {fname_display} ---\n{txt}"
-            else:
-                txt = _processar_arquivo(fpath, f.filename, logs)
-                if txt:
-                    texto_total = txt
+                        texto_total += f"\n\n--- {_fn} ---\n{txt}"
             if not texto_total.strip():
                 logs.append({'nivel': 'aviso', 'msg': '⚠️ Nao foi possivel extrair texto dos anexos'})
                 job['done'] = True

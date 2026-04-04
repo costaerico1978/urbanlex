@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Análise de Anexos · UrbanLex{% endblock %}
+{% block title %}Análise de Legislação · UrbanLex{% endblock %}
 {% block content %}
 <style>
 .ac-wrapper{position:relative}
@@ -9,8 +9,8 @@
 .ac-item.selected,.ac-item:hover{background:var(--surface)}
 </style>
 <div style="padding:24px;max-width:900px">
-    <h2 style="color:var(--accent);margin-bottom:4px">📎 Análise de Anexos</h2>
-    <p style="color:var(--muted);font-size:13px;margin-bottom:24px">Upload de ZIP ou PDF com anexos de uma legislação para analisar relações urbanísticas.</p>
+    <h2 style="color:var(--accent);margin-bottom:4px">📋 Análise de Legislação</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:24px">Upload de arquivos (ZIP, PDF, DOCX, XLS...) de uma ou mais legislações para analisar relações urbanísticas.</p>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
             <div>
@@ -29,8 +29,8 @@
             </div>
         </div>
         <div style="margin-bottom:12px">
-            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Arquivo (ZIP ou PDF)</label>
-            <input id="anx-arquivo" type="file" accept=".zip,.pdf"
+            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Arquivo(s)</label>
+            <input id="anx-arquivo" type="file" accept=".zip,.pdf,.docx,.doc,.xlsx,.xls,.jpg,.jpeg,.png" multiple
                    style="width:100%;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
         </div>
         <button onclick="analisarAnexo()" id="btn-anx" class="btn btn-primary">🔍 Analisar Anexos</button>
