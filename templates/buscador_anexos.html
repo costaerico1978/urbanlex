@@ -119,7 +119,7 @@ async function analisarAnexo() {
             } catch(e) {
                 erros++;
                 anxAddLog('Reconectando... (tentativa '+erros+')', 'aviso');
-                if (erros >= 10) { anxAddLog('Conexão perdida — o processamento continua no servidor. Recarregue a página para ver o resultado.', 'aviso'); break; }
+                if (erros >= 60) { anxAddLog('Conexão perdida após 60 tentativas — o processamento continua no servidor. Recarregue a página para ver o resultado.', 'aviso'); break; }
                 await new Promise(ok=>setTimeout(ok,3000));
             }
         }
@@ -237,7 +237,7 @@ document.addEventListener('click', e => {
                                 if (poll.logs && poll.logs.length) poll.logs.forEach(l => anxAddLog(l.msg||'', l.nivel));
                                 cursor = poll.cursor || cursor;
                                 if (poll.done) { document.getElementById('btn-baixar-anx').style.display='inline-block'; if(poll.result) mostrarResultado(poll.result); break; }
-                            } catch(e) { erros++; if(erros>=10) break; await new Promise(ok=>setTimeout(ok,3000)); }
+                            } catch(e) { erros++; if(erros>=60) break; await new Promise(ok=>setTimeout(ok,3000)); }
                         }
                     }
                 }
