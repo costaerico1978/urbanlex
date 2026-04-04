@@ -26,7 +26,7 @@ git pull
 ATIVOS=$(curl -sf http://localhost:5000/api/buscador/jobs-ativos 2>/dev/null)
 if echo "$ATIVOS" | grep -q '"ativos": true'; then
     echo "$(date): Jobs ativos — restart adiado" >> /var/log/urbanlex-deploy.log
-    for i in $(seq 1 20); do
+    for i in $(seq 1 120); do
         sleep 30
         ATIVOS2=$(curl -sf http://localhost:5000/api/buscador/jobs-ativos 2>/dev/null)
         if ! echo "$ATIVOS2" | grep -q '"ativos": true'; then
