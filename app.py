@@ -2338,15 +2338,18 @@ def _extrair_texto_arquivo(fpath, fname, ext, logs, tmp, chamar_llm):
                             except: pass
                         try:
                             import concurrent.futures as _cf
-                            with _cf.ThreadPoolExecutor(max_workers=1) as _ex:
-                                _fut = _ex.submit(client_v.models.generate_content, model='gemini-2.5-flash', contents=parts)
+                            _ex = _cf.ThreadPoolExecutor(max_workers=1)
+                            _fut = _ex.submit(client_v.models.generate_content, model='gemini-2.5-flash', contents=parts)
+                            try:
                                 _resp_lote = _fut.result(timeout=120)
-                            if _resp_lote.text: _txt_partes.append(_resp_lote.text)
-                        except _cf.TimeoutError:
-                            logs.append({'nivel': 'aviso', 'msg': f'  ⚠️ {fname_display}: lote {_li//_LOTE+1} timeout (120s) — pulando'})
+                                if _resp_lote.text: _txt_partes.append(_resp_lote.text)
+                            except _cf.TimeoutError:
+                                logs.append({'nivel': 'aviso', 'msg': f'  ⚠️ {fname_display}: lote {_li//_LOTE+1} timeout (120s) — pulando'})
+                                _fut.cancel()
+                            finally:
+                                _ex.shutdown(wait=False)
                         except Exception as _el:
                             logs.append({'nivel': 'aviso', 'msg': f'  ⚠️ {fname_display}: lote {_li//_LOTE+1} falhou: {str(_el)[:60]}'})
-                        parts = None  # liberar memoria
                     txt = '\n'.join(_txt_partes)
                     logs.append({'nivel': 'anexo', 'msg': f'  ✅  {fname_display}: {len(txt)} chars via Gemini Vision ({len(pages)} pgs, lotes de {_LOTE})'})
             except Exception as ev:
