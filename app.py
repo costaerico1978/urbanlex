@@ -2337,8 +2337,13 @@ def _extrair_texto_arquivo(fpath, fname, ext, logs, tmp, chamar_llm):
                             try: os.remove(_pg_path)
                             except: pass
                         try:
-                            _resp_lote = client_v.models.generate_content(model='gemini-2.5-flash', contents=parts)
+                            import concurrent.futures as _cf
+                            with _cf.ThreadPoolExecutor(max_workers=1) as _ex:
+                                _fut = _ex.submit(client_v.models.generate_content, model='gemini-2.5-flash', contents=parts)
+                                _resp_lote = _fut.result(timeout=120)
                             if _resp_lote.text: _txt_partes.append(_resp_lote.text)
+                        except _cf.TimeoutError:
+                            logs.append({'nivel': 'aviso', 'msg': f'  ⚠️ {fname_display}: lote {_li//_LOTE+1} timeout (120s) — pulando'})
                         except Exception as _el:
                             logs.append({'nivel': 'aviso', 'msg': f'  ⚠️ {fname_display}: lote {_li//_LOTE+1} falhou: {str(_el)[:60]}'})
                         parts = None  # liberar memoria
@@ -2360,8 +2365,15 @@ def _extrair_texto_arquivo(fpath, fname, ext, logs, tmp, chamar_llm):
                 _gv_types.Part.from_text(text='Extraia todo o texto visível nesta imagem de documento municipal brasileiro:'),
                 _gv_types.Part.from_bytes(data=img_bytes, mime_type=mime)
             ]
-            resp_v = client_v.models.generate_content(model='gemini-2.5-flash', contents=parts)
-            txt = resp_v.text or ""
+            import concurrent.futures as _cf2
+            with _cf2.ThreadPoolExecutor(max_workers=1) as _ex2:
+                _fut2 = _ex2.submit(client_v.models.generate_content, model='gemini-2.5-flash', contents=parts)
+                try:
+                    resp_v = _fut2.result(timeout=120)
+                    txt = resp_v.text or ""
+                except _cf2.TimeoutError:
+                    logs.append({'nivel': 'aviso', 'msg': f'  ⚠️ {fname_display}: Gemini Vision timeout (120s)'})
+                    txt = ""
             logs.append({'nivel': 'anexo', 'msg': f'  ✅ {fname_display}: {len(txt)} chars via Gemini Vision (imagem)'})
         except Exception as ev:
             logs.append({'nivel': 'aviso', 'msg': f'  ❌ {fname_display}: Gemini Vision falhou: {str(ev)[:80]}'})
