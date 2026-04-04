@@ -92,8 +92,15 @@ async function _anxStartPolling(jobId, cursor) {
 
 window.addEventListener('pageshow', e => {
     if (e.persisted && _anxJobId && !_anxPolling) {
-        anxAddLog('Retomando após navegação...', 'aviso');
         _anxStartPolling(_anxJobId, _anxCursor);
+    }
+});
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && !_anxPolling) {
+        const jobId = localStorage.getItem('anx_job_id');
+        if (jobId) {
+            _anxStartPolling(jobId, _anxCursor);
+        }
     }
 });
 
