@@ -2536,6 +2536,13 @@ def api_analisar_anexo():
                 except Exception as _ectx:
                     logs.append({'nivel': 'aviso', 'msg': f'Erro contexto: {str(_ectx)[:80]}'})
             job['result'] = resultado
+            # Persistir resultado no arquivo JSONL
+            try:
+                import json as _json_res
+                _res_path = f"/var/www/urbanlex/static/downloads/job_{job_id}.jsonl"
+                with open(_res_path, 'a', encoding='utf-8') as _rf:
+                    _rf.write(_json_res.dumps({'_result': resultado}, ensure_ascii=False) + '\n')
+            except Exception: pass
         except Exception as e:
             job['logs'].append({'nivel': 'erro', 'msg': f'Erro: {str(e)[:200]}'})
         finally:
@@ -3159,7 +3166,13 @@ def api_buscador_job_poll(job_id):
                     _conn_rec.close()
                 except Exception:
                     pass
-                return jsonify({'success': True, 'logs': _logs_rec[cursor:], 'cursor': len(_logs_rec), 'done': True, 'recuperado': True, 'hist_id': _hist_id_rec})
+                # Recuperar resultado se existir
+                _result_rec = None
+                for _lr in _logs_rec:
+                    if '_result' in _lr:
+                        _result_rec = _lr['_result']
+                _logs_rec_clean = [l for l in _logs_rec if '_result' not in l]
+                return jsonify({'success': True, 'logs': _logs_rec_clean[cursor:], 'cursor': len(_logs_rec_clean), 'done': True, 'recuperado': True, 'hist_id': _hist_id_rec, 'result': _result_rec})
             except Exception:
                 pass
         return jsonify({'success': False, 'error': 'Job não encontrado', 'done': False, 'logs': [], 'cursor': 0})
