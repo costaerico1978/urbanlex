@@ -2635,29 +2635,58 @@ def api_analisar_anexo():
             # Analise de contexto das citacoes
             contexto_citas = []
             if cita and texto_total:
-                logs.append({'nivel': 'relacao', 'msg': f'\U0001f50e Analisando contexto de {len(cita)} legislacoes em lotes...'})
+                logs.append({'nivel': 'relacao', 'msg': f'\U0001f50e Analisando contexto de {len(cita)} legislacoes em {max(1,len(texto_total)//40000)} bloco(s) de texto...'})
                 import re as _re_ctx, json as _jctx
-                _lote_size = 20
-                _lotes = [cita[x:x+_lote_size] for x in range(0, len(cita), _lote_size)]
+                # Dividir texto em blocos de 40k para cobrir todos os anexos
+                _CTX_BLOCO = 40000
+                _CTX_OVERLAP = 2000
+                _ctx_blocos = []
+                _p = 0
+                while _p < len(texto_total):
+                    _ctx_blocos.append(texto_total[_p:_p+_CTX_BLOCO])
+                    _p += _CTX_BLOCO - _CTX_OVERLAP
+                # Acumular contexto por lei em dict para mesclar resultados de varios blocos
+                _ctx_map = {}  # lei_norm -> {lei, zonas, contexto, lei_principal}
                 try:
-                    for _li, _lote in enumerate(_lotes):
-                        logs.append({'nivel': 'relacao', 'msg': f'  Lote {_li+1}/{len(_lotes)}: {len(_lote)} legislacoes...'})
+                    for _bi, _bloco_txt in enumerate(_ctx_blocos):
+                        logs.append({'nivel': 'relacao', 'msg': f'  Bloco texto {_bi+1}/{len(_ctx_blocos)} ({len(_bloco_txt)} chars)...'})
                         prompt_ctx = (
-                            f"Analise o texto dos anexos de {municipio}/{estado} e para cada legislacao citada, identifique:\n"
+                            f"Analise o trecho de texto dos anexos de {municipio}/{estado} abaixo e para cada legislacao citada, identifique:\n"
                             f"1. Em que zona(s) ou subzona(s) ela e referenciada (ex: ZRM-2B, ZR-1, ZOP-2)\n"
                             f"2. O contexto da citacao (parametros urbanisticos, indice construtivo, uso permitido)\n"
                             f"3. Se e a lei principal que rege aquela zona ou apenas referencia secundaria\n\n"
-                            f"LEGISLACOES CITADAS:\n" + "\n".join(f"- {c}" for c in _lote) + "\n\n"
-                            f'Responda APENAS com JSON: [{{\'lei\':\'nome\',\'zonas\':[],\'contexto\':\'descricao\',\'lei_principal\':\'\'}}]\n\n'
-                            f"TEXTO (primeiros 40000 chars):\n{texto_total[:40000]}"
+                            f"LEGISLACOES A BUSCAR:\n" + "\n".join(f"- {c}" for c in cita) + "\n\n"
+                            f'Responda APENAS com JSON para as leis encontradas neste trecho: [{{\'lei\':\'nome\',\'zonas\':[],\'contexto\':\'descricao\',\'lei_principal\':\'\'}}]\n\n'
+                            f"TRECHO {_bi+1}/{len(_ctx_blocos)}:\n{_bloco_txt}"
                         )
-                        resp_ctx = chamar_llm(prompt_ctx, logs, f'Contexto lote {_li+1}/{len(_lotes)}')
+                        resp_ctx = chamar_llm(prompt_ctx, logs, f'Contexto bloco {_bi+1}/{len(_ctx_blocos)}')
                         if resp_ctx:
-                            resp_ctx_c = _re_ctx.sub(r'^```json\s*|\s*```$', '', resp_ctx.strip())
-                            _lote_result = _jctx.loads(resp_ctx_c)
-                            if isinstance(_lote_result, list): contexto_citas.extend(_lote_result)
-                            for ct in _lote_result:
-                                logs.append({'nivel': 'relacao', 'msg': f"  \U0001f4cd {ct.get('lei','')}: zonas={ct.get('zonas',[])} — {ct.get('contexto','')[:100]}"})
+                            try:
+                                resp_ctx_c = _re_ctx.sub(r'^```json\s*|\s*```$', '', resp_ctx.strip())
+                                _bloco_result = _jctx.loads(resp_ctx_c)
+                                if isinstance(_bloco_result, list):
+                                    for ct in _bloco_result:
+                                        _lei = ct.get('lei','')
+                                        if not _lei: continue
+                                        _key = _lei.lower().strip()
+                                        if _key not in _ctx_map:
+                                            _ctx_map[_key] = ct
+                                        else:
+                                            # Mesclar zonas e contexto
+                                            _existing = _ctx_map[_key]
+                                            _z_new = ct.get('zonas',[])
+                                            _z_ex = _existing.get('zonas',[])
+                                            _existing['zonas'] = list(set(_z_ex + _z_new))
+                                            if ct.get('contexto') and len(ct.get('contexto','')) > len(_existing.get('contexto','')):
+                                                _existing['contexto'] = ct['contexto']
+                                            if ct.get('lei_principal'):
+                                                _existing['lei_principal'] = ct['lei_principal']
+                            except Exception as _ep:
+                                logs.append({'nivel': 'aviso', 'msg': f'  Erro parse bloco {_bi+1}: {str(_ep)[:60]}'})
+                    contexto_citas = list(_ctx_map.values())
+                    for ct in contexto_citas:
+                        if ct.get('zonas') or ct.get('contexto'):
+                            logs.append({'nivel': 'relacao', 'msg': f"  \U0001f4cd {ct.get('lei','')}: zonas={ct.get('zonas',[])} — {ct.get('contexto','')[:100]}"})
                     logs.append({'nivel': 'relacao', 'msg': f'  \u2705 Contexto total: {len(contexto_citas)} legislacoes'})
                 except Exception as _ectx:
                     logs.append({'nivel': 'aviso', 'msg': f'Erro contexto: {str(_ectx)[:80]}'})
