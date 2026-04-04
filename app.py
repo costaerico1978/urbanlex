@@ -2514,16 +2514,17 @@ def api_analisar_anexo():
                 with zipfile.ZipFile(fpath, 'r') as z:
                     _arquivos_map = {}
                     for _info in z.infolist():
-                        try:
-                            if _info.flag_bits & 0x800:
-                                _nome_correto = _info.filename
-                            else:
-                                _nome_correto = _info.filename.encode('cp437').decode('utf-8')
-                        except Exception:
+                        if _info.flag_bits & 0x800:
+                            _nome_correto = _info.filename  # ja UTF-8
+                        else:
+                            _raw = _info.filename.encode('cp437')
                             try:
-                                _nome_correto = _info.filename.encode('cp437').decode('cp1252')
-                            except Exception:
-                                _nome_correto = _info.filename
+                                _nome_correto = _raw.decode('utf-8', errors='strict')
+                            except UnicodeDecodeError:
+                                try:
+                                    _nome_correto = _raw.decode('cp1252')
+                                except Exception:
+                                    _nome_correto = _info.filename
                         _arquivos_map[_info.filename] = _nome_correto
                     _raw_names = z.namelist()
                     arquivos = sorted(_raw_names, key=lambda x: [int(c) if c.isdigit() else c.lower() for c in _re_sort.split(r'(\d+)', x)])
