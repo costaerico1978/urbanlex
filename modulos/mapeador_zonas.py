@@ -272,19 +272,19 @@ def _renderizar_osm(osm_data, bbox, img_w, img_h):
 
 
 def _extrair_vias_planta(img_planta):
-    """Extrai figura-fundo das vias da planta via OpenCV."""
+    """Extrai figura-fundo detectando bordas entre zonas coloridas via Canny."""
     import numpy as np
     import cv2
     from skimage.morphology import skeletonize
-    # Converter para escala de cinza
-    gray = cv2.cvtColor(img_planta, cv2.COLOR_BGR2GRAY)
-    # Detectar linhas escuras (vias sao cinza/preto na planta)
-    _, thresh = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY_INV)
-    # Remover areas grandes (zonas coloridas) — manter so linhas finas
-    kernel_open = np.ones((5, 5), np.uint8)
-    thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel_open)
-    # Esqueletizar para obter eixos finos
-    skel = skeletonize(thresh > 0).astype(np.uint8) * 255
+    lab = cv2.cvtColor(img_planta, cv2.COLOR_BGR2LAB)
+    bordas = np.zeros(img_planta.shape[:2], dtype=np.uint8)
+    for ch in cv2.split(lab):
+        blur = cv2.GaussianBlur(ch, (3, 3), 0)
+        b = cv2.Canny(blur, 30, 90)
+        bordas = cv2.bitwise_or(bordas, b)
+    kernel = np.ones((2, 2), np.uint8)
+    bordas = cv2.dilate(bordas, kernel, iterations=1)
+    skel = skeletonize(bordas > 0).astype(np.uint8) * 255
     return skel
 
 
