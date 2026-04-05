@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}Mapeamento de Zonas · UrbanLex{% endblock %}
+{% block content %}
+<style>
+.mz-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px}
+.mz-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;margin-right:6px}
+.mz-badge-ok{background:#1a3a1a;color:#4caf50}
+.mz-badge-err{background:#3a1a1a;color:#ff6b6b}
+</style>
+<div style="padding:24px;max-width:960px">
+    <h2 style="color:var(--accent);margin-bottom:4px">🗺️ Mapeamento de Zonas</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:24px">Upload da planta de zoneamento para georreferenciamento automático e geração de KML.</p>
+    <div class="mz-card">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div>
+                <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Município</label>
+                <div class="ac-wrapper">
+                    <input id="mz-municipio" type="text" placeholder="Ex: Xangri-Lá" autocomplete="off"
+                           style="width:100%;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px"
+                           oninput="mzAcBuscar(this.value)" onfocus="mzAcBuscar(this.value)" onkeydown="mzAcKeydown(event)">
+                    <div class="ac-list" id="mz-ac-list"></div>
+                </div>
+            </div>
+            <div>
+                <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Estado</label>
+                <input id="mz-estado" type="text" placeholder="Preenchido automaticamente" readonly
+                       style="width:100%;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;opacity:0.7">
+            </div>
+        </div>
+        <div style="margin-bottom:12px">
+            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Planta de Zoneamento (PDF ou imagem)</label>
+            <input id="mz-arquivo" type="file" accept=".pdf,.jpg,.jpeg,.png,.tiff"
+                   style="width:100%;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
+        </div>
+        <button onclick="mzIniciar()" id="btn-mz" class="btn btn-primary">🗺️ Iniciar Mapeamento</button>
+        <button onclick="mzNovo()" class="btn btn-secondary" style="margin-left:8px">🔄 Novo</button>
+    </div>
+    <div id="mz-log" style="display:none;background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;max-height:400px;overflow-y:auto;margin-bottom:20px"></div>
+    <div id="mz-resultado" style="display:none">
+        <div class="mz-card">
+            <h3 style="color:var(--accent);margin-bottom:16px">📊 Resultado</h3>
+            <div id="mz-estagios" style="margin-bottom:16px"></div>
+            <div id="mz-zonas-tabela"></div>
+            <div style="margin-top:16px" id="mz-download-area"></div>
+        </div>
+    </div>
+</div>
+<script>
+let _mzLogBuffer = [], _mzJobId = null, _mzCursor = 0, _mzPolling = false;
+let _mzAcTimer = null, _mzAcCache = {}, _mzAcIdx = -1;
+
+function mzAddLog(msg, nivel) {
+    const logEl = document.getElementById('mz-log');
+    const c = nivel==='erro'?'#ff6b6b':nivel==='aviso'?'#ffb347':nivel==='ok'?'var(--accent)':nivel==='info'?'#4fc3f7':'var(--text)';
+    const ts = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'America/Sao_Paulo'});
+    logEl.innerHTML += '<div style="color:'+c+'">['+ts+'] '+(msg||'')+'</div>';
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+function mzNovo() {
+    _mzJobId = null; _mzCursor = 0; _mzPolling = false;
+    document.getElementById('mz-log').innerHTML = '';
+    document.getElementById('mz-log').style.display = 'none';
+    document.getElementById('mz-resultado').style.display = 'none';
+    document.getElementById('mz-arquivo').value = '';
+    document.getElementById('btn-mz').disabled = false;
+    document.getElementById('btn-mz').textContent = '🗺️ Iniciar Mapeamento';
+}
+
+async function _mzStartPolling(jobId, cursor) {
+    if (_mzPolling) return;
+    _mzPolling = true; _mzJobId = jobId; _mzCursor = cursor || 0;
+    let erros = 0;
+    while (_mzPolling) {
+        await new Promise(ok => setTimeout(ok, 2000));
+        if (document.hidden) {
+            await new Promise(ok => {
+                const h = () => { if (!document.hidden) { document.removeEventListener('visibilitychange', h); ok(); } };
+                document.addEventListener('visibilitychange', h);
+            });
+        }
+        try {
+            const poll = await fetch('/api/buscador/job/'+_mzJobId+'?cursor='+_mzCursor, {credentials:'same-origin'}).then(r=>r.json());
+            erros = 0;
+            if (poll.logs && poll.logs.length) poll.logs.forEach(l => mzAddLog(l.msg||'', l.nivel));
+            _mzCursor = poll.cursor || _mzCursor;
+            if (poll.done) {
+                if (poll.result) mzMostrarResultado(poll.result);
+                document.getElementById('btn-mz').disabled = false;
+                document.getElementById('btn-mz').textContent = '🗺️ Iniciar Mapeamento';
+                _mzPolling = false; break;
+            }
+        } catch(e) {
+            if (document.hidden) continue;
+            erros++;
+            if (erros >= 60) { mzAddLog('Conexão perdida — recarregue a página.', 'aviso'); _mzPolling = false; break; }
+            await new Promise(ok => setTimeout(ok, 3000));
+        }
+    }
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && !_mzPolling && _mzJobId) _mzStartPolling(_mzJobId, _mzCursor);
+});
+
+async function mzIniciar() {
+    const arquivo = document.getElementById('mz-arquivo').files[0];
+    if (!arquivo) { alert('Selecione a planta de zoneamento'); return; }
+    const municipio = document.getElementById('mz-municipio').value.trim();
+    const estado = document.getElementById('mz-estado').value.trim();
+    if (!municipio || !estado) { alert('Informe o município e estado'); return; }
+    const btn = document.getElementById('btn-mz');
+    btn.disabled = true; btn.textContent = '⏳ Processando...';
+    document.getElementById('mz-log').style.display = 'block';
+    mzAddLog('🚀 Iniciando mapeamento de '+arquivo.name, 'ok');
+    const fd = new FormData();
+    fd.append('arquivo', arquivo);
+    fd.append('municipio', municipio);
+    fd.append('estado', estado);
+    try {
+        const resp = await fetch('/api/mapeamento/iniciar', {method:'POST', body:fd, credentials:'same-origin'});
+        const d = await resp.json();
+        if (!d.success) { mzAddLog('Erro: '+(d.error||'desconhecido'), 'erro'); btn.disabled=false; btn.textContent='🗺️ Iniciar Mapeamento'; return; }
+        _mzStartPolling(d.job_id, 0);
+    } catch(e) { mzAddLog('Erro: '+e, 'erro'); btn.disabled=false; btn.textContent='🗺️ Iniciar Mapeamento'; }
+}
+
+function mzMostrarResultado(r) {
+    document.getElementById('mz-resultado').style.display = 'block';
+    const estagios = [['Legenda extraída',r.legenda_ok],['Eixos OSM obtidos',r.osm_ok],['Georreferenciamento',r.geo_ok],['Zonas segmentadas',r.zonas_ok],['KML gerado',r.kml_ok]];
+    document.getElementById('mz-estagios').innerHTML = estagios.map(([l,ok]) => '<span class="mz-badge '+(ok?'mz-badge-ok':'mz-badge-err')+'">'+(ok?'✅':'❌')+' '+l+'</span>').join('');
+    if (r.zonas && r.zonas.length) {
+        let ht = '<h4 style="color:var(--accent);margin:16px 0 8px">Zonas detectadas ('+r.zonas.length+')</h4>';
+        ht += '<table style="width:100%;border-collapse:collapse;font-size:12px"><tr><th style="padding:8px;border:1px solid var(--border);background:var(--surface2);text-align:left">Zona</th><th style="padding:8px;border:1px solid var(--border);background:var(--surface2);text-align:left">Cor</th><th style="padding:8px;border:1px solid var(--border);background:var(--surface2);text-align:left">Área</th></tr>';
+        r.zonas.forEach(z => {
+            ht += '<tr><td style="padding:8px;border:1px solid var(--border)">'+(z.nome||'—')+'</td>';
+            ht += '<td style="padding:8px;border:1px solid var(--border)"><div style="width:20px;height:20px;background:'+z.cor+';border-radius:3px;display:inline-block"></div></td>';
+            ht += '<td style="padding:8px;border:1px solid var(--border)">'+(z.area_km2||'—')+'</td></tr>';
+        });
+        ht += '</table>';
+        document.getElementById('mz-zonas-tabela').innerHTML = ht;
+    }
+    if (r.kml_url) {
+        document.getElementById('mz-download-area').innerHTML = '<a href="'+r.kml_url+'" class="btn btn-primary" download>📥 Baixar KML</a>';
+    }
+}
+
+async function mzAcBuscar(query) {
+    const listEl = document.getElementById('mz-ac-list');
+    query = (query||'').trim();
+    if (query.length < 2) { listEl.classList.remove('open'); return; }
+    clearTimeout(_mzAcTimer);
+    _mzAcTimer = setTimeout(async () => {
+        let items = _mzAcCache[query.toLowerCase()];
+        if (!items) {
+            try {
+                const r = await fetch('/api/buscador/autocomplete-municipios?q='+encodeURIComponent(query),{credentials:'same-origin'});
+                items = (await r.json()).municipios || [];
+                _mzAcCache[query.toLowerCase()] = items;
+            } catch(e) { items = []; }
+        }
+        if (!items.length) { listEl.innerHTML='<div style="padding:8px;font-size:12px;color:var(--muted)">Nenhum município encontrado</div>'; listEl.classList.add('open'); return; }
+        _mzAcIdx = -1;
+        listEl.innerHTML = items.map(m=>'<div class="ac-item" data-nome="'+m.nome+'" data-estado="'+m.estado+'" onclick="mzAcSelecionar(this)"><span style="color:var(--muted);margin-right:6px">'+m.estado+'</span>'+m.nome+'</div>').join('');
+        listEl.classList.add('open');
+    }, 200);
+}
+
+function mzAcKeydown(e) {
+    const listEl = document.getElementById('mz-ac-list');
+    const items = listEl.querySelectorAll('.ac-item');
+    if (!items.length || !listEl.classList.contains('open')) return;
+    if (e.key==='ArrowDown') { e.preventDefault(); _mzAcIdx=Math.min(_mzAcIdx+1,items.length-1); items.forEach((it,i)=>it.classList.toggle('selected',i===_mzAcIdx)); }
+    else if (e.key==='ArrowUp') { e.preventDefault(); _mzAcIdx=Math.max(_mzAcIdx-1,0); items.forEach((it,i)=>it.classList.toggle('selected',i===_mzAcIdx)); }
+    else if (e.key==='Enter'&&_mzAcIdx>=0) { e.preventDefault(); mzAcSelecionar(items[_mzAcIdx]); }
+    else if (e.key==='Escape') { listEl.classList.remove('open'); }
+}
+
+function mzAcSelecionar(el) {
+    document.getElementById('mz-municipio').value = el.dataset.nome;
+    document.getElementById('mz-estado').value = el.dataset.estado;
+    document.getElementById('mz-ac-list').classList.remove('open');
+}
+
+document.addEventListener('click', e => {
+    if (!e.target.closest('.ac-wrapper')) document.getElementById('mz-ac-list').classList.remove('open');
+});
+</script>
+{% endblock %}

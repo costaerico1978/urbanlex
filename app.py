@@ -2455,6 +2455,38 @@ def buscador_anexos():
     return render_template('buscador_anexos.html',
         active_page='buscador-anexos',
         active_group='buscador')
+@app.route('/mapeamento/zonas')
+@login_required
+def mapeamento_zonas():
+    return render_template('mapeamento_zonas.html',
+        active_page='mapeamento-zonas',
+        active_group='buscador')
+
+@app.route('/api/mapeamento/iniciar', methods=['POST'])
+@login_required
+def api_mapeamento_iniciar():
+    import threading, uuid, os, tempfile
+    job_id = str(uuid.uuid4())[:12]
+    f = request.files.get('arquivo')
+    municipio = request.form.get('municipio', 'Municipio')
+    estado = request.form.get('estado', 'XX')
+    if not f:
+        return jsonify({'success': False, 'error': 'Nenhum arquivo enviado'})
+    tmp = tempfile.mkdtemp()
+    fpath = os.path.join(tmp, f.filename)
+    f.save(fpath)
+    job = {'logs': [], 'done': False, 'result': None}
+    _buscador_jobs[job_id] = job
+    def _run():
+        try:
+            from modulos.mapeador_zonas import mapear_zonas
+            mapear_zonas(fpath, f.filename, municipio, estado, job['logs'], job, tmp)
+        except Exception as e:
+            job['logs'].append({'nivel': 'erro', 'msg': f'Erro: {str(e)[:200]}'})
+        finally:
+            job['done'] = True
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({'success': True, 'job_id': job_id})
 
 @app.route('/api/buscador/analisar-anexo', methods=['POST'])
 @login_required
