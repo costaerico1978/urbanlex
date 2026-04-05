@@ -140,6 +140,13 @@ function mzMostrarResultado(r) {
         ht += '</table>';
         document.getElementById('mz-zonas-tabela').innerHTML = ht;
     }
+    if (r.validacao_url) {
+        let hval = '<h4 style="color:var(--accent);margin:16px 0 8px">🔍 Validação do Alinhamento</h4>';
+        hval += '<p style="font-size:12px;color:var(--muted);margin-bottom:8px">Azul = OSM &nbsp;|&nbsp; Vermelho = Planta &nbsp;|&nbsp; Roxo = Coincidência</p>';
+        hval += '<img src="'+r.validacao_url+'" style="width:100%;border:1px solid var(--border);border-radius:6px">';
+        hval += '<a href="'+r.validacao_url+'" class="btn btn-secondary" style="margin-top:8px;display:inline-block" download>📥 Baixar validação</a>';
+        document.getElementById('mz-download-area').innerHTML += hval;
+    }
     if (r.ff_planta_url || r.ff_osm_url) {
         let hff = '<h4 style="color:var(--accent);margin:16px 0 8px">🖼️ Figura-Fundos Gerados</h4>';
         hff += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';

@@ -92,6 +92,19 @@ def mapear_zonas(fpath, fname, municipio, estado, logs, job, tmp):
         H, px_to_ll = geo_result
         resultado["geo_ok"] = True
         logs.append({"nivel": "ok", "msg": "✅ Georreferenciamento concluído"})
+        # Gerar imagem de validacao da sobreposicao
+        import cv2 as _cv2_val
+        import numpy as _np_val
+        _val_img = _np_val.zeros((img_h, img_w, 3), dtype=_np_val.uint8)
+        # Aplicar homografia na planta
+        _planta_warp = _cv2_val.warpPerspective(img_vias_planta, H, (img_w, img_h))
+        # OSM em azul, planta transformada em vermelho
+        _val_img[:,:,0] = _planta_warp  # canal B = planta (azul no BGR)
+        _val_img[:,:,2] = img_vias_osm  # canal R = OSM (vermelho no BGR)
+        _val_path = f"/var/www/urbanlex/static/downloads/validacao_{municipio.replace(chr(32),chr(95))}.png"
+        _cv2_val.imwrite(_val_path, _val_img)
+        resultado["validacao_url"] = f"/static/downloads/validacao_{municipio.replace(chr(32),chr(95))}.png"
+        logs.append({"nivel": "ok", "msg": "🖼️ Imagem de validação gerada — azul=OSM, vermelho=planta, roxo=coincidência"})
         # Estagio 4: Segmentacao
         logs.append({"nivel": "info", "msg": "🎨 Estágio 4/5: Segmentando zonas por cor..."})
         zonas_geo = _segmentar_zonas(img_planta, legenda, H, px_to_ll, logs)
