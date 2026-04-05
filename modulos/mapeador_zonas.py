@@ -45,9 +45,52 @@ def mapear_zonas(fpath, fname, municipio, estado, logs, job, tmp):
             job['result'] = resultado
             return
 
-        # Estágios 3, 4, 5 — a implementar
-        logs.append({'nivel': 'aviso', 'msg': '⚠️ Estágios 3-5 (georreferenciamento, segmentação, KML) ainda em implementação'})
-        job['result'] = resultado
+        # Estagio 3: Georreferenciamento
+        logs.append({"nivel": "info", "msg": "📐 Estágio 3/5: Georreferenciando planta com eixos OSM..."})
+        import cv2, numpy as np
+        # Carregar imagem da planta
+        ext = os.path.splitext(fname)[1].lower()
+        if ext == ".pdf":
+            pages = sorted([x for x in os.listdir(tmp) if x.startswith("mapa_") and x.endswith(".png")])
+            img_path = os.path.join(tmp, pages[0]) if pages else None
+        else:
+            img_path = fpath
+        if not img_path or not os.path.exists(img_path):
+            logs.append({"nivel": "aviso", "msg": "⚠️ Imagem da planta não encontrada"})
+            job["result"] = resultado
+            return
+        img_planta = cv2.imread(img_path)
+        img_h, img_w = img_planta.shape[:2]
+        logs.append({"nivel": "info", "msg": f"  📏 Dimensões da planta: {img_w}x{img_h}px"})
+        # Extrair vias da planta e renderizar OSM
+        img_vias_planta = _extrair_vias_planta(img_planta)
+        south_f = float(osm_data["_bbox"][0]) if "_bbox" in osm_data else float(results[0]["boundingbox"][0])
+        bbox_tuple = (float(osm_data.get("_south", -29.86)), float(osm_data.get("_north", -29.76)),
+                      float(osm_data.get("_west", -50.12)), float(osm_data.get("_east", -50.02)))
+        img_vias_osm = _renderizar_osm(osm_data, bbox_tuple, img_w, img_h)
+        geo_result = _georreferenciar(img_vias_planta, img_vias_osm, bbox_tuple, img_w, img_h, logs)
+        if not geo_result:
+            logs.append({"nivel": "aviso", "msg": "⚠️ Georreferenciamento falhou — verifique a qualidade da planta"})
+            job["result"] = resultado
+            return
+        H, px_to_ll = geo_result
+        resultado["geo_ok"] = True
+        logs.append({"nivel": "ok", "msg": "✅ Georreferenciamento concluído"})
+        # Estagio 4: Segmentacao
+        logs.append({"nivel": "info", "msg": "🎨 Estágio 4/5: Segmentando zonas por cor..."})
+        zonas_geo = _segmentar_zonas(img_planta, legenda, H, px_to_ll, logs)
+        if zonas_geo:
+            resultado["zonas_ok"] = True
+            resultado["zonas"] = [{"nome": z["nome"], "descricao": z.get("descricao",""), "cor": z["cor_hex"], "area_km2": z.get("area_km2","—")} for z in zonas_geo]
+            logs.append({"nivel": "ok", "msg": f"✅ {len(zonas_geo)} polígonos segmentados"})
+        # Estagio 5: KML
+        logs.append({"nivel": "info", "msg": "📦 Estágio 5/5: Gerando KML..."})
+        kml_path = os.path.join("/var/www/urbanlex/static/downloads", f"zoneamento_{municipio.replace(chr(32),chr(95))}.kml")
+        _gerar_kml(zonas_geo, municipio, estado, kml_path)
+        resultado["kml_ok"] = True
+        resultado["kml_url"] = f"/static/downloads/zoneamento_{municipio.replace(chr(32),chr(95))}.kml"
+        logs.append({"nivel": "ok", "msg": "✅ KML gerado com sucesso!"})
+        job["result"] = resultado
 
     except Exception as e:
         logs.append({'nivel': 'erro', 'msg': f'Erro: {str(e)[:200]}'})
@@ -178,8 +221,192 @@ def _buscar_osm(municipio, estado, logs):
         if not data or not data.get("elements"):
             return None
         logs.append({"nivel": "info", "msg": f"  {len(data.get(chr(101)+chr(108)+chr(101)+chr(109)+chr(101)+chr(110)+chr(116)+chr(115), []))} vias obtidas"})
+        data["_south"] = float(south)
+        data["_north"] = float(north)
+        data["_west"] = float(west)
+        data["_east"] = float(east)
         return data
 
     except Exception as e:
         logs.append({'nivel': 'aviso', 'msg': f'⚠️ Erro OSM: {str(e)[:100]}'})
         return None
+
+
+def _renderizar_osm(osm_data, bbox, img_w, img_h):
+    """Renderiza eixos viários OSM como imagem numpy."""
+    import numpy as np
+    import cv2
+
+    south, north, west, east = bbox
+    img = np.zeros((img_h, img_w), dtype=np.uint8)
+
+    def ll_to_px(lat, lon):
+        x = int((lon - west) / (east - west) * img_w)
+        y = int((north - lat) / (north - south) * img_h)
+        return (x, y)
+
+    for el in osm_data.get('elements', []):
+        if el.get('type') == 'way' and el.get('geometry'):
+            pts = [ll_to_px(g['lat'], g['lon']) for g in el['geometry']]
+            for i in range(len(pts) - 1):
+                cv2.line(img, pts[i], pts[i+1], 255, 2)
+
+    return img
+
+
+def _extrair_vias_planta(img_planta):
+    """Extrai eixos viários da planta via OpenCV."""
+    import numpy as np
+    import cv2
+
+    gray = cv2.cvtColor(img_planta, cv2.COLOR_BGR2GRAY)
+    # Detectar linhas escuras (vias geralmente são cinza/preto)
+    _, thresh = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
+    # Remover ruído
+    kernel = np.ones((2, 2), np.uint8)
+    thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+    # Esqueletização para obter eixos
+    from skimage.morphology import skeletonize
+    skel = skeletonize(thresh > 0).astype(np.uint8) * 255
+    return skel
+
+
+def _georreferenciar(img_vias_planta, img_vias_osm, bbox, img_w, img_h, logs):
+    """Alinha planta ao OSM via correspondência de features + RANSAC."""
+    import numpy as np
+    import cv2
+
+    south, north, west, east = bbox
+
+    # Detectar keypoints em ambas as imagens
+    orb = cv2.ORB_create(nfeatures=2000)
+    kp1, des1 = orb.detectAndCompute(img_vias_planta, None)
+    kp2, des2 = orb.detectAndCompute(img_vias_osm, None)
+
+    if des1 is None or des2 is None or len(kp1) < 10 or len(kp2) < 10:
+        logs.append({'nivel': 'aviso', 'msg': f'  ⚠️ Poucos keypoints: planta={len(kp1) if kp1 else 0}, osm={len(kp2) if kp2 else 0}'})
+        return None
+
+    logs.append({'nivel': 'info', 'msg': f'  🔑 Keypoints: planta={len(kp1)}, osm={len(kp2)}'})
+
+    # Matching
+    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+    matches = bf.match(des1, des2)
+    matches = sorted(matches, key=lambda x: x.distance)
+    good = matches[:int(len(matches) * 0.3)]
+
+    logs.append({'nivel': 'info', 'msg': f'  🔗 Matches: {len(good)} bons de {len(matches)} totais'})
+
+    if len(good) < 10:
+        logs.append({'nivel': 'aviso', 'msg': '  ⚠️ Matches insuficientes para georreferenciamento'})
+        return None
+
+    src_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
+    dst_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
+
+    # RANSAC para homografia
+    H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+    inliers = int(mask.sum()) if mask is not None else 0
+    logs.append({'nivel': 'info', 'msg': f'  📐 Homografia RANSAC: {inliers} inliers'})
+
+    if H is None or inliers < 8:
+        logs.append({'nivel': 'aviso', 'msg': '  ⚠️ Homografia insuficiente'})
+        return None
+
+    # Função de conversão pixel OSM → lat/lon
+    def px_to_ll(x, y):
+        lon = west + (x / img_w) * (east - west)
+        lat = north - (y / img_h) * (north - south)
+        return lat, lon
+
+    return H, px_to_ll
+
+
+def _segmentar_zonas(img_planta, legenda, H, px_to_ll, logs):
+    """Segmenta zonas por cor e converte para polígonos georreferenciados."""
+    import numpy as np
+    import cv2
+    from shapely.geometry import Polygon
+    import json
+
+    zonas_geo = []
+    img_h, img_w = img_planta.shape[:2]
+
+    for zona in legenda:
+        nome = zona.get('nome', '')
+        cor_hex = zona.get('cor_hex', '#000000')
+
+        # Converter hex para BGR
+        try:
+            r = int(cor_hex[1:3], 16)
+            g = int(cor_hex[3:5], 16)
+            b = int(cor_hex[5:7], 16)
+        except Exception:
+            continue
+
+        # Criar máscara de cor com tolerância
+        target = np.array([b, g, r], dtype=np.uint8)
+        lower = np.clip(target.astype(int) - 25, 0, 255).astype(np.uint8)
+        upper = np.clip(target.astype(int) + 25, 0, 255).astype(np.uint8)
+        mask = cv2.inRange(img_planta, lower, upper)
+
+        # Encontrar contornos
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            continue
+
+        # Filtrar contornos pequenos
+        min_area = img_w * img_h * 0.0001
+        contours = [c for c in contours if cv2.contourArea(c) > min_area]
+        if not contours:
+            continue
+
+        logs.append({'nivel': 'info', 'msg': f'  🎨 {nome}: {len(contours)} polígono(s) encontrado(s)'})
+
+        for cnt in contours:
+            # Aplicar homografia nos pontos do contorno
+            pts = cnt.reshape(-1, 1, 2).astype(np.float32)
+            pts_transformed = cv2.perspectiveTransform(pts, H)
+            pts_ll = [px_to_ll(p[0][0], p[0][1]) for p in pts_transformed]
+
+            if len(pts_ll) >= 3:
+                zonas_geo.append({
+                    'nome': nome,
+                    'descricao': zona.get('descricao', ''),
+                    'cor_hex': cor_hex,
+                    'coordenadas': pts_ll,
+                    'area_km2': round(Polygon([(p[1], p[0]) for p in pts_ll]).area * 111 * 111, 4)
+                })
+
+    logs.append({'nivel': 'ok', 'msg': f'  ✅ {len(zonas_geo)} polígonos georreferenciados'})
+    return zonas_geo
+
+
+def _gerar_kml(zonas_geo, municipio, estado, output_path):
+    """Gera arquivo KML com as zonas."""
+    import simplekml
+
+    kml = simplekml.Kml()
+    kml.document.name = f'Zoneamento {municipio}/{estado}'
+
+    for zona in zonas_geo:
+        pol = kml.newpolygon(name=zona['nome'])
+        coords = [(lon, lat) for lat, lon in zona['coordenadas']]
+        if coords[0] != coords[-1]:
+            coords.append(coords[0])
+        pol.outerboundaryis = coords
+
+        # Cor
+        try:
+            hex_c = zona['cor_hex'].lstrip('#')
+            r, g, b = int(hex_c[0:2], 16), int(hex_c[2:4], 16), int(hex_c[4:6], 16)
+            pol.style.polystyle.color = simplekml.Color.rgb(r, g, b, a=180)
+            pol.style.linestyle.color = simplekml.Color.rgb(r, g, b)
+            pol.style.linestyle.width = 1
+        except Exception:
+            pass
+
+        pol.description = f'{zona.get("descricao", "")} — {zona.get("area_km2", "?")} km²'
+
+    kml.save(output_path)
+    return output_path
