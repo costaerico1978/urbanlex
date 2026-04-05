@@ -84,7 +84,6 @@ def mapear_zonas(fpath, fname, municipio, estado, logs, job, tmp):
         resultado["ff_osm_url"] = f"/static/downloads/ff_osm_{municipio.replace(chr(32),chr(95))}.png"
         logs.append({"nivel": "ok", "msg": "🖼️ Figura-fundos salvos — verifique antes de continuar"})
         job["result"] = resultado
-        return  # PARAR AQUI PARA VISUALIZACAO
         geo_result = _georreferenciar(img_vias_planta, img_vias_osm, bbox_tuple, img_w, img_h, logs)
         if not geo_result:
             logs.append({"nivel": "aviso", "msg": "⚠️ Georreferenciamento falhou — verifique a qualidade da planta"})
