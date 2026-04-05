@@ -151,19 +151,33 @@ def _buscar_osm(municipio, estado, logs):
         south, north, west, east = bbox[0], bbox[1], bbox[2], bbox[3]
         logs.append({'nivel': 'info', 'msg': f'  📌 Bbox: {south},{west} → {north},{east}'})
 
-        # Overpass API para buscar vias
-        overpass_url = "https://overpass-api.de/api/interpreter"
-        query = f"""
-[out:json][timeout:30];
-(
-  way["highway"~"primary|secondary|tertiary|residential|trunk"]
-  ({south},{west},{north},{east});
-);
-out geom;
-"""
-        r2 = requests.post(overpass_url, data={'data': query}, timeout=45)
-        data = r2.json()
-        logs.append({'nivel': 'info', 'msg': f'  🛣️ {len(data.get("elements", []))} vias obtidas'})
+        # Overpass API para buscar vias — tenta multiplos servidores
+        _servers = [
+            "https://overpass-api.de/api/interpreter",
+            "https://overpass.kumi.systems/api/interpreter",
+            "https://overpass.openstreetmap.fr/api/interpreter",
+        ]
+        query = "[out:json][timeout:30];(way[\"highway\"~\"primary|secondary|tertiary|residential|trunk\"]"
+        query += f"({south},{west},{north},{east}););out geom;"
+        data = None
+        import time as _t
+        for _srv in _servers:
+            try:
+                logs.append({"nivel": "info", "msg": f"  Tentando: {_srv.split(chr(47))[2]}..."})
+                _t.sleep(2)
+                r2 = requests.post(_srv, data={"data": query}, timeout=60)
+                if r2.status_code == 200 and r2.text.strip().startswith("{"):
+                    data = r2.json()
+                    if data.get("elements"):
+                        break
+                    logs.append({"nivel": "aviso", "msg": f"  0 elementos em {_srv.split(chr(47))[2]}"})
+                else:
+                    logs.append({"nivel": "aviso", "msg": f"  Servidor indisponivel: {_srv.split(chr(47))[2]}"})
+            except Exception as _se:
+                logs.append({"nivel": "aviso", "msg": f"  Erro {_srv.split(chr(47))[2]}: {str(_se)[:60]}"})
+        if not data or not data.get("elements"):
+            return None
+        logs.append({"nivel": "info", "msg": f"  {len(data.get(chr(101)+chr(108)+chr(101)+chr(109)+chr(101)+chr(110)+chr(116)+chr(115), []))} vias obtidas"})
         return data
 
     except Exception as e:
