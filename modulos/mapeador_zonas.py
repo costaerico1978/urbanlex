@@ -71,7 +71,6 @@ def mapear_zonas(fpath, fname, municipio, estado, logs, job, tmp):
         logs.append({"nivel": "info", "msg": f"  📏 Dimensões da planta: {img_w}x{img_h}px"})
         # Extrair vias da planta e renderizar OSM
         img_vias_planta = _extrair_vias_planta(img_planta)
-        south_f = float(osm_data["_bbox"][0]) if "_bbox" in osm_data else float(results[0]["boundingbox"][0])
         bbox_tuple = (float(osm_data.get("_south", -29.86)), float(osm_data.get("_north", -29.76)),
                       float(osm_data.get("_west", -50.12)), float(osm_data.get("_east", -50.02)))
         img_vias_osm = _renderizar_osm(osm_data, bbox_tuple, img_w, img_h)
