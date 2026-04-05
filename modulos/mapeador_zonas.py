@@ -61,6 +61,13 @@ def mapear_zonas(fpath, fname, municipio, estado, logs, job, tmp):
             return
         img_planta = cv2.imread(img_path)
         img_h, img_w = img_planta.shape[:2]
+        # Redimensionar para max 2000px para evitar OOM
+        _MAX_W = 2000
+        if img_w > _MAX_W:
+            _scale = _MAX_W / img_w
+            img_planta = cv2.resize(img_planta, (int(img_w * _scale), int(img_h * _scale)), interpolation=cv2.INTER_AREA)
+            img_h, img_w = img_planta.shape[:2]
+            logs.append({"nivel": "info", "msg": f"  📐 Imagem redimensionada para {img_w}x{img_h}px"})
         logs.append({"nivel": "info", "msg": f"  📏 Dimensões da planta: {img_w}x{img_h}px"})
         # Extrair vias da planta e renderizar OSM
         img_vias_planta = _extrair_vias_planta(img_planta)
