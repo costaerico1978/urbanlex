@@ -261,87 +261,61 @@ def _renderizar_osm(osm_data, bbox, img_w, img_h):
 
 
 def _extrair_vias_planta(img_planta):
-    """Extrai eixos viários da planta via OpenCV."""
+    """Extrai figura-fundo das vias da planta via OpenCV."""
     import numpy as np
     import cv2
-
-    gray = cv2.cvtColor(img_planta, cv2.COLOR_BGR2GRAY)
-    # Detectar linhas escuras (vias geralmente são cinza/preto)
-    _, thresh = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
-    # Remover ruído
-    kernel = np.ones((2, 2), np.uint8)
-    thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
-    # Esqueletização para obter eixos
     from skimage.morphology import skeletonize
+    # Converter para escala de cinza
+    gray = cv2.cvtColor(img_planta, cv2.COLOR_BGR2GRAY)
+    # Detectar linhas escuras (vias sao cinza/preto na planta)
+    _, thresh = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY_INV)
+    # Remover areas grandes (zonas coloridas) — manter so linhas finas
+    kernel_open = np.ones((5, 5), np.uint8)
+    thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel_open)
+    # Esqueletizar para obter eixos finos
     skel = skeletonize(thresh > 0).astype(np.uint8) * 255
     return skel
 
 
 def _georreferenciar(img_vias_planta, img_vias_osm, bbox, img_w, img_h, logs):
-    """Alinha planta ao OSM via interseções de vias + ICP."""
+    """Alinha planta ao OSM comparando figura-fundos de vias via RANSAC."""
     import numpy as np
     import cv2
 
     south, north, west, east = bbox
 
-    def _detectar_intersecoes(skel):
-        """Detecta pixels de interseção (3+ vizinhos) no skeleton."""
+    def _extrair_segmentos(img):
+        """Extrai segmentos de linha via HoughLinesP."""
+        linhas = cv2.HoughLinesP(img, rho=1, theta=np.pi/180,
+                                  threshold=20, minLineLength=15, maxLineGap=5)
+        if linhas is None:
+            return None
+        return linhas.reshape(-1, 4)
+
+    def _pontos_medios(segs):
+        """Converte segmentos em pontos médios e orientações."""
         pts = []
-        h, w = skel.shape
-        for y in range(1, h-1):
-            for x in range(1, w-1):
-                if skel[y, x] > 0:
-                    viz = int(skel[y-1,x-1]>0) + int(skel[y-1,x]>0) + int(skel[y-1,x+1]>0) + \
-                          int(skel[y,x-1]>0) + int(skel[y,x+1]>0) + \
-                          int(skel[y+1,x-1]>0) + int(skel[y+1,x]>0) + int(skel[y+1,x+1]>0)
-                    if viz >= 3:
-                        pts.append((x, y))
-        return np.array(pts, dtype=np.float32) if pts else None
+        for x1, y1, x2, y2 in segs:
+            mx, my = (x1+x2)/2.0, (y1+y2)/2.0
+            pts.append([mx, my])
+        return np.array(pts, dtype=np.float32)
 
-    def _icp(src, dst, max_iter=50, tol=0.001):
-        """ICP simplificado para alinhar dois conjuntos de pontos."""
-        from scipy.spatial import KDTree
-        src = src.copy()
-        T_total = np.eye(3)
-        for _ in range(max_iter):
-            tree = KDTree(dst)
-            dists, idx = tree.query(src)
-            matched_dst = dst[idx]
-            # Filtrar outliers
-            med = np.median(dists)
-            mask = dists < med * 2
-            if mask.sum() < 4:
-                break
-            src_m = src[mask]
-            dst_m = matched_dst[mask]
-            # Calcular transformação afim
-            src_c = src_m.mean(axis=0)
-            dst_c = dst_m.mean(axis=0)
-            H_mat = (src_m - src_c).T @ (dst_m - dst_c)
-            U, S, Vt = np.linalg.svd(H_mat)
-            R = Vt.T @ U.T
-            t = dst_c - R @ src_c
-            src = (R @ src.T).T + t
-            T = np.eye(3)
-            T[:2, :2] = R
-            T[:2, 2] = t
-            T_total = T @ T_total
-            if np.linalg.norm(t) < tol:
-                break
-        return T_total
+    # Extrair segmentos dos dois figura-fundos
+    segs_planta = _extrair_segmentos(img_vias_planta)
+    segs_osm = _extrair_segmentos(img_vias_osm)
 
-    # Detectar interseções em ambas as imagens
-    pts_planta = _detectar_intersecoes(img_vias_planta)
-    pts_osm = _detectar_intersecoes(img_vias_osm)
-
-    if pts_planta is None or pts_osm is None:
-        logs.append({"nivel": "aviso", "msg": f"  ⚠️ Interseções insuficientes: planta={len(pts_planta) if pts_planta is not None else 0}, osm={len(pts_osm) if pts_osm is not None else 0}"})
+    if segs_planta is None or segs_osm is None:
+        logs.append({"nivel": "aviso", "msg": f"  Segmentos insuficientes: planta={len(segs_planta) if segs_planta is not None else 0}, osm={len(segs_osm) if segs_osm is not None else 0}"})
         return None
 
-    logs.append({"nivel": "info", "msg": f"  🔀 Interseções: planta={len(pts_planta)}, osm={len(pts_osm)}"})
+    logs.append({"nivel": "info", "msg": f"  Segmentos: planta={len(segs_planta)}, osm={len(segs_osm)}"})
 
-    # Subamostrar se muitos pontos
-    MAX_PTS = 500
+    # Pontos médios dos segmentos
+    pts_planta = _pontos_medios(segs_planta)
+    pts_osm = _pontos_medios(segs_osm)
+
+    # Subamostrar se necessario
+    MAX_PTS = 1000
     if len(pts_planta) > MAX_PTS:
         idx = np.random.choice(len(pts_planta), MAX_PTS, replace=False)
         pts_planta = pts_planta[idx]
@@ -349,27 +323,48 @@ def _georreferenciar(img_vias_planta, img_vias_osm, bbox, img_w, img_h, logs):
         idx = np.random.choice(len(pts_osm), MAX_PTS, replace=False)
         pts_osm = pts_osm[idx]
 
-    # Normalizar para [0,1] antes do ICP
-    pts_p_norm = pts_planta / np.array([img_w, img_h])
-    pts_o_norm = pts_osm / np.array([img_w, img_h])
+    # RANSAC para encontrar homografia entre pontos medios
+    # Tentar multiplas orientacoes (0, 90, 180, 270 graus)
+    best_H = None
+    best_inliers = 0
+    for angle in [0, 90, 180, 270]:
+        # Rotacionar pts_planta
+        cx, cy = img_w / 2.0, img_h / 2.0
+        rad = np.radians(angle)
+        R = np.array([[np.cos(rad), -np.sin(rad)],
+                       [np.sin(rad),  np.cos(rad)]])
+        pts_rot = (R @ (pts_planta - [cx, cy]).T).T + [cx, cy]
+        # Calcular homografia
+        if len(pts_rot) >= 4 and len(pts_osm) >= 4:
+            # Usar subset para RANSAC
+            n = min(len(pts_rot), len(pts_osm), 100)
+            idx_p = np.random.choice(len(pts_rot), n, replace=False)
+            idx_o = np.random.choice(len(pts_osm), n, replace=False)
+            H, mask = cv2.findHomography(pts_rot[idx_p], pts_osm[idx_o], cv2.RANSAC, 10.0)
+            if H is not None and mask is not None:
+                inliers = int(mask.sum())
+                logs.append({"nivel": "info", "msg": f"  Rotacao {angle}°: {inliers} inliers"})
+                if inliers > best_inliers:
+                    best_inliers = inliers
+                    # Combinar rotacao + homografia
+                    R_full = np.eye(3)
+                    R_full[:2, :2] = R
+                    R_full[:2, 2] = [cx - R[0,0]*cx - R[0,1]*cy,
+                                      cy - R[1,0]*cx - R[1,1]*cy]
+                    best_H = H @ R_full
 
-    # ICP
-    T = _icp(pts_p_norm, pts_o_norm)
+    if best_H is None or best_inliers < 5:
+        logs.append({"nivel": "aviso", "msg": f"  Georreferenciamento insuficiente: {best_inliers} inliers"})
+        return None
 
-    # Construir homografia a partir da transformação ICP
-    H = np.eye(3)
-    H[:2, :2] = T[:2, :2] * np.array([[img_w/img_w, img_w/img_h], [img_h/img_w, img_h/img_h]])
-    H[:2, 2] = T[:2, 2] * np.array([img_w, img_h])
-
-    logs.append({"nivel": "ok", "msg": "  ✅ ICP convergido"})
+    logs.append({"nivel": "ok", "msg": f"  Melhor alinhamento: {best_inliers} inliers"})
 
     def px_to_ll(x, y):
         lon = west + (x / img_w) * (east - west)
         lat = north - (y / img_h) * (north - south)
         return lat, lon
 
-    return H, px_to_ll
-
+    return best_H, px_to_ll
 
 def _segmentar_zonas(img_planta, legenda, H, px_to_ll, logs):
     """Segmenta zonas por cor e converte para polígonos georreferenciados."""
