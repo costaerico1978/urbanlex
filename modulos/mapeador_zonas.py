@@ -278,48 +278,91 @@ def _extrair_vias_planta(img_planta):
 
 
 def _georreferenciar(img_vias_planta, img_vias_osm, bbox, img_w, img_h, logs):
-    """Alinha planta ao OSM via correspondência de features + RANSAC."""
+    """Alinha planta ao OSM via interseções de vias + ICP."""
     import numpy as np
     import cv2
 
     south, north, west, east = bbox
 
-    # Detectar keypoints em ambas as imagens
-    orb = cv2.ORB_create(nfeatures=2000)
-    kp1, des1 = orb.detectAndCompute(img_vias_planta, None)
-    kp2, des2 = orb.detectAndCompute(img_vias_osm, None)
+    def _detectar_intersecoes(skel):
+        """Detecta pixels de interseção (3+ vizinhos) no skeleton."""
+        pts = []
+        h, w = skel.shape
+        for y in range(1, h-1):
+            for x in range(1, w-1):
+                if skel[y, x] > 0:
+                    viz = int(skel[y-1,x-1]>0) + int(skel[y-1,x]>0) + int(skel[y-1,x+1]>0) + \
+                          int(skel[y,x-1]>0) + int(skel[y,x+1]>0) + \
+                          int(skel[y+1,x-1]>0) + int(skel[y+1,x]>0) + int(skel[y+1,x+1]>0)
+                    if viz >= 3:
+                        pts.append((x, y))
+        return np.array(pts, dtype=np.float32) if pts else None
 
-    if des1 is None or des2 is None or len(kp1) < 10 or len(kp2) < 10:
-        logs.append({'nivel': 'aviso', 'msg': f'  ⚠️ Poucos keypoints: planta={len(kp1) if kp1 else 0}, osm={len(kp2) if kp2 else 0}'})
+    def _icp(src, dst, max_iter=50, tol=0.001):
+        """ICP simplificado para alinhar dois conjuntos de pontos."""
+        from scipy.spatial import KDTree
+        src = src.copy()
+        T_total = np.eye(3)
+        for _ in range(max_iter):
+            tree = KDTree(dst)
+            dists, idx = tree.query(src)
+            matched_dst = dst[idx]
+            # Filtrar outliers
+            med = np.median(dists)
+            mask = dists < med * 2
+            if mask.sum() < 4:
+                break
+            src_m = src[mask]
+            dst_m = matched_dst[mask]
+            # Calcular transformação afim
+            src_c = src_m.mean(axis=0)
+            dst_c = dst_m.mean(axis=0)
+            H_mat = (src_m - src_c).T @ (dst_m - dst_c)
+            U, S, Vt = np.linalg.svd(H_mat)
+            R = Vt.T @ U.T
+            t = dst_c - R @ src_c
+            src = (R @ src.T).T + t
+            T = np.eye(3)
+            T[:2, :2] = R
+            T[:2, 2] = t
+            T_total = T @ T_total
+            if np.linalg.norm(t) < tol:
+                break
+        return T_total
+
+    # Detectar interseções em ambas as imagens
+    pts_planta = _detectar_intersecoes(img_vias_planta)
+    pts_osm = _detectar_intersecoes(img_vias_osm)
+
+    if pts_planta is None or pts_osm is None:
+        logs.append({"nivel": "aviso", "msg": f"  ⚠️ Interseções insuficientes: planta={len(pts_planta) if pts_planta is not None else 0}, osm={len(pts_osm) if pts_osm is not None else 0}"})
         return None
 
-    logs.append({'nivel': 'info', 'msg': f'  🔑 Keypoints: planta={len(kp1)}, osm={len(kp2)}'})
+    logs.append({"nivel": "info", "msg": f"  🔀 Interseções: planta={len(pts_planta)}, osm={len(pts_osm)}"})
 
-    # Matching
-    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-    matches = bf.match(des1, des2)
-    matches = sorted(matches, key=lambda x: x.distance)
-    good = matches[:int(len(matches) * 0.3)]
+    # Subamostrar se muitos pontos
+    MAX_PTS = 500
+    if len(pts_planta) > MAX_PTS:
+        idx = np.random.choice(len(pts_planta), MAX_PTS, replace=False)
+        pts_planta = pts_planta[idx]
+    if len(pts_osm) > MAX_PTS:
+        idx = np.random.choice(len(pts_osm), MAX_PTS, replace=False)
+        pts_osm = pts_osm[idx]
 
-    logs.append({'nivel': 'info', 'msg': f'  🔗 Matches: {len(good)} bons de {len(matches)} totais'})
+    # Normalizar para [0,1] antes do ICP
+    pts_p_norm = pts_planta / np.array([img_w, img_h])
+    pts_o_norm = pts_osm / np.array([img_w, img_h])
 
-    if len(good) < 10:
-        logs.append({'nivel': 'aviso', 'msg': '  ⚠️ Matches insuficientes para georreferenciamento'})
-        return None
+    # ICP
+    T = _icp(pts_p_norm, pts_o_norm)
 
-    src_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
-    dst_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
+    # Construir homografia a partir da transformação ICP
+    H = np.eye(3)
+    H[:2, :2] = T[:2, :2] * np.array([[img_w/img_w, img_w/img_h], [img_h/img_w, img_h/img_h]])
+    H[:2, 2] = T[:2, 2] * np.array([img_w, img_h])
 
-    # RANSAC para homografia
-    H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-    inliers = int(mask.sum()) if mask is not None else 0
-    logs.append({'nivel': 'info', 'msg': f'  📐 Homografia RANSAC: {inliers} inliers'})
+    logs.append({"nivel": "ok", "msg": "  ✅ ICP convergido"})
 
-    if H is None or inliers < 8:
-        logs.append({'nivel': 'aviso', 'msg': '  ⚠️ Homografia insuficiente'})
-        return None
-
-    # Função de conversão pixel OSM → lat/lon
     def px_to_ll(x, y):
         lon = west + (x / img_w) * (east - west)
         lat = north - (y / img_h) * (north - south)
