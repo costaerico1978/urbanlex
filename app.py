@@ -2299,9 +2299,6 @@ def api_descobrir_legislacoes():
 # -------------------------------------------------------------------
 # BUSCADOR DE LEGISLAÇÕES — Página + API
 # -------------------------------------------------------------------
-
-@app.route('/buscador')
-@app.route('/buscador/manual')
 def _extrair_texto_arquivo(fpath, fname, ext, logs, tmp, chamar_llm):
     """Extrai texto de um arquivo de acordo com sua extensão."""
     import os, subprocess
@@ -2768,6 +2765,8 @@ def api_analisar_anexo():
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({'success': True, 'job_id': job_id})
 
+@app.route('/buscador')
+@app.route('/buscador/manual')
 @app.route('/buscador/historico')
 @login_required
 def pg_buscador():
