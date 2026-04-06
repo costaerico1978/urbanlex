@@ -92,20 +92,89 @@ def mapear_zonas(fpath, fname, municipio, estado, logs, job, tmp):
         H, px_to_ll = geo_result
         resultado["geo_ok"] = True
         logs.append({"nivel": "ok", "msg": "✅ Georreferenciamento concluído"})
-        # Gerar imagem de validacao da sobreposicao
+        # Loop de refinamento guiado por Gemini Vision
         import cv2 as _cv2_val
         import numpy as _np_val
-        _val_img = _np_val.zeros((img_h, img_w, 3), dtype=_np_val.uint8)
-        # Aplicar homografia na planta
-        _planta_warp = _cv2_val.warpPerspective(img_vias_planta, H, (img_w, img_h))
-        # OSM em azul, planta transformada em vermelho
-        _val_img[:,:,0] = _planta_warp  # canal B = planta (azul no BGR)
-        _val_img[:,:,2] = img_vias_osm  # canal R = OSM (vermelho no BGR)
+        import base64 as _b64
+        from google import genai as _gv_ref
+        from google.genai import types as _gv_ref_types
+        import json as _jref, re as _rref
+        _client_ref = _gv_ref.Client(api_key=os.environ.get("GEMINI_API_KEY",""))
+        _M_atual = H.copy()
         _val_path = f"/var/www/urbanlex/static/downloads/validacao_{municipio.replace(chr(32),chr(95))}.png"
-        _cv2_val.imwrite(_val_path, _val_img)
+
+        def _gerar_validacao(M):
+            _val = _np_val.zeros((img_h, img_w, 3), dtype=_np_val.uint8)
+            _pw = _cv2_val.warpAffine(img_vias_planta, M[:2,:], (img_w, img_h))
+            _val[:,:,0] = _pw       # azul = planta
+            _val[:,:,2] = img_vias_osm  # vermelho = OSM
+            _cv2_val.imwrite(_val_path, _val)
+            return _val
+
+        _val_img = _gerar_validacao(_M_atual)
+        logs.append({"nivel": "ok", "msg": "🖼️ Validação inicial gerada"})
+
+        for _iter in range(5):
+            logs.append({"nivel": "info", "msg": f"🤖 Gemini analisando alinhamento (iteração {_iter+1}/5)..."})
+            with open(_val_path, "rb") as _vf:
+                _vbytes = _vf.read()
+            _vprompt = (
+                "Esta imagem mostra a sobreposição de duas redes viárias urbanas.\n"
+                "AZUL = planta de zoneamento (deve ser ajustada).\n"
+                "VERMELHO = eixos viários OSM (referência fixa, não muda).\n"
+                "ROXO = onde as duas redes coincidem (desejado).\n\n"
+                "Analise o alinhamento e responda APENAS com JSON:\n"
+                "{\"alinhado\": true/false, \"dx\": pixels_horizontal, \"dy\": pixels_vertical, \"rotacao\": graus, \"escala\": fator, \"descricao\": \"texto\"}\n"
+                "dx positivo = mover direita, dy positivo = mover baixo.\n"
+                "Se alinhado=true, retorne zeros nos ajustes."
+            )
+            try:
+                _parts = [
+                    _gv_ref_types.Part.from_text(text=_vprompt),
+                    _gv_ref_types.Part.from_bytes(data=_vbytes, mime_type="image/png")
+                ]
+                import concurrent.futures as _cff
+                _exx = _cff.ThreadPoolExecutor(max_workers=1)
+                _futt = _exx.submit(_client_ref.models.generate_content, model="gemini-2.5-flash", contents=_parts)
+                try:
+                    _resp_ref = _futt.result(timeout=60)
+                    _exx.shutdown(wait=False)
+                except _cff.TimeoutError:
+                    _exx.shutdown(wait=False)
+                    logs.append({"nivel": "aviso", "msg": "  Gemini timeout — parando refinamento"})
+                    break
+                _resp_txt = _rref.sub(r"^```json\s*|\s*```$", "", _resp_ref.text.strip())
+                _adj = _jref.loads(_resp_txt)
+                logs.append({"nivel": "info", "msg": f"  Gemini: {_adj.get(chr(100)+chr(101)+chr(115)+chr(99)+chr(114)+chr(105)+chr(231)+chr(227)+chr(111), chr(115)+chr(101)+chr(109))}"})
+                if _adj.get("alinhado"):
+                    logs.append({"nivel": "ok", "msg": "  ✅ Gemini confirmou alinhamento!"})
+                    break
+                _dx = float(_adj.get("dx", 0))
+                _dy = float(_adj.get("dy", 0))
+                _rot = float(_adj.get("rotacao", 0))
+                _esc = float(_adj.get("escala", 1.0))
+                if abs(_dx) < 2 and abs(_dy) < 2 and abs(_rot) < 0.5 and abs(_esc-1) < 0.01:
+                    logs.append({"nivel": "ok", "msg": "  ✅ Ajustes mínimos — alinhamento aceito"})
+                    break
+                # Aplicar ajuste incremental
+                _cx, _cy = img_w/2.0, img_h/2.0
+                _rad = _np_val.radians(_rot)
+                _R_adj = _np_val.array([
+                    [_esc*_np_val.cos(_rad), -_esc*_np_val.sin(_rad), _dx],
+                    [_esc*_np_val.sin(_rad),  _esc*_np_val.cos(_rad), _dy]
+                ], dtype=_np_val.float32)
+                _R_adj3 = _np_val.eye(3, dtype=_np_val.float32)
+                _R_adj3[:2,:] = _R_adj
+                _M_atual = _R_adj3 @ _M_atual
+                _val_img = _gerar_validacao(_M_atual)
+                logs.append({"nivel": "info", "msg": f"  Ajuste aplicado: dx={_dx:.1f} dy={_dy:.1f} rot={_rot:.1f}° esc={_esc:.3f}"})
+            except Exception as _er:
+                logs.append({"nivel": "aviso", "msg": f"  Erro Gemini: {str(_er)[:80]}"})
+                break
+
+        H = _M_atual
         resultado["validacao_url"] = f"/static/downloads/validacao_{municipio.replace(chr(32),chr(95))}.png"
-        logs.append({"nivel": "ok", "msg": "🖼️ Imagem de validação gerada — azul=OSM, vermelho=planta, roxo=coincidência"})
-        # Estagio 4: Segmentacao
+        logs.append({"nivel": "ok", "msg": "🖼️ Imagem de validação final disponível"})
         logs.append({"nivel": "info", "msg": "🎨 Estágio 4/5: Segmentando zonas por cor..."})
         zonas_geo = _segmentar_zonas(img_planta, legenda, H, px_to_ll, logs)
         if zonas_geo:
