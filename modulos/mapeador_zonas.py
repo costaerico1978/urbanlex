@@ -265,45 +265,34 @@ def _extrair_legenda(fpath, fname, municipio, estado, logs, tmp):
 
 
 def _buscar_osm(municipio, estado, logs):
-    """Busca eixos viários do município via Overpass API (OSM)."""
-    import requests
-
-    # Primeiro buscar o bbox do município
+    """Busca eixos viarios do municipio via Overpass API (OSM) com cache local."""
+    import requests, os, json as _jc, hashlib as _hlib
     try:
-        # Nominatim para obter bbox
-        nominatim_url = f"https://nominatim.openstreetmap.org/search"
-        params = {
-            'q': f'{municipio}, {estado}, Brasil',
-            'format': 'json',
-            'limit': 1,
-            'addressdetails': 1
-        }
-        headers = {'User-Agent': 'UrbanLex/1.0'}
-        r = requests.get(nominatim_url, params=params, headers=headers, timeout=15)
+        # Nominatim para bbox
+        r = requests.get("https://nominatim.openstreetmap.org/search",
+            params={"q": f"{municipio}, {estado}, Brasil", "format": "json", "limit": 1},
+            headers={"User-Agent": "UrbanLex/1.0"}, timeout=15)
         results = r.json()
         if not results:
-            logs.append({'nivel': 'aviso', 'msg': f'⚠️ Município {municipio}/{estado} não encontrado no OSM'})
+            logs.append({"nivel": "aviso", "msg": f"  Municipio nao encontrado no OSM"})
             return None
-
-        bbox = results[0].get('boundingbox', [])
+        bbox = results[0].get("boundingbox", [])
         if len(bbox) < 4:
             return None
-
         south, north, west, east = bbox[0], bbox[1], bbox[2], bbox[3]
-        logs.append({'nivel': 'info', 'msg': f'  📌 Bbox: {south},{west} → {north},{east}'})
+        logs.append({"nivel": "info", "msg": f"  Bbox: {south},{west} -> {north},{east}"})
 
-        # Overpass API para buscar vias — tenta multiplos servidores
-        # Cache OSM em arquivo para evitar re-download
-        import hashlib as _hlib
+        # Cache local
         _cache_key = _hlib.md5(f"{municipio}{estado}{south}{north}{west}{east}".encode()).hexdigest()[:12]
         _cache_path = f"/var/www/urbanlex/static/downloads/osm_cache_{_cache_key}.json"
-        import json as _jcache
         if os.path.exists(_cache_path):
-            logs.append({"nivel": "info", "msg": "  📦 Usando cache OSM local..."})
+            logs.append({"nivel": "info", "msg": "  Cache OSM local encontrado"})
             with open(_cache_path, "r") as _cf:
-                data = _jcache.load(_cf)
-            logs.append({"nivel": "info", "msg": f"  🛣️ {len(data.get(chr(101)+chr(108)+chr(101)+chr(109)+chr(101)+chr(110)+chr(116)+chr(115), []))} vias do cache"})
-        else:
+                data = _jc.load(_cf)
+            logs.append({"nivel": "info", "msg": f"  {len(data.get('elements', []))} vias do cache"})
+            return data
+
+        # Buscar no Overpass
         _servers = [
             "https://overpass-api.de/api/interpreter",
             "https://overpass.kumi.systems/api/interpreter",
@@ -311,44 +300,41 @@ def _buscar_osm(municipio, estado, logs):
             "https://overpass.private.coffee/api/interpreter",
             "https://overpass.osm.ch/api/interpreter",
         ]
-        _servers = [
-            "https://overpass-api.de/api/interpreter",
-            "https://overpass.kumi.systems/api/interpreter",
-            "https://overpass.openstreetmap.fr/api/interpreter",
-        ]
-        query = "[out:json][timeout:30];(way[\"highway\"~\"primary|secondary|tertiary|residential|trunk\"]"
-        query += f"({south},{west},{north},{east}););out geom;"
+        query = f'''[out:json][timeout:30];(way["highway"~"primary|secondary|tertiary|residential|trunk"]({south},{west},{north},{east}););out geom;'''
         data = None
         import time as _t
         for _srv in _servers:
             try:
-                logs.append({"nivel": "info", "msg": f"  Tentando: {_srv.split(chr(47))[2]}..."})
+                logs.append({"nivel": "info", "msg": f"  Tentando: {_srv.split('/')[2]}..."})
                 _t.sleep(2)
                 r2 = requests.post(_srv, data={"data": query}, timeout=60)
                 if r2.status_code == 200 and r2.text.strip().startswith("{"):
                     data = r2.json()
                     if data.get("elements"):
                         break
-                    logs.append({"nivel": "aviso", "msg": f"  0 elementos em {_srv.split(chr(47))[2]}"})
+                    logs.append({"nivel": "aviso", "msg": f"  0 elementos em {_srv.split('/')[2]}"})
                 else:
-                    logs.append({"nivel": "aviso", "msg": f"  Servidor indisponivel: {_srv.split(chr(47))[2]}"})
+                    logs.append({"nivel": "aviso", "msg": f"  Servidor indisponivel: {_srv.split('/')[2]}"})
             except Exception as _se:
-                logs.append({"nivel": "aviso", "msg": f"  Erro {_srv.split(chr(47))[2]}: {str(_se)[:60]}"})
+                logs.append({"nivel": "aviso", "msg": f"  Erro {_srv.split('/')[2]}: {str(_se)[:60]}"})
+
         if not data or not data.get("elements"):
             return None
-        logs.append({"nivel": "info", "msg": f"  {len(data.get(chr(101)+chr(108)+chr(101)+chr(109)+chr(101)+chr(110)+chr(116)+chr(115), []))} vias obtidas"})
+
+        logs.append({"nivel": "info", "msg": f"  {len(data.get('elements', []))} vias obtidas"})
         data["_south"] = float(south)
         data["_north"] = float(north)
         data["_west"] = float(west)
         data["_east"] = float(east)
+
+        # Salvar cache
+        with open(_cache_path, "w") as _cf:
+            _jc.dump(data, _cf)
+        logs.append({"nivel": "info", "msg": "  Cache OSM salvo"})
         return data
-            if data and data.get("elements"):
-                with open(_cache_path, "w") as _cf:
-                    _jcache.dump(data, _cf)
-                logs.append({"nivel": "info", "msg": "  💾 Cache OSM salvo"})
 
     except Exception as e:
-        logs.append({'nivel': 'aviso', 'msg': f'⚠️ Erro OSM: {str(e)[:100]}'})
+        logs.append({"nivel": "aviso", "msg": f"Erro OSM: {str(e)[:100]}"})
         return None
 
 
