@@ -301,14 +301,12 @@ def _extrair_vias_planta(img_planta):
 
 
 def _georreferenciar(img_vias_planta, img_vias_osm, bbox, img_w, img_h, logs):
-    """Alinha planta ao OSM comparando figura-fundos de vias via RANSAC."""
+    """Alinha planta ao OSM via transformacao afim (translacao+rotacao+escala) + RANSAC."""
     import numpy as np
     import cv2
-
     south, north, west, east = bbox
 
     def _extrair_segmentos(img):
-        """Extrai segmentos de linha via HoughLinesP."""
         linhas = cv2.HoughLinesP(img, rho=1, theta=np.pi/180,
                                   threshold=20, minLineLength=15, maxLineGap=5)
         if linhas is None:
@@ -316,14 +314,8 @@ def _georreferenciar(img_vias_planta, img_vias_osm, bbox, img_w, img_h, logs):
         return linhas.reshape(-1, 4)
 
     def _pontos_medios(segs):
-        """Converte segmentos em pontos médios e orientações."""
-        pts = []
-        for x1, y1, x2, y2 in segs:
-            mx, my = (x1+x2)/2.0, (y1+y2)/2.0
-            pts.append([mx, my])
-        return np.array(pts, dtype=np.float32)
+        return np.array([[(s[0]+s[2])/2.0, (s[1]+s[3])/2.0] for s in segs], dtype=np.float32)
 
-    # Extrair segmentos dos dois figura-fundos
     segs_planta = _extrair_segmentos(img_vias_planta)
     segs_osm = _extrair_segmentos(img_vias_osm)
 
@@ -333,12 +325,10 @@ def _georreferenciar(img_vias_planta, img_vias_osm, bbox, img_w, img_h, logs):
 
     logs.append({"nivel": "info", "msg": f"  Segmentos: planta={len(segs_planta)}, osm={len(segs_osm)}"})
 
-    # Pontos médios dos segmentos
     pts_planta = _pontos_medios(segs_planta)
     pts_osm = _pontos_medios(segs_osm)
 
-    # Subamostrar se necessario
-    MAX_PTS = 1000
+    MAX_PTS = 500
     if len(pts_planta) > MAX_PTS:
         idx = np.random.choice(len(pts_planta), MAX_PTS, replace=False)
         pts_planta = pts_planta[idx]
@@ -346,37 +336,36 @@ def _georreferenciar(img_vias_planta, img_vias_osm, bbox, img_w, img_h, logs):
         idx = np.random.choice(len(pts_osm), MAX_PTS, replace=False)
         pts_osm = pts_osm[idx]
 
-    # RANSAC para encontrar homografia entre pontos medios
-    # Tentar multiplas orientacoes (0, 90, 180, 270 graus)
-    best_H = None
+    best_M = None
     best_inliers = 0
-    for angle in [0, 90, 180, 270]:
-        # Rotacionar pts_planta
-        cx, cy = img_w / 2.0, img_h / 2.0
+    cx, cy = img_w / 2.0, img_h / 2.0
+
+    for angle in [0, 45, 90, 135, 180, 225, 270, 315]:
         rad = np.radians(angle)
         R = np.array([[np.cos(rad), -np.sin(rad)],
-                       [np.sin(rad),  np.cos(rad)]])
+                       [np.sin(rad),  np.cos(rad)]], dtype=np.float32)
         pts_rot = (R @ (pts_planta - [cx, cy]).T).T + [cx, cy]
-        # Calcular homografia
-        if len(pts_rot) >= 4 and len(pts_osm) >= 4:
-            # Usar subset para RANSAC
-            n = min(len(pts_rot), len(pts_osm), 100)
-            idx_p = np.random.choice(len(pts_rot), n, replace=False)
-            idx_o = np.random.choice(len(pts_osm), n, replace=False)
-            H, mask = cv2.findHomography(pts_rot[idx_p], pts_osm[idx_o], cv2.RANSAC, 10.0)
-            if H is not None and mask is not None:
-                inliers = int(mask.sum())
-                logs.append({"nivel": "info", "msg": f"  Rotacao {angle}°: {inliers} inliers"})
-                if inliers > best_inliers:
-                    best_inliers = inliers
-                    # Combinar rotacao + homografia
-                    R_full = np.eye(3)
-                    R_full[:2, :2] = R
-                    R_full[:2, 2] = [cx - R[0,0]*cx - R[0,1]*cy,
-                                      cy - R[1,0]*cx - R[1,1]*cy]
-                    best_H = H @ R_full
+        n = min(len(pts_rot), len(pts_osm), 200)
+        idx_p = np.random.choice(len(pts_rot), n, replace=False)
+        idx_o = np.random.choice(len(pts_osm), n, replace=False)
+        M, mask = cv2.estimateAffinePartial2D(
+            pts_rot[idx_p], pts_osm[idx_o],
+            method=cv2.RANSAC, ransacReprojThreshold=15.0)
+        if M is not None and mask is not None:
+            inliers = int(mask.sum())
+            logs.append({"nivel": "info", "msg": f"  Rotacao {angle}°: {inliers} inliers"})
+            if inliers > best_inliers:
+                best_inliers = inliers
+                # Combinar pre-rotacao com M afim
+                R_full = np.eye(3, dtype=np.float32)
+                R_full[:2, :2] = R
+                R_full[:2, 2] = [cx - R[0,0]*cx - R[0,1]*cy,
+                                  cy - R[1,0]*cx - R[1,1]*cy]
+                M_full = np.eye(3, dtype=np.float32)
+                M_full[:2, :] = M
+                best_M = M_full @ R_full
 
-    if best_H is None or best_inliers < 5:
+    if best_M is None or best_inliers < 5:
         logs.append({"nivel": "aviso", "msg": f"  Georreferenciamento insuficiente: {best_inliers} inliers"})
         return None
 
@@ -387,7 +376,8 @@ def _georreferenciar(img_vias_planta, img_vias_osm, bbox, img_w, img_h, logs):
         lat = north - (y / img_h) * (north - south)
         return lat, lon
 
-    return best_H, px_to_ll
+    return best_M, px_to_ll
+
 
 def _segmentar_zonas(img_planta, legenda, H, px_to_ll, logs):
     """Segmenta zonas por cor e converte para polígonos georreferenciados."""
