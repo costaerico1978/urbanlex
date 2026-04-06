@@ -78,9 +78,10 @@ def mapear_zonas(fpath, fname, municipio, estado, logs, job, tmp):
         _val = _np.zeros((img_h, img_w, 3), dtype=_np.uint8)
         _pw = cv2.warpAffine(img_planta, H[:2, :], (img_w, img_h))
         _pw_gray = cv2.cvtColor(_pw, cv2.COLOR_BGR2GRAY)
-        _, _pw_bin = cv2.threshold(_pw_gray, 30, 255, cv2.THRESH_BINARY)
-        _val[:, :, 0] = _pw_bin
-        _val[:, :, 2] = img_vias_osm
+        # Usar Canny para extrair bordas da planta (evita fundo branco sólido)
+        _pw_edges = cv2.Canny(_pw_gray, 30, 90)
+        _val[:, :, 0] = img_vias_osm   # azul = OSM (referencia)
+        _val[:, :, 2] = _pw_edges      # vermelho = bordas da planta transformada
         _val_path = f"/var/www/urbanlex/static/downloads/validacao_{municipio.replace(' ', '_')}.png"
         cv2.imwrite(_val_path, _val)
         resultado['validacao_url'] = f"/static/downloads/validacao_{municipio.replace(' ', '_')}.png"
