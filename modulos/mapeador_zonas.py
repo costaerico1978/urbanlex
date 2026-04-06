@@ -284,20 +284,16 @@ def _renderizar_osm(osm_data, bbox, img_w, img_h):
 
 
 def _extrair_vias_planta(img_planta):
-    """Extrai figura-fundo detectando bordas entre zonas coloridas via Canny."""
+    """Extrai bordas entre zonas coloridas via Canny — sem skeleton."""
     import numpy as np
     import cv2
-    from skimage.morphology import skeletonize
     lab = cv2.cvtColor(img_planta, cv2.COLOR_BGR2LAB)
     bordas = np.zeros(img_planta.shape[:2], dtype=np.uint8)
     for ch in cv2.split(lab):
         blur = cv2.GaussianBlur(ch, (3, 3), 0)
         b = cv2.Canny(blur, 30, 90)
         bordas = cv2.bitwise_or(bordas, b)
-    kernel = np.ones((2, 2), np.uint8)
-    bordas = cv2.dilate(bordas, kernel, iterations=1)
-    skel = skeletonize(bordas > 0).astype(np.uint8) * 255
-    return skel
+    return bordas
 
 
 def _georreferenciar(img_vias_planta, img_vias_osm, bbox, img_w, img_h, logs):
