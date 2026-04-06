@@ -415,6 +415,25 @@ out body;"""
     inliers_count = int(inliers.sum()) if inliers is not None else 0
     logs.append({'nivel': 'ok', 'msg': f'  Transformacao afim calculada: {inliers_count}/{len(correspondencias)} inliers'})
 
+    # Validar escala da transformacao (deve ser proxima de 1.0)
+    scale = np.sqrt(M[0, 0]**2 + M[1, 0]**2)
+    tx, ty = M[0, 2], M[1, 2]
+    logs.append({'nivel': 'info', 'msg': f'  M: escala={scale:.3f} tx={tx:.1f} ty={ty:.1f}'})
+
+    if scale < 0.1 or scale > 10.0:
+        logs.append({'nivel': 'aviso', 'msg': f'  Escala invalida ({scale:.3f}) — transformacao descartada'})
+        return None
+
+    # Verificar se a transformacao mantem a planta dentro dos limites
+    corners = np.array([[0,0],[img_w,0],[0,img_h],[img_w,img_h]], dtype=np.float32)
+    corners_t = cv2.transform(corners.reshape(1,-1,2), M).reshape(-1,2)
+    in_bounds = np.sum((corners_t[:,0] >= -img_w) & (corners_t[:,0] <= 2*img_w) &
+                       (corners_t[:,1] >= -img_h) & (corners_t[:,1] <= 2*img_h))
+    logs.append({'nivel': 'info', 'msg': f'  Cantos transformados: {in_bounds}/4 dentro dos limites'})
+    if in_bounds < 2:
+        logs.append({'nivel': 'aviso', 'msg': '  Planta fora dos limites — transformacao descartada'})
+        return None
+
     M_full = np.eye(3, dtype=np.float32)
     M_full[:2, :] = M
 
