@@ -236,8 +236,8 @@ def _buscar_osm(municipio, estado, logs):
 
 def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio, estado, logs, tmp):
     """
-    Georreferencia a planta usando Gemini Vision para identificar vias nomeadas
-    e geocodifica-las via OSM Nominatim para obter coordenadas reais.
+    Georreferencia a planta usando Gemini Vision para identificar intersecoes de ruas,
+    busca as coordenadas exatas no OSM via Overpass, e calcula transformacao afim.
     """
     import numpy as np
     import cv2
@@ -255,7 +255,8 @@ def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio,
     _img_path = f"{tmp}/planta_geo.png"
     cv2.imwrite(_img_path, img_planta)
 
-    logs.append({'nivel': 'info', 'msg': '  Gemini identificando vias nomeadas na planta...'})
+    # Pedir ao Gemini para identificar intersecoes de ruas
+    logs.append({'nivel': 'info', 'msg': '  Gemini identificando intersecoes de ruas na planta...'})
     try:
         client = _gv.Client(api_key=os.environ.get('GEMINI_API_KEY', ''))
         with open(_img_path, 'rb') as fp:
@@ -263,14 +264,16 @@ def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio,
 
         prompt = (
             f"Esta e uma planta de zoneamento de {municipio}/{estado}, Brasil.\n"
-            f"Identifique todas as vias/ruas/avenidas/estradas com NOME VISIVEL no mapa.\n"
-            f"Para cada via nomeada, informe:\n"
-            f"1. O nome exato da via\n"
-            f"2. A posicao X do centro da via como porcentagem da largura da imagem (0-100)\n"
-            f"3. A posicao Y do centro da via como porcentagem da altura da imagem (0-100)\n\n"
-            f"Responda APENAS com JSON valido, sem texto adicional:\n"
-            f'[{{"nome":"Estrada do Mar","x_pct":45.5,"y_pct":72.3}}]\n\n'
-            f"Identifique ao menos 4 vias diferentes se possivel."
+            f"Identifique INTERSECOES de ruas com nomes VISIVEIS no mapa.\n"
+            f"Para cada intersecao, informe:\n"
+            f"1. O nome da rua principal\n"
+            f"2. O nome da rua secundaria que a cruza\n"
+            f"3. A posicao X do ponto de cruzamento como porcentagem da largura (0-100)\n"
+            f"4. A posicao Y do ponto de cruzamento como porcentagem da altura (0-100)\n\n"
+            f"Foque nas intersecoes de vias PRINCIPAIS e NOMEADAS (evite ruas sem nome).\n"
+            f"Responda APENAS com JSON valido:\n"
+            f'[{{"rua1":"Estrada do Mar","rua2":"ERS-389","x_pct":55.2,"y_pct":80.1}}]\n\n'
+            f"Identifique ao menos 5 intersecoes diferentes se possivel."
         )
 
         parts = [_gv_types.Part.from_text(text=prompt),
@@ -283,52 +286,119 @@ def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio,
             ex.shutdown(wait=False)
         except _cf.TimeoutError:
             ex.shutdown(wait=False)
-            logs.append({'nivel': 'aviso', 'msg': '  Gemini timeout na identificacao de vias'})
+            logs.append({'nivel': 'aviso', 'msg': '  Gemini timeout na identificacao de intersecoes'})
             return None
 
         txt = re.sub(r'^```json\s*|\s*```$', '', resp.text.strip())
-        vias_planta = _j.loads(txt)
-        logs.append({'nivel': 'info', 'msg': f'  {len(vias_planta)} vias identificadas pelo Gemini'})
-        for v in vias_planta:
-            logs.append({'nivel': 'info', 'msg': f'    - {v["nome"]} ({v["x_pct"]:.1f}%, {v["y_pct"]:.1f}%)'})
+        intersecoes = _j.loads(txt)
+        logs.append({'nivel': 'info', 'msg': f'  {len(intersecoes)} intersecoes identificadas pelo Gemini'})
+        for v in intersecoes:
+            logs.append({'nivel': 'info', 'msg': f'    - {v["rua1"]} x {v["rua2"]} ({v["x_pct"]:.1f}%, {v["y_pct"]:.1f}%)'})
 
     except Exception as e:
         logs.append({'nivel': 'aviso', 'msg': f'  Erro Gemini: {str(e)[:100]}'})
         return None
 
-    # Geocodificar cada via via OSM Nominatim
-    logs.append({'nivel': 'info', 'msg': '  Geocodificando vias via OSM Nominatim...'})
+    # Buscar coordenadas exatas das intersecoes via OSM Overpass
+    logs.append({'nivel': 'info', 'msg': '  Buscando coordenadas das intersecoes no OSM...'})
     correspondencias = []
-    for via in vias_planta:
-        nome = via.get('nome', '')
-        if not nome:
+
+    _overpass_servers = [
+        "https://overpass-api.de/api/interpreter",
+        "https://overpass.kumi.systems/api/interpreter",
+        "https://overpass.private.coffee/api/interpreter",
+    ]
+
+    for inter in intersecoes:
+        rua1 = inter.get('rua1', '')
+        rua2 = inter.get('rua2', '')
+        if not rua1 or not rua2:
             continue
-        try:
-            r = requests.get("https://nominatim.openstreetmap.org/search",
-                             params={"q": f"{nome}, {municipio}, {estado}, Brasil",
-                                     "format": "json", "limit": 1,
-                                     "viewbox": f"{west},{north},{east},{south}",
-                                     "bounded": 1},
-                             headers={"User-Agent": "UrbanLex/1.0"}, timeout=10)
-            results = r.json()
-            if results:
-                lat = float(results[0]['lat'])
-                lon = float(results[0]['lon'])
-                px = (via['x_pct'] / 100.0) * img_w
-                py = (via['y_pct'] / 100.0) * img_h
-                correspondencias.append({'nome': nome, 'px': px, 'py': py, 'lat': lat, 'lon': lon})
-                logs.append({'nivel': 'info', 'msg': f'    OK {nome}: ({lat:.4f}, {lon:.4f})'})
-            else:
-                logs.append({'nivel': 'aviso', 'msg': f'    Nao geocodificado: {nome}'})
-        except Exception as e:
-            logs.append({'nivel': 'aviso', 'msg': f'    Erro {nome}: {str(e)[:50]}'})
+
+        # Query Overpass: buscar no de intersecao entre as duas ruas
+        query = f"""[out:json][timeout:15];
+area["name"="{municipio}"]["boundary"="administrative"]->.municipio;
+(
+  way["name"~"{rua1}",i](area.municipio);
+  way["name"~"{rua2}",i](area.municipio);
+);
+node(w)->.nos;
+(
+  way["name"~"{rua1}",i](area.municipio);
+)->.r1;
+(
+  way["name"~"{rua2}",i](area.municipio);
+)->.r2;
+node(w.r1)(w.r2);
+out body;"""
+
+        lat, lon = None, None
+        for srv in _overpass_servers:
+            try:
+                r = requests.post(srv, data={"data": query}, timeout=20)
+                if r.status_code == 200:
+                    data = r.json()
+                    nodes = data.get('elements', [])
+                    if nodes:
+                        # Usar o primeiro no encontrado
+                        lat = nodes[0]['lat']
+                        lon = nodes[0]['lon']
+                        break
+            except Exception:
+                pass
+            time.sleep(1)
+
+        if lat and lon:
+            px = (inter['x_pct'] / 100.0) * img_w
+            py = (inter['y_pct'] / 100.0) * img_h
+            correspondencias.append({
+                'nome': f"{rua1} x {rua2}",
+                'px': px, 'py': py,
+                'lat': lat, 'lon': lon
+            })
+            logs.append({'nivel': 'info', 'msg': f'    OK {rua1} x {rua2}: ({lat:.5f}, {lon:.5f})'})
+        else:
+            # Fallback: geocodificar via Nominatim usando as duas ruas
+            logs.append({'nivel': 'aviso', 'msg': f'    Overpass sem resultado, tentando Nominatim: {rua1} x {rua2}'})
+            try:
+                r = requests.get("https://nominatim.openstreetmap.org/search",
+                    params={"q": f"{rua1} e {rua2}, {municipio}, {estado}, Brasil",
+                            "format": "json", "limit": 1,
+                            "viewbox": f"{west},{north},{east},{south}",
+                            "bounded": 1},
+                    headers={"User-Agent": "UrbanLex/1.0"}, timeout=10)
+                results = r.json()
+                if not results:
+                    # Tentar so a rua principal
+                    r = requests.get("https://nominatim.openstreetmap.org/search",
+                        params={"q": f"{rua1}, {municipio}, {estado}, Brasil",
+                                "format": "json", "limit": 1,
+                                "viewbox": f"{west},{north},{east},{south}",
+                                "bounded": 1},
+                        headers={"User-Agent": "UrbanLex/1.0"}, timeout=10)
+                    results = r.json()
+                if results:
+                    lat = float(results[0]['lat'])
+                    lon = float(results[0]['lon'])
+                    px = (inter['x_pct'] / 100.0) * img_w
+                    py = (inter['y_pct'] / 100.0) * img_h
+                    correspondencias.append({
+                        'nome': f"{rua1} (nominatim)",
+                        'px': px, 'py': py,
+                        'lat': lat, 'lon': lon
+                    })
+                    logs.append({'nivel': 'info', 'msg': f'    OK (nominatim) {rua1}: ({lat:.5f}, {lon:.5f})'})
+                else:
+                    logs.append({'nivel': 'aviso', 'msg': f'    Nao encontrado: {rua1} x {rua2}'})
+            except Exception as e:
+                logs.append({'nivel': 'aviso', 'msg': f'    Erro nominatim: {str(e)[:50]}'})
         time.sleep(1)
 
     if len(correspondencias) < 3:
         logs.append({'nivel': 'aviso', 'msg': f'  Apenas {len(correspondencias)} correspondencias — insuficiente (minimo 3)'})
         return None
 
-    logs.append({'nivel': 'ok', 'msg': f'  {len(correspondencias)} correspondencias para georreferenciamento'})
+    logs.append({'nivel': 'ok', 'msg': f'  {len(correspondencias)} pontos de controle para georreferenciamento'})
 
     def ll_to_osm_px(lat, lon):
         x = (lon - west) / (east - west) * img_w
@@ -338,12 +408,12 @@ def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio,
     src_pts = np.array([[c['px'], c['py']] for c in correspondencias], dtype=np.float32)
     dst_pts = np.array([ll_to_osm_px(c['lat'], c['lon']) for c in correspondencias], dtype=np.float32)
 
-    M, inliers = cv2.estimateAffinePartial2D(src_pts, dst_pts, method=cv2.RANSAC, ransacReprojThreshold=20.0)
+    M, inliers = cv2.estimateAffinePartial2D(src_pts, dst_pts, method=cv2.RANSAC, ransacReprojThreshold=15.0)
     if M is None:
         logs.append({'nivel': 'aviso', 'msg': '  Falha ao calcular transformacao afim'})
         return None
     inliers_count = int(inliers.sum()) if inliers is not None else 0
-    logs.append({'nivel': 'ok', 'msg': f'  Transformacao afim calculada: {inliers_count} inliers'})
+    logs.append({'nivel': 'ok', 'msg': f'  Transformacao afim calculada: {inliers_count}/{len(correspondencias)} inliers'})
 
     M_full = np.eye(3, dtype=np.float32)
     M_full[:2, :] = M
@@ -354,6 +424,7 @@ def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio,
         return lat, lon
 
     return M_full, px_to_ll
+
 
 
 def _renderizar_osm(osm_data, bbox, img_w, img_h):
