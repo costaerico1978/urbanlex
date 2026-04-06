@@ -293,6 +293,24 @@ def _buscar_osm(municipio, estado, logs):
         logs.append({'nivel': 'info', 'msg': f'  📌 Bbox: {south},{west} → {north},{east}'})
 
         # Overpass API para buscar vias — tenta multiplos servidores
+        # Cache OSM em arquivo para evitar re-download
+        import hashlib as _hlib
+        _cache_key = _hlib.md5(f"{municipio}{estado}{south}{north}{west}{east}".encode()).hexdigest()[:12]
+        _cache_path = f"/var/www/urbanlex/static/downloads/osm_cache_{_cache_key}.json"
+        import json as _jcache
+        if os.path.exists(_cache_path):
+            logs.append({"nivel": "info", "msg": "  📦 Usando cache OSM local..."})
+            with open(_cache_path, "r") as _cf:
+                data = _jcache.load(_cf)
+            logs.append({"nivel": "info", "msg": f"  🛣️ {len(data.get(chr(101)+chr(108)+chr(101)+chr(109)+chr(101)+chr(110)+chr(116)+chr(115), []))} vias do cache"})
+        else:
+        _servers = [
+            "https://overpass-api.de/api/interpreter",
+            "https://overpass.kumi.systems/api/interpreter",
+            "https://overpass.openstreetmap.fr/api/interpreter",
+            "https://overpass.private.coffee/api/interpreter",
+            "https://overpass.osm.ch/api/interpreter",
+        ]
         _servers = [
             "https://overpass-api.de/api/interpreter",
             "https://overpass.kumi.systems/api/interpreter",
@@ -324,6 +342,10 @@ def _buscar_osm(municipio, estado, logs):
         data["_west"] = float(west)
         data["_east"] = float(east)
         return data
+            if data and data.get("elements"):
+                with open(_cache_path, "w") as _cf:
+                    _jcache.dump(data, _cf)
+                logs.append({"nivel": "info", "msg": "  💾 Cache OSM salvo"})
 
     except Exception as e:
         logs.append({'nivel': 'aviso', 'msg': f'⚠️ Erro OSM: {str(e)[:100]}'})
