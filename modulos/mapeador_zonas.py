@@ -270,7 +270,8 @@ def _baixar_tiles_osm(bbox, img_w, img_h, logs):
 
         return max(1, min(20, int(min(lat_zoom, lon_zoom))))
 
-    zoom = get_zoom(south, north, west, east, img_w, img_h)
+    zoom = get_zoom(south, north, west, east, img_w, img_h) - 1  # -1 para garantir cobertura total
+    zoom = max(1, min(20, zoom))
     logs.append({'nivel': 'info', 'msg': f'  Google Maps Static: zoom={zoom}, centro=({center_lat:.4f},{center_lon:.4f})'})
 
     # Google Maps Static API — max 640x640 na versão gratuita, 2048x2048 no plano pago
