@@ -13,10 +13,10 @@
         .gr-ac-item:last-child{border-bottom:none}
         .gr-ac-item:hover{background:var(--surface2)}
         .gr-maps-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
-        .gr-map-wrap{border-radius:8px;overflow:hidden;background:#0a0a0a;border:2px solid var(--border);position:relative}
+        .gr-map-wrap{border-radius:8px;overflow:hidden;background:#0a0a0a;border:2px solid var(--border);position:relative;height:380px}
         .gr-map-wrap.mode-inserir{border-color:var(--accent);cursor:crosshair}
         .gr-map-wrap.mode-inserir .gr-map-canvas{cursor:crosshair}
-        .gr-map-canvas{display:block;width:100%;height:380px}
+        .gr-map-canvas{display:block;width:100%;height:100%;position:absolute;top:0;left:0}
         .gr-map-title{background:rgba(0,0,0,0.8);color:var(--accent);font-size:11px;font-weight:700;padding:4px 10px;position:absolute;top:0;left:0;right:0;z-index:2;letter-spacing:1px;text-transform:uppercase}
         .gr-map-controls{position:absolute;top:28px;right:8px;z-index:3;display:flex;flex-direction:column;gap:4px}
         .gr-ctrl-btn{width:28px;height:28px;background:rgba(20,20,20,0.9);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
@@ -102,9 +102,9 @@
 
         <!-- OSM -->
         <div>
-            <div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">🗺️ Mapa OSM</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">🗺️ Google Maps</div>
             <div class="gr-map-wrap" id="wrap-osm">
-                <div class="gr-map-title">OSM</div>
+                <div class="gr-map-title">GOOGLE MAPS</div>
                 <div class="gr-map-controls">
                     <button class="gr-ctrl-btn" onclick="grZoom('osm',1.3)" title="Zoom +">+</button>
                     <button class="gr-ctrl-btn" onclick="grZoom('osm',0.77)" title="Zoom -">−</button>
