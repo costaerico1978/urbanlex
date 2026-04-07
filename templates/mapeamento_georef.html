@@ -560,7 +560,7 @@ function grMostrarResultado(r){
     if(r.validacao_pontos_url||r.validacao_url){
         const url=r.validacao_pontos_url||r.validacao_url;
         html+=`<h4 style="color:var(--accent);margin:16px 0 8px">🔍 Validação do Alinhamento</h4>
-            <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Azul = Planta transformada &nbsp;|&nbsp; Vermelho = OSM</p>
+            <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Planta de zoneamento sobreposta ao mapa OSM. Círculos = pontos de referência marcados.</p>
             <img src="${url}?t=${Date.now()}" style="width:100%;border-radius:8px;border:1px solid var(--border);margin-bottom:12px">
             <a href="${url}" class="btn btn-secondary" download style="margin-right:8px">📥 Baixar validação</a>`;
     }
