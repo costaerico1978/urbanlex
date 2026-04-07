@@ -2876,15 +2876,15 @@ def api_mapeamento_georef_analisar():
 
             logs.append({'nivel': 'info', 'msg': f'  Resolução original: {orig_w}x{orig_h}px (segmentação usará essa resolução)'})
 
-            # Gerar validacao — planta colorida semitransparente sobre OSM
+            # Gerar validacao — planta colorida semitransparente sobre fundo neutro
             img_planta = cv2.imread(meta['planta_path'])
-            img_osm = cv2.imread(meta['osm_path'])
             planta_warp = cv2.warpPerspective(img_planta, H, (img_w, img_h))
-            # Misturar: OSM como fundo, planta com 50% opacidade
+            # Fundo branco com planta semitransparente
+            fundo = np.ones((img_h, img_w, 3), dtype=np.uint8) * 240
             mask = cv2.cvtColor(planta_warp, cv2.COLOR_BGR2GRAY)
             _, mask = cv2.threshold(mask, 10, 255, cv2.THRESH_BINARY)
             mask_3ch = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR) / 255.0
-            val = (img_osm.astype(float) * (1 - mask_3ch * 0.5) + planta_warp.astype(float) * mask_3ch * 0.5).astype(np.uint8)
+            val = (fundo.astype(float) * (1 - mask_3ch * 0.7) + planta_warp.astype(float) * mask_3ch * 0.7).astype(np.uint8)
 
             # Desenhar pontos de referencia na imagem de validacao
             cores_val = [(0,0,255),(0,200,0),(255,100,0),(200,0,200)]
