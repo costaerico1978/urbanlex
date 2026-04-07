@@ -243,12 +243,23 @@ function grFitCanvas(tipo){
     const wrap=document.getElementById('wrap-'+tipo);
     const s=GR[tipo];
     if(!s.img)return;
-    // Ajustar para preencher o canvas mantendo proporcao
-    const scaleX=wrap.clientWidth/s.img.width;
-    const scaleY=wrap.clientHeight/s.img.height;
+    let cw=wrap.clientWidth, ch=wrap.clientHeight;
+    // Se clientWidth for 0, tentar getBoundingClientRect
+    if(cw===0){
+        const r=wrap.getBoundingClientRect();
+        cw=r.width; ch=r.height;
+    }
+    // Fallback: usar offsetWidth
+    if(cw===0){ cw=wrap.offsetWidth; ch=wrap.offsetHeight; }
+    // Ultimo recurso: metade da tela
+    if(cw===0){ cw=window.innerWidth/2-20; ch=380; }
+    console.log('[grFitCanvas] tipo='+tipo+' cw='+cw+' ch='+ch+' img='+s.img.width+'x'+s.img.height);
+    const scaleX=cw/s.img.width;
+    const scaleY=ch/s.img.height;
     s.scale=Math.min(scaleX,scaleY);
-    s.ox=(wrap.clientWidth - s.img.width*s.scale)/2;
-    s.oy=(wrap.clientHeight - s.img.height*s.scale)/2;
+    s.ox=(cw - s.img.width*s.scale)/2;
+    s.oy=(ch - s.img.height*s.scale)/2;
+    console.log('[grFitCanvas] scale='+s.scale.toFixed(4)+' ox='+s.ox.toFixed(1)+' oy='+s.oy.toFixed(1));
 }
 
 function grLoadImg(tipo,url){
