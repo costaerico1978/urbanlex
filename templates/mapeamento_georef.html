@@ -424,15 +424,21 @@ function grAtivarModo(){
 }
 
 function grMarcarAqui(tipo){
-    // Captura o centro visivel do canvas como pixels da imagem original
     const c=document.getElementById('canvas-'+tipo);
     const s=GR[tipo];
     if(!s.img)return;
-    // Centro do canvas em coordenadas da imagem (pixels reais)
+    // Refazer fit se scale invalido
+    if(!s.scale || s.scale<=0 || isNaN(s.scale)){
+        console.warn('[grMarcarAqui] scale invalido, refazendo fit');
+        grFitCanvas(tipo); grDraw(tipo);
+    }
+    // Centro do canvas em coordenadas da imagem
     const xi=(c.width/2 - s.ox)/s.scale;
     const yi=(c.height/2 - s.oy)/s.scale;
-    // Guardar pixels absolutos da imagem original
-    s.temp={xi, yi, xPx: xi, yPx: yi};
+    const xp=Math.max(0, Math.min(100, xi/s.img.width*100));
+    const yp=Math.max(0, Math.min(100, yi/s.img.height*100));
+    console.log('[grMarcarAqui] '+tipo+' scale='+s.scale.toFixed(3)+' xi='+xi.toFixed(0)+' yi='+yi.toFixed(0)+' xp='+xp.toFixed(1)+'% yp='+yp.toFixed(1)+'%');
+    s.temp={xi, yi, xp, yp};
     grDraw(tipo);
     document.getElementById('btn-submit-'+tipo).style.display='block';
     document.getElementById('btn-cancel-'+tipo).style.display='block';
