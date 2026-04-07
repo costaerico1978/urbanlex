@@ -2539,7 +2539,7 @@ def api_mapeamento_preparar():
     # Converter PDF para PNG
     ext = os.path.splitext(f.filename)[1].lower()
     if ext == '.pdf':
-        subprocess.run(['gs','-dNOPAUSE','-dBATCH','-sDEVICE=png16m','-r300',
+        subprocess.run(['gs','-dNOPAUSE','-dBATCH','-sDEVICE=png16m','-r150',
             f'-sOutputFile={tmp}/mapa_%03d.png', fpath], capture_output=True, timeout=120)
         pages = sorted([x for x in os.listdir(tmp) if x.startswith('mapa_') and x.endswith('.png')])
         if not pages:
@@ -2552,20 +2552,35 @@ def api_mapeamento_preparar():
     planta_key = hashlib.md5(f"{municipio}{estado}planta".encode()).hexdigest()[:12]
     planta_dest = f"/var/www/urbanlex/static/downloads/georef_planta_{planta_key}.png"
     import shutil, cv2, numpy as np
-    img = cv2.imread(planta_png)
-    if img is None:
+    # Converter em 150 DPI para canvas (rapido)
+    img_display = cv2.imread(planta_png)
+    if img_display is None:
         return jsonify({'success': False, 'error': 'Imagem inválida'})
-    orig_h, orig_w = img.shape[:2]
-    # Salvar resolucao original para segmentacao
+    h_d, w_d = img_display.shape[:2]
+    if w_d > 2000:
+        scale = 2000 / w_d
+        img_display = cv2.resize(img_display, (int(w_d*scale), int(h_d*scale)), interpolation=cv2.INTER_AREA)
+    cv2.imwrite(planta_dest, img_display)
+    h, w = img_display.shape[:2]
+
+    # Converter em 300 DPI para segmentacao (melhor qualidade) em background
     planta_full_dest = f"/var/www/urbanlex/static/downloads/georef_planta_full_{planta_key}.png"
-    cv2.imwrite(planta_full_dest, img)
-    # Redimensionar para max 2000px para exibicao no canvas
-    h, w = orig_h, orig_w
-    if w > 2000:
-        scale = 2000 / w
-        img = cv2.resize(img, (int(w*scale), int(h*scale)), interpolation=cv2.INTER_AREA)
-    cv2.imwrite(planta_dest, img)
-    h, w = img.shape[:2]
+    if ext == '.pdf':
+        import subprocess as _sp2
+        _sp2.run(['gs','-dNOPAUSE','-dBATCH','-sDEVICE=png16m','-r300',
+            f'-sOutputFile={tmp}/full_%03d.png', fpath], capture_output=True, timeout=180)
+        full_pages = sorted([x for x in os.listdir(tmp) if x.startswith('full_') and x.endswith('.png')])
+        if full_pages:
+            import shutil
+            shutil.copy(os.path.join(tmp, full_pages[0]), planta_full_dest)
+        else:
+            planta_full_dest = planta_dest  # fallback
+    else:
+        import shutil
+        shutil.copy(fpath, planta_full_dest)
+
+    img_full = cv2.imread(planta_full_dest)
+    orig_h, orig_w = img_full.shape[:2] if img_full is not None else (h, w)
 
     # Buscar OSM e baixar tiles
     logs = []
@@ -2574,23 +2589,14 @@ def api_mapeamento_preparar():
         return jsonify({'success': False, 'error': 'Não foi possível obter dados OSM'})
     bbox = (float(osm_data['_south']), float(osm_data['_north']),
             float(osm_data['_west']), float(osm_data['_east']))
-    import os as _os2
-    gmaps_key = _os2.environ.get('GOOGLE_MAPS_KEY', 'AIzaSyCuiZTfrnvUC-1X_suD3w6iGVyT_bhdVpQ')
-    img_osm = _baixar_google_maps(bbox, w, h, gmaps_key, logs)
-    if img_osm is None:
-        logs.append({'nivel': 'aviso', 'msg': 'Google Maps falhou, usando OSM tiles...'})
-        img_osm = _baixar_tiles_osm(bbox, w, h, logs)
-    if img_osm is None:
-        return jsonify({'success': False, 'error': 'Não foi possível obter mapa de referência'})
-    osm_key = hashlib.md5(f"{municipio}{estado}osm".encode()).hexdigest()[:12]
-    osm_dest = f"/var/www/urbanlex/static/downloads/georef_osm_{osm_key}.png"
-    cv2.imwrite(osm_dest, img_osm)
+    # Mapa de referencia agora é Leaflet no browser — sem download no servidor
+    osm_dest = None
 
     # Salvar metadados na sessão via arquivo temporario
     import json
     meta = {'municipio': municipio, 'estado': estado, 'bbox': list(bbox),
-            'w': w, 'h': h, 'planta_key': planta_key, 'osm_key': osm_key,
-            'planta_path': planta_dest, 'osm_path': osm_dest,
+            'w': w, 'h': h, 'planta_key': planta_key,
+            'planta_path': planta_dest,
             'planta_full_path': planta_full_dest,
             'orig_w': orig_w, 'orig_h': orig_h}
     meta_path = f"/var/www/urbanlex/static/downloads/georef_meta_{planta_key}.json"
@@ -2600,7 +2606,6 @@ def api_mapeamento_preparar():
     return jsonify({
         'success': True,
         'planta_url': f'/static/downloads/georef_planta_{planta_key}.png',
-        'osm_url': f'/static/downloads/georef_osm_{osm_key}.png',
         'meta_key': planta_key,
         'bbox': list(bbox)  # [south, north, west, east]
     })
