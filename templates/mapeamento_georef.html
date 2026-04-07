@@ -268,6 +268,9 @@ async function grCarregarMapas(){
                 window._grMetaKey=d.meta_key;
                 if(d.bbox) grInitGmap(d.bbox);
                 await grLoadImg('planta',d.planta_url);
+                // Forcar refit e render apos carregamento assincrono
+                grFitCanvas('planta'); grDraw('planta');
+                if(typeof _lmap!=='undefined'&&_lmap) setTimeout(()=>_lmap.invalidateSize(),200);
                 document.getElementById('btn-upscale').style.display='inline-block';
                 statusEl.style.display='none';
                 break;
