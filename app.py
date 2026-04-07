@@ -2580,7 +2580,11 @@ def api_mapeamento_georef_analisar():
                 p = pontos.get(str(n),{})
                 pp = p.get('p',{}) or {}
                 po = p.get('o',{}) or {}
-                logs.append({'nivel': 'info', 'msg': f'  Ponto {n}: planta=({pp.get("xp","?"):.1f}%,{pp.get("yp","?"):.1f}%) osm=({po.get("xp","?"):.1f}%,{po.get("yp","?"):.1f}%)'})
+                pxp = f'{pp.get("xp",0):.1f}' if pp else '?'
+                pyp = f'{pp.get("yp",0):.1f}' if pp else '?'
+                oxp = f'{po.get("xp",0):.1f}' if po else '?'
+                oyp = f'{po.get("yp",0):.1f}' if po else '?'
+                logs.append({'nivel': 'info', 'msg': f'  Ponto {n}: planta=({pxp}%,{pyp}%) osm=({oxp}%,{oyp}%)'})
             # Usar pixels absolutos da imagem original diretamente
             src_pts = np.array([[pontos[str(n)]['p']['xPx'],
                                   pontos[str(n)]['p']['yPx']] for n in range(1,5)], dtype=np.float32)
