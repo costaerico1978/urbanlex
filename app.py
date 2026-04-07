@@ -2555,8 +2555,12 @@ def api_mapeamento_preparar():
     img = cv2.imread(planta_png)
     if img is None:
         return jsonify({'success': False, 'error': 'Imagem inválida'})
-    # Redimensionar para max 2000px
-    h, w = img.shape[:2]
+    orig_h, orig_w = img.shape[:2]
+    # Salvar resolucao original para segmentacao
+    planta_full_dest = f"/var/www/urbanlex/static/downloads/georef_planta_full_{planta_key}.png"
+    cv2.imwrite(planta_full_dest, img)
+    # Redimensionar para max 2000px para exibicao no canvas
+    h, w = orig_h, orig_w
     if w > 2000:
         scale = 2000 / w
         img = cv2.resize(img, (int(w*scale), int(h*scale)), interpolation=cv2.INTER_AREA)
@@ -2586,7 +2590,9 @@ def api_mapeamento_preparar():
     import json
     meta = {'municipio': municipio, 'estado': estado, 'bbox': list(bbox),
             'w': w, 'h': h, 'planta_key': planta_key, 'osm_key': osm_key,
-            'planta_path': planta_dest, 'osm_path': osm_dest}
+            'planta_path': planta_dest, 'osm_path': osm_dest,
+            'planta_full_path': planta_full_dest,
+            'orig_w': orig_w, 'orig_h': orig_h}
     meta_path = f"/var/www/urbanlex/static/downloads/georef_meta_{planta_key}.json"
     with open(meta_path, 'w') as mf:
         json.dump(meta, mf)
@@ -2699,6 +2705,22 @@ def api_mapeamento_georef_analisar():
                 lon = west + (x / img_w) * (east - west)
                 lat = north - (y / img_h) * (north - south)
                 return lat, lon
+
+            # Escalar homografia para resolucao original (para segmentacao)
+            orig_w = meta.get('orig_w', img_w)
+            orig_h = meta.get('orig_h', img_h)
+            scale_x = orig_w / img_w
+            scale_y = orig_h / img_h
+            S_src = np.array([[scale_x, 0, 0], [0, scale_y, 0], [0, 0, 1]], dtype=np.float64)
+            S_dst = np.array([[scale_x, 0, 0], [0, scale_y, 0], [0, 0, 1]], dtype=np.float64)
+            H_full = S_dst @ H.astype(np.float64) @ np.linalg.inv(S_src)
+
+            def px_to_ll_full(x, y):
+                lon = west + (x / orig_w) * (east - west)
+                lat = north - (y / orig_h) * (north - south)
+                return lat, lon
+
+            logs.append({'nivel': 'info', 'msg': f'  Resolução original: {orig_w}x{orig_h}px (segmentação usará essa resolução)'})
 
             # Gerar validacao — planta colorida semitransparente sobre OSM
             img_planta = cv2.imread(meta['planta_path'])
