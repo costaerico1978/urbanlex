@@ -228,10 +228,12 @@ async function grCarregarMapas(){
         const resp=await fetch('/api/mapeamento/preparar',{method:'POST',body:fd,credentials:'same-origin'});
         const d=await resp.json();
         if(!d.success){alert('Erro: '+(d.error||'desconhecido'));btn.disabled=false;btn.textContent='🗺️ Carregar Mapas';document.getElementById('upload-status').style.display='none';return;}
-        await grLoadImg('planta',d.planta_url);
-        await grLoadImg('osm',d.osm_url);
+        // Mostrar a secao ANTES de carregar para que clientWidth/Height sejam corretos
         document.getElementById('step-upload').style.display='none';
         document.getElementById('step-maps').style.display='block';
+        await new Promise(r=>setTimeout(r,50)); // aguardar render
+        await grLoadImg('planta',d.planta_url);
+        await grLoadImg('osm',d.osm_url);
     }catch(e){alert('Erro: '+e);btn.disabled=false;btn.textContent='🗺️ Carregar Mapas';document.getElementById('upload-status').style.display='none';}
 }
 
