@@ -2776,6 +2776,39 @@ def api_mapeamento_georef_analisar():
 
             logs.append({'nivel': 'ok', 'msg': '✅ Transformação aplicada com sucesso'})
 
+            # Estagio 4: Extrair legenda via Gemini
+            logs.append({'nivel': 'info', 'msg': '🔍 Extraindo legenda da planta via Gemini...'})
+            from modulos.mapeador_zonas import _extrair_legenda, _segmentar_zonas, _gerar_kml
+            import tempfile as _tmp2
+            _tmp_dir = _tmp2.mkdtemp()
+            legenda = _extrair_legenda(
+                meta['planta_full_path'], 
+                os.path.basename(meta['planta_full_path']),
+                municipio, estado, logs, _tmp_dir
+            )
+            if not legenda:
+                logs.append({'nivel': 'aviso', 'msg': '⚠️ Não foi possível extrair a legenda'})
+            else:
+                logs.append({'nivel': 'ok', 'msg': f'✅ {len(legenda)} zonas na legenda'})
+
+                # Estagio 5: Segmentacao por cor (usa resolucao original)
+                logs.append({'nivel': 'info', 'msg': '🎨 Segmentando zonas por cor (resolução original)...'})
+                img_planta_full = cv2.imread(meta['planta_full_path'])
+                zonas_geo = _segmentar_zonas(img_planta_full, legenda, H_full, px_to_ll_full, logs)
+
+                if zonas_geo:
+                    # Estagio 6: Gerar KML
+                    logs.append({'nivel': 'info', 'msg': '📦 Gerando KML...'})
+                    kml_path = f"/var/www/urbanlex/static/downloads/zoneamento_{municipio.replace(' ','_')}.kml"
+                    _gerar_kml(zonas_geo, municipio, estado, kml_path)
+                    job['result']['kml_url'] = f"/static/downloads/zoneamento_{municipio.replace(' ','_')}.kml"
+                    job['result']['zonas_ok'] = True
+                    job['result']['kml_ok'] = True
+                    job['result']['zonas'] = [{'nome': z['nome'], 'descricao': z.get('descricao',''), 'cor': z['cor_hex'], 'area_km2': z.get('area_km2','—')} for z in zonas_geo]
+                    logs.append({'nivel': 'ok', 'msg': f'✅ KML gerado com {len(zonas_geo)} polígonos!'})
+                else:
+                    logs.append({'nivel': 'aviso', 'msg': '⚠️ Nenhuma zona segmentada'})
+
         except Exception as e:
             import traceback
             logs.append({'nivel': 'erro', 'msg': f'Erro: {str(e)[:200]}'})
