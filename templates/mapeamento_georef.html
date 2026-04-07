@@ -154,6 +154,12 @@
             <tr><td><strong>Ponto Ref. 2</strong></td><td id="cp-2"><span class="gr-badge-pending">⏳ A definir</span></td><td id="co-2"><span class="gr-badge-pending">⏳ A definir</span></td><td><button class="gr-reset-btn" onclick="grResetar(2)">🔄</button></td></tr>
             <tr><td><strong>Ponto Ref. 3</strong></td><td id="cp-3"><span class="gr-badge-pending">⏳ A definir</span></td><td id="co-3"><span class="gr-badge-pending">⏳ A definir</span></td><td><button class="gr-reset-btn" onclick="grResetar(3)">🔄</button></td></tr>
             <tr><td><strong>Ponto Ref. 4</strong></td><td id="cp-4"><span class="gr-badge-pending">⏳ A definir</span></td><td id="co-4"><span class="gr-badge-pending">⏳ A definir</span></td><td><button class="gr-reset-btn" onclick="grResetar(4)">🔄</button></td></tr>
+            <tr><td><strong>Ponto Ref. 5</strong></td><td id="cp-5"><span class="gr-badge-pending">⏳ A definir</span></td><td id="co-5"><span class="gr-badge-pending">⏳ A definir</span></td><td><button class="gr-reset-btn" onclick="grResetar(5)">🔄</button></td></tr>
+            <tr><td><strong>Ponto Ref. 6</strong></td><td id="cp-6"><span class="gr-badge-pending">⏳ A definir</span></td><td id="co-6"><span class="gr-badge-pending">⏳ A definir</span></td><td><button class="gr-reset-btn" onclick="grResetar(6)">🔄</button></td></tr>
+            <tr><td><strong>Ponto Ref. 7</strong></td><td id="cp-7"><span class="gr-badge-pending">⏳ A definir</span></td><td id="co-7"><span class="gr-badge-pending">⏳ A definir</span></td><td><button class="gr-reset-btn" onclick="grResetar(7)">🔄</button></td></tr>
+            <tr><td><strong>Ponto Ref. 8</strong></td><td id="cp-8"><span class="gr-badge-pending">⏳ A definir</span></td><td id="co-8"><span class="gr-badge-pending">⏳ A definir</span></td><td><button class="gr-reset-btn" onclick="grResetar(8)">🔄</button></td></tr>
+            <tr><td><strong>Ponto Ref. 9</strong></td><td id="cp-9"><span class="gr-badge-pending">⏳ A definir</span></td><td id="co-9"><span class="gr-badge-pending">⏳ A definir</span></td><td><button class="gr-reset-btn" onclick="grResetar(9)">🔄</button></td></tr>
+            <tr><td><strong>Ponto Ref. 10</strong></td><td id="cp-10"><span class="gr-badge-pending">⏳ A definir</span></td><td id="co-10"><span class="gr-badge-pending">⏳ A definir</span></td><td><button class="gr-reset-btn" onclick="grResetar(10)">🔄</button></td></tr>
         </tbody>
     </table>
 
@@ -180,10 +186,10 @@ const GR = {
     municipio:'', estado:'',
     planta:{ scale:1, ox:0, oy:0, img:null, drag:false, lx:0, ly:0, temp:null },
     osm:   { scale:1, ox:0, oy:0, img:null, drag:false, lx:0, ly:0, temp:null },
-    pontos:{ 1:{p:null,o:null}, 2:{p:null,o:null}, 3:{p:null,o:null}, 4:{p:null,o:null} },
+    pontos: Object.fromEntries([1,2,3,4,5,6,7,8,9,10].map(n=>[n,{p:null,o:null}])),
     coletando:false, pontoAtual:1, etapa:null
 };
-const CORES=['#FF4444','#44DD44','#4499FF','#FFCC00'];
+const CORES=['#FF4444','#44DD44','#4499FF','#FFCC00','#FF8800','#00DDDD','#FF44FF','#88FF00','#FF4488','#00AAFF'];
 
 // Autocomplete
 let _acT=null,_acC={};
@@ -405,7 +411,7 @@ function grReset(tipo){
 // Fluxo de coleta
 function grIniciarPontos(){
     // Encontrar primeiro ponto nao definido
-    for(let n=1;n<=4;n++){
+    for(let n=1;n<=10;n++){
         if(!GR.pontos[n].p||!GR.pontos[n].o){
             GR.coletando=true;
             GR.pontoAtual=n;
@@ -487,13 +493,13 @@ function grSubmit(tipo){
     const pOk=GR.pontos[GR.pontoAtual].p!==null;
     const oOk=GR.pontos[GR.pontoAtual].o!==null;
     if(pOk&&oOk){
-        if(GR.pontoAtual<4){
+        if(GR.pontoAtual<10){
             GR.pontoAtual++;
             GR.etapa='planta';
         } else {
             GR.coletando=false;
             GR.etapa=null;
-            document.getElementById('gr-instrucao').innerHTML='✅ <strong style="color:#4caf50">Todos os 4 pontos definidos!</strong> Clique em "Começar Análise".';
+            document.getElementById('gr-instrucao').innerHTML='✅ <strong style="color:#4caf50">10 pontos definidos!</strong> Clique em "Começar Análise".';
             document.getElementById('btn-inserir').style.display='inline-block';
             grAtualizarBotao();
             return;
@@ -517,7 +523,7 @@ function grResetar(n){
     GR.pontos[n]={p:null,o:null};
     document.getElementById(`cp-${n}`).innerHTML='<span class="gr-badge-pending">⏳ A definir</span>';
     document.getElementById(`co-${n}`).innerHTML='<span class="gr-badge-pending">⏳ A definir</span>';
-    GR.planta.temp=null; GR.osm.temp=null;
+    // reset temp
     // Remover marcadores do gmap para este ponto
     if(_gmapTempMarker){_gmapTempMarker.setMap(null);_gmapTempMarker=null;}
     grDraw('planta'); grDraw('osm');
@@ -534,10 +540,13 @@ function grResetar(n){
 }
 
 function grAtualizarBotao(){
-    const todos=[1,2,3,4].every(n=>GR.pontos[n].p&&GR.pontos[n].o);
+    // Habilitado com minimo 3 pontos completos
+    const completos=[1,2,3,4,5,6,7,8,9,10].filter(n=>GR.pontos[n].p&&GR.pontos[n].o).length;
+    const todos = completos >= 3;
     const btn=document.getElementById('btn-analisar');
     btn.classList.toggle('enabled',todos);
     document.getElementById('hint-analisar').style.display=todos?'none':'inline';
+    document.getElementById('hint-analisar').textContent=`Defina ao menos 3 pontos para continuar (${completos}/10 definidos)`;
 }
 
 // Análise
@@ -729,13 +738,13 @@ function grSubmitGmap() {
 
     const pOk = GR.pontos[GR.pontoAtual].p !== null;
     if (pOk) {
-        if (GR.pontoAtual < 4) {
+        if (GR.pontoAtual < 10) {
             GR.pontoAtual++;
             GR.etapa = 'planta';
         } else {
             GR.coletando = false;
             GR.etapa = null;
-            document.getElementById('gr-instrucao').innerHTML = '✅ <strong style="color:#4caf50">Todos os 4 pontos definidos!</strong> Clique em "Começar Análise".';
+            document.getElementById('gr-instrucao').innerHTML = '✅ <strong style="color:#4caf50">10 pontos definidos!</strong> Clique em "Começar Análise".';
             document.getElementById('btn-inserir').style.display = 'inline-block';
             grAtualizarBotao();
             return;

@@ -2774,7 +2774,7 @@ def api_mapeamento_georef_analisar():
             # Usar pixels absolutos da imagem original diretamente
             src_list, dst_list = [], []
             south, north, west, east = bbox
-            for n in range(1, 5):
+            for n in range(1, 11):
                 p = pontos[str(n)]
                 pp = p.get('p', {})
                 po = p.get('o', {})
