@@ -2810,24 +2810,31 @@ def api_mapeamento_georef_analisar():
             src_list, dst_list = [], []
             south, north, west, east = bbox
             for n in range(1, 11):
-                p = pontos[str(n)]
-                pp = p.get('p', {})
-                po = p.get('o', {})
+                p = pontos.get(str(n)) or {}
+                pp = p.get('p') or {}
+                po = p.get('o') or {}
+                # Pular pontos incompletos
+                if not pp or not po:
+                    continue
                 # Planta: coordenadas em % da imagem
-                sx = pp.get('xp', 0) / 100 * img_w
-                sy = pp.get('yp', 0) / 100 * img_h
+                xp = pp.get('xp') or pp.get('xPct') or 0
+                yp = pp.get('yp') or pp.get('yPct') or 0
+                sx = float(xp) / 100 * img_w
+                sy = float(yp) / 100 * img_h
                 src_list.append([sx, sy])
-                # OSM: lat/lon ou % da imagem
+                # Mapa: lat/lon ou % da imagem
                 if po.get('isLatLng'):
                     lat = po.get('lat', 0)
                     lng = po.get('lng', 0)
                     dx = (lng - west) / (east - west) * img_w
                     dy = (north - lat) / (north - south) * img_h
                 else:
-                    dx = po.get('xp', 0) / 100 * img_w
-                    dy = po.get('yp', 0) / 100 * img_h
+                    xp2 = po.get('xp') or po.get('xPct') or 0
+                    yp2 = po.get('yp') or po.get('yPct') or 0
+                    dx = float(xp2) / 100 * img_w
+                    dy = float(yp2) / 100 * img_h
                 dst_list.append([dx, dy])
-                logs.append({'nivel': 'info', 'msg': f'  Ponto {n}: planta=({sx:.0f},{sy:.0f})px → mapa=({dst_list[-1][0]:.0f},{dst_list[-1][1]:.0f})px'})
+                logs.append({'nivel': 'info', 'msg': f'  Ponto {n}: planta=({sx:.0f},{sy:.0f})px → mapa=({dx:.0f},{dy:.0f})px'})
             src_pts = np.array(src_list, dtype=np.float32)
             dst_pts = np.array(dst_list, dtype=np.float32)
 
