@@ -2540,6 +2540,7 @@ def api_mapeamento_preparar():
     ext = os.path.splitext(f.filename)[1].lower()
     if ext == '.pdf':
         subprocess.run(['gs','-dNOPAUSE','-dBATCH','-sDEVICE=png16m','-r150',
+            '-dFirstPage=1','-dLastPage=1',
             f'-sOutputFile={tmp}/mapa_%03d.png', fpath], capture_output=True, timeout=120)
         pages = sorted([x for x in os.listdir(tmp) if x.startswith('mapa_') and x.endswith('.png')])
         if not pages:
@@ -2568,6 +2569,7 @@ def api_mapeamento_preparar():
     if ext == '.pdf':
         import subprocess as _sp2
         _sp2.run(['gs','-dNOPAUSE','-dBATCH','-sDEVICE=png16m','-r300',
+            '-dFirstPage=1','-dLastPage=1',
             f'-sOutputFile={tmp}/full_%03d.png', fpath], capture_output=True, timeout=180)
         full_pages = sorted([x for x in os.listdir(tmp) if x.startswith('full_') and x.endswith('.png')])
         if full_pages:
