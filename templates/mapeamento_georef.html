@@ -1,11 +1,8 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Georreferenciamento — UrbanLex</title>
-    <link rel="stylesheet" href="/static/css/style.css">
-    <style>
+{% extends "base.html" %}
+{% block title %}Georreferenciamento · UrbanLex{% endblock %}
+{% block content %}
+<style>
+
         .gr-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px}
         .gr-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;display:block}
         .gr-input{width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box}
@@ -42,10 +39,9 @@
         #btn-analisar.enabled:hover{opacity:.85}
         #gr-log{background:#0a0a0a;border:1px solid var(--border);border-radius:8px;padding:12px;height:160px;overflow-y:auto;font-size:12px;font-family:monospace;margin-top:12px}
         .gr-instrucao-box{background:var(--surface2);border-left:3px solid var(--accent);padding:10px 14px;border-radius:0 6px 6px 0;font-size:13px;color:var(--text);margin-bottom:12px;display:none}
-    </style>
-</head>
-<body>
-{% include 'partials/sidebar.html' ignore missing %}
+    
+</style>
+
 <div class="main"><div class="content">
 
 <h2 style="color:var(--accent);margin-bottom:4px">📍 Georreferenciamento de Planta</h2>
@@ -162,7 +158,10 @@
 
 </div></div>
 
+{% endblock %}
+{% block scripts %}
 <script>
+
 const GR = {
     municipio:'', estado:'',
     planta:{ scale:1, ox:0, oy:0, img:null, drag:false, lx:0, ly:0, temp:null },
@@ -516,7 +515,6 @@ function grMostrarResultado(r){
     }
     div.innerHTML=html;
 }
+
 </script>
-{% include 'partials/footer.html' ignore missing %}
-</body>
-</html>
+{% endblock %}
