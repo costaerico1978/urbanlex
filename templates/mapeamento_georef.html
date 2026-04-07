@@ -1,16 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Georreferenciamento · UrbanLex{% endblock %}
 {%  block content %}
-<script>
-// Google Maps API loader
-window._gmapLoaded = false;
-window._gmapReady = false;
-function initGoogleMaps() {
-    window._gmapReady = true;
-    if (window._gmapInitCallback) window._gmapInitCallback();
-}
-</script>
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCuiZTfrnvUC-1X_suD3w6iGVyT_bhdVpQ&callback=initGoogleMaps&v=weekly" async defer></script>
+<!-- Leaflet.js para mapa interativo gratuito -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
 
         .gr-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px}
@@ -112,9 +105,9 @@ function initGoogleMaps() {
 
         <!-- OSM -->
         <div>
-            <div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">🛰️ Google Maps (Satélite)</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">🛰️ Mapa Satélite</div>
             <div class="gr-map-wrap" id="wrap-osm" style="position:relative">
-                <div class="gr-map-title">GOOGLE MAPS</div>
+                <div class="gr-map-title">SATÉLITE (ESRI)</div>
                 <div id="gmap" style="width:100%;height:380px;border-radius:6px"></div>
                 <div class="gr-mode-badge" id="badge-osm">🎯 Navegue e clique em "Marcar aqui"</div>
                 <div id="gmap-crosshair" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;display:none;z-index:10">
@@ -145,7 +138,7 @@ function initGoogleMaps() {
             <tr>
                 <th>N° Ponto Ref.</th>
                 <th>Planta Zoneamento</th>
-                <th>Mapa OSM</th>
+                <th>Mapa Satélite</th>
                 <th></th>
             </tr>
         </thead>
@@ -589,70 +582,53 @@ function grMostrarResultado(r){
 }
 
 
-// ---- GOOGLE MAPS ----
-let _gmap = null;
-let _gmapMarkers = [];
-let _gmapTempMarker = null;
-let _gmapTempLatLng = null;
+// ---- LEAFLET MAPS ----
+let _lmap = null;
+let _lmarkers = [];
+let _ltempMarker = null;
+let _ltempLatLng = null;
 
 function grInitGmap(bbox) {
     const centerLat = (bbox[0] + bbox[1]) / 2;
     const centerLon = (bbox[2] + bbox[3]) / 2;
 
-    function _doInit() {
-        _gmap = new google.maps.Map(document.getElementById('gmap'), {
-            center: { lat: centerLat, lng: centerLon },
-            zoom: 13,
-            mapTypeId: 'satellite',
-            tilt: 0,
-            disableDefaultUI: false,
-            zoomControl: true,
-            streetViewControl: false,
-            fullscreenControl: false,
-            mapTypeControl: false,
-        });
-        // Ajustar zoom para cobrir o bbox
-        const bounds = new google.maps.LatLngBounds(
-            { lat: bbox[0], lng: bbox[2] },
-            { lat: bbox[1], lng: bbox[3] }
-        );
-        _gmap.fitBounds(bounds);
-        console.log('[gmap] inicializado, center='+centerLat+','+centerLon);
-    }
+    if (_lmap) { _lmap.remove(); _lmap = null; }
 
-    if (window._gmapReady && window.google && window.google.maps) {
-        _doInit();
-    } else {
-        window._gmapInitCallback = _doInit;
-    }
+    _lmap = L.map('gmap', { zoomControl: true, attributionControl: true });
+
+    // Esri satelite — gratuito, sem API key
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri',
+        maxZoom: 19
+    }).addTo(_lmap);
+
+    // Labels sobre o satelite
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '',
+        maxZoom: 19,
+        opacity: 0.8
+    }).addTo(_lmap);
+
+    // Ajustar para o bbox do municipio
+    _lmap.fitBounds([[bbox[0], bbox[2]], [bbox[1], bbox[3]]]);
+    console.log('[leaflet] inicializado');
 }
 
 function grMarcarAquiGmap() {
-    if (!_gmap) return;
-    // Pegar centro atual do mapa
-    _gmapTempLatLng = _gmap.getCenter();
-    const lat = _gmapTempLatLng.lat();
-    const lng = _gmapTempLatLng.lng();
-    console.log('[gmap] marcando lat='+lat.toFixed(6)+' lng='+lng.toFixed(6));
+    if (!_lmap) return;
+    _ltempLatLng = _lmap.getCenter();
+    const lat = _ltempLatLng.lat;
+    const lng = _ltempLatLng.lng;
+    console.log('[leaflet] marcando lat='+lat.toFixed(6)+' lng='+lng.toFixed(6));
 
-    // Remover marcador temporario anterior
-    if (_gmapTempMarker) _gmapTempMarker.setMap(null);
+    if (_ltempMarker) _lmap.removeLayer(_ltempMarker);
 
-    // Adicionar marcador colorido no centro
     const cor = ['#FF4444','#44DD44','#4499FF','#FFCC00'][GR.pontoAtual-1];
-    _gmapTempMarker = new google.maps.Marker({
-        position: _gmapTempLatLng,
-        map: _gmap,
-        label: { text: String(GR.pontoAtual), color: '#fff', fontWeight: 'bold' },
-        icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            scale: 14,
-            fillColor: cor,
-            fillOpacity: 0.9,
-            strokeColor: '#fff',
-            strokeWeight: 3,
-        }
-    });
+    _ltempMarker = L.circleMarker([lat, lng], {
+        radius: 14, color: '#fff', weight: 3,
+        fillColor: cor, fillOpacity: 0.9
+    }).addTo(_lmap);
+    _ltempMarker.bindTooltip(String(GR.pontoAtual), {permanent:true, className:'leaflet-label', direction:'center'}).openTooltip();
 
     document.getElementById('btn-submit-osm').style.display = 'block';
     document.getElementById('btn-cancel-osm').style.display = 'block';
@@ -660,19 +636,14 @@ function grMarcarAquiGmap() {
 }
 
 function grSubmitGmap() {
-    if (!_gmapTempLatLng) return;
-    const lat = _gmapTempLatLng.lat();
-    const lng = _gmapTempLatLng.lng();
+    if (!_ltempLatLng) return;
+    const lat = _ltempLatLng.lat;
+    const lng = _ltempLatLng.lng;
 
-    // Guardar ponto como lat/lon
     GR.pontos[GR.pontoAtual].o = { lat: lat, lng: lng, xp: null, yp: null, isLatLng: true };
 
-    // Marcador permanente
-    if (_gmapTempMarker) {
-        _gmapMarkers.push(_gmapTempMarker);
-        _gmapTempMarker = null;
-    }
-    _gmapTempLatLng = null;
+    if (_ltempMarker) { _lmarkers.push(_ltempMarker); _ltempMarker = null; }
+    _ltempLatLng = null;
 
     document.getElementById('btn-submit-osm').style.display = 'none';
     document.getElementById('btn-cancel-osm').style.display = 'none';
@@ -681,13 +652,10 @@ function grSubmitGmap() {
     document.getElementById('badge-osm').style.display = 'none';
     document.getElementById('gmap-crosshair').style.display = 'none';
 
-    // Atualizar tabela
     const cell = document.getElementById('co-' + GR.pontoAtual);
     cell.innerHTML = `<span class="gr-badge-ok">✅ Definido</span><span class="gr-coords">(${lat.toFixed(5)}, ${lng.toFixed(5)})</span>`;
 
-    // Proxima etapa
     const pOk = GR.pontos[GR.pontoAtual].p !== null;
-    const oOk = true;
     if (pOk) {
         if (GR.pontoAtual < 4) {
             GR.pontoAtual++;
@@ -708,8 +676,8 @@ function grSubmitGmap() {
 }
 
 function grCancelarPontoGmap() {
-    if (_gmapTempMarker) { _gmapTempMarker.setMap(null); _gmapTempMarker = null; }
-    _gmapTempLatLng = null;
+    if (_ltempMarker) { _lmap.removeLayer(_ltempMarker); _ltempMarker = null; }
+    _ltempLatLng = null;
     document.getElementById('btn-submit-osm').style.display = 'none';
     document.getElementById('btn-cancel-osm').style.display = 'none';
     document.getElementById('btn-marcar-osm').style.display = 'block';
