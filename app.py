@@ -2575,6 +2575,12 @@ def api_mapeamento_georef_analisar():
 
             # Calcular transformacao afim a partir dos pontos manuais
             logs.append({'nivel': 'info', 'msg': '📐 Calculando transformação com pontos de referência...'})
+            # Log dos pontos recebidos para debug
+            for n in range(1,5):
+                p = pontos.get(str(n),{})
+                pp = p.get('p',{}) or {}
+                po = p.get('o',{}) or {}
+                logs.append({'nivel': 'info', 'msg': f'  Ponto {n}: planta=({pp.get("xp","?"):.1f}%,{pp.get("yp","?"):.1f}%) osm=({po.get("xp","?"):.1f}%,{po.get("yp","?"):.1f}%)'})
             # Usar pixels absolutos da imagem original diretamente
             src_pts = np.array([[pontos[str(n)]['p']['xPx'],
                                   pontos[str(n)]['p']['yPx']] for n in range(1,5)], dtype=np.float32)
