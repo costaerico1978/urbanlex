@@ -69,8 +69,10 @@ def mapear_zonas(fpath, fname, municipio, estado, logs, job, tmp):
             logs.append({'nivel': 'aviso', 'msg': '\u26a0\ufe0f Georreferenciamento falhou'})
             job['result'] = resultado
             return
-        H, px_to_ll = geo_result
+        H, px_to_ll, val_pontos_path = geo_result
         resultado['geo_ok'] = True
+        resultado['validacao_pontos_url'] = f"/static/downloads/validacao_pontos_{municipio.replace(' ', '_')}.png"
+        resultado['osm_tiles_url'] = f"/static/downloads/osm_tiles_{municipio.replace(' ', '_')}.png"
 
         # Gerar validacao
         import numpy as _np
@@ -234,10 +236,104 @@ def _buscar_osm(municipio, estado, logs):
         return None
 
 
+
+def _baixar_tiles_osm(bbox, img_w, img_h, logs):
+    """Baixa tiles do OSM e monta imagem de mapa para o bbox do municipio."""
+    import requests
+    import math
+    import numpy as np
+    import cv2
+    from PIL import Image
+    import io
+
+    south, north, west, east = bbox
+
+    # Calcular zoom ideal
+    def lat_to_tile_y(lat, zoom):
+        lat_r = math.radians(lat)
+        n = 2 ** zoom
+        return int((1 - math.log(math.tan(lat_r) + 1/math.cos(lat_r)) / math.pi) / 2 * n)
+
+    def lon_to_tile_x(lon, zoom):
+        n = 2 ** zoom
+        return int((lon + 180) / 360 * n)
+
+    def tile_to_lon(x, zoom):
+        return x / (2 ** zoom) * 360 - 180
+
+    def tile_to_lat(y, zoom):
+        n = math.pi - 2 * math.pi * y / (2 ** zoom)
+        return math.degrees(math.atan(math.sinh(n)))
+
+    # Zoom 14 para municipios pequenos
+    zoom = 14
+
+    x_min = lon_to_tile_x(west, zoom)
+    x_max = lon_to_tile_x(east, zoom)
+    y_min = lat_to_tile_y(north, zoom)
+    y_max = lat_to_tile_y(south, zoom)
+
+    n_tiles_x = x_max - x_min + 1
+    n_tiles_y = y_max - y_min + 1
+    logs.append({'nivel': 'info', 'msg': f'  Baixando {n_tiles_x}x{n_tiles_y} tiles OSM zoom={zoom}...'})
+
+    # Montar imagem de tiles (256x256 cada)
+    tile_size = 256
+    canvas = Image.new('RGB', (n_tiles_x * tile_size, n_tiles_y * tile_size), (240, 240, 240))
+
+    servers = [
+        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    ]
+
+    headers = {'User-Agent': 'UrbanLex/1.0 (georreferenciamento@urbanlex.com.br)'}
+
+    for tx in range(x_min, x_max + 1):
+        for ty in range(y_min, y_max + 1):
+            for srv in servers:
+                try:
+                    url = srv.format(z=zoom, x=tx, y=ty)
+                    r = requests.get(url, headers=headers, timeout=10)
+                    if r.status_code == 200:
+                        tile_img = Image.open(io.BytesIO(r.content)).convert('RGB')
+                        px = (tx - x_min) * tile_size
+                        py = (ty - y_min) * tile_size
+                        canvas.paste(tile_img, (px, py))
+                        break
+                except Exception:
+                    pass
+
+    # Recortar exatamente no bbox
+    total_w = n_tiles_x * tile_size
+    total_h = n_tiles_y * tile_size
+
+    lon_min_tile = tile_to_lon(x_min, zoom)
+    lon_max_tile = tile_to_lon(x_max + 1, zoom)
+    lat_max_tile = tile_to_lat(y_min, zoom)
+    lat_min_tile = tile_to_lat(y_max + 1, zoom)
+
+    crop_x1 = int((west - lon_min_tile) / (lon_max_tile - lon_min_tile) * total_w)
+    crop_x2 = int((east - lon_min_tile) / (lon_max_tile - lon_min_tile) * total_w)
+    crop_y1 = int((lat_max_tile - north) / (lat_max_tile - lat_min_tile) * total_h)
+    crop_y2 = int((lat_max_tile - south) / (lat_max_tile - lat_min_tile) * total_h)
+
+    canvas = canvas.crop((crop_x1, crop_y1, crop_x2, crop_y2))
+
+    # Redimensionar para mesmas dimensoes da planta
+    canvas = canvas.resize((img_w, img_h), Image.LANCZOS)
+
+    # Converter para numpy BGR
+    img = cv2.cvtColor(np.array(canvas), cv2.COLOR_RGB2BGR)
+    logs.append({'nivel': 'ok', 'msg': f'  Tiles OSM montados: {img_w}x{img_h}px'})
+    return img
+
+
 def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio, estado, logs, tmp):
     """
-    Georreferencia a planta usando Gemini Vision para identificar intersecoes de ruas,
-    busca as coordenadas exatas no OSM via Overpass, e calcula transformacao afim.
+    Etapa 1: Gemini identifica 10 pontos coincidentes entre a planta e o mapa OSM.
+    Salva imagem de validacao com pontos marcados para aprovacao do usuario.
+    Etapa 2 (apos aprovacao): calcula transformacao afim e retorna H.
     """
     import numpy as np
     import cv2
@@ -245,194 +341,128 @@ def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio,
     import re
     import json as _j
     import concurrent.futures as _cf
-    import time
     from google import genai as _gv
     from google.genai import types as _gv_types
+    from PIL import Image, ImageDraw
+    import io
 
     south, north, west, east = bbox
 
-    # Salvar imagem para Gemini
-    _img_path = f"{tmp}/planta_geo.png"
-    cv2.imwrite(_img_path, img_planta)
+    # Baixar tiles OSM como mapa visual
+    logs.append({'nivel': 'info', 'msg': '  Baixando mapa OSM (tiles)...'})
+    img_osm_tiles = _baixar_tiles_osm(bbox, img_w, img_h, logs)
 
-    # Pedir ao Gemini para identificar intersecoes de ruas
-    logs.append({'nivel': 'info', 'msg': '  Gemini identificando intersecoes de ruas na planta...'})
+    # Salvar ambas as imagens para Gemini
+    _planta_path = f"{tmp}/planta_orig.png"
+    _osm_path = f"{tmp}/osm_tiles.png"
+    cv2.imwrite(_planta_path, img_planta)
+    cv2.imwrite(_osm_path, img_osm_tiles)
+
+    # Enviar para Gemini pedir 10 pontos coincidentes
+    logs.append({'nivel': 'info', 'msg': '  Gemini identificando pontos coincidentes nos dois mapas...'})
     try:
         client = _gv.Client(api_key=os.environ.get('GEMINI_API_KEY', ''))
-        with open(_img_path, 'rb') as fp:
-            img_bytes = fp.read()
+
+        with open(_planta_path, 'rb') as fp:
+            planta_bytes = fp.read()
+        with open(_osm_path, 'rb') as fp:
+            osm_bytes = fp.read()
 
         prompt = (
-            f"Esta e uma planta de zoneamento de {municipio}/{estado}, Brasil.\n"
-            f"Identifique INTERSECOES de ruas com nomes VISIVEIS no mapa.\n"
-            f"Para cada intersecao, informe:\n"
-            f"1. O nome da rua principal\n"
-            f"2. O nome da rua secundaria que a cruza\n"
-            f"3. A posicao X do ponto de cruzamento como porcentagem da largura (0-100)\n"
-            f"4. A posicao Y do ponto de cruzamento como porcentagem da altura (0-100)\n\n"
-            f"Foque nas intersecoes de vias PRINCIPAIS e NOMEADAS (evite ruas sem nome).\n"
+            f"Voce recebera DUAS imagens de mapas da mesma area: {municipio}/{estado}, Brasil.\n"
+            f"IMAGEM 1: Planta de zoneamento municipal (colorida, com legenda lateral)\n"
+            f"IMAGEM 2: Mapa OpenStreetMap da mesma area\n\n"
+            f"Identifique 10 pontos geograficos que aparecem nos DOIS mapas.\n"
+            f"Use referencias geograficas claras: intersecoes de vias, curvas caracteristicas, limites de bairros, etc.\n\n"
+            f"Para cada ponto, informe:\n"
+            f"- descricao: o que e esse ponto geografico\n"
+            f"- planta_x: posicao X na IMAGEM 1 (0 a 100, porcentagem da largura)\n"
+            f"- planta_y: posicao Y na IMAGEM 1 (0 a 100, porcentagem da altura)\n"
+            f"- osm_x: posicao X na IMAGEM 2 (0 a 100, porcentagem da largura)\n"
+            f"- osm_y: posicao Y na IMAGEM 2 (0 a 100, porcentagem da altura)\n\n"
+            f"IMPORTANTE: A planta tem legenda no canto direito — considere apenas a area do mapa.\n"
             f"Responda APENAS com JSON valido:\n"
-            f'[{{"rua1":"Estrada do Mar","rua2":"ERS-389","x_pct":55.2,"y_pct":80.1}}]\n\n'
-            f"Identifique ao menos 5 intersecoes diferentes se possivel."
+            f'[{{"descricao":"Curva ERS-389 norte","planta_x":42.1,"planta_y":15.3,"osm_x":61.5,"osm_y":9.8}}]'
         )
 
-        parts = [_gv_types.Part.from_text(text=prompt),
-                 _gv_types.Part.from_bytes(data=img_bytes, mime_type='image/png')]
+        parts = [
+            _gv_types.Part.from_text(text=prompt),
+            _gv_types.Part.from_bytes(data=planta_bytes, mime_type='image/png'),
+            _gv_types.Part.from_bytes(data=osm_bytes, mime_type='image/png'),
+        ]
 
         ex = _cf.ThreadPoolExecutor(max_workers=1)
         fut = ex.submit(client.models.generate_content, model='gemini-2.5-flash', contents=parts)
         try:
-            resp = fut.result(timeout=120)
+            resp = fut.result(timeout=180)
             ex.shutdown(wait=False)
         except _cf.TimeoutError:
             ex.shutdown(wait=False)
-            logs.append({'nivel': 'aviso', 'msg': '  Gemini timeout na identificacao de intersecoes'})
+            logs.append({'nivel': 'aviso', 'msg': '  Gemini timeout'})
             return None
 
         txt = re.sub(r'^```json\s*|\s*```$', '', resp.text.strip())
-        intersecoes = _j.loads(txt)
-        logs.append({'nivel': 'info', 'msg': f'  {len(intersecoes)} intersecoes identificadas pelo Gemini'})
-        for v in intersecoes:
-            logs.append({'nivel': 'info', 'msg': f'    - {v["rua1"]} x {v["rua2"]} ({v["x_pct"]:.1f}%, {v["y_pct"]:.1f}%)'})
+        pontos = _j.loads(txt)
+        logs.append({'nivel': 'ok', 'msg': f'  {len(pontos)} pontos identificados pelo Gemini'})
+        for p in pontos:
+            logs.append({'nivel': 'info', 'msg': f'    - {p["descricao"]} | planta=({p["planta_x"]:.1f}%,{p["planta_y"]:.1f}%) osm=({p["osm_x"]:.1f}%,{p["osm_y"]:.1f}%)'})
 
     except Exception as e:
         logs.append({'nivel': 'aviso', 'msg': f'  Erro Gemini: {str(e)[:100]}'})
         return None
 
-    # Buscar coordenadas exatas das intersecoes via OSM Overpass
-    logs.append({'nivel': 'info', 'msg': '  Buscando coordenadas das intersecoes no OSM...'})
-    correspondencias = []
-
-    _overpass_servers = [
-        "https://overpass-api.de/api/interpreter",
-        "https://overpass.kumi.systems/api/interpreter",
-        "https://overpass.private.coffee/api/interpreter",
+    # Gerar imagem de validacao com pontos marcados nos dois mapas
+    cores = [
+        (255, 50, 50), (50, 255, 50), (50, 150, 255), (255, 200, 0), (255, 0, 255),
+        (0, 255, 200), (255, 128, 0), (128, 0, 255), (0, 200, 255), (255, 255, 0)
     ]
+    letras = 'ABCDEFGHIJ'
 
-    for inter in intersecoes:
-        rua1 = inter.get('rua1', '')
-        rua2 = inter.get('rua2', '')
-        if not rua1 or not rua2:
-            continue
+    planta_vis = img_planta.copy()
+    osm_vis = img_osm_tiles.copy()
 
-        # Query Overpass: buscar no de intersecao entre as duas ruas
-        query = f"""[out:json][timeout:15];
-area["name"="{municipio}"]["boundary"="administrative"]->.municipio;
-(
-  way["name"~"{rua1}",i](area.municipio);
-  way["name"~"{rua2}",i](area.municipio);
-);
-node(w)->.nos;
-(
-  way["name"~"{rua1}",i](area.municipio);
-)->.r1;
-(
-  way["name"~"{rua2}",i](area.municipio);
-)->.r2;
-node(w.r1)(w.r2);
-out body;"""
+    for i, p in enumerate(pontos[:10]):
+        cor = cores[i % len(cores)]
+        letra = letras[i]
 
-        lat, lon = None, None
-        for srv in _overpass_servers:
-            try:
-                r = requests.post(srv, data={"data": query}, timeout=20)
-                if r.status_code == 200:
-                    data = r.json()
-                    nodes = data.get('elements', [])
-                    if nodes:
-                        # Usar o primeiro no encontrado
-                        lat = nodes[0]['lat']
-                        lon = nodes[0]['lon']
-                        break
-            except Exception:
-                pass
-            time.sleep(1)
+        # Marcar na planta
+        px = int(p['planta_x'] / 100 * img_w)
+        py = int(p['planta_y'] / 100 * img_h)
+        cv2.circle(planta_vis, (px, py), 20, cor, 4)
+        cv2.circle(planta_vis, (px, py), 5, cor, -1)
+        cv2.putText(planta_vis, letra, (px+22, py-10), cv2.FONT_HERSHEY_SIMPLEX, 1.2, cor, 3)
 
-        if lat and lon:
-            px = (inter['x_pct'] / 100.0) * img_w
-            py = (inter['y_pct'] / 100.0) * img_h
-            correspondencias.append({
-                'nome': f"{rua1} x {rua2}",
-                'px': px, 'py': py,
-                'lat': lat, 'lon': lon
-            })
-            logs.append({'nivel': 'info', 'msg': f'    OK {rua1} x {rua2}: ({lat:.5f}, {lon:.5f})'})
-        else:
-            # Fallback: geocodificar via Nominatim usando as duas ruas
-            logs.append({'nivel': 'aviso', 'msg': f'    Overpass sem resultado, tentando Nominatim: {rua1} x {rua2}'})
-            try:
-                r = requests.get("https://nominatim.openstreetmap.org/search",
-                    params={"q": f"{rua1} e {rua2}, {municipio}, {estado}, Brasil",
-                            "format": "json", "limit": 1,
-                            "viewbox": f"{west},{north},{east},{south}",
-                            "bounded": 1},
-                    headers={"User-Agent": "UrbanLex/1.0"}, timeout=10)
-                results = r.json()
-                if not results:
-                    # Tentar so a rua principal
-                    r = requests.get("https://nominatim.openstreetmap.org/search",
-                        params={"q": f"{rua1}, {municipio}, {estado}, Brasil",
-                                "format": "json", "limit": 1,
-                                "viewbox": f"{west},{north},{east},{south}",
-                                "bounded": 1},
-                        headers={"User-Agent": "UrbanLex/1.0"}, timeout=10)
-                    results = r.json()
-                if results:
-                    lat = float(results[0]['lat'])
-                    lon = float(results[0]['lon'])
-                    px = (inter['x_pct'] / 100.0) * img_w
-                    py = (inter['y_pct'] / 100.0) * img_h
-                    correspondencias.append({
-                        'nome': f"{rua1} (nominatim)",
-                        'px': px, 'py': py,
-                        'lat': lat, 'lon': lon
-                    })
-                    logs.append({'nivel': 'info', 'msg': f'    OK (nominatim) {rua1}: ({lat:.5f}, {lon:.5f})'})
-                else:
-                    logs.append({'nivel': 'aviso', 'msg': f'    Nao encontrado: {rua1} x {rua2}'})
-            except Exception as e:
-                logs.append({'nivel': 'aviso', 'msg': f'    Erro nominatim: {str(e)[:50]}'})
-        time.sleep(1)
+        # Marcar no OSM
+        ox = int(p['osm_x'] / 100 * img_w)
+        oy = int(p['osm_y'] / 100 * img_h)
+        cv2.circle(osm_vis, (ox, oy), 20, cor, 4)
+        cv2.circle(osm_vis, (ox, oy), 5, cor, -1)
+        cv2.putText(osm_vis, letra, (ox+22, oy-10), cv2.FONT_HERSHEY_SIMPLEX, 1.2, cor, 3)
 
-    if len(correspondencias) < 3:
-        logs.append({'nivel': 'aviso', 'msg': f'  Apenas {len(correspondencias)} correspondencias — insuficiente (minimo 3)'})
-        return None
+    # Salvar imagem de validacao lado a lado
+    sep = np.full((img_h, 20, 3), 60, dtype=np.uint8)
+    val_img = np.hstack([planta_vis, sep, osm_vis])
+    val_path = f"/var/www/urbanlex/static/downloads/validacao_pontos_{municipio.replace(' ', '_')}.png"
+    cv2.imwrite(val_path, val_img)
 
-    logs.append({'nivel': 'ok', 'msg': f'  {len(correspondencias)} pontos de controle para georreferenciamento'})
+    # Salvar tambem tiles OSM para referencia
+    osm_path = f"/var/www/urbanlex/static/downloads/osm_tiles_{municipio.replace(' ', '_')}.png"
+    cv2.imwrite(osm_path, img_osm_tiles)
 
-    def ll_to_osm_px(lat, lon):
-        x = (lon - west) / (east - west) * img_w
-        y = (north - lat) / (north - south) * img_h
-        return x, y
+    logs.append({'nivel': 'ok', 'msg': '  Imagem de validacao gerada — confira os pontos antes de continuar'})
 
-    src_pts = np.array([[c['px'], c['py']] for c in correspondencias], dtype=np.float32)
-    dst_pts = np.array([ll_to_osm_px(c['lat'], c['lon']) for c in correspondencias], dtype=np.float32)
+    # Calcular transformacao afim com os pontos
+    src_pts = np.array([[p['planta_x']/100*img_w, p['planta_y']/100*img_h] for p in pontos[:10]], dtype=np.float32)
+    dst_pts = np.array([[p['osm_x']/100*img_w, p['osm_y']/100*img_h] for p in pontos[:10]], dtype=np.float32)
 
-    M, inliers = cv2.estimateAffinePartial2D(src_pts, dst_pts, method=cv2.RANSAC, ransacReprojThreshold=15.0)
+    M, inliers = cv2.estimateAffinePartial2D(src_pts, dst_pts, method=cv2.RANSAC, ransacReprojThreshold=20.0)
     if M is None:
         logs.append({'nivel': 'aviso', 'msg': '  Falha ao calcular transformacao afim'})
         return None
+
     inliers_count = int(inliers.sum()) if inliers is not None else 0
-    logs.append({'nivel': 'ok', 'msg': f'  Transformacao afim calculada: {inliers_count}/{len(correspondencias)} inliers'})
-
-    # Validar escala da transformacao (deve ser proxima de 1.0)
     scale = np.sqrt(M[0, 0]**2 + M[1, 0]**2)
-    tx, ty = M[0, 2], M[1, 2]
-    logs.append({'nivel': 'info', 'msg': f'  M: escala={scale:.3f} tx={tx:.1f} ty={ty:.1f}'})
-
-    if scale < 0.1 or scale > 10.0:
-        logs.append({'nivel': 'aviso', 'msg': f'  Escala invalida ({scale:.3f}) — transformacao descartada'})
-        return None
-
-    # Verificar se a transformacao mantem a planta dentro dos limites
-    corners = np.array([[0,0],[img_w,0],[0,img_h],[img_w,img_h]], dtype=np.float32)
-    corners_t = cv2.transform(corners.reshape(1,-1,2), M).reshape(-1,2)
-    in_bounds = np.sum((corners_t[:,0] >= -img_w) & (corners_t[:,0] <= 2*img_w) &
-                       (corners_t[:,1] >= -img_h) & (corners_t[:,1] <= 2*img_h))
-    logs.append({'nivel': 'info', 'msg': f'  Cantos transformados: {in_bounds}/4 dentro dos limites'})
-    if in_bounds < 2:
-        logs.append({'nivel': 'aviso', 'msg': '  Planta fora dos limites — transformacao descartada'})
-        return None
+    logs.append({'nivel': 'ok', 'msg': f'  Transformacao: escala={scale:.3f} inliers={inliers_count}/{len(pontos)}'})
 
     M_full = np.eye(3, dtype=np.float32)
     M_full[:2, :] = M
@@ -442,7 +472,7 @@ out body;"""
         lat = north - (y / img_h) * (north - south)
         return lat, lon
 
-    return M_full, px_to_ll
+    return M_full, px_to_ll, val_path
 
 
 
