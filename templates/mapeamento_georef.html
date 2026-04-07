@@ -574,12 +574,26 @@ function grMostrarResultado(r){
     if(r.validacao_pontos_url||r.validacao_url){
         const url=r.validacao_pontos_url||r.validacao_url;
         html+=`<h4 style="color:var(--accent);margin:16px 0 8px">🔍 Validação do Alinhamento</h4>
-            <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Planta de zoneamento sobreposta ao mapa OSM. Círculos = pontos de referência marcados.</p>
-            <img src="${url}?t=${Date.now()}" style="width:100%;border-radius:8px;border:1px solid var(--border);margin-bottom:12px">
-            <a href="${url}" class="btn btn-secondary" download style="margin-right:8px">📥 Baixar validação</a>`;
+            <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Planta de zoneamento sobreposta ao mapa satélite.</p>
+            <img src="${url}?t=${Date.now()}" style="width:100%;border-radius:8px;border:1px solid var(--border);margin-bottom:8px">
+            <a href="${url}" class="btn btn-secondary" download style="margin-right:8px;margin-bottom:12px">📥 Baixar validação</a>`;
+    }
+    if(r.zonas && r.zonas.length){
+        html+=`<h4 style="color:var(--accent);margin:16px 0 8px">🗂️ Zonas Detectadas (${r.zonas.length})</h4>`;
+        html+=`<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px"><tr>
+            <th style="padding:8px;border:1px solid var(--border);background:var(--surface2);text-align:left">Zona</th>
+            <th style="padding:8px;border:1px solid var(--border);background:var(--surface2);text-align:left">Cor</th>
+            <th style="padding:8px;border:1px solid var(--border);background:var(--surface2);text-align:left">Área km²</th></tr>`;
+        r.zonas.forEach(z=>{
+            html+=`<tr>
+                <td style="padding:8px;border:1px solid var(--border)">${z.nome}</td>
+                <td style="padding:8px;border:1px solid var(--border)"><div style="width:20px;height:20px;background:${z.cor};border-radius:3px;display:inline-block;border:1px solid #333"></div></td>
+                <td style="padding:8px;border:1px solid var(--border)">${z.area_km2||'—'}</td></tr>`;
+        });
+        html+='</table>';
     }
     if(r.kml_url){
-        html+=`<a href="${r.kml_url}" class="btn btn-primary" download>📥 Baixar KML</a>`;
+        html+=`<a href="${r.kml_url}" class="btn btn-primary" download style="margin-right:8px">📥 Baixar KML</a>`;
     }
     div.innerHTML=html;
 }
