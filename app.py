@@ -2618,6 +2618,36 @@ def api_mapeamento_georef_analisar():
             _, mask = cv2.threshold(mask, 10, 255, cv2.THRESH_BINARY)
             mask_3ch = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR) / 255.0
             val = (img_osm.astype(float) * (1 - mask_3ch * 0.5) + planta_warp.astype(float) * mask_3ch * 0.5).astype(np.uint8)
+
+            # Desenhar pontos de referencia na imagem de validacao
+            cores_val = [(0,0,255),(0,200,0),(255,100,0),(200,0,200)]
+            for n in range(1, 5):
+                p = pontos.get(str(n), {})
+                pp = p.get('p', {})
+                po = p.get('o', {})
+                cor = cores_val[n-1]
+                # Ponto na planta (transformado para OSM)
+                if pp:
+                    px_p = int(pp.get('xp', 0) / 100 * img_w)
+                    py_p = int(pp.get('yp', 0) / 100 * img_h)
+                    # Transformar ponto da planta para OSM
+                    pt = np.array([[[float(px_p), float(py_p)]]], dtype=np.float32)
+                    pt_t = cv2.transform(pt, H[:2, :]).reshape(2)
+                    tx, ty = int(pt_t[0]), int(pt_t[1])
+                    cv2.circle(val, (tx, ty), 18, cor, -1)
+                    cv2.circle(val, (tx, ty), 22, (255,255,255), 3)
+                    cv2.putText(val, str(n), (tx-7, ty+6), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255,255,255), 2)
+                # Ponto no OSM (posicao original)
+                if po:
+                    ox = int(po.get('xp', 0) / 100 * img_w)
+                    oy = int(po.get('yp', 0) / 100 * img_h)
+                    cv2.circle(val, (ox, oy), 18, cor, 2)
+                    cv2.circle(val, (ox, oy), 22, (255,255,255), 3)
+                    # Linha ligando ponto planta transformado ao ponto OSM
+                    if pp:
+                        cv2.line(val, (tx, ty), (ox, oy), cor, 2)
+                    cv2.putText(val, str(n), (ox-7, oy+6), cv2.FONT_HERSHEY_SIMPLEX, 0.8, cor, 2)
+
             val_path = f"/var/www/urbanlex/static/downloads/validacao_{municipio.replace(' ','_')}.png"
             cv2.imwrite(val_path, val)
             job['result'] = {
