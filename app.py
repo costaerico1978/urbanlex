@@ -2489,15 +2489,18 @@ def _baixar_google_maps(bbox, img_w, img_h, api_key, logs):
         return 10
 
     zoom = zoom_level(north - south, east - west, img_w, img_h)
-    zoom = max(10, min(zoom, 17))
+    zoom = max(10, min(zoom, 16))
+    # Reduzir zoom em 1 para garantir que todo o municipio apareca
+    zoom = max(10, zoom - 1)
 
-    # Google Maps Static API — max 640x640 sem premium (ou 2048x2048 com premium)
+    # Google Maps Static API com scale=2 para maior resolucao (1280x1280 efetivo)
     size = 640
     url = (
         f"https://maps.googleapis.com/maps/api/staticmap"
         f"?center={center_lat},{center_lon}"
         f"&zoom={zoom}"
         f"&size={size}x{size}"
+        f"&scale=2"
         f"&maptype=roadmap"
         f"&key={api_key}"
     )
