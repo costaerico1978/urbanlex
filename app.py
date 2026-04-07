@@ -2730,8 +2730,14 @@ def api_mapeamento_georef_analisar():
                     cv2.putText(val, str(n), (tx-7, ty+6), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255,255,255), 2)
                 # Ponto no OSM (posicao original)
                 if po:
-                    ox = int(po.get('xp', 0) / 100 * img_w)
-                    oy = int(po.get('yp', 0) / 100 * img_h)
+                    if po.get('isLatLng'):
+                        _lat = po.get('lat', 0)
+                        _lng = po.get('lng', 0)
+                        ox = int((_lng - west) / (east - west) * img_w)
+                        oy = int((north - _lat) / (north - south) * img_h)
+                    else:
+                        ox = int((po.get('xp') or 0) / 100 * img_w)
+                        oy = int((po.get('yp') or 0) / 100 * img_h)
                     cv2.circle(val, (ox, oy), 18, cor, 2)
                     cv2.circle(val, (ox, oy), 22, (255,255,255), 3)
                     # Linha ligando ponto planta transformado ao ponto OSM
