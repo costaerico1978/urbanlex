@@ -2596,15 +2596,15 @@ def api_mapeamento_georef_analisar():
                 lat = north - (y / img_h) * (north - south)
                 return lat, lon
 
-            # Gerar validacao
+            # Gerar validacao — planta colorida semitransparente sobre OSM
             img_planta = cv2.imread(meta['planta_path'])
             img_osm = cv2.imread(meta['osm_path'])
             planta_warp = cv2.warpAffine(img_planta, H[:2,:], (img_w, img_h))
-            planta_edges = cv2.Canny(cv2.cvtColor(planta_warp, cv2.COLOR_BGR2GRAY), 30, 90)
-            osm_edges = cv2.Canny(cv2.cvtColor(img_osm, cv2.COLOR_BGR2GRAY), 30, 90)
-            val = np.zeros((img_h, img_w, 3), dtype=np.uint8)
-            val[:,:,0] = planta_edges
-            val[:,:,2] = osm_edges
+            # Misturar: OSM como fundo, planta com 50% opacidade
+            mask = cv2.cvtColor(planta_warp, cv2.COLOR_BGR2GRAY)
+            _, mask = cv2.threshold(mask, 10, 255, cv2.THRESH_BINARY)
+            mask_3ch = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR) / 255.0
+            val = (img_osm.astype(float) * (1 - mask_3ch * 0.5) + planta_warp.astype(float) * mask_3ch * 0.5).astype(np.uint8)
             val_path = f"/var/www/urbanlex/static/downloads/validacao_{municipio.replace(' ','_')}.png"
             cv2.imwrite(val_path, val)
             job['result'] = {
