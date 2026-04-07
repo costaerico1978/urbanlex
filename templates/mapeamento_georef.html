@@ -266,11 +266,16 @@ async function grCarregarMapas(){
                 const d=poll.result;
                 if(!d||!d.success){alert('Erro: '+(d&&d.error||'desconhecido'));btn.disabled=false;btn.textContent='🗺️ Carregar Mapas';statusEl.style.display='none';return;}
                 window._grMetaKey=d.meta_key;
+                // Aguardar layout estabilizar antes de inicializar mapas
+                await new Promise(r=>setTimeout(r,300));
                 if(d.bbox) grInitGmap(d.bbox);
                 await grLoadImg('planta',d.planta_url);
-                // Forcar refit e render apos carregamento assincrono
                 grFitCanvas('planta'); grDraw('planta');
-                if(typeof _lmap!=='undefined'&&_lmap) setTimeout(()=>_lmap.invalidateSize(),200);
+                // Forcar Leaflet a recalcular tamanho
+                if(typeof _lmap!=='undefined'&&_lmap){
+                    _lmap.invalidateSize(true);
+                    setTimeout(()=>_lmap.invalidateSize(true),500);
+                }
                 document.getElementById('btn-upscale').style.display='inline-block';
                 statusEl.style.display='none';
                 break;
@@ -702,6 +707,9 @@ function grInitGmap(bbox) {
 
     if (_lmap) { _lmap.remove(); _lmap = null; }
 
+    // Garantir que container tem dimensoes corretas
+    const gmapEl = document.getElementById('gmap');
+    if(!gmapEl.clientHeight){ gmapEl.style.height='380px'; }
     _lmap = L.map('gmap', { zoomControl: true, attributionControl: true });
 
     // Esri satelite — gratuito, sem API key
