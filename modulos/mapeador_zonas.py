@@ -237,99 +237,73 @@ def _buscar_osm(municipio, estado, logs):
 
 
 
+
 def _baixar_tiles_osm(bbox, img_w, img_h, logs):
-    """Baixa tiles do OSM e monta imagem de mapa para o bbox do municipio."""
+    """Baixa imagem do Google Maps Static API para o bbox do municipio."""
     import requests
-    import math
     import numpy as np
     import cv2
     from PIL import Image
     import io
+    import os
+    import math
 
     south, north, west, east = bbox
 
-    # Calcular zoom ideal
-    def lat_to_tile_y(lat, zoom):
-        lat_r = math.radians(lat)
-        n = 2 ** zoom
-        return int((1 - math.log(math.tan(lat_r) + 1/math.cos(lat_r)) / math.pi) / 2 * n)
+    GMAPS_KEY = os.environ.get('GOOGLE_MAPS_KEY', 'AIzaSyCuiZTfrnvUC-1X_suD3w6iGVyT_bhdVpQ')
 
-    def lon_to_tile_x(lon, zoom):
-        n = 2 ** zoom
-        return int((lon + 180) / 360 * n)
+    # Centro do bbox
+    center_lat = (south + north) / 2
+    center_lon = (west + east) / 2
 
-    def tile_to_lon(x, zoom):
-        return x / (2 ** zoom) * 360 - 180
+    # Calcular zoom ideal para cobrir o bbox
+    def get_zoom(south, north, west, east, img_w, img_h):
+        WORLD_DIM = 256
+        lat_rad = lambda lat: math.radians(lat)
+        lat_to_mercator = lambda lat: math.log(math.tan(math.pi/4 + lat_rad(lat)/2))
 
-    def tile_to_lat(y, zoom):
-        n = math.pi - 2 * math.pi * y / (2 ** zoom)
-        return math.degrees(math.atan(math.sinh(n)))
+        lat_fraction = (lat_to_mercator(north) - lat_to_mercator(south)) / (2 * math.pi)
+        lon_fraction = (east - west) / 360.0
 
-    # Zoom 14 para municipios pequenos
-    zoom = 14
+        lat_zoom = math.log2(img_h / WORLD_DIM / lat_fraction) if lat_fraction > 0 else 15
+        lon_zoom = math.log2(img_w / WORLD_DIM / lon_fraction) if lon_fraction > 0 else 15
 
-    x_min = lon_to_tile_x(west, zoom)
-    x_max = lon_to_tile_x(east, zoom)
-    y_min = lat_to_tile_y(north, zoom)
-    y_max = lat_to_tile_y(south, zoom)
+        return max(1, min(20, int(min(lat_zoom, lon_zoom))))
 
-    n_tiles_x = x_max - x_min + 1
-    n_tiles_y = y_max - y_min + 1
-    logs.append({'nivel': 'info', 'msg': f'  Baixando {n_tiles_x}x{n_tiles_y} tiles OSM zoom={zoom}...'})
+    zoom = get_zoom(south, north, west, east, img_w, img_h)
+    logs.append({'nivel': 'info', 'msg': f'  Google Maps Static: zoom={zoom}, centro=({center_lat:.4f},{center_lon:.4f})'})
 
-    # Montar imagem de tiles (256x256 cada)
-    tile_size = 256
-    canvas = Image.new('RGB', (n_tiles_x * tile_size, n_tiles_y * tile_size), (240, 240, 240))
+    # Google Maps Static API — max 640x640 na versão gratuita, 2048x2048 no plano pago
+    # Usar 640x640 e redimensionar depois
+    size = 640
 
-    servers = [
-        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    ]
+    url = (
+        f"https://maps.googleapis.com/maps/api/staticmap"
+        f"?center={center_lat},{center_lon}"
+        f"&zoom={zoom}"
+        f"&size={size}x{size}"
+        f"&maptype=roadmap"
+        f"&scale=2"
+        f"&key={GMAPS_KEY}"
+    )
 
-    headers = {'User-Agent': 'UrbanLex/1.0 (georreferenciamento@urbanlex.com.br)'}
+    try:
+        r = requests.get(url, timeout=15)
+        if r.status_code != 200:
+            logs.append({'nivel': 'aviso', 'msg': f'  Google Maps erro {r.status_code}'})
+            return None
 
-    for tx in range(x_min, x_max + 1):
-        for ty in range(y_min, y_max + 1):
-            for srv in servers:
-                try:
-                    url = srv.format(z=zoom, x=tx, y=ty)
-                    r = requests.get(url, headers=headers, timeout=10)
-                    if r.status_code == 200:
-                        tile_img = Image.open(io.BytesIO(r.content)).convert('RGB')
-                        px = (tx - x_min) * tile_size
-                        py = (ty - y_min) * tile_size
-                        canvas.paste(tile_img, (px, py))
-                        break
-                except Exception:
-                    pass
+        img_pil = Image.open(io.BytesIO(r.content)).convert('RGB')
+        img = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
 
-    # Recortar exatamente no bbox
-    total_w = n_tiles_x * tile_size
-    total_h = n_tiles_y * tile_size
+        # Redimensionar para as dimensoes da planta
+        img = cv2.resize(img, (img_w, img_h), interpolation=cv2.INTER_AREA)
+        logs.append({'nivel': 'ok', 'msg': f'  Google Maps carregado: {img_w}x{img_h}px'})
+        return img
 
-    lon_min_tile = tile_to_lon(x_min, zoom)
-    lon_max_tile = tile_to_lon(x_max + 1, zoom)
-    lat_max_tile = tile_to_lat(y_min, zoom)
-    lat_min_tile = tile_to_lat(y_max + 1, zoom)
-
-    crop_x1 = int((west - lon_min_tile) / (lon_max_tile - lon_min_tile) * total_w)
-    crop_x2 = int((east - lon_min_tile) / (lon_max_tile - lon_min_tile) * total_w)
-    crop_y1 = int((lat_max_tile - north) / (lat_max_tile - lat_min_tile) * total_h)
-    crop_y2 = int((lat_max_tile - south) / (lat_max_tile - lat_min_tile) * total_h)
-
-    canvas = canvas.crop((crop_x1, crop_y1, crop_x2, crop_y2))
-
-    # Redimensionar para mesmas dimensoes da planta
-    canvas = canvas.resize((img_w, img_h), Image.LANCZOS)
-
-    # Converter para numpy BGR
-    img = cv2.cvtColor(np.array(canvas), cv2.COLOR_RGB2BGR)
-    logs.append({'nivel': 'ok', 'msg': f'  Tiles OSM montados: {img_w}x{img_h}px'})
-    return img
-
-
-
+    except Exception as e:
+        logs.append({'nivel': 'aviso', 'msg': f'  Erro Google Maps: {str(e)[:80]}'})
+        return None
 
 
 

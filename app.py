@@ -2513,6 +2513,8 @@ def api_mapeamento_preparar():
     bbox = (float(osm_data['_south']), float(osm_data['_north']),
             float(osm_data['_west']), float(osm_data['_east']))
     img_osm = _baixar_tiles_osm(bbox, w, h, logs)
+    if img_osm is None:
+        return jsonify({'success': False, 'error': 'Não foi possível obter mapa Google Maps'})
     osm_key = hashlib.md5(f"{municipio}{estado}osm".encode()).hexdigest()[:12]
     osm_dest = f"/var/www/urbanlex/static/downloads/georef_osm_{osm_key}.png"
     cv2.imwrite(osm_dest, img_osm)
