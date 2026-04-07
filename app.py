@@ -2455,6 +2455,184 @@ def buscador_anexos():
     return render_template('buscador_anexos.html',
         active_page='buscador-anexos',
         active_group='buscador')
+
+@app.route('/mapeamento/georef')
+@login_required
+def mapeamento_georef():
+    return render_template('mapeamento_georef.html',
+        active_page='mapeamento-georef',
+        active_group='buscador')
+
+@app.route('/api/mapeamento/preparar', methods=['POST'])
+@login_required
+def api_mapeamento_preparar():
+    """Prepara os mapas: converte planta para PNG e baixa tiles OSM."""
+    import os, tempfile, subprocess, hashlib
+    from modulos.mapeador_zonas import _buscar_osm, _baixar_tiles_osm
+    f = request.files.get('arquivo')
+    municipio = request.form.get('municipio', 'Municipio')
+    estado = request.form.get('estado', 'XX')
+    if not f:
+        return jsonify({'success': False, 'error': 'Nenhum arquivo enviado'})
+    tmp = tempfile.mkdtemp()
+    fpath = os.path.join(tmp, f.filename)
+    f.save(fpath)
+
+    # Converter PDF para PNG
+    ext = os.path.splitext(f.filename)[1].lower()
+    if ext == '.pdf':
+        subprocess.run(['gs','-dNOPAUSE','-dBATCH','-sDEVICE=png16m','-r150',
+            f'-sOutputFile={tmp}/mapa_%03d.png', fpath], capture_output=True, timeout=120)
+        pages = sorted([x for x in os.listdir(tmp) if x.startswith('mapa_') and x.endswith('.png')])
+        if not pages:
+            return jsonify({'success': False, 'error': 'Falha ao converter PDF'})
+        planta_png = os.path.join(tmp, pages[0])
+    else:
+        planta_png = fpath
+
+    # Salvar planta
+    planta_key = hashlib.md5(f"{municipio}{estado}planta".encode()).hexdigest()[:12]
+    planta_dest = f"/var/www/urbanlex/static/downloads/georef_planta_{planta_key}.png"
+    import shutil, cv2, numpy as np
+    img = cv2.imread(planta_png)
+    if img is None:
+        return jsonify({'success': False, 'error': 'Imagem inválida'})
+    # Redimensionar para max 2000px
+    h, w = img.shape[:2]
+    if w > 2000:
+        scale = 2000 / w
+        img = cv2.resize(img, (int(w*scale), int(h*scale)), interpolation=cv2.INTER_AREA)
+    cv2.imwrite(planta_dest, img)
+    h, w = img.shape[:2]
+
+    # Buscar OSM e baixar tiles
+    logs = []
+    osm_data = _buscar_osm(municipio, estado, logs)
+    if not osm_data:
+        return jsonify({'success': False, 'error': 'Não foi possível obter dados OSM'})
+    bbox = (float(osm_data['_south']), float(osm_data['_north']),
+            float(osm_data['_west']), float(osm_data['_east']))
+    img_osm = _baixar_tiles_osm(bbox, w, h, logs)
+    osm_key = hashlib.md5(f"{municipio}{estado}osm".encode()).hexdigest()[:12]
+    osm_dest = f"/var/www/urbanlex/static/downloads/georef_osm_{osm_key}.png"
+    cv2.imwrite(osm_dest, img_osm)
+
+    # Salvar metadados na sessão via arquivo temporario
+    import json
+    meta = {'municipio': municipio, 'estado': estado, 'bbox': list(bbox),
+            'w': w, 'h': h, 'planta_key': planta_key, 'osm_key': osm_key,
+            'planta_path': planta_dest, 'osm_path': osm_dest}
+    meta_path = f"/var/www/urbanlex/static/downloads/georef_meta_{planta_key}.json"
+    with open(meta_path, 'w') as mf:
+        json.dump(meta, mf)
+
+    return jsonify({
+        'success': True,
+        'planta_url': f'/static/downloads/georef_planta_{planta_key}.png',
+        'osm_url': f'/static/downloads/georef_osm_{osm_key}.png',
+        'meta_key': planta_key
+    })
+
+@app.route('/api/mapeamento/georef-analisar', methods=['POST'])
+@login_required
+def api_mapeamento_georef_analisar():
+    """Inicia análise com pontos de referência manuais."""
+    import threading, uuid, json, os, cv2, numpy as np
+    data = request.get_json()
+    municipio = data.get('municipio', '')
+    estado = data.get('estado', '')
+    pontos = data.get('pontos', {})
+
+    job_id = str(uuid.uuid4())[:12]
+    job = {'logs': [], 'done': False, 'result': None}
+    _buscador_jobs[job_id] = job
+
+    def _run():
+        try:
+            from modulos.mapeador_zonas import _buscar_osm, _renderizar_osm, _segmentar_zonas, _gerar_kml
+            logs = job['logs']
+
+            # Encontrar meta
+            import glob
+            metas = glob.glob('/var/www/urbanlex/static/downloads/georef_meta_*.json')
+            meta = None
+            for m in sorted(metas, key=os.path.getmtime, reverse=True):
+                with open(m) as f:
+                    d = json.load(f)
+                if d['municipio'] == municipio and d['estado'] == estado:
+                    meta = d
+                    break
+            if not meta:
+                logs.append({'nivel': 'erro', 'msg': 'Metadados não encontrados — recarregue os mapas'})
+                job['done'] = True
+                return
+
+            img_w, img_h = meta['w'], meta['h']
+            bbox = tuple(meta['bbox'])
+            south, north, west, east = bbox
+
+            # Calcular transformacao afim a partir dos pontos manuais
+            logs.append({'nivel': 'info', 'msg': '📐 Calculando transformação com pontos de referência...'})
+            src_pts = np.array([[pontos[str(n)]['planta']['xPct']/100*img_w,
+                                  pontos[str(n)]['planta']['yPct']/100*img_h] for n in range(1,5)], dtype=np.float32)
+            dst_pts = np.array([[pontos[str(n)]['osm']['xPct']/100*img_w,
+                                  pontos[str(n)]['osm']['yPct']/100*img_h] for n in range(1,5)], dtype=np.float32)
+
+            M, inliers = cv2.estimateAffinePartial2D(src_pts, dst_pts, method=cv2.RANSAC, ransacReprojThreshold=30.0)
+            if M is None:
+                logs.append({'nivel': 'aviso', 'msg': '⚠️ Falha ao calcular transformação — tente outros pontos'})
+                job['done'] = True
+                return
+
+            scale = np.sqrt(M[0,0]**2 + M[1,0]**2)
+            inliers_count = int(inliers.sum()) if inliers is not None else 0
+            logs.append({'nivel': 'ok', 'msg': f'✅ Transformação calculada: escala={scale:.3f} inliers={inliers_count}/4'})
+
+            H = np.eye(3, dtype=np.float32)
+            H[:2,:] = M
+
+            def px_to_ll(x, y):
+                lon = west + (x / img_w) * (east - west)
+                lat = north - (y / img_h) * (north - south)
+                return lat, lon
+
+            # Gerar validacao
+            img_planta = cv2.imread(meta['planta_path'])
+            img_osm = cv2.imread(meta['osm_path'])
+            planta_warp = cv2.warpAffine(img_planta, H[:2,:], (img_w, img_h))
+            planta_edges = cv2.Canny(cv2.cvtColor(planta_warp, cv2.COLOR_BGR2GRAY), 30, 90)
+            osm_edges = cv2.Canny(cv2.cvtColor(img_osm, cv2.COLOR_BGR2GRAY), 30, 90)
+            val = np.zeros((img_h, img_w, 3), dtype=np.uint8)
+            val[:,:,0] = planta_edges
+            val[:,:,2] = osm_edges
+            val_path = f"/var/www/urbanlex/static/downloads/validacao_{municipio.replace(' ','_')}.png"
+            cv2.imwrite(val_path, val)
+            job['result'] = {
+                'geo_ok': True,
+                'validacao_pontos_url': f"/static/downloads/validacao_{municipio.replace(' ','_')}.png"
+            }
+
+            # Agora o Gemini refina
+            logs.append({'nivel': 'info', 'msg': '🤖 Gemini refinando alinhamento...'})
+            from modulos.mapeador_zonas import _georreferenciar_gemini
+            osm_data = _buscar_osm(municipio, estado, logs)
+            import tempfile
+            tmp = tempfile.mkdtemp()
+            geo_result = _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio, estado, logs, tmp)
+            if geo_result:
+                H, px_to_ll, val_path = geo_result
+                job['result']['validacao_pontos_url'] = f"/static/downloads/validacao_pontos_{municipio.replace(' ','_')}.png"
+                logs.append({'nivel': 'ok', 'msg': '✅ Refinamento concluído'})
+
+        except Exception as e:
+            import traceback
+            logs.append({'nivel': 'erro', 'msg': f'Erro: {str(e)[:200]}'})
+        finally:
+            job['done'] = True
+
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({'success': True, 'job_id': job_id})
+
 @app.route('/mapeamento/zonas')
 @login_required
 def mapeamento_zonas():
