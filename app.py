@@ -2524,93 +2524,121 @@ def _baixar_google_maps(bbox, img_w, img_h, api_key, logs):
 @app.route('/api/mapeamento/preparar', methods=['POST'])
 @login_required
 def api_mapeamento_preparar():
-    """Prepara os mapas: converte planta para PNG e baixa tiles OSM."""
-    import os, tempfile, subprocess, hashlib
-    from modulos.mapeador_zonas import _buscar_osm, _baixar_tiles_osm
+    """Prepara os mapas: converte planta para PNG — retorna job_id para polling."""
+    import threading, uuid, os, tempfile
     f = request.files.get('arquivo')
     municipio = request.form.get('municipio', 'Municipio')
     estado = request.form.get('estado', 'XX')
     if not f:
         return jsonify({'success': False, 'error': 'Nenhum arquivo enviado'})
+
+    # Salvar arquivo imediatamente
     tmp = tempfile.mkdtemp()
     fpath = os.path.join(tmp, f.filename)
     f.save(fpath)
+    fname = f.filename
 
-    # Converter PDF para PNG
-    ext = os.path.splitext(f.filename)[1].lower()
-    if ext == '.pdf':
-        subprocess.run(['gs','-dNOPAUSE','-dBATCH','-sDEVICE=png16m','-r150',
-            '-dFirstPage=1','-dLastPage=1',
-            f'-sOutputFile={tmp}/mapa_%03d.png', fpath], capture_output=True, timeout=120)
-        pages = sorted([x for x in os.listdir(tmp) if x.startswith('mapa_') and x.endswith('.png')])
-        if not pages:
-            return jsonify({'success': False, 'error': 'Falha ao converter PDF'})
-        planta_png = os.path.join(tmp, pages[0])
-    else:
-        planta_png = fpath
+    job_id = str(uuid.uuid4())[:12]
+    job = {'logs': [], 'done': False, 'result': None}
+    _buscador_jobs[job_id] = job
 
-    # Salvar planta
-    planta_key = hashlib.md5(f"{municipio}{estado}planta".encode()).hexdigest()[:12]
-    planta_dest = f"/var/www/urbanlex/static/downloads/georef_planta_{planta_key}.png"
-    import shutil, cv2, numpy as np
-    # Converter em 150 DPI para canvas (rapido)
-    img_display = cv2.imread(planta_png)
-    if img_display is None:
-        return jsonify({'success': False, 'error': 'Imagem inválida'})
-    h_d, w_d = img_display.shape[:2]
-    if w_d > 2000:
-        scale = 2000 / w_d
-        img_display = cv2.resize(img_display, (int(w_d*scale), int(h_d*scale)), interpolation=cv2.INTER_AREA)
-    cv2.imwrite(planta_dest, img_display)
-    h, w = img_display.shape[:2]
+    def _run():
+        try:
+            import subprocess, hashlib, cv2, numpy as np
+            from modulos.mapeador_zonas import _buscar_osm
+            logs = job['logs']
 
-    # Converter em 300 DPI para segmentacao (melhor qualidade) em background
-    planta_full_dest = f"/var/www/urbanlex/static/downloads/georef_planta_full_{planta_key}.png"
-    if ext == '.pdf':
-        import subprocess as _sp2
-        _sp2.run(['gs','-dNOPAUSE','-dBATCH','-sDEVICE=png16m','-r300',
-            '-dFirstPage=1','-dLastPage=1',
-            f'-sOutputFile={tmp}/full_%03d.png', fpath], capture_output=True, timeout=180)
-        full_pages = sorted([x for x in os.listdir(tmp) if x.startswith('full_') and x.endswith('.png')])
-        if full_pages:
-            import shutil
-            shutil.copy(os.path.join(tmp, full_pages[0]), planta_full_dest)
-        else:
-            planta_full_dest = planta_dest  # fallback
-    else:
-        import shutil
-        shutil.copy(fpath, planta_full_dest)
+            # Converter PDF para PNG (pagina 1, 150 DPI para display)
+            ext = os.path.splitext(fname)[1].lower()
+            logs.append({'nivel': 'info', 'msg': f'📄 Convertendo {fname}...'})
+            if ext == '.pdf':
+                subprocess.run(['gs','-dNOPAUSE','-dBATCH','-sDEVICE=png16m','-r150',
+                    '-dFirstPage=1','-dLastPage=1',
+                    f'-sOutputFile={tmp}/mapa_%03d.png', fpath],
+                    capture_output=True, timeout=120)
+                pages = sorted([x for x in os.listdir(tmp) if x.startswith('mapa_') and x.endswith('.png')])
+                if not pages:
+                    job['result'] = {'success': False, 'error': 'Falha ao converter PDF'}
+                    return
+                planta_png = os.path.join(tmp, pages[0])
+            else:
+                planta_png = fpath
 
-    img_full = cv2.imread(planta_full_dest)
-    orig_h, orig_w = img_full.shape[:2] if img_full is not None else (h, w)
+            # Carregar e redimensionar para canvas (150 DPI, max 2000px)
+            img_display = cv2.imread(planta_png)
+            if img_display is None:
+                job['result'] = {'success': False, 'error': 'Imagem inválida'}
+                return
+            h_d, w_d = img_display.shape[:2]
+            if w_d > 2000:
+                scale = 2000 / w_d
+                img_display = cv2.resize(img_display, (int(w_d*scale), int(h_d*scale)), interpolation=cv2.INTER_AREA)
+            planta_key = hashlib.md5(f"{municipio}{estado}{fname}".encode()).hexdigest()[:12]
+            planta_dest = f"/var/www/urbanlex/static/downloads/georef_planta_{planta_key}.png"
+            cv2.imwrite(planta_dest, img_display)
+            h, w = img_display.shape[:2]
+            logs.append({'nivel': 'info', 'msg': f'✅ Planta carregada: {w}x{h}px'})
 
-    # Buscar OSM e baixar tiles
-    logs = []
-    osm_data = _buscar_osm(municipio, estado, logs)
-    if not osm_data:
-        return jsonify({'success': False, 'error': 'Não foi possível obter dados OSM'})
-    bbox = (float(osm_data['_south']), float(osm_data['_north']),
-            float(osm_data['_west']), float(osm_data['_east']))
-    # Mapa de referencia agora é Leaflet no browser — sem download no servidor
-    osm_dest = None
+            # Converter em 300 DPI para segmentacao
+            planta_full_dest = f"/var/www/urbanlex/static/downloads/georef_planta_full_{planta_key}.png"
+            if ext == '.pdf':
+                logs.append({'nivel': 'info', 'msg': '🔍 Convertendo em alta resolução para segmentação...'})
+                subprocess.run(['gs','-dNOPAUSE','-dBATCH','-sDEVICE=png16m','-r300',
+                    '-dFirstPage=1','-dLastPage=1',
+                    f'-sOutputFile={tmp}/full_%03d.png', fpath],
+                    capture_output=True, timeout=180)
+                full_pages = sorted([x for x in os.listdir(tmp) if x.startswith('full_') and x.endswith('.png')])
+                if full_pages:
+                    import shutil
+                    shutil.copy(os.path.join(tmp, full_pages[0]), planta_full_dest)
+                else:
+                    planta_full_dest = planta_dest
+            else:
+                import shutil
+                shutil.copy(fpath, planta_full_dest)
 
-    # Salvar metadados na sessão via arquivo temporario
-    import json
-    meta = {'municipio': municipio, 'estado': estado, 'bbox': list(bbox),
-            'w': w, 'h': h, 'planta_key': planta_key,
-            'planta_path': planta_dest,
-            'planta_full_path': planta_full_dest,
-            'orig_w': orig_w, 'orig_h': orig_h}
-    meta_path = f"/var/www/urbanlex/static/downloads/georef_meta_{planta_key}.json"
-    with open(meta_path, 'w') as mf:
-        json.dump(meta, mf)
+            img_full = cv2.imread(planta_full_dest)
+            orig_h, orig_w = img_full.shape[:2] if img_full is not None else (h, w)
+            logs.append({'nivel': 'info', 'msg': f'✅ Alta resolução: {orig_w}x{orig_h}px'})
 
-    return jsonify({
-        'success': True,
-        'planta_url': f'/static/downloads/georef_planta_{planta_key}.png',
-        'meta_key': planta_key,
-        'bbox': list(bbox)  # [south, north, west, east]
-    })
+            # Buscar bbox do municipio via OSM
+            logs.append({'nivel': 'info', 'msg': f'🌐 Buscando coordenadas de {municipio}/{estado}...'})
+            osm_data = _buscar_osm(municipio, estado, logs)
+            if not osm_data:
+                job['result'] = {'success': False, 'error': 'Município não encontrado no OSM'}
+                return
+
+            bbox = (float(osm_data['_south']), float(osm_data['_north']),
+                    float(osm_data['_west']), float(osm_data['_east']))
+
+            # Salvar meta
+            import json
+            meta = {'municipio': municipio, 'estado': estado, 'bbox': list(bbox),
+                    'w': w, 'h': h, 'planta_key': planta_key,
+                    'planta_path': planta_dest,
+                    'planta_full_path': planta_full_dest,
+                    'orig_w': orig_w, 'orig_h': orig_h}
+            meta_path = f"/var/www/urbanlex/static/downloads/georef_meta_{planta_key}.json"
+            with open(meta_path, 'w') as mf:
+                json.dump(meta, mf)
+
+            logs.append({'nivel': 'ok', 'msg': '✅ Mapas prontos!'})
+            job['result'] = {
+                'success': True,
+                'planta_url': f'/static/downloads/georef_planta_{planta_key}.png',
+                'meta_key': planta_key,
+                'bbox': list(bbox)
+            }
+
+        except Exception as e:
+            import traceback
+            job['logs'].append({'nivel': 'erro', 'msg': f'Erro: {str(e)[:200]}'})
+            job['result'] = {'success': False, 'error': str(e)[:200]}
+        finally:
+            job['done'] = True
+
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({'success': True, 'job_id': job_id})
 
 
 @app.route('/api/mapeamento/upscale', methods=['POST'])

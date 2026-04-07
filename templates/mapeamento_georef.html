@@ -244,20 +244,35 @@ async function grCarregarMapas(){
     fd.append('arquivo',arquivo); fd.append('municipio',municipio); fd.append('estado',estado);
     try{
         const resp=await fetch('/api/mapeamento/preparar',{method:'POST',body:fd,credentials:'same-origin'});
-        const d=await resp.json();
-        if(!d.success){alert('Erro: '+(d.error||'desconhecido'));btn.disabled=false;btn.textContent='🗺️ Carregar Mapas';document.getElementById('upload-status').style.display='none';return;}
-        // Mostrar a secao ANTES de carregar para que clientWidth/Height sejam corretos
+        const init=await resp.json();
+        if(!init.success){alert('Erro: '+(init.error||'desconhecido'));btn.disabled=false;btn.textContent='🗺️ Carregar Mapas';document.getElementById('upload-status').style.display='none';return;}
+
+        // Mostrar secao e aguardar layout
         document.getElementById('step-upload').style.display='none';
         document.getElementById('step-maps').style.display='block';
-        // Aguardar 2 frames para o browser recalcular layout
         await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
-        await grLoadImg('planta',d.planta_url);
-        // Guardar meta key para upscale
-        window._grMetaKey = d.meta_key;
-        // Inicializar Leaflet com bbox do municipio
-        if(d.bbox) grInitGmap(d.bbox);
-        // Mostrar botao de melhoria de resolucao
-        document.getElementById('btn-upscale').style.display='inline-block';
+
+        // Polling até terminar
+        const statusEl=document.getElementById('upload-status');
+        let cursor=0;
+        while(true){
+            await new Promise(r=>setTimeout(r,2000));
+            const poll=await fetch('/api/buscador/job/'+init.job_id+'?cursor='+cursor,{credentials:'same-origin'}).then(r=>r.json());
+            if(poll.logs) poll.logs.forEach(l=>{
+                if(l.nivel==='ok'||l.nivel==='info') statusEl.textContent=l.msg;
+            });
+            cursor=poll.cursor||cursor;
+            if(poll.done){
+                const d=poll.result;
+                if(!d||!d.success){alert('Erro: '+(d&&d.error||'desconhecido'));btn.disabled=false;btn.textContent='🗺️ Carregar Mapas';statusEl.style.display='none';return;}
+                window._grMetaKey=d.meta_key;
+                if(d.bbox) grInitGmap(d.bbox);
+                await grLoadImg('planta',d.planta_url);
+                document.getElementById('btn-upscale').style.display='inline-block';
+                statusEl.style.display='none';
+                break;
+            }
+        }
     }catch(e){alert('Erro: '+e);btn.disabled=false;btn.textContent='🗺️ Carregar Mapas';document.getElementById('upload-status').style.display='none';}
 }
 
