@@ -2651,18 +2651,22 @@ def api_mapeamento_georef_analisar():
             dst_pts = np.array([[pontos[str(n)]['o']['xp']/100*img_w,
                                   pontos[str(n)]['o']['yp']/100*img_h] for n in range(1,5)], dtype=np.float32)
 
-            M, inliers = cv2.estimateAffinePartial2D(src_pts, dst_pts, method=cv2.RANSAC, ransacReprojThreshold=30.0)
-            if M is None:
+            # Homografia com 4 pontos — força todos a coincidirem exatamente
+            H, mask = cv2.findHomography(src_pts, dst_pts, method=0)
+            if H is None:
                 logs.append({'nivel': 'aviso', 'msg': '⚠️ Falha ao calcular transformação — tente outros pontos'})
                 job['done'] = True
                 return
 
-            scale = np.sqrt(M[0,0]**2 + M[1,0]**2)
-            inliers_count = int(inliers.sum()) if inliers is not None else 0
-            logs.append({'nivel': 'ok', 'msg': f'✅ Transformação calculada: escala={scale:.3f} inliers={inliers_count}/4'})
-
-            H = np.eye(3, dtype=np.float32)
-            H[:2,:] = M
+            # Verificar erro de reprojecao
+            erros = []
+            for i in range(len(src_pts)):
+                pt = np.array([[[src_pts[i][0], src_pts[i][1]]]], dtype=np.float32)
+                pt_t = cv2.perspectiveTransform(pt, H).reshape(2)
+                erro = np.sqrt((pt_t[0]-dst_pts[i][0])**2 + (pt_t[1]-dst_pts[i][1])**2)
+                erros.append(erro)
+            erro_medio = np.mean(erros)
+            logs.append({'nivel': 'ok', 'msg': f'✅ Homografia calculada: erro médio={erro_medio:.1f}px | erros={[f"{e:.0f}" for e in erros]}'})
 
             def px_to_ll(x, y):
                 lon = west + (x / img_w) * (east - west)
@@ -2672,7 +2676,7 @@ def api_mapeamento_georef_analisar():
             # Gerar validacao — planta colorida semitransparente sobre OSM
             img_planta = cv2.imread(meta['planta_path'])
             img_osm = cv2.imread(meta['osm_path'])
-            planta_warp = cv2.warpAffine(img_planta, H[:2,:], (img_w, img_h))
+            planta_warp = cv2.warpPerspective(img_planta, H, (img_w, img_h))
             # Misturar: OSM como fundo, planta com 50% opacidade
             mask = cv2.cvtColor(planta_warp, cv2.COLOR_BGR2GRAY)
             _, mask = cv2.threshold(mask, 10, 255, cv2.THRESH_BINARY)
@@ -2690,9 +2694,9 @@ def api_mapeamento_georef_analisar():
                 if pp:
                     px_p = int(pp.get('xp', 0) / 100 * img_w)
                     py_p = int(pp.get('yp', 0) / 100 * img_h)
-                    # Transformar ponto da planta para OSM
+                    # Transformar ponto da planta para OSM via homografia
                     pt = np.array([[[float(px_p), float(py_p)]]], dtype=np.float32)
-                    pt_t = cv2.transform(pt, H[:2, :]).reshape(2)
+                    pt_t = cv2.perspectiveTransform(pt, H).reshape(2)
                     tx, ty = int(pt_t[0]), int(pt_t[1])
                     cv2.circle(val, (tx, ty), 18, cor, -1)
                     cv2.circle(val, (tx, ty), 22, (255,255,255), 3)
