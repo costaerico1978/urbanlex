@@ -570,8 +570,17 @@ def _segmentar_zonas(img_planta, legenda, H, px_to_ll, logs):
     import numpy as np
     import cv2
     from shapely.geometry import Polygon
+    from shapely.ops import unary_union
     zonas_geo = []
     img_h, img_w = img_planta.shape[:2]
+
+    # Pre-processar: remover texto preto/escuro que pode confundir segmentacao
+    # Mascarar pixels muito escuros (texto, bordas)
+    gray = cv2.cvtColor(img_planta, cv2.COLOR_BGR2GRAY)
+    _, texto_mask = cv2.threshold(gray, 60, 255, cv2.THRESH_BINARY_INV)
+    kernel_dilate = np.ones((3,3), np.uint8)
+    texto_mask = cv2.dilate(texto_mask, kernel_dilate, iterations=1)
+
     for zona in legenda:
         nome = zona.get('nome', '')
         cor_hex = zona.get('cor_hex', '#000000')
@@ -581,30 +590,83 @@ def _segmentar_zonas(img_planta, legenda, H, px_to_ll, logs):
             b = int(cor_hex[5:7], 16)
         except Exception:
             continue
+
+        # Ignorar cores muito escuras (provavelmente texto/borda)
+        if r < 40 and g < 40 and b < 40:
+            continue
+
         target = np.array([b, g, r], dtype=np.uint8)
-        lower = np.clip(target.astype(int) - 25, 0, 255).astype(np.uint8)
-        upper = np.clip(target.astype(int) + 25, 0, 255).astype(np.uint8)
+
+        # Tolerancia adaptativa: maior para cores claras, menor para cores saturadas
+        brightness = (int(r) + int(g) + int(b)) / 3
+        tol = 40 if brightness > 180 else 30
+
+        lower = np.clip(target.astype(int) - tol, 0, 255).astype(np.uint8)
+        upper = np.clip(target.astype(int) + tol, 0, 255).astype(np.uint8)
         mask = cv2.inRange(img_planta, lower, upper)
+
+        # Remover areas de texto da mascara
+        mask = cv2.bitwise_and(mask, cv2.bitwise_not(texto_mask))
+
+        # Morfologia: fechar buracos (causados por hachuras e texto interno)
+        kernel_close = np.ones((7,7), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_close, iterations=3)
+        kernel_open = np.ones((5,5), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_open, iterations=1)
+
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
             continue
-        min_area = img_w * img_h * 0.0001
-        contours = [c for c in contours if cv2.contourArea(c) > min_area]
-        if not contours:
+
+        # Filtrar por area minima E por proporcao (eliminar formas alongadas = texto)
+        min_area = img_w * img_h * 0.00005  # mais permissivo
+        contours_ok = []
+        for c in contours:
+            area = cv2.contourArea(c)
+            if area < min_area:
+                continue
+            # Verificar proporcao do bounding rect (eliminar texto alongado)
+            x, y, w, h = cv2.boundingRect(c)
+            aspect = max(w, h) / max(min(w, h), 1)
+            # Texto tende a ter aspect ratio muito alto E area pequena
+            if aspect > 8 and area < img_w * img_h * 0.002:
+                continue
+            # Solidez: area / area convex hull (texto tem solidez baixa)
+            hull = cv2.convexHull(c)
+            hull_area = cv2.contourArea(hull)
+            solidity = area / max(hull_area, 1)
+            if solidity < 0.15 and area < img_w * img_h * 0.001:
+                continue
+            contours_ok.append(c)
+
+        if not contours_ok:
             continue
-        logs.append({'nivel': 'info', 'msg': f'  {nome}: {len(contours)} poligono(s)'})
-        for cnt in contours:
-            pts = cnt.reshape(-1, 1, 2).astype(np.float32)
+
+        logs.append({'nivel': 'info', 'msg': f'  {nome}: {len(contours_ok)} poligono(s)'})
+
+        for cnt in contours_ok:
+            # Simplificar contorno para reduzir vertices
+            epsilon = 0.002 * cv2.arcLength(cnt, True)
+            cnt_simple = cv2.approxPolyDP(cnt, epsilon, True)
+            pts = cnt_simple.reshape(-1, 1, 2).astype(np.float32)
             pts_t = cv2.perspectiveTransform(pts, H)
             pts_ll = [px_to_ll(p[0][0], p[0][1]) for p in pts_t]
             if len(pts_ll) >= 3:
+                try:
+                    poly = Polygon([(p[1], p[0]) for p in pts_ll])
+                    if not poly.is_valid:
+                        poly = poly.buffer(0)
+                    area_km2 = round(poly.area * 111 * 111, 4)
+                except Exception:
+                    area_km2 = 0
                 zonas_geo.append({
                     'nome': nome,
                     'descricao': zona.get('descricao', ''),
                     'cor_hex': cor_hex,
                     'coordenadas': pts_ll,
-                    'area_km2': round(Polygon([(p[1], p[0]) for p in pts_ll]).area * 111 * 111, 4)
+                    'area_km2': area_km2
                 })
+
     logs.append({'nivel': 'ok', 'msg': f'  {len(zonas_geo)} poligonos georreferenciados'})
     return zonas_geo
 
