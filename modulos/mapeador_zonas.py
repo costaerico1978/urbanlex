@@ -332,11 +332,13 @@ def _baixar_tiles_osm(bbox, img_w, img_h, logs):
 
 
 
+
 def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio, estado, logs, tmp):
     """
-    Georreferencia em 2 chamadas ao Gemini usando elementos lineares:
-    1. Identifica linhas caracteristicas na planta (costa, rodovias, limites)
-    2. Localiza as mesmas linhas no OSM com multiplos pontos
+    Georreferencia em 2 chamadas ao Gemini com hierarquia:
+    1. Vias nomeadas (cruzamento por nome)
+    2. Descricao geometrica (vias sem nome)
+    3. Feicoes nao-viarias (costa, lagoas, limites)
     """
     import numpy as np
     import cv2
@@ -357,39 +359,39 @@ def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio,
     cv2.imwrite(_planta_path, img_planta)
     cv2.imwrite(_osm_path, img_osm)
 
-    osm_path = f"/var/www/urbanlex/static/downloads/osm_tiles_{municipio.replace(' ','_')}.png"
-    cv2.imwrite(osm_path, img_osm)
+    osm_tiles_path = f"/var/www/urbanlex/static/downloads/osm_tiles_{municipio.replace(' ','_')}.png"
+    cv2.imwrite(osm_tiles_path, img_osm)
 
     client = _gv.Client(api_key=os.environ.get('GEMINI_API_KEY', ''))
 
-    # --- CHAMADA 1: identificar elementos lineares na planta ---
-    logs.append({'nivel': 'info', 'msg': '  Chamada 1: Gemini identificando elementos lineares na planta...'})
+    # --- CHAMADA 1: identificar elementos na planta ---
+    logs.append({'nivel': 'info', 'msg': '  Chamada 1: Gemini mapeando elementos na planta...'})
     try:
         with open(_planta_path, 'rb') as fp:
             planta_bytes = fp.read()
 
         prompt1 = (
-            f"Esta e uma planta de zoneamento municipal de {municipio}/{estado}, Brasil.\n\n"
-            f"Identifique de 3 a 5 ELEMENTOS LINEARES que sejam facilmente reconheciveis "
-            f"em qualquer outro mapa da mesma area. Exemplos:\n"
-            f"- Linha da costa (beira do oceano)\n"
-            f"- Rodovia principal (ex: ERS-389, Estrada do Mar)\n"
-            f"- Margem de lagoa ou rio\n"
-            f"- Limite municipal\n\n"
-            f"Para cada elemento linear, forneça de 4 a 6 pontos ao longo da linha, "
-            f"do inicio ao fim, em ordem sequencial.\n\n"
-            f"Responda APENAS com JSON valido:\n"
+            f"Esta e uma planta de zoneamento do municipio de {municipio}/{estado}, Brasil.\n\n"
+            f"Identifique os seguintes tipos de elementos, em ordem de prioridade:\n\n"
+            f"1. VIAS NOMEADAS: vias/rodovias com nome visivel no mapa\n"
+            f"2. VIAS SEM NOME: vias principais identificaveis pela geometria (ex: 'via horizontal principal na parte inferior')\n"
+            f"3. FEICOES NATURAIS: linha da costa, margens de lagoas/rios, limites municipais\n\n"
+            f"Para cada elemento, marque 4 a 6 pontos ao longo dele em ordem sequencial.\n\n"
+            f"Responda APENAS com JSON:\n"
             f'[{{\n'
-            f'  "elemento": "Linha da costa (oceano)",\n'
-            f'  "pontos": [\n'
-            f'    {{"x": 10.5, "y": 82.3}},\n'
-            f'    {{"x": 25.1, "y": 79.8}},\n'
-            f'    {{"x": 40.2, "y": 76.1}},\n'
-            f'    {{"x": 55.3, "y": 73.4}}\n'
-            f'  ]\n'
+            f'  "tipo": "via_nomeada",\n'
+            f'  "nome": "ERS-389",\n'
+            f'  "descricao": "rodovia horizontal na parte inferior do mapa",\n'
+            f'  "pontos": [{{"x":15,"y":56}},{{"x":30,"y":56}},{{"x":45,"y":57}},{{"x":60,"y":57}}]\n'
+            f'}},\n'
+            f'{{\n'
+            f'  "tipo": "feicao_natural",\n'
+            f'  "nome": null,\n'
+            f'  "descricao": "linha da costa do oceano atlantico",\n'
+            f'  "pontos": [{{"x":10,"y":82}},{{"x":25,"y":80}},{{"x":40,"y":78}},{{"x":55,"y":76}}]\n'
             f'}}]\n\n'
-            f"Coordenadas x,y em porcentagem da largura/altura da imagem (0 a 100).\n"
-            f"IMPORTANTE: ignore a legenda no canto direito — foque apenas na area do mapa."
+            f"tipos validos: via_nomeada, via_sem_nome, feicao_natural\n"
+            f"IMPORTANTE: ignore a legenda no canto direito. Coordenadas em % da imagem (0-100)."
         )
 
         parts1 = [_gv_types.Part.from_text(text=prompt1),
@@ -406,42 +408,49 @@ def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio,
             return None
 
         txt1 = re.sub(r'^```json\s*|\s*```$', '', resp1.text.strip())
-        elementos = _j.loads(txt1)
-        logs.append({'nivel': 'ok', 'msg': f'  {len(elementos)} elementos lineares identificados na planta'})
-        for el in elementos:
-            logs.append({'nivel': 'info', 'msg': f'    - {el["elemento"]} ({len(el["pontos"])} pontos)'})
+        elementos_planta = _j.loads(txt1)
+
+        n_nomeadas = sum(1 for e in elementos_planta if e.get('tipo') == 'via_nomeada')
+        n_sem_nome = sum(1 for e in elementos_planta if e.get('tipo') == 'via_sem_nome')
+        n_naturais = sum(1 for e in elementos_planta if e.get('tipo') == 'feicao_natural')
+        logs.append({'nivel': 'ok', 'msg': f'  Planta: {n_nomeadas} vias nomeadas, {n_sem_nome} sem nome, {n_naturais} feicoes naturais'})
+        for el in elementos_planta:
+            logs.append({'nivel': 'info', 'msg': f'    [{el["tipo"]}] {el.get("nome") or el["descricao"][:50]} ({len(el["pontos"])} pts)'})
 
     except Exception as e:
         logs.append({'nivel': 'aviso', 'msg': f'  Erro chamada 1: {str(e)[:100]}'})
         return None
 
     # --- CHAMADA 2: localizar os mesmos elementos no OSM ---
-    logs.append({'nivel': 'info', 'msg': '  Chamada 2: Gemini localizando elementos no mapa OSM...'})
+    logs.append({'nivel': 'info', 'msg': '  Chamada 2: Gemini localizando elementos no OSM...'})
     try:
         with open(_osm_path, 'rb') as fp:
             osm_bytes = fp.read()
 
-        lista_elementos = '\n'.join([f'{i+1}. {el["elemento"]}' for i, el in enumerate(elementos)])
+        # Montar lista de elementos para buscar
+        lista = []
+        for i, el in enumerate(elementos_planta):
+            if el.get('nome'):
+                desc = f'{i+1}. [{el["tipo"]}] Nome: "{el["nome"]}" — {el["descricao"]}'
+            else:
+                desc = f'{i+1}. [{el["tipo"]}] {el["descricao"]}'
+            lista.append(desc)
+        lista_str = '\n'.join(lista)
 
         prompt2 = (
-            f"Este e um mapa OpenStreetMap de {municipio}/{estado}, Brasil.\n\n"
-            f"Localize os seguintes elementos lineares neste mapa e marque "
-            f"de 4 a 6 pontos ao longo de cada um, em ordem sequencial do inicio ao fim:\n\n"
-            f"{lista_elementos}\n\n"
-            f"Responda APENAS com JSON valido:\n"
+            f"Este e um mapa OpenStreetMap do municipio de {municipio}/{estado}, Brasil.\n\n"
+            f"Localize cada elemento abaixo neste mapa e marque 4 a 6 pontos ao longo dele:\n\n"
+            f"{lista_str}\n\n"
+            f"Para vias nomeadas: use o nome para localizar.\n"
+            f"Para vias sem nome: use a descricao geometrica.\n"
+            f"Para feicoes naturais: localize pelo tipo (costa, lagoa, etc).\n\n"
+            f"Responda APENAS com JSON:\n"
             f'[{{\n'
             f'  "id": 1,\n'
-            f'  "elemento": "Linha da costa (oceano)",\n'
             f'  "encontrado": true,\n'
-            f'  "pontos": [\n'
-            f'    {{"x": 55.2, "y": 45.1}},\n'
-            f'    {{"x": 62.3, "y": 52.4}},\n'
-            f'    {{"x": 68.1, "y": 61.2}},\n'
-            f'    {{"x": 74.5, "y": 70.8}}\n'
-            f'  ]\n'
+            f'  "pontos": [{{"x":74,"y":8}},{{"x":71,"y":27}},{{"x":69,"y":50}},{{"x":67,"y":70}}]\n'
             f'}}]\n\n'
-            f"Coordenadas x,y em porcentagem da largura/altura da imagem (0 a 100).\n"
-            f"Se nao encontrar o elemento, coloque encontrado: false e pontos vazio."
+            f"Se nao encontrar: encontrado: false e pontos: []"
         )
 
         parts2 = [_gv_types.Part.from_text(text=prompt2),
@@ -460,30 +469,31 @@ def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio,
         txt2 = re.sub(r'^```json\s*|\s*```$', '', resp2.text.strip())
         localizacoes = _j.loads(txt2)
 
-        # Montar pares de pontos correspondentes
+        # Montar pares de pontos
         pontos_planta = []
         pontos_osm = []
-        cores_debug = [(255,50,50),(50,255,50),(50,150,255),(255,200,0),(255,0,255)]
+        elementos_matched = []
 
         for loc in localizacoes:
-            if not loc.get('encontrado', False) or not loc.get('pontos'):
-                logs.append({'nivel': 'aviso', 'msg': f'    Nao encontrado: {loc.get("elemento","?")}'})
+            if not loc.get('encontrado') or not loc.get('pontos'):
                 continue
             idx = loc['id'] - 1
-            if idx < 0 or idx >= len(elementos):
+            if idx < 0 or idx >= len(elementos_planta):
                 continue
-
-            pts_planta = elementos[idx]['pontos']
-            pts_osm = loc['pontos']
-            n = min(len(pts_planta), len(pts_osm))
-
-            logs.append({'nivel': 'info', 'msg': f'    OK {loc["elemento"]}: {n} pares de pontos'})
-
+            el = elementos_planta[idx]
+            pts_p = el['pontos']
+            pts_o = loc['pontos']
+            n = min(len(pts_p), len(pts_o))
+            if n < 2:
+                continue
+            nome_el = el.get('nome') or el['descricao'][:30]
+            logs.append({'nivel': 'info', 'msg': f'    OK [{el["tipo"]}] {nome_el}: {n} pares'})
             for i in range(n):
-                pontos_planta.append([pts_planta[i]['x']/100*img_w, pts_planta[i]['y']/100*img_h])
-                pontos_osm.append([pts_osm[i]['x']/100*img_w, pts_osm[i]['y']/100*img_h])
+                pontos_planta.append([pts_p[i]['x']/100*img_w, pts_p[i]['y']/100*img_h])
+                pontos_osm.append([pts_o[i]['x']/100*img_w, pts_o[i]['y']/100*img_h])
+            elementos_matched.append((el, loc, n))
 
-        logs.append({'nivel': 'ok', 'msg': f'  Total: {len(pontos_planta)} pares de pontos correspondentes'})
+        logs.append({'nivel': 'ok', 'msg': f'  Total: {len(pontos_planta)} pares de pontos'})
 
     except Exception as e:
         logs.append({'nivel': 'aviso', 'msg': f'  Erro chamada 2: {str(e)[:100]}'})
@@ -506,44 +516,34 @@ def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio,
     scale = np.sqrt(M[0,0]**2 + M[1,0]**2)
     logs.append({'nivel': 'ok', 'msg': f'  Transformacao: escala={scale:.3f} inliers={inliers_count}/{len(pontos_planta)}'})
 
-    # --- Gerar imagem de validacao lado a lado com linhas ---
+    # --- Gerar imagem de validacao lado a lado ---
     planta_vis = img_planta.copy()
     osm_vis = img_osm.copy()
+    cores = [(255,50,50),(50,255,50),(50,150,255),(255,200,0),(255,0,255),(0,255,200),(255,128,0)]
 
-    cor_idx = 0
-    for loc in localizacoes:
-        if not loc.get('encontrado') or not loc.get('pontos'):
-            continue
-        idx = loc['id'] - 1
-        if idx < 0 or idx >= len(elementos):
-            continue
-        cor = cores_debug[cor_idx % len(cores_debug)]
-        cor_idx += 1
+    for i, (el, loc, n) in enumerate(elementos_matched):
+        cor = cores[i % len(cores)]
+        pts_p = el['pontos']
+        pts_o = loc['pontos']
+        n = min(len(pts_p), len(pts_o))
 
-        pts_planta = elementos[idx]['pontos']
-        pts_osm = loc['pontos']
-
-        # Desenhar linha na planta
-        for i in range(len(pts_planta)-1):
-            p1 = (int(pts_planta[i]['x']/100*img_w), int(pts_planta[i]['y']/100*img_h))
-            p2 = (int(pts_planta[i+1]['x']/100*img_w), int(pts_planta[i+1]['y']/100*img_h))
-            cv2.line(planta_vis, p1, p2, cor, 4)
-        for pt in pts_planta:
-            cv2.circle(planta_vis, (int(pt['x']/100*img_w), int(pt['y']/100*img_h)), 10, cor, -1)
-
-        # Desenhar linha no OSM
-        for i in range(len(pts_osm)-1):
-            p1 = (int(pts_osm[i]['x']/100*img_w), int(pts_osm[i]['y']/100*img_h))
-            p2 = (int(pts_osm[i+1]['x']/100*img_w), int(pts_osm[i+1]['y']/100*img_h))
-            cv2.line(osm_vis, p1, p2, cor, 4)
-        for pt in pts_osm:
-            cv2.circle(osm_vis, (int(pt['x']/100*img_w), int(pt['y']/100*img_h)), 10, cor, -1)
+        for j in range(n-1):
+            p1 = (int(pts_p[j]['x']/100*img_w), int(pts_p[j]['y']/100*img_h))
+            p2 = (int(pts_p[j+1]['x']/100*img_w), int(pts_p[j+1]['y']/100*img_h))
+            cv2.line(planta_vis, p1, p2, cor, 5)
+            o1 = (int(pts_o[j]['x']/100*img_w), int(pts_o[j]['y']/100*img_h))
+            o2 = (int(pts_o[j+1]['x']/100*img_w), int(pts_o[j+1]['y']/100*img_h))
+            cv2.line(osm_vis, o1, o2, cor, 5)
+        for pt in pts_p[:n]:
+            cv2.circle(planta_vis, (int(pt['x']/100*img_w), int(pt['y']/100*img_h)), 12, cor, -1)
+        for pt in pts_o[:n]:
+            cv2.circle(osm_vis, (int(pt['x']/100*img_w), int(pt['y']/100*img_h)), 12, cor, -1)
 
     sep = np.full((img_h, 20, 3), 60, dtype=np.uint8)
     val_img = np.hstack([planta_vis, sep, osm_vis])
     val_path = f"/var/www/urbanlex/static/downloads/validacao_pontos_{municipio.replace(' ','_')}.png"
     cv2.imwrite(val_path, val_img)
-    logs.append({'nivel': 'ok', 'msg': '  Imagem de validacao gerada — confira as linhas'})
+    logs.append({'nivel': 'ok', 'msg': '  Validacao gerada — confira as linhas coloridas'})
 
     M_full = np.eye(3, dtype=np.float32)
     M_full[:2, :] = M
