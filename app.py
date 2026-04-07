@@ -2501,7 +2501,7 @@ def _baixar_google_maps(bbox, img_w, img_h, api_key, logs):
         f"&zoom={zoom}"
         f"&size={size}x{size}"
         f"&scale=2"
-        f"&maptype=roadmap"
+        f"&maptype=satellite"
         f"&key={api_key}"
     )
     logs.append({'nivel': 'info', 'msg': f'  Google Maps: zoom={zoom} center=({center_lat:.4f},{center_lon:.4f})'})
