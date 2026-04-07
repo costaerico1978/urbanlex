@@ -2463,6 +2463,61 @@ def mapeamento_georef():
         active_page='mapeamento-georef',
         active_group='buscador')
 
+
+def _baixar_google_maps(bbox, img_w, img_h, api_key, logs):
+    """Baixa mapa do Google Maps Static API para o bbox do municipio."""
+    import requests, numpy as np, cv2
+    from PIL import Image
+    import io, math
+
+    south, north, west, east = bbox
+    center_lat = (south + north) / 2
+    center_lon = (west + east) / 2
+
+    # Calcular zoom ideal
+    def lat_rad(lat):
+        sin = math.sin(lat * math.pi / 180)
+        rad = math.log((1 + sin) / (1 - sin)) / 2
+        return max(min(rad, math.pi), -math.pi) / 2
+
+    def zoom_level(lat_diff, lon_diff, w, h):
+        for z in range(21, 0, -1):
+            lat_px = 256 * (2**z) * lat_diff / 360
+            lon_px = 256 * (2**z) * lon_diff / 360
+            if lat_px <= h * 0.9 and lon_px <= w * 0.9:
+                return z
+        return 10
+
+    zoom = zoom_level(north - south, east - west, img_w, img_h)
+    zoom = max(10, min(zoom, 17))
+
+    # Google Maps Static API — max 640x640 sem premium (ou 2048x2048 com premium)
+    size = 640
+    url = (
+        f"https://maps.googleapis.com/maps/api/staticmap"
+        f"?center={center_lat},{center_lon}"
+        f"&zoom={zoom}"
+        f"&size={size}x{size}"
+        f"&maptype=roadmap"
+        f"&key={api_key}"
+    )
+    logs.append({'nivel': 'info', 'msg': f'  Google Maps: zoom={zoom} center=({center_lat:.4f},{center_lon:.4f})'})
+
+    try:
+        r = requests.get(url, timeout=15)
+        if r.status_code != 200:
+            logs.append({'nivel': 'aviso', 'msg': f'  Google Maps erro: {r.status_code}'})
+            return None
+        img = Image.open(io.BytesIO(r.content)).convert('RGB')
+        # Redimensionar para dimensoes da planta
+        img = img.resize((img_w, img_h), Image.LANCZOS)
+        img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+        logs.append({'nivel': 'ok', 'msg': f'  Google Maps carregado: {img_w}x{img_h}px'})
+        return img_cv
+    except Exception as e:
+        logs.append({'nivel': 'aviso', 'msg': f'  Google Maps falhou: {str(e)[:80]}'})
+        return None
+
 @app.route('/api/mapeamento/preparar', methods=['POST'])
 @login_required
 def api_mapeamento_preparar():
