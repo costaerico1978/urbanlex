@@ -391,7 +391,9 @@ def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio,
             f'  "pontos": [{{"x":10,"y":82}},{{"x":25,"y":80}},{{"x":40,"y":78}},{{"x":55,"y":76}}]\n'
             f'}}]\n\n'
             f"tipos validos: via_nomeada, via_sem_nome, feicao_natural\n"
-            f"IMPORTANTE: ignore a legenda no canto direito. Coordenadas em % da imagem (0-100)."
+            f"IMPORTANTE: ignore a legenda no canto direito.\n"
+            f"MUITO IMPORTANTE: x e y sao PORCENTAGENS de 0 a 100, NAO pixels absolutos!\n"
+            f"Exemplo: x=50.0 significa o centro horizontal da imagem."
         )
 
         parts1 = [_gv_types.Part.from_text(text=prompt1),
@@ -450,6 +452,8 @@ def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio,
             f'  "encontrado": true,\n'
             f'  "pontos": [{{"x":74,"y":8}},{{"x":71,"y":27}},{{"x":69,"y":50}},{{"x":67,"y":70}}]\n'
             f'}}]\n\n'
+            f"MUITO IMPORTANTE: x e y sao PORCENTAGENS de 0 a 100, NAO pixels!\n"
+            f"Exemplo correto: x=74.5 significa 74.5% da largura da imagem.\n"
             f"Se nao encontrar: encontrado: false e pontos: []"
         )
 
@@ -489,8 +493,17 @@ def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio,
             nome_el = el.get('nome') or el['descricao'][:30]
             logs.append({'nivel': 'info', 'msg': f'    OK [{el["tipo"]}] {nome_el}: {n} pares'})
             for i in range(n):
-                pontos_planta.append([pts_p[i]['x']/100*img_w, pts_p[i]['y']/100*img_h])
-                pontos_osm.append([pts_o[i]['x']/100*img_w, pts_o[i]['y']/100*img_h])
+                # Normalizar: se valor > 100, assumir pixels absolutos e converter
+                def norm(v, dim):
+                    if v > 100:
+                        return float(v) / dim * 100
+                    return float(v)
+                px = norm(pts_p[i]['x'], img_w) / 100 * img_w
+                py = norm(pts_p[i]['y'], img_h) / 100 * img_h
+                ox = norm(pts_o[i]['x'], img_w) / 100 * img_w
+                oy = norm(pts_o[i]['y'], img_h) / 100 * img_h
+                pontos_planta.append([px, py])
+                pontos_osm.append([ox, oy])
             elementos_matched.append((el, loc, n))
 
         logs.append({'nivel': 'ok', 'msg': f'  Total: {len(pontos_planta)} pares de pontos'})
