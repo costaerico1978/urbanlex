@@ -2595,7 +2595,8 @@ def api_mapeamento_preparar():
         'success': True,
         'planta_url': f'/static/downloads/georef_planta_{planta_key}.png',
         'osm_url': f'/static/downloads/georef_osm_{osm_key}.png',
-        'meta_key': planta_key
+        'meta_key': planta_key,
+        'bbox': list(bbox)  # [south, north, west, east]
     })
 
 @app.route('/api/mapeamento/georef-analisar', methods=['POST'])
@@ -2649,10 +2650,29 @@ def api_mapeamento_georef_analisar():
                 oyp = f'{po.get("yp",0):.1f}' if po else '?'
                 logs.append({'nivel': 'info', 'msg': f'  Ponto {n}: planta=({pxp}%,{pyp}%) osm=({oxp}%,{oyp}%)'})
             # Usar pixels absolutos da imagem original diretamente
-            src_pts = np.array([[pontos[str(n)]['p']['xp']/100*img_w,
-                                  pontos[str(n)]['p']['yp']/100*img_h] for n in range(1,5)], dtype=np.float32)
-            dst_pts = np.array([[pontos[str(n)]['o']['xp']/100*img_w,
-                                  pontos[str(n)]['o']['yp']/100*img_h] for n in range(1,5)], dtype=np.float32)
+            src_list, dst_list = [], []
+            south, north, west, east = bbox
+            for n in range(1, 5):
+                p = pontos[str(n)]
+                pp = p.get('p', {})
+                po = p.get('o', {})
+                # Planta: coordenadas em % da imagem
+                sx = pp.get('xp', 0) / 100 * img_w
+                sy = pp.get('yp', 0) / 100 * img_h
+                src_list.append([sx, sy])
+                # OSM: lat/lon ou % da imagem
+                if po.get('isLatLng'):
+                    lat = po.get('lat', 0)
+                    lng = po.get('lng', 0)
+                    dx = (lng - west) / (east - west) * img_w
+                    dy = (north - lat) / (north - south) * img_h
+                else:
+                    dx = po.get('xp', 0) / 100 * img_w
+                    dy = po.get('yp', 0) / 100 * img_h
+                dst_list.append([dx, dy])
+                logs.append({'nivel': 'info', 'msg': f'  Ponto {n}: planta=({sx:.0f},{sy:.0f})px → mapa=({dst_list[-1][0]:.0f},{dst_list[-1][1]:.0f})px'})
+            src_pts = np.array(src_list, dtype=np.float32)
+            dst_pts = np.array(dst_list, dtype=np.float32)
 
             # Homografia com 4 pontos — força todos a coincidirem exatamente
             H, mask = cv2.findHomography(src_pts, dst_pts, method=0)
