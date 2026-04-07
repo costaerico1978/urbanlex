@@ -2573,10 +2573,11 @@ def api_mapeamento_georef_analisar():
 
             # Calcular transformacao afim a partir dos pontos manuais
             logs.append({'nivel': 'info', 'msg': '📐 Calculando transformação com pontos de referência...'})
-            src_pts = np.array([[pontos[str(n)]['p']['xp']/100*img_w,
-                                  pontos[str(n)]['p']['yp']/100*img_h] for n in range(1,5)], dtype=np.float32)
-            dst_pts = np.array([[pontos[str(n)]['o']['xp']/100*img_w,
-                                  pontos[str(n)]['o']['yp']/100*img_h] for n in range(1,5)], dtype=np.float32)
+            # Usar pixels absolutos da imagem original diretamente
+            src_pts = np.array([[pontos[str(n)]['p']['xPx'],
+                                  pontos[str(n)]['p']['yPx']] for n in range(1,5)], dtype=np.float32)
+            dst_pts = np.array([[pontos[str(n)]['o']['xPx'],
+                                  pontos[str(n)]['o']['yPx']] for n in range(1,5)], dtype=np.float32)
 
             M, inliers = cv2.estimateAffinePartial2D(src_pts, dst_pts, method=cv2.RANSAC, ransacReprojThreshold=30.0)
             if M is None:

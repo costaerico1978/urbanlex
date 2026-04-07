@@ -410,14 +410,15 @@ function grAtivarModo(){
 }
 
 function grMarcarAqui(tipo){
-    // Captura o centro visivel do canvas como ponto
+    // Captura o centro visivel do canvas como pixels da imagem original
     const c=document.getElementById('canvas-'+tipo);
     const s=GR[tipo];
     if(!s.img)return;
-    // Centro do canvas em coordenadas da imagem
+    // Centro do canvas em coordenadas da imagem (pixels reais)
     const xi=(c.width/2 - s.ox)/s.scale;
     const yi=(c.height/2 - s.oy)/s.scale;
-    s.temp={xi,yi,xp:xi/s.img.width*100,yp:yi/s.img.height*100};
+    // Guardar pixels absolutos da imagem original
+    s.temp={xi, yi, xPx: xi, yPx: yi};
     grDraw(tipo);
     document.getElementById('btn-submit-'+tipo).style.display='block';
     document.getElementById('btn-cancel-'+tipo).style.display='block';
@@ -439,7 +440,7 @@ function grSubmit(tipo){
     // Atualizar tabela
     const cell=document.getElementById(`c${tipo==='planta'?'p':'o'}-${GR.pontoAtual}`);
     const pt=GR.pontos[GR.pontoAtual][key];
-    cell.innerHTML=`<span class="gr-badge-ok">✅ Definido</span><span class="gr-coords">(${pt.xp.toFixed(1)}%, ${pt.yp.toFixed(1)}%)</span>`;
+    cell.innerHTML=`<span class="gr-badge-ok">✅ Definido</span><span class="gr-coords">(${Math.round(pt.xPx)}px, ${Math.round(pt.yPx)}px)</span>`;
     // Proxima etapa
     const pOk=GR.pontos[GR.pontoAtual].p!==null;
     const oOk=GR.pontos[GR.pontoAtual].o!==null;
