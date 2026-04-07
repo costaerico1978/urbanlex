@@ -130,6 +130,7 @@ def _extrair_legenda(fpath, fname, municipio, estado, logs, tmp):
         if ext == '.pdf':
             import subprocess
             subprocess.run(['gs', '-dNOPAUSE', '-dBATCH', '-sDEVICE=png16m', '-r150',
+                            '-dFirstPage=1', '-dLastPage=1',
                             f'-sOutputFile={tmp}/mapa_%03d.png', fpath], capture_output=True, timeout=120)
             pages = sorted([x for x in os.listdir(tmp) if x.startswith('mapa_') and x.endswith('.png')])
             if not pages:
