@@ -2612,17 +2612,7 @@ def api_mapeamento_georef_analisar():
                 'validacao_pontos_url': f"/static/downloads/validacao_{municipio.replace(' ','_')}.png"
             }
 
-            # Agora o Gemini refina
-            logs.append({'nivel': 'info', 'msg': '🤖 Gemini refinando alinhamento...'})
-            from modulos.mapeador_zonas import _georreferenciar_gemini
-            osm_data = _buscar_osm(municipio, estado, logs)
-            import tempfile
-            tmp = tempfile.mkdtemp()
-            geo_result = _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio, estado, logs, tmp)
-            if geo_result:
-                H, px_to_ll, val_path = geo_result
-                job['result']['validacao_pontos_url'] = f"/static/downloads/validacao_pontos_{municipio.replace(' ','_')}.png"
-                logs.append({'nivel': 'ok', 'msg': '✅ Refinamento concluído'})
+            logs.append({'nivel': 'ok', 'msg': '✅ Transformação aplicada com sucesso'})
 
         except Exception as e:
             import traceback
