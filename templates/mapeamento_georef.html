@@ -254,10 +254,15 @@ async function grCarregarMapas(){
 
         // Polling até terminar
         const statusEl=document.getElementById('upload-status');
-        let cursor=0;
+        let cursor=0, erros=0;
         while(true){
             await new Promise(r=>setTimeout(r,2000));
-            const poll=await fetch('/api/buscador/job/'+init.job_id+'?cursor='+cursor,{credentials:'same-origin'}).then(r=>r.json());
+            let poll;
+            try{
+                const resp=await fetch('/api/buscador/job/'+init.job_id+'?cursor='+cursor,{credentials:'same-origin'});
+                if(!resp.ok){ erros++; if(erros>5){statusEl.textContent='Servidor reiniciado — recarregue e tente novamente';btn.disabled=false;btn.textContent='🗺️ Carregar Mapas';return;} continue; }
+                poll=await resp.json();
+            }catch(e){ erros++; if(erros>5){statusEl.textContent='Erro de conexão — recarregue a página';btn.disabled=false;btn.textContent='🗺️ Carregar Mapas';return;} continue; }
             if(poll.logs) poll.logs.forEach(l=>{
                 if(l.nivel==='ok'||l.nivel==='info') statusEl.textContent=l.msg;
             });

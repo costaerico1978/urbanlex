@@ -2538,6 +2538,22 @@ def api_mapeamento_preparar():
     f.save(fpath)
     fname = f.filename
 
+    # Verificar se ja existe resultado cacheado para este arquivo
+    import hashlib, json as _json
+    _cache_key = hashlib.md5(f"{municipio}{estado}{fname}".encode()).hexdigest()[:12]
+    _meta_path = f"/var/www/urbanlex/static/downloads/georef_meta_{_cache_key}.json"
+    _planta_path = f"/var/www/urbanlex/static/downloads/georef_planta_{_cache_key}.png"
+    if os.path.exists(_meta_path) and os.path.exists(_planta_path):
+        with open(_meta_path) as _mf:
+            _meta = _json.load(_mf)
+        # Retornar cache direto sem job
+        _job_id = str(uuid.uuid4())[:12]
+        _job = {'logs': [{'nivel':'ok','msg':'✅ Usando cache anterior — mapas prontos!'}], 'done': True,
+                'result': {'success': True, 'planta_url': f'/static/downloads/georef_planta_{_cache_key}.png',
+                           'meta_key': _cache_key, 'bbox': _meta.get('bbox', [])}}
+        _buscador_jobs[_job_id] = _job
+        return jsonify({'success': True, 'job_id': _job_id})
+
     job_id = str(uuid.uuid4())[:12]
     job = {'logs': [], 'done': False, 'result': None}
     _buscador_jobs[job_id] = job
