@@ -331,12 +331,20 @@ def _baixar_tiles_osm(bbox, img_w, img_h, logs):
 
 
 
+
 def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio, estado, logs, tmp):
     """
-    Georreferencia usando shape matching da linha da costa/agua entre planta e OSM tiles.
+    Georreferencia em 2 chamadas ao Gemini usando elementos lineares:
+    1. Identifica linhas caracteristicas na planta (costa, rodovias, limites)
+    2. Localiza as mesmas linhas no OSM com multiplos pontos
     """
     import numpy as np
     import cv2
+    import re
+    import json as _j
+    import concurrent.futures as _cf
+    from google import genai as _gv
+    from google.genai import types as _gv_types
 
     south, north, west, east = bbox
 
@@ -344,110 +352,201 @@ def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio,
     logs.append({'nivel': 'info', 'msg': '  Baixando mapa OSM (tiles)...'})
     img_osm = _baixar_tiles_osm(bbox, img_w, img_h, logs)
 
-    # Salvar OSM tiles para referencia
+    _planta_path = f"{tmp}/planta_orig.png"
+    _osm_path = f"{tmp}/osm_tiles.png"
+    cv2.imwrite(_planta_path, img_planta)
+    cv2.imwrite(_osm_path, img_osm)
+
     osm_path = f"/var/www/urbanlex/static/downloads/osm_tiles_{municipio.replace(' ','_')}.png"
     cv2.imwrite(osm_path, img_osm)
 
-    # --- Extrair agua/costa da planta ---
-    logs.append({'nivel': 'info', 'msg': '  Extraindo linha da costa da planta...'})
-    costa_planta = _extrair_agua(img_planta, 'planta')
+    client = _gv.Client(api_key=os.environ.get('GEMINI_API_KEY', ''))
 
-    # --- Extrair agua/costa do OSM ---
-    logs.append({'nivel': 'info', 'msg': '  Extraindo linha da costa do OSM...'})
-    costa_osm = _extrair_agua(img_osm, 'osm')
-
-    # Salvar para debug
-    cv2.imwrite(f"{tmp}/costa_planta.png", costa_planta)
-    cv2.imwrite(f"{tmp}/costa_osm.png", costa_osm)
-
-    n_planta = cv2.countNonZero(costa_planta)
-    n_osm = cv2.countNonZero(costa_osm)
-    logs.append({'nivel': 'info', 'msg': f'  Pixels agua: planta={n_planta}, osm={n_osm}'})
-
-    if n_planta < 1000 or n_osm < 1000:
-        logs.append({'nivel': 'aviso', 'msg': '  Agua insuficiente detectada — abortando'})
-        return None
-
-    # --- Extrair contornos da costa ---
-    contornos_planta = _extrair_contornos_costa(costa_planta, img_w, img_h)
-    contornos_osm = _extrair_contornos_costa(costa_osm, img_w, img_h)
-
-    logs.append({'nivel': 'info', 'msg': f'  Contornos: planta={len(contornos_planta)}, osm={len(contornos_osm)}'})
-
-    if not contornos_planta or not contornos_osm:
-        logs.append({'nivel': 'aviso', 'msg': '  Contornos insuficientes'})
-        return None
-
-    # --- Shape matching com ECC (Enhanced Correlation Coefficient) ---
-    logs.append({'nivel': 'info', 'msg': '  Alinhando contornos via ECC...'})
-
-    # Usar o maior contorno de cada
-    costa_p_bin = np.zeros((img_h, img_w), dtype=np.uint8)
-    costa_o_bin = np.zeros((img_h, img_w), dtype=np.uint8)
-
-    for cnt in contornos_planta[:3]:
-        cv2.drawContours(costa_p_bin, [cnt], -1, 255, 3)
-    for cnt in contornos_osm[:3]:
-        cv2.drawContours(costa_o_bin, [cnt], -1, 255, 3)
-
-    # ECC alignment
-    warp_matrix = np.eye(2, 3, dtype=np.float32)
-    criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 1000, 1e-6)
-
+    # --- CHAMADA 1: identificar elementos lineares na planta ---
+    logs.append({'nivel': 'info', 'msg': '  Chamada 1: Gemini identificando elementos lineares na planta...'})
     try:
-        costa_p_f = costa_p_bin.astype(np.float32) / 255.0
-        costa_o_f = costa_o_bin.astype(np.float32) / 255.0
+        with open(_planta_path, 'rb') as fp:
+            planta_bytes = fp.read()
 
-        # Tentar ECC com modelo afim
-        cc, warp_matrix = cv2.findTransformECC(
-            costa_o_f, costa_p_f,
-            warp_matrix,
-            cv2.MOTION_EUCLIDEAN,
-            criteria,
-            None, 5
+        prompt1 = (
+            f"Esta e uma planta de zoneamento municipal de {municipio}/{estado}, Brasil.\n\n"
+            f"Identifique de 3 a 5 ELEMENTOS LINEARES que sejam facilmente reconheciveis "
+            f"em qualquer outro mapa da mesma area. Exemplos:\n"
+            f"- Linha da costa (beira do oceano)\n"
+            f"- Rodovia principal (ex: ERS-389, Estrada do Mar)\n"
+            f"- Margem de lagoa ou rio\n"
+            f"- Limite municipal\n\n"
+            f"Para cada elemento linear, forneça de 4 a 6 pontos ao longo da linha, "
+            f"do inicio ao fim, em ordem sequencial.\n\n"
+            f"Responda APENAS com JSON valido:\n"
+            f'[{{\n'
+            f'  "elemento": "Linha da costa (oceano)",\n'
+            f'  "pontos": [\n'
+            f'    {{"x": 10.5, "y": 82.3}},\n'
+            f'    {{"x": 25.1, "y": 79.8}},\n'
+            f'    {{"x": 40.2, "y": 76.1}},\n'
+            f'    {{"x": 55.3, "y": 73.4}}\n'
+            f'  ]\n'
+            f'}}]\n\n'
+            f"Coordenadas x,y em porcentagem da largura/altura da imagem (0 a 100).\n"
+            f"IMPORTANTE: ignore a legenda no canto direito — foque apenas na area do mapa."
         )
-        logs.append({'nivel': 'ok', 'msg': f'  ECC convergiu: cc={cc:.4f}'})
 
-    except Exception as e:
-        logs.append({'nivel': 'aviso', 'msg': f'  ECC falhou: {str(e)[:80]} — tentando phase correlation'})
+        parts1 = [_gv_types.Part.from_text(text=prompt1),
+                  _gv_types.Part.from_bytes(data=planta_bytes, mime_type='image/png')]
 
-        # Fallback: phase correlation para translacao
+        ex = _cf.ThreadPoolExecutor(max_workers=1)
+        fut = ex.submit(client.models.generate_content, model='gemini-2.5-flash', contents=parts1)
         try:
-            f1 = np.fft.fft2(costa_p_f)
-            f2 = np.fft.fft2(costa_o_f)
-            cross = f1 * np.conj(f2)
-            cross /= (np.abs(cross) + 1e-10)
-            corr = np.abs(np.fft.ifft2(cross))
-            peak = np.unravel_index(np.argmax(corr), corr.shape)
-            dy = peak[0] if peak[0] < img_h//2 else peak[0] - img_h
-            dx = peak[1] if peak[1] < img_w//2 else peak[1] - img_w
-            warp_matrix = np.array([[1, 0, float(dx)], [0, 1, float(dy)]], dtype=np.float32)
-            logs.append({'nivel': 'ok', 'msg': f'  Phase correlation: dx={dx}, dy={dy}'})
-        except Exception as e2:
-            logs.append({'nivel': 'aviso', 'msg': f'  Phase correlation falhou: {str(e2)[:80]}'})
+            resp1 = fut.result(timeout=120)
+            ex.shutdown(wait=False)
+        except _cf.TimeoutError:
+            ex.shutdown(wait=False)
+            logs.append({'nivel': 'aviso', 'msg': '  Gemini timeout (chamada 1)'})
             return None
 
-    # --- Gerar imagem de validacao ---
-    planta_warp = cv2.warpAffine(img_planta, warp_matrix, (img_w, img_h))
-    planta_warp_gray = cv2.cvtColor(planta_warp, cv2.COLOR_BGR2GRAY)
-    _, planta_edges = cv2.threshold(planta_warp_gray, 30, 255, cv2.THRESH_BINARY)
-    planta_edges = cv2.Canny(planta_warp_gray, 30, 90)
+        txt1 = re.sub(r'^```json\s*|\s*```$', '', resp1.text.strip())
+        elementos = _j.loads(txt1)
+        logs.append({'nivel': 'ok', 'msg': f'  {len(elementos)} elementos lineares identificados na planta'})
+        for el in elementos:
+            logs.append({'nivel': 'info', 'msg': f'    - {el["elemento"]} ({len(el["pontos"])} pontos)'})
 
-    val_img = np.zeros((img_h, img_w, 3), dtype=np.uint8)
-    val_img[:,:,0] = img_osm[:,:,0] if len(img_osm.shape)==3 else img_osm  # azul = OSM
-    # Desenhar bordas da planta em vermelho
-    osm_gray = cv2.cvtColor(img_osm, cv2.COLOR_BGR2GRAY)
-    osm_edges = cv2.Canny(osm_gray, 30, 90)
-    val_img[:,:,0] = planta_edges   # azul = planta
-    val_img[:,:,2] = osm_edges      # vermelho = OSM
+    except Exception as e:
+        logs.append({'nivel': 'aviso', 'msg': f'  Erro chamada 1: {str(e)[:100]}'})
+        return None
 
-    val_path = f"/var/www/urbanlex/static/downloads/validacao_{municipio.replace(' ','_')}.png"
+    # --- CHAMADA 2: localizar os mesmos elementos no OSM ---
+    logs.append({'nivel': 'info', 'msg': '  Chamada 2: Gemini localizando elementos no mapa OSM...'})
+    try:
+        with open(_osm_path, 'rb') as fp:
+            osm_bytes = fp.read()
+
+        lista_elementos = '\n'.join([f'{i+1}. {el["elemento"]}' for i, el in enumerate(elementos)])
+
+        prompt2 = (
+            f"Este e um mapa OpenStreetMap de {municipio}/{estado}, Brasil.\n\n"
+            f"Localize os seguintes elementos lineares neste mapa e marque "
+            f"de 4 a 6 pontos ao longo de cada um, em ordem sequencial do inicio ao fim:\n\n"
+            f"{lista_elementos}\n\n"
+            f"Responda APENAS com JSON valido:\n"
+            f'[{{\n'
+            f'  "id": 1,\n'
+            f'  "elemento": "Linha da costa (oceano)",\n'
+            f'  "encontrado": true,\n'
+            f'  "pontos": [\n'
+            f'    {{"x": 55.2, "y": 45.1}},\n'
+            f'    {{"x": 62.3, "y": 52.4}},\n'
+            f'    {{"x": 68.1, "y": 61.2}},\n'
+            f'    {{"x": 74.5, "y": 70.8}}\n'
+            f'  ]\n'
+            f'}}]\n\n'
+            f"Coordenadas x,y em porcentagem da largura/altura da imagem (0 a 100).\n"
+            f"Se nao encontrar o elemento, coloque encontrado: false e pontos vazio."
+        )
+
+        parts2 = [_gv_types.Part.from_text(text=prompt2),
+                  _gv_types.Part.from_bytes(data=osm_bytes, mime_type='image/png')]
+
+        ex = _cf.ThreadPoolExecutor(max_workers=1)
+        fut = ex.submit(client.models.generate_content, model='gemini-2.5-flash', contents=parts2)
+        try:
+            resp2 = fut.result(timeout=120)
+            ex.shutdown(wait=False)
+        except _cf.TimeoutError:
+            ex.shutdown(wait=False)
+            logs.append({'nivel': 'aviso', 'msg': '  Gemini timeout (chamada 2)'})
+            return None
+
+        txt2 = re.sub(r'^```json\s*|\s*```$', '', resp2.text.strip())
+        localizacoes = _j.loads(txt2)
+
+        # Montar pares de pontos correspondentes
+        pontos_planta = []
+        pontos_osm = []
+        cores_debug = [(255,50,50),(50,255,50),(50,150,255),(255,200,0),(255,0,255)]
+
+        for loc in localizacoes:
+            if not loc.get('encontrado', False) or not loc.get('pontos'):
+                logs.append({'nivel': 'aviso', 'msg': f'    Nao encontrado: {loc.get("elemento","?")}'})
+                continue
+            idx = loc['id'] - 1
+            if idx < 0 or idx >= len(elementos):
+                continue
+
+            pts_planta = elementos[idx]['pontos']
+            pts_osm = loc['pontos']
+            n = min(len(pts_planta), len(pts_osm))
+
+            logs.append({'nivel': 'info', 'msg': f'    OK {loc["elemento"]}: {n} pares de pontos'})
+
+            for i in range(n):
+                pontos_planta.append([pts_planta[i]['x']/100*img_w, pts_planta[i]['y']/100*img_h])
+                pontos_osm.append([pts_osm[i]['x']/100*img_w, pts_osm[i]['y']/100*img_h])
+
+        logs.append({'nivel': 'ok', 'msg': f'  Total: {len(pontos_planta)} pares de pontos correspondentes'})
+
+    except Exception as e:
+        logs.append({'nivel': 'aviso', 'msg': f'  Erro chamada 2: {str(e)[:100]}'})
+        return None
+
+    if len(pontos_planta) < 4:
+        logs.append({'nivel': 'aviso', 'msg': f'  Pontos insuficientes ({len(pontos_planta)}) — minimo 4'})
+        return None
+
+    # --- Calcular transformacao afim ---
+    src_pts = np.array(pontos_planta, dtype=np.float32)
+    dst_pts = np.array(pontos_osm, dtype=np.float32)
+
+    M, inliers = cv2.estimateAffinePartial2D(src_pts, dst_pts, method=cv2.RANSAC, ransacReprojThreshold=20.0)
+    if M is None:
+        logs.append({'nivel': 'aviso', 'msg': '  Falha ao calcular transformacao afim'})
+        return None
+
+    inliers_count = int(inliers.sum()) if inliers is not None else 0
+    scale = np.sqrt(M[0,0]**2 + M[1,0]**2)
+    logs.append({'nivel': 'ok', 'msg': f'  Transformacao: escala={scale:.3f} inliers={inliers_count}/{len(pontos_planta)}'})
+
+    # --- Gerar imagem de validacao lado a lado com linhas ---
+    planta_vis = img_planta.copy()
+    osm_vis = img_osm.copy()
+
+    cor_idx = 0
+    for loc in localizacoes:
+        if not loc.get('encontrado') or not loc.get('pontos'):
+            continue
+        idx = loc['id'] - 1
+        if idx < 0 or idx >= len(elementos):
+            continue
+        cor = cores_debug[cor_idx % len(cores_debug)]
+        cor_idx += 1
+
+        pts_planta = elementos[idx]['pontos']
+        pts_osm = loc['pontos']
+
+        # Desenhar linha na planta
+        for i in range(len(pts_planta)-1):
+            p1 = (int(pts_planta[i]['x']/100*img_w), int(pts_planta[i]['y']/100*img_h))
+            p2 = (int(pts_planta[i+1]['x']/100*img_w), int(pts_planta[i+1]['y']/100*img_h))
+            cv2.line(planta_vis, p1, p2, cor, 4)
+        for pt in pts_planta:
+            cv2.circle(planta_vis, (int(pt['x']/100*img_w), int(pt['y']/100*img_h)), 10, cor, -1)
+
+        # Desenhar linha no OSM
+        for i in range(len(pts_osm)-1):
+            p1 = (int(pts_osm[i]['x']/100*img_w), int(pts_osm[i]['y']/100*img_h))
+            p2 = (int(pts_osm[i+1]['x']/100*img_w), int(pts_osm[i+1]['y']/100*img_h))
+            cv2.line(osm_vis, p1, p2, cor, 4)
+        for pt in pts_osm:
+            cv2.circle(osm_vis, (int(pt['x']/100*img_w), int(pt['y']/100*img_h)), 10, cor, -1)
+
+    sep = np.full((img_h, 20, 3), 60, dtype=np.uint8)
+    val_img = np.hstack([planta_vis, sep, osm_vis])
+    val_path = f"/var/www/urbanlex/static/downloads/validacao_pontos_{municipio.replace(' ','_')}.png"
     cv2.imwrite(val_path, val_img)
-    logs.append({'nivel': 'ok', 'msg': '  Imagem de validacao gerada'})
+    logs.append({'nivel': 'ok', 'msg': '  Imagem de validacao gerada — confira as linhas'})
 
-    # Montar M_full 3x3
     M_full = np.eye(3, dtype=np.float32)
-    M_full[:2, :] = warp_matrix
+    M_full[:2, :] = M
 
     def px_to_ll(x, y):
         lon = west + (x / img_w) * (east - west)
@@ -455,49 +554,6 @@ def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio,
         return lat, lon
 
     return M_full, px_to_ll, val_path
-
-
-def _extrair_agua(img, tipo):
-    """Extrai mascara de agua da imagem."""
-    import numpy as np
-    import cv2
-
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-
-    if tipo == 'planta':
-        # Planta: agua/lagoas sao azul claro ou ciano claro
-        masks = [
-            cv2.inRange(hsv, np.array([85,30,150]), np.array([115,180,255])),   # azul claro
-            cv2.inRange(hsv, np.array([155,10,200]), np.array([180,60,255])),   # azul muito claro
-            cv2.inRange(hsv, np.array([85,10,200]), np.array([115,50,255])),    # azul palido
-        ]
-    else:
-        # OSM tiles: agua e azul claro caracteristico #aad3df
-        masks = [
-            cv2.inRange(hsv, np.array([90,20,170]), np.array([115,80,255])),    # agua OSM
-            cv2.inRange(hsv, np.array([85,15,180]), np.array([120,60,255])),    # variacao
-        ]
-
-    mask = masks[0]
-    for m in masks[1:]:
-        mask = cv2.bitwise_or(mask, m)
-
-    # Morfologia para limpar ruido
-    kernel = np.ones((5,5), np.uint8)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
-
-    return mask
-
-
-def _extrair_contornos_costa(mask, img_w, img_h):
-    """Extrai contornos ordenados por area."""
-    import cv2
-    contornos, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    min_area = img_w * img_h * 0.001
-    contornos = [c for c in contornos if cv2.contourArea(c) > min_area]
-    contornos = sorted(contornos, key=cv2.contourArea, reverse=True)
-    return contornos
 
 
 
