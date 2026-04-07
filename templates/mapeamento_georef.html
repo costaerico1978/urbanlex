@@ -322,6 +322,10 @@ function grDraw(tipo){
     const s=GR[tipo];
     ctx.clearRect(0,0,c.width,c.height);
     if(!s.img)return;
+    // Auto-refit se scale invalida (imagem fora do canvas)
+    if(!s.scale || s.scale<=0 || isNaN(s.scale) || s.scale>2.0){
+        grFitCanvas(tipo);
+    }
     ctx.save();
     ctx.translate(s.ox,s.oy);
     ctx.scale(s.scale,s.scale);
@@ -632,6 +636,11 @@ function grMostrarResultado(r){
     div.innerHTML=html;
 }
 
+
+// Auto-refit on window resize
+window.addEventListener('resize', ()=>{
+    if(GR.planta.img){ grFitCanvas('planta'); grDraw('planta'); }
+});
 
 // ---- UPSCALE ----
 async function grUpscale(){
