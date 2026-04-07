@@ -106,15 +106,16 @@
         <!-- OSM -->
         <div>
             <div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">🛰️ Mapa Satélite</div>
-            <div class="gr-map-wrap" id="wrap-osm" style="position:relative">
+            <div class="gr-map-wrap" id="wrap-osm" style="position:relative;overflow:visible">
                 <div class="gr-map-title">SATÉLITE (ESRI)</div>
                 <div id="gmap" style="width:100%;height:380px;border-radius:6px"></div>
                 <div class="gr-mode-badge" id="badge-osm">🎯 Navegue e clique em "Marcar aqui"</div>
-                <div id="gmap-crosshair" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;display:none;z-index:10">
-                    <svg width="32" height="32" viewBox="0 0 32 32">
-                        <line x1="0" y1="16" x2="32" y2="16" stroke="#00ff88" stroke-width="2"/>
-                        <line x1="16" y1="0" x2="16" y2="32" stroke="#00ff88" stroke-width="2"/>
-                        <circle cx="16" cy="16" r="5" fill="none" stroke="#00ff88" stroke-width="2"/>
+                <div id="gmap-crosshair" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;display:none;z-index:1000;width:40px;height:40px">
+                    <svg width="40" height="40" viewBox="0 0 40 40">
+                        <line x1="0" y1="20" x2="40" y2="20" stroke="#00ff88" stroke-width="2.5"/>
+                        <line x1="20" y1="0" x2="20" y2="40" stroke="#00ff88" stroke-width="2.5"/>
+                        <circle cx="20" cy="20" r="6" fill="none" stroke="#00ff88" stroke-width="2.5"/>
+                        <circle cx="20" cy="20" r="2" fill="#00ff88"/>
                     </svg>
                 </div>
             </div>
@@ -420,7 +421,9 @@ function grAtivarModo(){
         document.getElementById('btn-submit-'+GR.etapa).style.display='none';
         document.getElementById('btn-cancel-'+GR.etapa).style.display='none';
         if(GR.etapa==='osm'){
-            document.getElementById('gmap-crosshair').style.display='block';
+            const ch = document.getElementById('gmap-crosshair');
+            ch.style.display='block';
+            ch.style.zIndex='1000';
         }
     }
     // Instrucao

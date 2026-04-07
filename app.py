@@ -2646,9 +2646,13 @@ def api_mapeamento_georef_analisar():
                 po = p.get('o',{}) or {}
                 pxp = f'{pp.get("xp",0):.1f}' if pp else '?'
                 pyp = f'{pp.get("yp",0):.1f}' if pp else '?'
-                oxp = f'{po.get("xp",0):.1f}' if po else '?'
-                oyp = f'{po.get("yp",0):.1f}' if po else '?'
-                logs.append({'nivel': 'info', 'msg': f'  Ponto {n}: planta=({pxp}%,{pyp}%) osm=({oxp}%,{oyp}%)'})
+                if po and po.get('isLatLng'):
+                    ostr = f'lat={po.get("lat",0):.5f},lng={po.get("lng",0):.5f}'
+                elif po:
+                    ostr = f'{po.get("xp",0):.1f}%,{po.get("yp",0):.1f}%'
+                else:
+                    ostr = '?'
+                logs.append({'nivel': 'info', 'msg': f'  Ponto {n}: planta=({pxp}%,{pyp}%) mapa=({ostr})'})
             # Usar pixels absolutos da imagem original diretamente
             src_list, dst_list = [], []
             south, north, west, east = bbox
