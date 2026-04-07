@@ -4,116 +4,132 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Georreferenciamento — UrbanLex</title>
-    {% include 'partials/head_css.html' ignore missing %}
     <link rel="stylesheet" href="/static/css/style.css">
     <style>
-        .gr-card { background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px }
-        .gr-maps { display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px }
-        .gr-map-wrap { position:relative;background:#111;border:2px solid var(--border);border-radius:8px;overflow:hidden;height:450px }
-        .gr-map-wrap.active-selection { border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)40 }
-        .gr-map-canvas { width:100%;height:100%;cursor:crosshair;display:block }
-        .gr-map-label { position:absolute;top:10px;left:10px;background:rgba(0,0,0,0.7);color:var(--accent);padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;pointer-events:none }
-        .gr-map-hint { position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:#fff;padding:4px 12px;border-radius:6px;font-size:11px;pointer-events:none;display:none }
-        .gr-map-controls { position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:4px }
-        .gr-map-btn { background:rgba(0,0,0,0.7);color:#fff;border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:14px;cursor:pointer }
-        .gr-map-btn:hover { background:var(--accent);color:#000 }
-        .gr-map-submit { width:100%;margin-top:8px }
-        .gr-table { width:100%;border-collapse:collapse;font-size:13px }
-        .gr-table th { padding:10px 12px;background:var(--surface2);border:1px solid var(--border);text-align:left;color:var(--muted);font-weight:600 }
-        .gr-table td { padding:10px 12px;border:1px solid var(--border) }
-        .gr-badge { display:inline-block;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700 }
-        .gr-badge-ok { background:#1a3a1a;color:#4caf50 }
-        .gr-badge-pending { background:#2a2a1a;color:#ffb347 }
-        .gr-point-marker { position:absolute;width:20px;height:20px;border-radius:50%;border:3px solid #fff;transform:translate(-50%,-50%);pointer-events:none;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff }
-        #gr-log { background:#0a0a0a;border:1px solid var(--border);border-radius:8px;padding:12px;height:150px;overflow-y:auto;font-size:12px;font-family:monospace;display:none }
+        .gr-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px}
+        .gr-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;display:block}
+        .gr-input{width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box}
+        .gr-input:focus{outline:none;border-color:var(--accent)}
+        .gr-ac-wrapper{position:relative}
+        .gr-ac-list{position:absolute;top:calc(100% + 2px);left:0;right:0;z-index:9999;background:var(--surface);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5);display:none}
+        .gr-ac-item{padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border)}
+        .gr-ac-item:last-child{border-bottom:none}
+        .gr-ac-item:hover{background:var(--surface2)}
+        .gr-maps-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+        .gr-map-wrap{border-radius:8px;overflow:hidden;background:#0a0a0a;border:2px solid var(--border);position:relative}
+        .gr-map-wrap.mode-inserir{border-color:var(--accent);cursor:crosshair}
+        .gr-map-wrap.mode-inserir .gr-map-canvas{cursor:crosshair}
+        .gr-map-canvas{display:block;width:100%;height:380px}
+        .gr-map-title{background:rgba(0,0,0,0.8);color:var(--accent);font-size:11px;font-weight:700;padding:4px 10px;position:absolute;top:0;left:0;right:0;z-index:2;letter-spacing:1px;text-transform:uppercase}
+        .gr-map-controls{position:absolute;top:28px;right:8px;z-index:3;display:flex;flex-direction:column;gap:4px}
+        .gr-ctrl-btn{width:28px;height:28px;background:rgba(20,20,20,0.9);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+        .gr-ctrl-btn:hover{background:var(--accent);color:#000}
+        .gr-mode-badge{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:var(--accent);color:#000;font-size:11px;font-weight:700;padding:3px 10px;border-radius:10px;z-index:3;display:none;white-space:nowrap}
+        .gr-submit-row{display:flex;gap:8px;margin-top:8px}
+        .gr-submit-btn{flex:1;padding:8px;background:var(--accent);color:#000;border:none;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer;display:none}
+        .gr-submit-btn:hover{opacity:.85}
+        .gr-cancel-btn{padding:8px 16px;background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer;display:none}
+        .gr-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:16px}
+        .gr-table th{padding:10px 12px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;text-align:left}
+        .gr-table td{padding:10px 12px;border:1px solid var(--border)}
+        .gr-badge-ok{display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700;background:#1a3a1a;color:#4caf50}
+        .gr-badge-pending{display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700;background:var(--surface2);color:var(--muted)}
+        .gr-coords{font-size:10px;color:var(--muted);margin-left:6px}
+        .gr-reset-btn{padding:3px 10px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer}
+        .gr-reset-btn:hover{color:#ff6b6b;border-color:#ff6b6b}
+        #btn-analisar{padding:12px 32px;background:var(--surface2);color:var(--muted);border:none;border-radius:8px;font-weight:700;font-size:14px;cursor:not-allowed;transition:all .3s;margin-top:20px}
+        #btn-analisar.enabled{background:var(--accent);color:#000;cursor:pointer}
+        #btn-analisar.enabled:hover{opacity:.85}
+        #gr-log{background:#0a0a0a;border:1px solid var(--border);border-radius:8px;padding:12px;height:160px;overflow-y:auto;font-size:12px;font-family:monospace;margin-top:12px}
+        .gr-instrucao-box{background:var(--surface2);border-left:3px solid var(--accent);padding:10px 14px;border-radius:0 6px 6px 0;font-size:13px;color:var(--text);margin-bottom:12px;display:none}
     </style>
 </head>
 <body>
 {% include 'partials/sidebar.html' ignore missing %}
-<div class="main">
-<div class="content">
+<div class="main"><div class="content">
 
 <h2 style="color:var(--accent);margin-bottom:4px">📍 Georreferenciamento de Planta</h2>
-<p style="color:var(--muted);margin-bottom:20px;font-size:13px">Marque 4 pontos de referência correspondentes nas duas imagens para iniciar o mapeamento.</p>
+<p style="color:var(--muted);font-size:13px;margin-bottom:20px">Marque 4 pontos correspondentes nas duas imagens para georreferenciar a planta de zoneamento.</p>
 
-<!-- ETAPA 1: Upload -->
+<!-- ETAPA 1 -->
 <div class="gr-card" id="step-upload">
-    <h3 style="color:var(--text);margin-bottom:16px">1. Selecionar Município e Planta</h3>
+    <h3 style="color:var(--text);margin-bottom:16px;font-size:15px">1. Selecionar Município e Planta</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-        <div style="position:relative">
-            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">MUNICÍPIO</label>
-            <input id="gr-municipio" type="text" placeholder="Ex: Xangri-Lá" autocomplete="off"
-                style="width:100%;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px">
-            <div id="gr-ac-list" class="ac-list" style="position:absolute;top:100%;left:0;right:0;z-index:100;background:var(--surface);border:1px solid var(--border);border-radius:0 0 8px 8px;display:none;max-height:200px;overflow-y:auto"></div>
+        <div class="gr-ac-wrapper">
+            <label class="gr-label">Município</label>
+            <input id="gr-municipio" type="text" placeholder="Ex: Xangri-Lá" autocomplete="off" class="gr-input"
+                oninput="grAcBuscar(this.value)" onkeydown="grAcKeydown(event)">
+            <div id="gr-ac-list" class="gr-ac-list"></div>
         </div>
         <div>
-            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">ESTADO</label>
-            <input id="gr-estado" type="text" placeholder="Preenchido automaticamente" readonly
-                style="width:100%;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:14px">
+            <label class="gr-label">Estado</label>
+            <input id="gr-estado" type="text" placeholder="Auto" readonly class="gr-input" style="color:var(--muted)">
         </div>
     </div>
-    <div>
-        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">PLANTA DE ZONEAMENTO (PDF ou imagem)</label>
-        <input id="gr-arquivo" type="file" accept=".pdf,.png,.jpg,.jpeg"
-            style="width:100%;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">
+    <div style="margin-bottom:16px">
+        <label class="gr-label">Planta de Zoneamento (PDF ou imagem)</label>
+        <input id="gr-arquivo" type="file" accept=".pdf,.png,.jpg,.jpeg" class="gr-input" style="padding:8px">
     </div>
     <button onclick="grCarregarMapas()" id="btn-carregar"
-        style="margin-top:16px;padding:10px 24px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px">
+        style="padding:10px 24px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px">
         🗺️ Carregar Mapas
     </button>
+    <div id="upload-status" style="margin-top:12px;font-size:13px;color:var(--muted);display:none">⏳ Carregando mapas...</div>
 </div>
 
-<!-- ETAPA 2: Mapas lado a lado -->
+<!-- ETAPA 2 -->
 <div class="gr-card" id="step-maps" style="display:none">
-    <h3 style="color:var(--text);margin-bottom:16px">2. Marcar Pontos de Referência</h3>
-    <p style="font-size:13px;color:var(--muted);margin-bottom:16px" id="gr-instrucao">
-        Clique em <strong style="color:var(--accent)">"Inserir Pontos de Referência"</strong> para começar.
-    </p>
+    <h3 style="color:var(--text);margin-bottom:12px;font-size:15px">2. Marcar Pontos de Referência</h3>
 
-    <div class="gr-maps">
+    <div class="gr-instrucao-box" id="gr-instrucao"></div>
+
+    <div class="gr-maps-grid">
         <!-- Planta -->
         <div>
-            <div style="font-size:13px;color:var(--muted);margin-bottom:6px;font-weight:600">📋 Planta de Zoneamento</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">📋 Planta de Zoneamento</div>
             <div class="gr-map-wrap" id="wrap-planta">
-                <canvas id="canvas-planta" class="gr-map-canvas"></canvas>
-                <div class="gr-map-label">PLANTA</div>
-                <div class="gr-map-hint" id="hint-planta">Clique no ponto</div>
+                <div class="gr-map-title">PLANTA</div>
                 <div class="gr-map-controls">
-                    <button class="gr-map-btn" onclick="grZoom('planta', 1.3)" title="Zoom +">+</button>
-                    <button class="gr-map-btn" onclick="grZoom('planta', 0.77)" title="Zoom -">−</button>
-                    <button class="gr-map-btn" onclick="grReset('planta')" title="Reset">⌂</button>
+                    <button class="gr-ctrl-btn" onclick="grZoom('planta',1.3)" title="Zoom +">+</button>
+                    <button class="gr-ctrl-btn" onclick="grZoom('planta',0.77)" title="Zoom -">−</button>
+                    <button class="gr-ctrl-btn" onclick="grReset('planta')" title="Reset">⌂</button>
                 </div>
+                <canvas id="canvas-planta" class="gr-map-canvas"></canvas>
+                <div class="gr-mode-badge" id="badge-planta">🎯 Clique no ponto</div>
             </div>
-            <button id="btn-submit-planta" class="btn btn-secondary gr-map-submit" onclick="grSubmitPonto('planta')" style="display:none">
-                ✅ Submeter Ponto na Planta
-            </button>
+            <div class="gr-submit-row">
+                <button id="btn-submit-planta" class="gr-submit-btn" onclick="grSubmit('planta')">✅ Confirmar ponto na Planta</button>
+                <button id="btn-cancel-planta" class="gr-cancel-btn" onclick="grCancelarPonto('planta')">✕</button>
+            </div>
         </div>
 
         <!-- OSM -->
         <div>
-            <div style="font-size:13px;color:var(--muted);margin-bottom:6px;font-weight:600">🗺️ Mapa OSM</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">🗺️ Mapa OSM</div>
             <div class="gr-map-wrap" id="wrap-osm">
-                <canvas id="canvas-osm" class="gr-map-canvas"></canvas>
-                <div class="gr-map-label">OSM</div>
-                <div class="gr-map-hint" id="hint-osm">Clique no ponto</div>
+                <div class="gr-map-title">OSM</div>
                 <div class="gr-map-controls">
-                    <button class="gr-map-btn" onclick="grZoom('osm', 1.3)" title="Zoom +">+</button>
-                    <button class="gr-map-btn" onclick="grZoom('osm', 0.77)" title="Zoom -">−</button>
-                    <button class="gr-map-btn" onclick="grReset('osm')" title="Reset">⌂</button>
+                    <button class="gr-ctrl-btn" onclick="grZoom('osm',1.3)" title="Zoom +">+</button>
+                    <button class="gr-ctrl-btn" onclick="grZoom('osm',0.77)" title="Zoom -">−</button>
+                    <button class="gr-ctrl-btn" onclick="grReset('osm')" title="Reset">⌂</button>
                 </div>
+                <canvas id="canvas-osm" class="gr-map-canvas"></canvas>
+                <div class="gr-mode-badge" id="badge-osm">🎯 Clique no ponto</div>
             </div>
-            <button id="btn-submit-osm" class="btn btn-secondary gr-map-submit" onclick="grSubmitPonto('osm')" style="display:none">
-                ✅ Submeter Ponto no OSM
-            </button>
+            <div class="gr-submit-row">
+                <button id="btn-submit-osm" class="gr-submit-btn" onclick="grSubmit('osm')">✅ Confirmar ponto no OSM</button>
+                <button id="btn-cancel-osm" class="gr-cancel-btn" onclick="grCancelarPonto('osm')">✕</button>
+            </div>
         </div>
     </div>
 
-    <button onclick="grIniciarPontos()" id="btn-inserir"
-        style="padding:10px 24px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-weight:600;cursor:pointer;font-size:14px;margin-bottom:20px">
+    <!-- Botão inserir pontos -->
+    <button id="btn-inserir" onclick="grIniciarPontos()"
+        style="padding:10px 20px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-weight:600;cursor:pointer;font-size:13px">
         📍 Inserir Pontos de Referência
     </button>
 
-    <!-- Tabela de pontos -->
+    <!-- Tabela -->
     <table class="gr-table">
         <thead>
             <tr>
@@ -123,478 +139,382 @@
                 <th></th>
             </tr>
         </thead>
-        <tbody id="gr-tbody">
-            <tr id="row-1">
-                <td><strong>Ponto Ref. 1</strong></td>
-                <td id="cell-planta-1"><span class="gr-badge gr-badge-pending">⏳ A definir</span></td>
-                <td id="cell-osm-1"><span class="gr-badge gr-badge-pending">⏳ A definir</span></td>
-                <td><button class="gr-map-btn" onclick="grResetar(1)" style="font-size:11px;padding:4px 8px">🔄 Resetar</button></td>
-            </tr>
-            <tr id="row-2">
-                <td><strong>Ponto Ref. 2</strong></td>
-                <td id="cell-planta-2"><span class="gr-badge gr-badge-pending">⏳ A definir</span></td>
-                <td id="cell-osm-2"><span class="gr-badge gr-badge-pending">⏳ A definir</span></td>
-                <td><button class="gr-map-btn" onclick="grResetar(2)" style="font-size:11px;padding:4px 8px">🔄 Resetar</button></td>
-            </tr>
-            <tr id="row-3">
-                <td><strong>Ponto Ref. 3</strong></td>
-                <td id="cell-planta-3"><span class="gr-badge gr-badge-pending">⏳ A definir</span></td>
-                <td id="cell-osm-3"><span class="gr-badge gr-badge-pending">⏳ A definir</span></td>
-                <td><button class="gr-map-btn" onclick="grResetar(3)" style="font-size:11px;padding:4px 8px">🔄 Resetar</button></td>
-            </tr>
-            <tr id="row-4">
-                <td><strong>Ponto Ref. 4</strong></td>
-                <td id="cell-planta-4"><span class="gr-badge gr-badge-pending">⏳ A definir</span></td>
-                <td id="cell-osm-4"><span class="gr-badge gr-badge-pending">⏳ A definir</span></td>
-                <td><button class="gr-map-btn" onclick="grResetar(4)" style="font-size:11px;padding:4px 8px">🔄 Resetar</button></td>
-            </tr>
+        <tbody>
+            <tr><td><strong>Ponto Ref. 1</strong></td><td id="cp-1"><span class="gr-badge-pending">⏳ A definir</span></td><td id="co-1"><span class="gr-badge-pending">⏳ A definir</span></td><td><button class="gr-reset-btn" onclick="grResetar(1)">🔄</button></td></tr>
+            <tr><td><strong>Ponto Ref. 2</strong></td><td id="cp-2"><span class="gr-badge-pending">⏳ A definir</span></td><td id="co-2"><span class="gr-badge-pending">⏳ A definir</span></td><td><button class="gr-reset-btn" onclick="grResetar(2)">🔄</button></td></tr>
+            <tr><td><strong>Ponto Ref. 3</strong></td><td id="cp-3"><span class="gr-badge-pending">⏳ A definir</span></td><td id="co-3"><span class="gr-badge-pending">⏳ A definir</span></td><td><button class="gr-reset-btn" onclick="grResetar(3)">🔄</button></td></tr>
+            <tr><td><strong>Ponto Ref. 4</strong></td><td id="cp-4"><span class="gr-badge-pending">⏳ A definir</span></td><td id="co-4"><span class="gr-badge-pending">⏳ A definir</span></td><td><button class="gr-reset-btn" onclick="grResetar(4)">🔄</button></td></tr>
         </tbody>
     </table>
 
-    <div style="margin-top:20px">
-        <button id="btn-analisar" disabled onclick="grAnalisar()"
-            style="padding:12px 32px;background:#333;color:#666;border:none;border-radius:8px;font-weight:700;cursor:not-allowed;font-size:15px;transition:all 0.3s">
-            🚀 Começar Análise
-        </button>
-        <span id="btn-analisar-hint" style="font-size:12px;color:var(--muted);margin-left:12px">Defina os 4 pontos para continuar</span>
+    <div>
+        <button id="btn-analisar" onclick="grAnalisar()">🚀 Começar Análise</button>
+        <span id="hint-analisar" style="font-size:12px;color:var(--muted);margin-left:12px">Defina os 4 pontos para continuar</span>
     </div>
 </div>
 
-<!-- Log -->
+<!-- RESULTADO -->
 <div class="gr-card" id="step-result" style="display:none">
-    <h3 style="color:var(--text);margin-bottom:12px">3. Processamento</h3>
+    <h3 style="color:var(--text);margin-bottom:8px;font-size:15px">3. Processamento</h3>
     <div id="gr-log"></div>
     <div id="gr-resultado" style="margin-top:16px"></div>
 </div>
 
-</div>
-</div>
+</div></div>
 
 <script>
-// Estado global
 const GR = {
-    municipio: '', estado: '',
-    imgPlanta: null, imgOsm: null,
-    osmJobId: null,
-
-    // Transformacoes dos canvas
-    planta: { scale: 1, ox: 0, oy: 0, img: null, isDragging: false, lastX: 0, lastY: 0 },
-    osm:    { scale: 1, ox: 0, oy: 0, img: null, isDragging: false, lastX: 0, lastY: 0 },
-
-    // Pontos: { planta: {x,y,xPct,yPct}, osm: {x,y,xPct,yPct} }
-    pontos: { 1: {planta:null,osm:null}, 2:{planta:null,osm:null}, 3:{planta:null,osm:null}, 4:{planta:null,osm:null} },
-
-    // Estado de coleta
-    coletando: false,
-    pontoAtual: 1,
-    etapa: null, // 'planta' ou 'osm'
-    tempPonto: null, // ponto temporario antes de submeter
+    municipio:'', estado:'',
+    planta:{ scale:1, ox:0, oy:0, img:null, drag:false, lx:0, ly:0, temp:null },
+    osm:   { scale:1, ox:0, oy:0, img:null, drag:false, lx:0, ly:0, temp:null },
+    pontos:{ 1:{p:null,o:null}, 2:{p:null,o:null}, 3:{p:null,o:null}, 4:{p:null,o:null} },
+    coletando:false, pontoAtual:1, etapa:null
 };
+const CORES=['#FF4444','#44DD44','#4499FF','#FFCC00'];
 
-const CORES_PONTOS = ['#FF4444','#44FF44','#4488FF','#FFCC00'];
-
-// --- AUTOCOMPLETE MUNICIPIO ---
-let _acTimer = null, _acCache = {};
-document.getElementById('gr-municipio').addEventListener('input', function() {
-    const q = this.value.trim();
-    if (q.length < 2) { document.getElementById('gr-ac-list').style.display='none'; return; }
-    clearTimeout(_acTimer);
-    _acTimer = setTimeout(async () => {
-        let items = _acCache[q.toLowerCase()];
-        if (!items) {
-            const r = await fetch('/api/buscador/autocomplete-municipios?q='+encodeURIComponent(q), {credentials:'same-origin'});
-            items = (await r.json()).municipios || [];
-            _acCache[q.toLowerCase()] = items;
+// Autocomplete
+let _acT=null,_acC={};
+function grAcBuscar(q){
+    const list=document.getElementById('gr-ac-list');
+    q=(q||'').trim();
+    if(q.length<2){list.style.display='none';return;}
+    clearTimeout(_acT);
+    _acT=setTimeout(async()=>{
+        let items=_acC[q.toLowerCase()];
+        if(!items){
+            const r=await fetch('/api/buscador/autocomplete-municipios?q='+encodeURIComponent(q),{credentials:'same-origin'});
+            items=(await r.json()).municipios||[];
+            _acC[q.toLowerCase()]=items;
         }
-        const list = document.getElementById('gr-ac-list');
-        if (!items.length) { list.style.display='none'; return; }
-        list.innerHTML = items.map(m =>
-            `<div class="ac-item" style="padding:8px 12px;cursor:pointer;font-size:13px" 
-             onmousedown="grAcSelect('${m.nome.replace(/'/g,"\\'")}','${m.estado}')"
-             onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">`+
-            `<span style="color:var(--muted);margin-right:6px">${m.estado}</span>${m.nome}</div>`
+        if(!items.length){list.style.display='none';return;}
+        list.innerHTML=items.map(m=>
+            `<div class="gr-ac-item" onmousedown="grAcSel('${m.nome.replace(/'/g,"\\'")}','${m.estado}')">
+            <span style="color:var(--muted);margin-right:6px">${m.estado}</span>${m.nome}</div>`
         ).join('');
         list.style.display='block';
-    }, 200);
-});
-document.addEventListener('click', e => {
-    if (!e.target.closest('#gr-municipio')) document.getElementById('gr-ac-list').style.display='none';
-});
-function grAcSelect(nome, estado) {
-    document.getElementById('gr-municipio').value = nome;
-    document.getElementById('gr-estado').value = estado;
+    },200);
+}
+function grAcKeydown(e){
+    const list=document.getElementById('gr-ac-list');
+    const items=list.querySelectorAll('.gr-ac-item');
+    if(!items.length||list.style.display==='none')return;
+    if(e.key==='Escape'){list.style.display='none';}
+}
+function grAcSel(nome,estado){
+    document.getElementById('gr-municipio').value=nome;
+    document.getElementById('gr-estado').value=estado;
     document.getElementById('gr-ac-list').style.display='none';
-    GR.municipio = nome; GR.estado = estado;
+    GR.municipio=nome; GR.estado=estado;
+}
+document.addEventListener('click',e=>{
+    if(!e.target.closest('.gr-ac-wrapper'))document.getElementById('gr-ac-list').style.display='none';
+});
+
+// Carregar mapas
+async function grCarregarMapas(){
+    const municipio=document.getElementById('gr-municipio').value.trim();
+    const estado=document.getElementById('gr-estado').value.trim();
+    const arquivo=document.getElementById('gr-arquivo').files[0];
+    if(!municipio||!estado){alert('Informe município e estado');return;}
+    if(!arquivo){alert('Selecione a planta');return;}
+    GR.municipio=municipio; GR.estado=estado;
+    const btn=document.getElementById('btn-carregar');
+    btn.disabled=true; btn.textContent='⏳ Carregando...';
+    document.getElementById('upload-status').style.display='block';
+    const fd=new FormData();
+    fd.append('arquivo',arquivo); fd.append('municipio',municipio); fd.append('estado',estado);
+    try{
+        const resp=await fetch('/api/mapeamento/preparar',{method:'POST',body:fd,credentials:'same-origin'});
+        const d=await resp.json();
+        if(!d.success){alert('Erro: '+(d.error||'desconhecido'));btn.disabled=false;btn.textContent='🗺️ Carregar Mapas';document.getElementById('upload-status').style.display='none';return;}
+        await grLoadImg('planta',d.planta_url);
+        await grLoadImg('osm',d.osm_url);
+        document.getElementById('step-upload').style.display='none';
+        document.getElementById('step-maps').style.display='block';
+    }catch(e){alert('Erro: '+e);btn.disabled=false;btn.textContent='🗺️ Carregar Mapas';document.getElementById('upload-status').style.display='none';}
 }
 
-// --- CARREGAR MAPAS ---
-async function grCarregarMapas() {
-    const municipio = document.getElementById('gr-municipio').value.trim();
-    const estado = document.getElementById('gr-estado').value.trim();
-    const arquivo = document.getElementById('gr-arquivo').files[0];
-    if (!municipio || !estado) { alert('Informe o município e estado'); return; }
-    if (!arquivo) { alert('Selecione a planta de zoneamento'); return; }
-
-    GR.municipio = municipio; GR.estado = estado;
-    const btn = document.getElementById('btn-carregar');
-    btn.disabled = true; btn.textContent = '⏳ Carregando...';
-
-    const fd = new FormData();
-    fd.append('arquivo', arquivo);
-    fd.append('municipio', municipio);
-    fd.append('estado', estado);
-
-    try {
-        const resp = await fetch('/api/mapeamento/preparar', {method:'POST', body:fd, credentials:'same-origin'});
-        const d = await resp.json();
-        if (!d.success) { alert('Erro: ' + (d.error||'desconhecido')); btn.disabled=false; btn.textContent='🗺️ Carregar Mapas'; return; }
-
-        // Carregar imagens nos canvas
-        await grLoadCanvas('planta', d.planta_url);
-        await grLoadCanvas('osm', d.osm_url);
-
-        document.getElementById('step-upload').style.display = 'none';
-        document.getElementById('step-maps').style.display = 'block';
-    } catch(e) {
-        alert('Erro: ' + e);
-        btn.disabled = false; btn.textContent = '🗺️ Carregar Mapas';
-    }
-}
-
-// --- CANVAS ---
-function grLoadCanvas(tipo, url) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-            GR[tipo].img = img;
-            GR[tipo].scale = 1; GR[tipo].ox = 0; GR[tipo].oy = 0;
+function grLoadImg(tipo,url){
+    return new Promise(res=>{
+        const img=new Image();
+        img.onload=()=>{
+            GR[tipo].img=img;
+            GR[tipo].scale=1;GR[tipo].ox=0;GR[tipo].oy=0;
             grDraw(tipo);
-            grInitEvents(tipo);
-            resolve();
+            grInitCanvas(tipo);
+            res();
         };
-        img.src = url;
+        img.src=url+'?t='+Date.now();
     });
 }
 
-function grDraw(tipo) {
-    const c = document.getElementById('canvas-'+tipo);
-    const wrap = document.getElementById('wrap-'+tipo);
-    c.width = wrap.clientWidth;
-    c.height = wrap.clientHeight;
-    const ctx = c.getContext('2d');
-    const s = GR[tipo];
+function grDraw(tipo){
+    const c=document.getElementById('canvas-'+tipo);
+    const wrap=document.getElementById('wrap-'+tipo);
+    c.width=wrap.clientWidth; c.height=wrap.clientHeight;
+    const ctx=c.getContext('2d');
+    const s=GR[tipo];
     ctx.clearRect(0,0,c.width,c.height);
-    if (!s.img) return;
-
+    if(!s.img)return;
     ctx.save();
-    ctx.translate(s.ox, s.oy);
-    ctx.scale(s.scale, s.scale);
-    ctx.drawImage(s.img, 0, 0);
+    ctx.translate(s.ox,s.oy);
+    ctx.scale(s.scale,s.scale);
+    ctx.drawImage(s.img,0,0);
     ctx.restore();
-
-    // Desenhar pontos definidos
-    for (let n = 1; n <= 4; n++) {
-        const p = GR.pontos[n][tipo];
-        if (!p) continue;
-        const sx = p.xImg * s.scale + s.ox;
-        const sy = p.yImg * s.scale + s.oy;
-        ctx.beginPath();
-        ctx.arc(sx, sy, 12, 0, Math.PI*2);
-        ctx.fillStyle = CORES_PONTOS[n-1] + 'AA';
-        ctx.fill();
-        ctx.strokeStyle = CORES_PONTOS[n-1];
-        ctx.lineWidth = 3;
-        ctx.stroke();
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 11px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(n, sx, sy);
+    // Pontos confirmados
+    for(let n=1;n<=4;n++){
+        const p=GR.pontos[n][tipo==='planta'?'p':'o'];
+        if(!p)continue;
+        const sx=p.xi*s.scale+s.ox, sy=p.yi*s.scale+s.oy;
+        ctx.beginPath(); ctx.arc(sx,sy,14,0,Math.PI*2);
+        ctx.fillStyle=CORES[n-1]+'55'; ctx.fill();
+        ctx.strokeStyle=CORES[n-1]; ctx.lineWidth=3; ctx.stroke();
+        ctx.fillStyle='#fff'; ctx.font='bold 12px sans-serif';
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText(n,sx,sy);
     }
-
-    // Desenhar ponto temporario
-    if (GR.tempPonto && GR.etapa === tipo) {
-        const sx = GR.tempPonto.xImg * s.scale + s.ox;
-        const sy = GR.tempPonto.yImg * s.scale + s.oy;
-        ctx.beginPath();
-        ctx.arc(sx, sy, 14, 0, Math.PI*2);
-        ctx.strokeStyle = CORES_PONTOS[GR.pontoAtual-1];
-        ctx.lineWidth = 3;
-        ctx.setLineDash([5,5]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle = CORES_PONTOS[GR.pontoAtual-1];
-        ctx.font = 'bold 11px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(GR.pontoAtual, sx, sy);
+    // Ponto temporario
+    if(s.temp && GR.etapa===tipo){
+        const sx=s.temp.xi*s.scale+s.ox, sy=s.temp.yi*s.scale+s.oy;
+        ctx.beginPath(); ctx.arc(sx,sy,16,0,Math.PI*2);
+        ctx.strokeStyle=CORES[GR.pontoAtual-1]; ctx.lineWidth=3;
+        ctx.setLineDash([6,4]); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle=CORES[GR.pontoAtual-1]+'99'; ctx.fill();
+        ctx.fillStyle='#fff'; ctx.font='bold 12px sans-serif';
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText(GR.pontoAtual,sx,sy);
     }
 }
 
-function grInitEvents(tipo) {
-    const c = document.getElementById('canvas-'+tipo);
-    const s = GR[tipo];
-
-    c.addEventListener('mousedown', e => {
-        if (GR.coletando && GR.etapa === tipo) {
-            // Coletar ponto
-            const rect = c.getBoundingClientRect();
-            const cx = (e.clientX - rect.left - s.ox) / s.scale;
-            const cy = (e.clientY - rect.top - s.oy) / s.scale;
-            GR.tempPonto = {
-                xImg: cx, yImg: cy,
-                xPct: cx / s.img.width * 100,
-                yPct: cy / s.img.height * 100
-            };
+function grInitCanvas(tipo){
+    const c=document.getElementById('canvas-'+tipo);
+    const s=GR[tipo];
+    // Mouse drag (pan) — só quando NÃO está em modo inserção
+    c.addEventListener('mousedown',e=>{
+        if(GR.coletando && GR.etapa===tipo){
+            // Modo inserção — registrar ponto temporário
+            const rect=c.getBoundingClientRect();
+            const xi=(e.clientX-rect.left-s.ox)/s.scale;
+            const yi=(e.clientY-rect.top-s.oy)/s.scale;
+            s.temp={xi,yi,xp:xi/s.img.width*100,yp:yi/s.img.height*100};
             grDraw(tipo);
-            document.getElementById('btn-submit-'+tipo).style.display = 'block';
+            document.getElementById('btn-submit-'+tipo).style.display='block';
+            document.getElementById('btn-cancel-'+tipo).style.display='block';
         } else {
-            s.isDragging = true;
-            s.lastX = e.clientX; s.lastY = e.clientY;
+            s.drag=true; s.lx=e.clientX; s.ly=e.clientY;
         }
     });
-
-    c.addEventListener('mousemove', e => {
-        if (s.isDragging) {
-            s.ox += e.clientX - s.lastX;
-            s.oy += e.clientY - s.lastY;
-            s.lastX = e.clientX; s.lastY = e.clientY;
-            grDraw(tipo);
-        }
+    c.addEventListener('mousemove',e=>{
+        if(s.drag){s.ox+=e.clientX-s.lx;s.oy+=e.clientY-s.ly;s.lx=e.clientX;s.ly=e.clientY;grDraw(tipo);}
     });
-
-    c.addEventListener('mouseup', () => { s.isDragging = false; });
-    c.addEventListener('mouseleave', () => { s.isDragging = false; });
-
-    c.addEventListener('wheel', e => {
+    c.addEventListener('mouseup',()=>{s.drag=false;});
+    c.addEventListener('mouseleave',()=>{s.drag=false;});
+    c.addEventListener('wheel',e=>{
         e.preventDefault();
-        const rect = c.getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
-        const factor = e.deltaY < 0 ? 1.15 : 0.87;
-        s.ox = mx - (mx - s.ox) * factor;
-        s.oy = my - (my - s.oy) * factor;
-        s.scale *= factor;
+        const rect=c.getBoundingClientRect();
+        const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+        const f=e.deltaY<0?1.15:0.87;
+        s.ox=mx-(mx-s.ox)*f; s.oy=my-(my-s.oy)*f; s.scale*=f;
         grDraw(tipo);
-    }, {passive:false});
-
-    // Touch events
-    let lastTouchDist = 0;
-    c.addEventListener('touchstart', e => {
-        if (e.touches.length === 1) {
-            if (GR.coletando && GR.etapa === tipo) {
-                const rect = c.getBoundingClientRect();
-                const cx = (e.touches[0].clientX - rect.left - s.ox) / s.scale;
-                const cy = (e.touches[0].clientY - rect.top - s.oy) / s.scale;
-                GR.tempPonto = { xImg: cx, yImg: cy, xPct: cx/s.img.width*100, yPct: cy/s.img.height*100 };
+    },{passive:false});
+    // Touch
+    let lt=0;
+    c.addEventListener('touchstart',e=>{
+        if(e.touches.length===1){
+            if(GR.coletando && GR.etapa===tipo){
+                const rect=c.getBoundingClientRect();
+                const xi=(e.touches[0].clientX-rect.left-s.ox)/s.scale;
+                const yi=(e.touches[0].clientY-rect.top-s.oy)/s.scale;
+                s.temp={xi,yi,xp:xi/s.img.width*100,yp:yi/s.img.height*100};
                 grDraw(tipo);
-                document.getElementById('btn-submit-'+tipo).style.display = 'block';
+                document.getElementById('btn-submit-'+tipo).style.display='block';
+                document.getElementById('btn-cancel-'+tipo).style.display='block';
             } else {
-                s.isDragging = true;
-                s.lastX = e.touches[0].clientX; s.lastY = e.touches[0].clientY;
+                s.drag=true; s.lx=e.touches[0].clientX; s.ly=e.touches[0].clientY;
             }
-        } else if (e.touches.length === 2) {
-            lastTouchDist = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+        } else if(e.touches.length===2){
+            lt=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
         }
         e.preventDefault();
-    }, {passive:false});
-
-    c.addEventListener('touchmove', e => {
-        if (e.touches.length === 1 && s.isDragging) {
-            s.ox += e.touches[0].clientX - s.lastX;
-            s.oy += e.touches[0].clientY - s.lastY;
-            s.lastX = e.touches[0].clientX; s.lastY = e.touches[0].clientY;
-            grDraw(tipo);
-        } else if (e.touches.length === 2) {
-            const dist = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
-            const factor = dist / lastTouchDist;
-            const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - c.getBoundingClientRect().left;
-            const my = (e.touches[0].clientY + e.touches[1].clientY) / 2 - c.getBoundingClientRect().top;
-            s.ox = mx - (mx - s.ox) * factor;
-            s.oy = my - (my - s.oy) * factor;
-            s.scale *= factor;
-            lastTouchDist = dist;
-            grDraw(tipo);
+    },{passive:false});
+    c.addEventListener('touchmove',e=>{
+        if(e.touches.length===1&&s.drag){
+            s.ox+=e.touches[0].clientX-s.lx;s.oy+=e.touches[0].clientY-s.ly;
+            s.lx=e.touches[0].clientX;s.ly=e.touches[0].clientY;grDraw(tipo);
+        } else if(e.touches.length===2){
+            const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+            const f=d/lt;
+            const mx=(e.touches[0].clientX+e.touches[1].clientX)/2-c.getBoundingClientRect().left;
+            const my=(e.touches[0].clientY+e.touches[1].clientY)/2-c.getBoundingClientRect().top;
+            s.ox=mx-(mx-s.ox)*f; s.oy=my-(my-s.oy)*f; s.scale*=f; lt=d; grDraw(tipo);
         }
         e.preventDefault();
-    }, {passive:false});
-
-    c.addEventListener('touchend', () => { s.isDragging = false; });
+    },{passive:false});
+    c.addEventListener('touchend',()=>{s.drag=false;});
 }
 
-function grZoom(tipo, factor) {
-    const c = document.getElementById('canvas-'+tipo);
-    const s = GR[tipo];
-    const mx = c.width/2, my = c.height/2;
-    s.ox = mx - (mx - s.ox) * factor;
-    s.oy = my - (my - s.oy) * factor;
-    s.scale *= factor;
+function grZoom(tipo,f){
+    const c=document.getElementById('canvas-'+tipo);
+    const s=GR[tipo];
+    s.ox=c.width/2-(c.width/2-s.ox)*f;
+    s.oy=c.height/2-(c.height/2-s.oy)*f;
+    s.scale*=f; grDraw(tipo);
+}
+function grReset(tipo){
+    const s=GR[tipo]; s.scale=1;s.ox=0;s.oy=0; grDraw(tipo);
+}
+
+// Fluxo de coleta
+function grIniciarPontos(){
+    // Encontrar primeiro ponto nao definido
+    for(let n=1;n<=4;n++){
+        if(!GR.pontos[n].p||!GR.pontos[n].o){
+            GR.coletando=true;
+            GR.pontoAtual=n;
+            GR.etapa=GR.pontos[n].p?'osm':'planta';
+            grAtivarModo();
+            document.getElementById('btn-inserir').style.display='none';
+            return;
+        }
+    }
+}
+
+function grAtivarModo(){
+    const tipos=['planta','osm'];
+    tipos.forEach(t=>{
+        document.getElementById('wrap-'+t).classList.remove('mode-inserir');
+        document.getElementById('badge-'+t).style.display='none';
+    });
+    if(GR.etapa){
+        document.getElementById('wrap-'+GR.etapa).classList.add('mode-inserir');
+        document.getElementById('badge-'+GR.etapa).style.display='block';
+        document.getElementById('badge-'+GR.etapa).textContent=`🎯 Clique no Ponto ${GR.pontoAtual}`;
+    }
+    // Instrucao
+    const box=document.getElementById('gr-instrucao');
+    box.style.display='block';
+    const mapa=GR.etapa==='planta'?'Planta de Zoneamento':'Mapa OSM';
+    box.innerHTML=`📍 <strong style="color:${CORES[GR.pontoAtual-1]}">Ponto ${GR.pontoAtual}</strong> &mdash; 
+        <strong>Dê zoom/pan</strong> no mapa e localize o ponto na <strong>${mapa}</strong>. 
+        Quando encontrar, <strong>clique no local exato</strong> e confirme.`;
+}
+
+function grSubmit(tipo){
+    const s=GR[tipo];
+    if(!s.temp)return;
+    const key=tipo==='planta'?'p':'o';
+    GR.pontos[GR.pontoAtual][key]={...s.temp};
+    s.temp=null;
+    document.getElementById('btn-submit-'+tipo).style.display='none';
+    document.getElementById('btn-cancel-'+tipo).style.display='none';
+    document.getElementById('wrap-'+tipo).classList.remove('mode-inserir');
+    document.getElementById('badge-'+tipo).style.display='none';
     grDraw(tipo);
-}
-
-function grReset(tipo) {
-    const s = GR[tipo];
-    s.scale = 1; s.ox = 0; s.oy = 0;
-    grDraw(tipo);
-}
-
-// --- FLUXO DE COLETA DE PONTOS ---
-function grIniciarPontos() {
-    GR.coletando = true;
-    GR.pontoAtual = 1;
-    GR.etapa = 'planta';
-    GR.tempPonto = null;
-    grAtualizarInstrucao();
-    document.getElementById('btn-inserir').style.display = 'none';
-    document.getElementById('wrap-planta').classList.add('active-selection');
-    document.getElementById('hint-planta').style.display = 'block';
-    document.getElementById('hint-planta').textContent = 'Clique no Ponto 1';
-}
-
-function grAtualizarInstrucao() {
-    const tipos = {'planta': 'Planta de Zoneamento', 'osm': 'Mapa OSM'};
-    document.getElementById('gr-instrucao').innerHTML =
-        `📍 <strong style="color:${CORES_PONTOS[GR.pontoAtual-1]}">Ponto ${GR.pontoAtual}</strong> — Clique no mapa <strong>${tipos[GR.etapa]}</strong> e depois clique em "Submeter"`;
-}
-
-function grSubmitPonto(tipo) {
-    if (!GR.tempPonto) return;
-    GR.pontos[GR.pontoAtual][tipo] = { ...GR.tempPonto };
-    GR.tempPonto = null;
-    document.getElementById('btn-submit-'+tipo).style.display = 'none';
-
     // Atualizar tabela
-    const cell = document.getElementById(`cell-${tipo}-${GR.pontoAtual}`);
-    cell.innerHTML = `<span class="gr-badge gr-badge-ok">✅ Definido</span>
-        <span style="font-size:11px;color:var(--muted);margin-left:6px">(${GR.pontos[GR.pontoAtual][tipo].xPct.toFixed(1)}%, ${GR.pontos[GR.pontoAtual][tipo].yPct.toFixed(1)}%)</span>`;
-
-    grDraw(tipo);
-
-    // Remover highlight
-    document.getElementById('wrap-'+tipo).classList.remove('active-selection');
-    document.getElementById('hint-'+tipo).style.display = 'none';
-
-    const plantaOk = GR.pontos[GR.pontoAtual].planta !== null;
-    const osmOk = GR.pontos[GR.pontoAtual].osm !== null;
-
-    if (tipo === 'planta' && !osmOk) {
-        // Agora coletar no OSM
-        GR.etapa = 'osm';
-        document.getElementById('wrap-osm').classList.add('active-selection');
-        document.getElementById('hint-osm').style.display = 'block';
-        document.getElementById('hint-osm').textContent = `Clique no Ponto ${GR.pontoAtual}`;
-        grAtualizarInstrucao();
-    } else if (plantaOk && osmOk) {
-        // Ponto completo — avançar
-        if (GR.pontoAtual < 4) {
+    const cell=document.getElementById(`c${tipo==='planta'?'p':'o'}-${GR.pontoAtual}`);
+    const pt=GR.pontos[GR.pontoAtual][key];
+    cell.innerHTML=`<span class="gr-badge-ok">✅ Definido</span><span class="gr-coords">(${pt.xp.toFixed(1)}%, ${pt.yp.toFixed(1)}%)</span>`;
+    // Proxima etapa
+    const pOk=GR.pontos[GR.pontoAtual].p!==null;
+    const oOk=GR.pontos[GR.pontoAtual].o!==null;
+    if(pOk&&oOk){
+        if(GR.pontoAtual<4){
             GR.pontoAtual++;
-            GR.etapa = 'planta';
-            document.getElementById('wrap-planta').classList.add('active-selection');
-            document.getElementById('hint-planta').style.display = 'block';
-            document.getElementById('hint-planta').textContent = `Clique no Ponto ${GR.pontoAtual}`;
-            grAtualizarInstrucao();
+            GR.etapa='planta';
         } else {
-            // Todos os 4 pontos definidos
-            GR.coletando = false;
-            document.getElementById('gr-instrucao').innerHTML = '✅ <strong style="color:#4caf50">Todos os 4 pontos definidos!</strong> Clique em "Começar Análise".';
-            grHabilitarBotao();
+            GR.coletando=false;
+            GR.etapa=null;
+            document.getElementById('gr-instrucao').innerHTML='✅ <strong style="color:#4caf50">Todos os 4 pontos definidos!</strong> Clique em "Começar Análise".';
+            document.getElementById('btn-inserir').style.display='inline-block';
+            grAtualizarBotao();
+            return;
         }
+    } else if(pOk&&!oOk){
+        GR.etapa='osm';
     }
+    grAtivarModo();
+    grAtualizarBotao();
 }
 
-function grResetar(n) {
-    GR.pontos[n] = { planta: null, osm: null };
-    document.getElementById(`cell-planta-${n}`).innerHTML = '<span class="gr-badge gr-badge-pending">⏳ A definir</span>';
-    document.getElementById(`cell-osm-${n}`).innerHTML = '<span class="gr-badge gr-badge-pending">⏳ A definir</span>';
+function grCancelarPonto(tipo){
+    GR[tipo].temp=null;
+    document.getElementById('btn-submit-'+tipo).style.display='none';
+    document.getElementById('btn-cancel-'+tipo).style.display='none';
+    grDraw(tipo);
+}
+
+function grResetar(n){
+    GR.pontos[n]={p:null,o:null};
+    document.getElementById(`cp-${n}`).innerHTML='<span class="gr-badge-pending">⏳ A definir</span>';
+    document.getElementById(`co-${n}`).innerHTML='<span class="gr-badge-pending">⏳ A definir</span>';
+    GR.planta.temp=null; GR.osm.temp=null;
     grDraw('planta'); grDraw('osm');
-    grHabilitarBotao();
-    // Reiniciar coleta se necessário
-    if (!GR.coletando) {
-        GR.coletando = true;
-        GR.pontoAtual = n;
-        GR.etapa = 'planta';
-        GR.tempPonto = null;
-        document.getElementById('wrap-planta').classList.add('active-selection');
-        document.getElementById('hint-planta').style.display = 'block';
-        document.getElementById('hint-planta').textContent = `Clique no Ponto ${n}`;
-        document.getElementById('btn-inserir').style.display = 'none';
-        grAtualizarInstrucao();
-    }
+    grAtualizarBotao();
+    // Retomar coleta
+    GR.coletando=true; GR.pontoAtual=n; GR.etapa='planta';
+    document.getElementById('btn-inserir').style.display='none';
+    grAtivarModo();
 }
 
-function grHabilitarBotao() {
-    const todos = [1,2,3,4].every(n => GR.pontos[n].planta && GR.pontos[n].osm);
-    const btn = document.getElementById('btn-analisar');
-    const hint = document.getElementById('btn-analisar-hint');
-    btn.disabled = !todos;
-    btn.style.background = todos ? 'var(--accent)' : '#333';
-    btn.style.color = todos ? '#000' : '#666';
-    btn.style.cursor = todos ? 'pointer' : 'not-allowed';
-    hint.style.display = todos ? 'none' : 'inline';
+function grAtualizarBotao(){
+    const todos=[1,2,3,4].every(n=>GR.pontos[n].p&&GR.pontos[n].o);
+    const btn=document.getElementById('btn-analisar');
+    btn.classList.toggle('enabled',todos);
+    document.getElementById('hint-analisar').style.display=todos?'none':'inline';
 }
 
-// --- ANÁLISE ---
-async function grAnalisar() {
-    const btn = document.getElementById('btn-analisar');
-    btn.disabled = true; btn.textContent = '⏳ Processando...';
-
-    document.getElementById('step-result').style.display = 'block';
-    const logEl = document.getElementById('gr-log');
-    logEl.style.display = 'block';
-
-    function addLog(msg, nivel) {
-        const c = nivel==='erro'?'#ff6b6b':nivel==='aviso'?'#ffb347':nivel==='ok'?'var(--accent)':'#4fc3f7';
-        const ts = new Date().toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo'});
-        logEl.innerHTML += `<div style="color:${c}">[${ts}] ${msg}</div>`;
-        logEl.scrollTop = logEl.scrollHeight;
+// Análise
+async function grAnalisar(){
+    const btn=document.getElementById('btn-analisar');
+    if(!btn.classList.contains('enabled'))return;
+    btn.classList.remove('enabled'); btn.textContent='⏳ Processando...';
+    document.getElementById('step-result').style.display='block';
+    const logEl=document.getElementById('gr-log');
+    function addLog(msg,nivel){
+        const c=nivel==='erro'?'#ff6b6b':nivel==='aviso'?'#ffb347':nivel==='ok'?'var(--accent)':'#4fc3f7';
+        const ts=new Date().toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo'});
+        logEl.innerHTML+=`<div style="color:${c}">[${ts}] ${msg||''}</div>`;
+        logEl.scrollTop=logEl.scrollHeight;
     }
-
-    addLog('Iniciando análise com pontos de referência...', 'ok');
-
-    const payload = {
-        municipio: GR.municipio,
-        estado: GR.estado,
-        pontos: GR.pontos
-    };
-
-    try {
-        const resp = await fetch('/api/mapeamento/georef-analisar', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify(payload),
-            credentials: 'same-origin'
+    addLog('Iniciando análise com pontos de referência...','ok');
+    try{
+        const resp=await fetch('/api/mapeamento/georef-analisar',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({municipio:GR.municipio,estado:GR.estado,pontos:GR.pontos}),
+            credentials:'same-origin'
         });
-        const d = await resp.json();
-        if (!d.success) { addLog('Erro: ' + (d.error||'desconhecido'), 'erro'); return; }
-
-        // Polling
-        let cursor = 0;
-        while (true) {
-            await new Promise(r => setTimeout(r, 2000));
-            const poll = await fetch(`/api/buscador/job/${d.job_id}?cursor=${cursor}`, {credentials:'same-origin'}).then(r=>r.json());
-            if (poll.logs) poll.logs.forEach(l => addLog(l.msg, l.nivel));
-            cursor = poll.cursor || cursor;
-            if (poll.done) {
-                if (poll.result) grMostrarResultado(poll.result);
+        const d=await resp.json();
+        if(!d.success){addLog('Erro: '+(d.error||'?'),'erro');return;}
+        let cursor=0;
+        while(true){
+            await new Promise(r=>setTimeout(r,2000));
+            const poll=await fetch(`/api/buscador/job/${d.job_id}?cursor=${cursor}`,{credentials:'same-origin'}).then(r=>r.json());
+            if(poll.logs)poll.logs.forEach(l=>addLog(l.msg,l.nivel));
+            cursor=poll.cursor||cursor;
+            if(poll.done){
+                if(poll.result)grMostrarResultado(poll.result);
+                btn.textContent='🚀 Começar Análise'; btn.classList.add('enabled');
                 break;
             }
         }
-    } catch(e) {
-        addLog('Erro: ' + e, 'erro');
-    }
+    }catch(e){addLog('Erro: '+e,'erro');}
 }
 
-function grMostrarResultado(r) {
-    const div = document.getElementById('gr-resultado');
-    let html = '';
-    if (r.validacao_pontos_url) {
-        html += `<h4 style="color:var(--accent);margin:16px 0 8px">🔍 Validação do Alinhamento</h4>`;
-        html += `<img src="${r.validacao_pontos_url}" style="width:100%;border-radius:8px;margin-bottom:12px">`;
+function grMostrarResultado(r){
+    const div=document.getElementById('gr-resultado');
+    let html='';
+    if(r.validacao_pontos_url||r.validacao_url){
+        const url=r.validacao_pontos_url||r.validacao_url;
+        html+=`<h4 style="color:var(--accent);margin:16px 0 8px">🔍 Validação do Alinhamento</h4>
+            <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Azul = Planta transformada &nbsp;|&nbsp; Vermelho = OSM</p>
+            <img src="${url}?t=${Date.now()}" style="width:100%;border-radius:8px;border:1px solid var(--border);margin-bottom:12px">
+            <a href="${url}" class="btn btn-secondary" download style="margin-right:8px">📥 Baixar validação</a>`;
     }
-    if (r.kml_url) {
-        html += `<a href="${r.kml_url}" class="btn btn-primary" download>📥 Baixar KML</a>`;
+    if(r.kml_url){
+        html+=`<a href="${r.kml_url}" class="btn btn-primary" download>📥 Baixar KML</a>`;
     }
-    div.innerHTML = html;
+    div.innerHTML=html;
 }
 </script>
 {% include 'partials/footer.html' ignore missing %}
