@@ -2314,7 +2314,7 @@ def _extrair_texto_arquivo(fpath, fname, ext, logs, tmp, chamar_llm):
             logs.append({'nivel': 'aviso', 'msg': f'  ⚠️ {fname_display}: PDF rasterizado — usando Gemini Vision...'})
             try:
                 import base64
-                subprocess.run(['gs','-dNOPAUSE','-dBATCH','-sDEVICE=png16m','-r150',
+                subprocess.run(['gs','-dNOPAUSE','-dBATCH','-sDEVICE=png16m','-r300',
                     f'-sOutputFile={tmp}/page_%03d.png', fpath],
                     capture_output=True, timeout=120)
                 pages = sorted([x for x in os.listdir(tmp) if x.startswith('page_') and x.endswith('.png')])
@@ -2539,7 +2539,7 @@ def api_mapeamento_preparar():
     # Converter PDF para PNG
     ext = os.path.splitext(f.filename)[1].lower()
     if ext == '.pdf':
-        subprocess.run(['gs','-dNOPAUSE','-dBATCH','-sDEVICE=png16m','-r150',
+        subprocess.run(['gs','-dNOPAUSE','-dBATCH','-sDEVICE=png16m','-r300',
             f'-sOutputFile={tmp}/mapa_%03d.png', fpath], capture_output=True, timeout=120)
         pages = sorted([x for x in os.listdir(tmp) if x.startswith('mapa_') and x.endswith('.png')])
         if not pages:
@@ -2604,6 +2604,118 @@ def api_mapeamento_preparar():
         'meta_key': planta_key,
         'bbox': list(bbox)  # [south, north, west, east]
     })
+
+
+@app.route('/api/mapeamento/upscale', methods=['POST'])
+@login_required
+def api_mapeamento_upscale():
+    """Melhora resolucao da planta via Real-ESRGAN (IA)."""
+    import threading, json, os
+    data = request.get_json()
+    planta_key = data.get('planta_key')
+    if not planta_key:
+        return jsonify({'success': False, 'error': 'planta_key ausente'})
+
+    meta_path = f"/var/www/urbanlex/static/downloads/georef_meta_{planta_key}.json"
+    if not os.path.exists(meta_path):
+        return jsonify({'success': False, 'error': 'Metadados não encontrados'})
+
+    with open(meta_path) as f:
+        meta = json.load(f)
+
+    job_id = str(__import__('uuid').uuid4())[:12]
+    job = {'logs': [], 'done': False, 'result': None}
+    _buscador_jobs[job_id] = job
+
+    def _run():
+        logs = job['logs']
+        try:
+            import cv2, numpy as np
+            full_path = meta.get('planta_full_path', meta['planta_path'])
+            logs.append({'nivel': 'info', 'msg': '🤖 Verificando Real-ESRGAN...'})
+
+            # Tentar instalar realesrgan se nao disponivel
+            try:
+                from basicsr.archs.rrdbnet_arch import RRDBNet
+                from realesrgan import RealESRGANer
+                esrgan_ok = True
+            except ImportError:
+                logs.append({'nivel': 'info', 'msg': '  Instalando Real-ESRGAN (primeira vez)...'})
+                import subprocess
+                subprocess.run(['pip', 'install', 'realesrgan', '--break-system-packages', '-q'],
+                              capture_output=True, timeout=120)
+                try:
+                    from basicsr.archs.rrdbnet_arch import RRDBNet
+                    from realesrgan import RealESRGANer
+                    esrgan_ok = True
+                except ImportError:
+                    esrgan_ok = False
+
+            if esrgan_ok:
+                import requests as _req
+                model_path = '/var/www/urbanlex/modelos/RealESRGAN_x4plus.pth'
+                os.makedirs('/var/www/urbanlex/modelos', exist_ok=True)
+
+                if not os.path.exists(model_path):
+                    logs.append({'nivel': 'info', 'msg': '  Baixando modelo Real-ESRGAN (~67MB)...'})
+                    url = 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth'
+                    r = _req.get(url, stream=True, timeout=120)
+                    with open(model_path, 'wb') as f:
+                        for chunk in r.iter_content(8192):
+                            f.write(chunk)
+                    logs.append({'nivel': 'ok', 'msg': '  Modelo baixado!'})
+
+                logs.append({'nivel': 'info', 'msg': '  Aplicando super resolucao 4x...'})
+                model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64,
+                               num_block=23, num_grow_ch=32, scale=4)
+                upsampler = RealESRGANer(scale=4, model_path=model_path,
+                                         model=model, tile=256, tile_pad=10,
+                                         pre_pad=0, half=False)
+                img = cv2.imread(full_path, cv2.IMREAD_COLOR)
+                if img is None:
+                    raise Exception('Imagem nao encontrada')
+                output, _ = upsampler.enhance(img, outscale=2)
+                upscaled_path = full_path.replace('.png', '_upscaled.png')
+                cv2.imwrite(upscaled_path, output)
+                oh, ow = output.shape[:2]
+                logs.append({'nivel': 'ok', 'msg': f'  Super resolucao concluida: {ow}x{oh}px'})
+
+                # Atualizar meta
+                import json as _json
+                meta['planta_full_path'] = upscaled_path
+                meta['orig_w'] = ow
+                meta['orig_h'] = oh
+                with open(meta_path, 'w') as f:
+                    _json.dump(meta, f)
+
+                job['result'] = {'success': True, 'msg': f'Resolucao melhorada: {ow}x{oh}px'}
+            else:
+                # Fallback: bicubic upscale 2x com OpenCV
+                logs.append({'nivel': 'aviso', 'msg': '  Real-ESRGAN indisponivel, usando bicubic 2x...'})
+                img = cv2.imread(full_path)
+                h, w = img.shape[:2]
+                upscaled = cv2.resize(img, (w*2, h*2), interpolation=cv2.INTER_CUBIC)
+                upscaled_path = full_path.replace('.png', '_upscaled.png')
+                cv2.imwrite(upscaled_path, upscaled)
+                import json as _json
+                meta['planta_full_path'] = upscaled_path
+                meta['orig_w'] = w*2
+                meta['orig_h'] = h*2
+                with open(meta_path, 'w') as f:
+                    _json.dump(meta, f)
+                logs.append({'nivel': 'ok', 'msg': f'  Bicubic 2x aplicado: {w*2}x{h*2}px'})
+                job['result'] = {'success': True, 'msg': f'Resolucao melhorada (bicubic): {w*2}x{h*2}px'}
+
+        except Exception as e:
+            import traceback
+            logs.append({'nivel': 'erro', 'msg': f'Erro: {str(e)[:200]}'})
+            logs.append({'nivel': 'erro', 'msg': traceback.format_exc()[:300]})
+            job['result'] = {'success': False, 'error': str(e)}
+        finally:
+            job['done'] = True
+
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({'success': True, 'job_id': job_id})
 
 @app.route('/api/mapeamento/georef-analisar', methods=['POST'])
 @login_required

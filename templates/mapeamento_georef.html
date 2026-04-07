@@ -128,6 +128,12 @@
     </div>
 
     <!-- Botão inserir pontos -->
+    <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
+        <button id="btn-upscale" onclick="grUpscale()" style="display:none;padding:8px 16px;background:var(--surface2);color:var(--accent);border:1px solid var(--accent);border-radius:8px;font-size:12px;cursor:pointer">
+            🤖 Melhorar Resolução via IA
+        </button>
+        <span id="upscale-status" style="font-size:12px;color:var(--muted)"></span>
+    </div>
     <button id="btn-inserir" onclick="grIniciarPontos()"
         style="padding:10px 20px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-weight:600;cursor:pointer;font-size:13px">
         📍 Inserir Pontos de Referência
@@ -240,8 +246,12 @@ async function grCarregarMapas(){
         // Aguardar 2 frames para o browser recalcular layout
         await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
         await grLoadImg('planta',d.planta_url);
-        // Inicializar Google Maps com bbox do municipio
+        // Guardar meta key para upscale
+        window._grMetaKey = d.meta_key;
+        // Inicializar Leaflet com bbox do municipio
         if(d.bbox) grInitGmap(d.bbox);
+        // Mostrar botao de melhoria de resolucao
+        document.getElementById('btn-upscale').style.display='inline-block';
     }catch(e){alert('Erro: '+e);btn.disabled=false;btn.textContent='🗺️ Carregar Mapas';document.getElementById('upload-status').style.display='none';}
 }
 
@@ -598,6 +608,51 @@ function grMostrarResultado(r){
     div.innerHTML=html;
 }
 
+
+// ---- UPSCALE ----
+async function grUpscale(){
+    const btn = document.getElementById('btn-upscale');
+    const status = document.getElementById('upscale-status');
+    btn.disabled = true;
+    btn.textContent = '⏳ Processando...';
+    status.textContent = 'Aplicando super resolução...';
+
+    try {
+        const resp = await fetch('/api/mapeamento/upscale', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({planta_key: window._grMetaKey}),
+            credentials: 'same-origin'
+        });
+        const d = await resp.json();
+        if (!d.success) { status.textContent = 'Erro: ' + d.error; btn.disabled=false; return; }
+
+        // Polling
+        let cursor = 0;
+        while(true) {
+            await new Promise(r => setTimeout(r, 2000));
+            const poll = await fetch('/api/buscador/job/'+d.job_id+'?cursor='+cursor, {credentials:'same-origin'}).then(r=>r.json());
+            if (poll.logs) poll.logs.forEach(l => {
+                if(l.nivel==='ok') status.textContent = l.msg;
+            });
+            cursor = poll.cursor || cursor;
+            if (poll.done) {
+                if (poll.result && poll.result.success) {
+                    btn.textContent = '✅ Resolução melhorada';
+                    status.textContent = poll.result.msg;
+                } else {
+                    btn.textContent = '🤖 Melhorar Resolução via IA';
+                    btn.disabled = false;
+                    status.textContent = 'Erro ao melhorar resolução';
+                }
+                break;
+            }
+        }
+    } catch(e) {
+        status.textContent = 'Erro: ' + e;
+        btn.disabled = false;
+    }
+}
 
 // ---- LEAFLET MAPS ----
 let _lmap = null;
