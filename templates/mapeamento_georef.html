@@ -235,12 +235,25 @@ async function grCarregarMapas(){
     }catch(e){alert('Erro: '+e);btn.disabled=false;btn.textContent='🗺️ Carregar Mapas';document.getElementById('upload-status').style.display='none';}
 }
 
+function grFitCanvas(tipo){
+    const c=document.getElementById('canvas-'+tipo);
+    const wrap=document.getElementById('wrap-'+tipo);
+    const s=GR[tipo];
+    if(!s.img)return;
+    // Ajustar para preencher o canvas mantendo proporcao
+    const scaleX=wrap.clientWidth/s.img.width;
+    const scaleY=wrap.clientHeight/s.img.height;
+    s.scale=Math.min(scaleX,scaleY);
+    s.ox=(wrap.clientWidth - s.img.width*s.scale)/2;
+    s.oy=(wrap.clientHeight - s.img.height*s.scale)/2;
+}
+
 function grLoadImg(tipo,url){
     return new Promise(res=>{
         const img=new Image();
         img.onload=()=>{
             GR[tipo].img=img;
-            GR[tipo].scale=1;GR[tipo].ox=0;GR[tipo].oy=0;
+            grFitCanvas(tipo);
             grDraw(tipo);
             grInitCanvas(tipo);
             res();
@@ -355,7 +368,7 @@ function grZoom(tipo,f){
     s.scale*=f; grDraw(tipo);
 }
 function grReset(tipo){
-    const s=GR[tipo]; s.scale=1;s.ox=0;s.oy=0; grDraw(tipo);
+    grFitCanvas(tipo); grDraw(tipo);
 }
 
 // Fluxo de coleta
