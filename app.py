@@ -4650,5 +4650,10 @@ def _run_diag_do():
     print("="*60)
 
 
+# Google Maps key
+import os as _os
+if not _os.environ.get('GOOGLE_MAPS_KEY'):
+    _os.environ['GOOGLE_MAPS_KEY'] = 'AIzaSyCuiZTfrnvUC-1X_suD3w6iGVyT_bhdVpQ'
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT',5000)), debug=os.getenv('FLASK_ENV')!='production')
