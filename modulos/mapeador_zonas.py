@@ -329,131 +329,184 @@ def _baixar_tiles_osm(bbox, img_w, img_h, logs):
     return img
 
 
+
 def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio, estado, logs, tmp):
     """
-    Etapa 1: Gemini identifica 10 pontos coincidentes entre a planta e o mapa OSM.
-    Salva imagem de validacao com pontos marcados para aprovacao do usuario.
-    Etapa 2 (apos aprovacao): calcula transformacao afim e retorna H.
+    Georreferencia em duas chamadas ao Gemini:
+    1. Identifica landmarks na planta com descricao textual
+    2. Localiza os mesmos landmarks no mapa OSM
+    Salva imagem de validacao lado a lado com pontos marcados.
     """
     import numpy as np
     import cv2
-    import requests
     import re
     import json as _j
     import concurrent.futures as _cf
     from google import genai as _gv
     from google.genai import types as _gv_types
-    from PIL import Image, ImageDraw
-    import io
 
     south, north, west, east = bbox
 
-    # Baixar tiles OSM como mapa visual
+    # Baixar tiles OSM
     logs.append({'nivel': 'info', 'msg': '  Baixando mapa OSM (tiles)...'})
-    img_osm_tiles = _baixar_tiles_osm(bbox, img_w, img_h, logs)
+    img_osm = _baixar_tiles_osm(bbox, img_w, img_h, logs)
 
-    # Salvar ambas as imagens para Gemini
+    # Salvar imagens
     _planta_path = f"{tmp}/planta_orig.png"
     _osm_path = f"{tmp}/osm_tiles.png"
     cv2.imwrite(_planta_path, img_planta)
-    cv2.imwrite(_osm_path, img_osm_tiles)
+    cv2.imwrite(_osm_path, img_osm)
 
-    # Enviar para Gemini pedir 10 pontos coincidentes
-    logs.append({'nivel': 'info', 'msg': '  Gemini identificando pontos coincidentes nos dois mapas...'})
+    client = _gv.Client(api_key=os.environ.get('GEMINI_API_KEY', ''))
+
+    # --- CHAMADA 1: identificar landmarks na planta ---
+    logs.append({'nivel': 'info', 'msg': '  Chamada 1: Gemini identificando landmarks na planta...'})
     try:
-        client = _gv.Client(api_key=os.environ.get('GEMINI_API_KEY', ''))
-
         with open(_planta_path, 'rb') as fp:
             planta_bytes = fp.read()
-        with open(_osm_path, 'rb') as fp:
-            osm_bytes = fp.read()
 
-        prompt = (
-            f"Voce recebera DUAS imagens de mapas da mesma area: {municipio}/{estado}, Brasil.\n"
-            f"IMAGEM 1: Planta de zoneamento municipal (colorida, com legenda lateral)\n"
-            f"IMAGEM 2: Mapa OpenStreetMap da mesma area\n\n"
-            f"Identifique 10 pontos geograficos que aparecem nos DOIS mapas.\n"
-            f"Use referencias geograficas claras: intersecoes de vias, curvas caracteristicas, limites de bairros, etc.\n\n"
-            f"Para cada ponto, informe:\n"
-            f"- descricao: o que e esse ponto geografico\n"
-            f"- planta_x: posicao X na IMAGEM 1 (0 a 100, porcentagem da largura)\n"
-            f"- planta_y: posicao Y na IMAGEM 1 (0 a 100, porcentagem da altura)\n"
-            f"- osm_x: posicao X na IMAGEM 2 (0 a 100, porcentagem da largura)\n"
-            f"- osm_y: posicao Y na IMAGEM 2 (0 a 100, porcentagem da altura)\n\n"
-            f"IMPORTANTE: A planta tem legenda no canto direito — considere apenas a area do mapa.\n"
+        prompt1 = (
+            f"Esta e uma planta de zoneamento municipal de {municipio}/{estado}, Brasil.\n"
+            f"Identifique 10 pontos geograficos UNICOS e INEQUIVOCOS no mapa — "
+            f"pontos que uma pessoa conseguiria localizar facilmente em qualquer outro mapa da mesma area.\n\n"
+            f"Bons exemplos: ponta de peninsula, curva acentuada de estrada, extremidade de lagoa, "
+            f"confluencia de rios, limite entre zona urbana e rural, entrada de bairro especifico.\n\n"
+            f"Para cada ponto informe:\n"
+            f"- descricao: descricao geografica DETALHADA e UNICA do ponto (ex: 'ponta norte da Lagoa das Malvas', "
+            f"'curva oeste da ERS-389 antes de entrar na area urbana', 'extremidade leste da faixa de praia')\n"
+            f"- x: posicao X na imagem (0 a 100, porcentagem da largura)\n"
+            f"- y: posicao Y na imagem (0 a 100, porcentagem da altura)\n\n"
+            f"IMPORTANTE: ignore a legenda no canto direito — foque apenas na area do mapa.\n"
             f"Responda APENAS com JSON valido:\n"
-            f'[{{"descricao":"Curva ERS-389 norte","planta_x":42.1,"planta_y":15.3,"osm_x":61.5,"osm_y":9.8}}]'
+            f'[{{"descricao":"Ponta norte da Lagoa das Malvas","x":35.2,"y":12.8}}]'
         )
 
-        parts = [
-            _gv_types.Part.from_text(text=prompt),
-            _gv_types.Part.from_bytes(data=planta_bytes, mime_type='image/png'),
-            _gv_types.Part.from_bytes(data=osm_bytes, mime_type='image/png'),
-        ]
+        parts1 = [_gv_types.Part.from_text(text=prompt1),
+                  _gv_types.Part.from_bytes(data=planta_bytes, mime_type='image/png')]
 
         ex = _cf.ThreadPoolExecutor(max_workers=1)
-        fut = ex.submit(client.models.generate_content, model='gemini-2.5-flash', contents=parts)
+        fut = ex.submit(client.models.generate_content, model='gemini-2.5-flash', contents=parts1)
         try:
-            resp = fut.result(timeout=180)
+            resp1 = fut.result(timeout=120)
             ex.shutdown(wait=False)
         except _cf.TimeoutError:
             ex.shutdown(wait=False)
-            logs.append({'nivel': 'aviso', 'msg': '  Gemini timeout'})
+            logs.append({'nivel': 'aviso', 'msg': '  Gemini timeout (chamada 1)'})
             return None
 
-        txt = re.sub(r'^```json\s*|\s*```$', '', resp.text.strip())
-        pontos = _j.loads(txt)
-        logs.append({'nivel': 'ok', 'msg': f'  {len(pontos)} pontos identificados pelo Gemini'})
-        for p in pontos:
-            logs.append({'nivel': 'info', 'msg': f'    - {p["descricao"]} | planta=({p["planta_x"]:.1f}%,{p["planta_y"]:.1f}%) osm=({p["osm_x"]:.1f}%,{p["osm_y"]:.1f}%)'})
+        txt1 = re.sub(r'^```json\s*|\s*```$', '', resp1.text.strip())
+        landmarks = _j.loads(txt1)
+        logs.append({'nivel': 'ok', 'msg': f'  {len(landmarks)} landmarks identificados na planta'})
+        for lm in landmarks:
+            logs.append({'nivel': 'info', 'msg': f'    - {lm["descricao"]} ({lm["x"]:.1f}%, {lm["y"]:.1f}%)'})
 
     except Exception as e:
-        logs.append({'nivel': 'aviso', 'msg': f'  Erro Gemini: {str(e)[:100]}'})
+        logs.append({'nivel': 'aviso', 'msg': f'  Erro chamada 1: {str(e)[:100]}'})
         return None
 
-    # Gerar imagem de validacao com pontos marcados nos dois mapas
+    # --- CHAMADA 2: localizar os mesmos landmarks no OSM ---
+    logs.append({'nivel': 'info', 'msg': '  Chamada 2: Gemini localizando landmarks no mapa OSM...'})
+    try:
+        with open(_osm_path, 'rb') as fp:
+            osm_bytes = fp.read()
+
+        descricoes = '\n'.join([f'{i+1}. {lm["descricao"]}' for i, lm in enumerate(landmarks)])
+
+        prompt2 = (
+            f"Este e um mapa OpenStreetMap de {municipio}/{estado}, Brasil.\n"
+            f"Localize cada um dos seguintes pontos geograficos neste mapa:\n\n"
+            f"{descricoes}\n\n"
+            f"Para cada ponto informe a posicao exata no mapa:\n"
+            f"- id: numero do ponto (1 a {len(landmarks)})\n"
+            f"- x: posicao X na imagem (0 a 100, porcentagem da largura)\n"
+            f"- y: posicao Y na imagem (0 a 100, porcentagem da altura)\n"
+            f"- encontrado: true se conseguiu localizar, false se nao encontrou\n\n"
+            f"Responda APENAS com JSON valido:\n"
+            f'[{{"id":1,"x":61.5,"y":9.8,"encontrado":true}}]'
+        )
+
+        parts2 = [_gv_types.Part.from_text(text=prompt2),
+                  _gv_types.Part.from_bytes(data=osm_bytes, mime_type='image/png')]
+
+        ex = _cf.ThreadPoolExecutor(max_workers=1)
+        fut = ex.submit(client.models.generate_content, model='gemini-2.5-flash', contents=parts2)
+        try:
+            resp2 = fut.result(timeout=120)
+            ex.shutdown(wait=False)
+        except _cf.TimeoutError:
+            ex.shutdown(wait=False)
+            logs.append({'nivel': 'aviso', 'msg': '  Gemini timeout (chamada 2)'})
+            return None
+
+        txt2 = re.sub(r'^```json\s*|\s*```$', '', resp2.text.strip())
+        localizacoes = _j.loads(txt2)
+
+        # Montar pares de pontos
+        pontos = []
+        for loc in localizacoes:
+            if not loc.get('encontrado', False):
+                continue
+            idx = loc['id'] - 1
+            if 0 <= idx < len(landmarks):
+                pontos.append({
+                    'descricao': landmarks[idx]['descricao'],
+                    'planta_x': landmarks[idx]['x'],
+                    'planta_y': landmarks[idx]['y'],
+                    'osm_x': loc['x'],
+                    'osm_y': loc['y'],
+                })
+
+        logs.append({'nivel': 'ok', 'msg': f'  {len(pontos)} pontos localizados nos dois mapas'})
+        for p in pontos:
+            logs.append({'nivel': 'info', 'msg': f'    - {p["descricao"][:50]}'})
+
+    except Exception as e:
+        logs.append({'nivel': 'aviso', 'msg': f'  Erro chamada 2: {str(e)[:100]}'})
+        return None
+
+    if len(pontos) < 3:
+        logs.append({'nivel': 'aviso', 'msg': f'  Apenas {len(pontos)} pontos coincidentes — insuficiente'})
+        return None
+
+    # --- Gerar imagem de validacao lado a lado ---
     cores = [
-        (255, 50, 50), (50, 255, 50), (50, 150, 255), (255, 200, 0), (255, 0, 255),
-        (0, 255, 200), (255, 128, 0), (128, 0, 255), (0, 200, 255), (255, 255, 0)
+        (255,50,50),(50,255,50),(50,150,255),(255,200,0),(255,0,255),
+        (0,255,200),(255,128,0),(128,0,255),(0,200,255),(200,255,0)
     ]
     letras = 'ABCDEFGHIJ'
 
     planta_vis = img_planta.copy()
-    osm_vis = img_osm_tiles.copy()
+    osm_vis = img_osm.copy()
 
     for i, p in enumerate(pontos[:10]):
         cor = cores[i % len(cores)]
         letra = letras[i]
 
-        # Marcar na planta
         px = int(p['planta_x'] / 100 * img_w)
         py = int(p['planta_y'] / 100 * img_h)
-        cv2.circle(planta_vis, (px, py), 20, cor, 4)
-        cv2.circle(planta_vis, (px, py), 5, cor, -1)
-        cv2.putText(planta_vis, letra, (px+22, py-10), cv2.FONT_HERSHEY_SIMPLEX, 1.2, cor, 3)
+        cv2.circle(planta_vis, (px, py), 22, cor, 5)
+        cv2.circle(planta_vis, (px, py), 6, cor, -1)
+        cv2.putText(planta_vis, letra, (px+24, py+8), cv2.FONT_HERSHEY_SIMPLEX, 1.5, cor, 4)
 
-        # Marcar no OSM
         ox = int(p['osm_x'] / 100 * img_w)
         oy = int(p['osm_y'] / 100 * img_h)
-        cv2.circle(osm_vis, (ox, oy), 20, cor, 4)
-        cv2.circle(osm_vis, (ox, oy), 5, cor, -1)
-        cv2.putText(osm_vis, letra, (ox+22, oy-10), cv2.FONT_HERSHEY_SIMPLEX, 1.2, cor, 3)
+        cv2.circle(osm_vis, (ox, oy), 22, cor, 5)
+        cv2.circle(osm_vis, (ox, oy), 6, cor, -1)
+        cv2.putText(osm_vis, letra, (ox+24, oy+8), cv2.FONT_HERSHEY_SIMPLEX, 1.5, cor, 4)
 
-    # Salvar imagem de validacao lado a lado
     sep = np.full((img_h, 20, 3), 60, dtype=np.uint8)
     val_img = np.hstack([planta_vis, sep, osm_vis])
-    val_path = f"/var/www/urbanlex/static/downloads/validacao_pontos_{municipio.replace(' ', '_')}.png"
+    val_path = f"/var/www/urbanlex/static/downloads/validacao_pontos_{municipio.replace(' ','_')}.png"
     cv2.imwrite(val_path, val_img)
 
-    # Salvar tambem tiles OSM para referencia
-    osm_path = f"/var/www/urbanlex/static/downloads/osm_tiles_{municipio.replace(' ', '_')}.png"
-    cv2.imwrite(osm_path, img_osm_tiles)
+    osm_path = f"/var/www/urbanlex/static/downloads/osm_tiles_{municipio.replace(' ','_')}.png"
+    cv2.imwrite(osm_path, img_osm)
 
-    logs.append({'nivel': 'ok', 'msg': '  Imagem de validacao gerada — confira os pontos antes de continuar'})
+    logs.append({'nivel': 'ok', 'msg': '  Imagem de validacao gerada — confira os pontos'})
 
-    # Calcular transformacao afim com os pontos
-    src_pts = np.array([[p['planta_x']/100*img_w, p['planta_y']/100*img_h] for p in pontos[:10]], dtype=np.float32)
-    dst_pts = np.array([[p['osm_x']/100*img_w, p['osm_y']/100*img_h] for p in pontos[:10]], dtype=np.float32)
+    # --- Calcular transformacao afim ---
+    src_pts = np.array([[p['planta_x']/100*img_w, p['planta_y']/100*img_h] for p in pontos], dtype=np.float32)
+    dst_pts = np.array([[p['osm_x']/100*img_w, p['osm_y']/100*img_h] for p in pontos], dtype=np.float32)
 
     M, inliers = cv2.estimateAffinePartial2D(src_pts, dst_pts, method=cv2.RANSAC, ransacReprojThreshold=20.0)
     if M is None:
@@ -461,7 +514,7 @@ def _georreferenciar_gemini(img_planta, osm_data, bbox, img_w, img_h, municipio,
         return None
 
     inliers_count = int(inliers.sum()) if inliers is not None else 0
-    scale = np.sqrt(M[0, 0]**2 + M[1, 0]**2)
+    scale = np.sqrt(M[0,0]**2 + M[1,0]**2)
     logs.append({'nivel': 'ok', 'msg': f'  Transformacao: escala={scale:.3f} inliers={inliers_count}/{len(pontos)}'})
 
     M_full = np.eye(3, dtype=np.float32)
