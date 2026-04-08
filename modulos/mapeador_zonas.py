@@ -144,9 +144,18 @@ def _extrair_legenda(fpath, fname, municipio, estado, logs, tmp):
         prompt = (
             f"Esta e uma planta de zoneamento municipal de {municipio}/{estado}.\n"
             f"Analise a LEGENDA e liste TODAS as zonas/subzonas presentes.\n"
-            f"Para cada zona: nome/codigo, descricao completa, cor em HEX.\n"
-            f"Responda APENAS com JSON valido, sem texto adicional:\n"
-            f'[{{"nome":"ZR1","descricao":"Zona Residencial 1","cor_hex":"#FFD700"}}]'
+            f"Para cada zona informe:\n"
+            f"- nome: codigo da zona\n"
+            f"- descricao: descricao completa\n"
+            f"- cor_hex: cor principal usada para preencher a zona no mapa\n"
+            f"- tipo_fill: 'solido' se preenchimento solido, 'hachura' se tiver hachura/textura\n"
+            f"- cor_hachura_hex: se hachura sobre fundo branco, cor das LINHAS em HEX; senao null\n"
+            f"REGRAS IMPORTANTES:\n"
+            f"1. Zonas com hachura sobre fundo BRANCO: cor_hex = cor das linhas da hachura\n"
+            f"2. Zonas com hachura sobre cor solida: cor_hex = cor do fundo solido\n"
+            f"3. Zonas com cor solida: cor_hex = cor exata do preenchimento\n"
+            f"Responda APENAS com JSON valido:\n"
+            f'[{{"nome":"ZR1","descricao":"Zona Residencial 1","cor_hex":"#FFD700","tipo_fill":"solido","cor_hachura_hex":null}}]'
         )
         parts = [_gv_types.Part.from_text(text=prompt),
                  _gv_types.Part.from_bytes(data=img_bytes, mime_type=mime)]
@@ -595,6 +604,17 @@ def _segmentar_zonas(img_planta, legenda, H, px_to_ll, logs):
         # Ignorar cores muito escuras (provavelmente texto/borda)
         if r < 40 and g < 40 and b < 40:
             continue
+
+        # Para zonas com hachura sobre fundo branco, usar a cor da hachura
+        cor_segmentar = cor_hex
+        if zona.get('tipo_fill') == 'hachura' and zona.get('cor_hachura_hex'):
+            cor_segmentar = zona['cor_hachura_hex']
+            try:
+                r = int(cor_segmentar[1:3], 16)
+                g = int(cor_segmentar[3:5], 16)
+                b = int(cor_segmentar[5:7], 16)
+            except Exception:
+                pass
 
         target = np.array([b, g, r], dtype=np.uint8)
 
