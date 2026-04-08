@@ -605,7 +605,7 @@ def _segmentar_zonas(img_planta, legenda, H, px_to_ll, logs):
         if r < 40 and g < 40 and b < 40:
             continue
 
-        # Para zonas com hachura sobre fundo branco, usar a cor da hachura
+        # Para zonas com hachura, usar a cor da hachura para segmentacao
         cor_segmentar = cor_hex
         if zona.get('tipo_fill') == 'hachura' and zona.get('cor_hachura_hex'):
             cor_segmentar = zona['cor_hachura_hex']
@@ -616,11 +616,21 @@ def _segmentar_zonas(img_planta, legenda, H, px_to_ll, logs):
             except Exception:
                 pass
 
+        # Ignorar cores quase brancas — vao detectar o fundo do papel inteiro
+        brightness = (int(r) + int(g) + int(b)) / 3
+        if brightness > 230:
+            logs.append({'nivel': 'aviso', 'msg': f'  {nome}: cor muito clara ({cor_hex}) — ignorada para evitar falso positivo'})
+            continue
+
         target = np.array([b, g, r], dtype=np.uint8)
 
-        # Tolerancia adaptativa: maior para cores claras, menor para cores saturadas
-        brightness = (int(r) + int(g) + int(b)) / 3
-        tol = 40 if brightness > 180 else 30
+        # Tolerancia adaptativa: menor para cores claras (evitar falsos positivos)
+        if brightness > 180:
+            tol = 20  # cores claras: tolerancia baixa
+        elif brightness > 100:
+            tol = 30  # cores medias
+        else:
+            tol = 35  # cores escuras e saturadas
 
         lower = np.clip(target.astype(int) - tol, 0, 255).astype(np.uint8)
         upper = np.clip(target.astype(int) + tol, 0, 255).astype(np.uint8)
