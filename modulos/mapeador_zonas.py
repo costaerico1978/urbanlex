@@ -117,48 +117,67 @@ def mapear_zonas(fpath, fname, municipio, estado, logs, job, tmp):
 
 
 def _extrair_legenda(fpath, fname, municipio, estado, logs, tmp):
-    """Extrai zonas e cores da legenda via Gemini Vision."""
-    import re
-    import json as _j
+    """
+    Extrai zonas da legenda via Gemini Vision.
+    Gemini identifica a posição dos swatches de cor na legenda.
+    Python amostra os pixels reais da imagem para obter cores exatas.
+    """
+    import os, re, json as _j
+    import numpy as np
+    import cv2
     from google import genai as _gv
     from google.genai import types as _gv_types
     import concurrent.futures as _cf
-    import mimetypes
+
     try:
         client = _gv.Client(api_key=os.environ.get('GEMINI_API_KEY', ''))
         ext = os.path.splitext(fname)[1].lower()
         if ext == '.pdf':
             import subprocess
-            subprocess.run(['gs', '-dNOPAUSE', '-dBATCH', '-sDEVICE=png16m', '-r150',
-                            '-dFirstPage=1', '-dLastPage=1',
-                            f'-sOutputFile={tmp}/mapa_%03d.png', fpath], capture_output=True, timeout=120)
+            subprocess.run(['gs','-dNOPAUSE','-dBATCH','-sDEVICE=png16m','-r150',
+                '-dFirstPage=1','-dLastPage=1',
+                f'-sOutputFile={tmp}/mapa_%03d.png', fpath],
+                capture_output=True, timeout=120)
             pages = sorted([x for x in os.listdir(tmp) if x.startswith('mapa_') and x.endswith('.png')])
             if not pages:
                 return None
             img_path = os.path.join(tmp, pages[0])
         else:
             img_path = fpath
+
+        # Ler imagem para amostragem de pixels
+        img_cv = cv2.imread(img_path)
+        if img_cv is None:
+            return None
+        img_h, img_w = img_cv.shape[:2]
+
+        import mimetypes
         mime = mimetypes.guess_type(img_path)[0] or 'image/png'
         with open(img_path, 'rb') as fp:
             img_bytes = fp.read()
+
+        # Pedir ao Gemini para identificar posicao dos swatches na legenda
         prompt = (
             f"Esta e uma planta de zoneamento municipal de {municipio}/{estado}.\n"
-            f"Analise a LEGENDA e liste TODAS as zonas/subzonas presentes.\n"
-            f"Para cada zona informe:\n"
-            f"- nome: codigo da zona\n"
+            f"Analise a LEGENDA e para cada zona informe:\n"
+            f"- nome: codigo/nome da zona\n"
             f"- descricao: descricao completa\n"
-            f"- cor_hex: cor principal usada para preencher a zona no mapa\n"
-            f"- tipo_fill: 'solido' se preenchimento solido, 'hachura' se tiver hachura/textura\n"
-            f"- cor_hachura_hex: se hachura sobre fundo branco, cor das LINHAS em HEX; senao null\n"
-            f"REGRAS IMPORTANTES:\n"
-            f"1. Zonas com hachura sobre fundo BRANCO: cor_hex = cor das linhas da hachura\n"
-            f"2. Zonas com hachura sobre cor solida: cor_hex = cor do fundo solido\n"
-            f"3. Zonas com cor solida: cor_hex = cor exata do preenchimento\n"
+            f"- tipo_fill: 'solido', 'hachura_sobre_branco', ou 'hachura_sobre_cor'\n"
+            f"- swatch_x: posicao X do centro do swatch de cor na legenda (0-100, % da largura da imagem)\n"
+            f"- swatch_y: posicao Y do centro do swatch de cor na legenda (0-100, % da altura da imagem)\n"
+            f"- swatch_w: largura do swatch (0-100, % da largura da imagem)\n"
+            f"- swatch_h: altura do swatch (0-100, % da altura da imagem)\n\n"
+            f"IMPORTANTE: O swatch deve apontar para a amostra de cor pura da zona, "
+            f"nao para a area hachura/texto. Para hachura sobre branco, apontar para "
+            f"onde as linhas da hachura estao mais densas.\n\n"
             f"Responda APENAS com JSON valido:\n"
-            f'[{{"nome":"ZR1","descricao":"Zona Residencial 1","cor_hex":"#FFD700","tipo_fill":"solido","cor_hachura_hex":null}}]'
+            f'[{{"nome":"ZR1","descricao":"Zona Residencial 1","tipo_fill":"solido",'
+            f'"swatch_x":85.2,"swatch_y":12.3,"swatch_w":2.5,"swatch_h":1.2}}]'
         )
+
         parts = [_gv_types.Part.from_text(text=prompt),
                  _gv_types.Part.from_bytes(data=img_bytes, mime_type=mime)]
+
         ex = _cf.ThreadPoolExecutor(max_workers=1)
         fut = ex.submit(client.models.generate_content, model='gemini-2.5-flash', contents=parts)
         try:
@@ -167,13 +186,75 @@ def _extrair_legenda(fpath, fname, municipio, estado, logs, tmp):
         except _cf.TimeoutError:
             ex.shutdown(wait=False)
             return None
+
         if not resp or not resp.text:
             return None
+
         txt = re.sub(r'^```json\s*|\s*```$', '', resp.text.strip())
-        return _j.loads(txt)
+        zonas_raw = _j.loads(txt)
+
+        # Amostrar cores diretamente dos pixels da imagem
+        legenda = []
+        for zona in zonas_raw:
+            nome = zona.get('nome', '')
+            descricao = zona.get('descricao', '')
+            tipo_fill = zona.get('tipo_fill', 'solido')
+
+            sx = zona.get('swatch_x', 0)
+            sy = zona.get('swatch_y', 0)
+            sw = zona.get('swatch_w', 2)
+            sh = zona.get('swatch_h', 1)
+
+            # Converter % para pixels
+            x1 = max(0, int((sx - sw/2) / 100 * img_w))
+            x2 = min(img_w, int((sx + sw/2) / 100 * img_w))
+            y1 = max(0, int((sy - sh/2) / 100 * img_h))
+            y2 = min(img_h, int((sy + sh/2) / 100 * img_h))
+
+            if x2 <= x1 or y2 <= y1:
+                continue
+
+            # Recortar regiao do swatch
+            swatch = img_cv[y1:y2, x1:x2]
+            if swatch.size == 0:
+                continue
+
+            # Para hachura sobre branco: filtrar pixels brancos e pegar a cor predominante
+            if tipo_fill == 'hachura_sobre_branco':
+                # Converter para HSV para filtrar branco
+                pixels = swatch.reshape(-1, 3).astype(np.float32)
+                # Remover pixels muito claros (branco/quase branco)
+                brightness = pixels.mean(axis=1)
+                dark_pixels = pixels[brightness < 220]
+                if len(dark_pixels) > 0:
+                    cor_bgr = dark_pixels.mean(axis=0).astype(int)
+                else:
+                    cor_bgr = pixels.mean(axis=0).astype(int)
+            else:
+                # Para cor solida ou hachura sobre cor: usar mediana dos pixels
+                pixels = swatch.reshape(-1, 3)
+                cor_bgr = np.median(pixels, axis=0).astype(int)
+
+            # Converter BGR para HEX
+            b, g, r = int(cor_bgr[0]), int(cor_bgr[1]), int(cor_bgr[2])
+            cor_hex = f'#{r:02X}{g:02X}{b:02X}'
+
+            legenda.append({
+                'nome': nome,
+                'descricao': descricao,
+                'cor_hex': cor_hex,
+                'tipo_fill': tipo_fill,
+                'swatch_pos': [x1, y1, x2, y2]
+            })
+
+            logs.append({'nivel': 'info', 'msg': f'  {nome}: {cor_hex} ({tipo_fill}) px=[{x1},{y1},{x2},{y2}]'})
+
+        return legenda if legenda else None
+
     except Exception as e:
         logs.append({'nivel': 'aviso', 'msg': f'Erro ao extrair legenda: {str(e)[:100]}'})
         return None
+
 
 
 def _buscar_osm(municipio, estado, logs):
