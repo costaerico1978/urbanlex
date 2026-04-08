@@ -206,10 +206,15 @@ def _extrair_legenda(fpath, fname, municipio, estado, logs, tmp):
             sh = zona.get('swatch_h', 1)
 
             # Converter % para pixels
-            x1 = max(0, int((sx - sw/2) / 100 * img_w))
-            x2 = min(img_w, int((sx + sw/2) / 100 * img_w))
+            # O Gemini tende a apontar para o texto — deslocar para a esquerda para pegar o swatch
+            swatch_offset = sw * 1.5  # deslocar 1.5x a largura do swatch para a esquerda
+            x1 = max(0, int((sx - sw/2 - swatch_offset) / 100 * img_w))
+            x2 = min(img_w, int((sx + sw/2 - swatch_offset) / 100 * img_w))
             y1 = max(0, int((sy - sh/2) / 100 * img_h))
             y2 = min(img_h, int((sy + sh/2) / 100 * img_h))
+            # Garantir que tem pelo menos alguns pixels para amostrar
+            if x2 <= x1: x2 = x1 + max(5, int(sw/100*img_w))
+            if y2 <= y1: y2 = y1 + max(5, int(sh/100*img_h))
 
             if x2 <= x1 or y2 <= y1:
                 continue
