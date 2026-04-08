@@ -118,9 +118,10 @@ def mapear_zonas(fpath, fname, municipio, estado, logs, job, tmp):
 
 def _extrair_legenda(fpath, fname, municipio, estado, logs, tmp):
     """
-    Extrai zonas da legenda via Gemini Vision.
-    Gemini identifica a posição dos swatches de cor na legenda.
-    Python amostra os pixels reais da imagem para obter cores exatas.
+    Extrai zonas da legenda:
+    1. OpenCV detecta automaticamente os retangulos coloridos na legenda
+    2. Gemini identifica os nomes/descricoes das zonas
+    3. Associa nomes aos retangulos pela posicao Y
     """
     import os, re, json as _j
     import numpy as np
@@ -145,34 +146,87 @@ def _extrair_legenda(fpath, fname, municipio, estado, logs, tmp):
         else:
             img_path = fpath
 
-        # Ler imagem para amostragem de pixels
         img_cv = cv2.imread(img_path)
         if img_cv is None:
             return None
         img_h, img_w = img_cv.shape[:2]
 
+        # --- PASSO 1: Detectar retangulos coloridos na legenda via OpenCV ---
+        # A legenda tipicamente fica no lado direito (ultimos 30% da largura)
+        legenda_x = int(img_w * 0.68)
+        legenda_img = img_cv[:, legenda_x:]
+        leg_h, leg_w = legenda_img.shape[:2]
+
+        # Converter para HSV para detectar cores nao-brancas e nao-pretas
+        hsv = cv2.cvtColor(legenda_img, cv2.COLOR_BGR2HSV)
+
+        # Detectar regioes coloridas (excluindo branco, preto e cinza muito claro)
+        # Mascara: saturacao > 20 OU valor < 200 (nao branco)
+        mask_sat = cv2.inRange(hsv, np.array([0, 20, 50]), np.array([180, 255, 255]))
+        mask_dark = cv2.inRange(hsv, np.array([0, 0, 0]), np.array([180, 30, 180]))
+        mask = cv2.bitwise_or(mask_sat, mask_dark)
+
+        # Morfologia para limpar ruido
+        kernel = np.ones((3,3), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
+
+        # Encontrar contornos
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # Filtrar por tamanho de swatch tipico (pequenos retangulos)
+        min_area = 30
+        max_area = leg_w * leg_h * 0.05
+        swatches = []
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+            if area < min_area or area > max_area:
+                continue
+            x, y, w, h = cv2.boundingRect(cnt)
+            aspect = w / max(h, 1)
+            if aspect < 0.3 or aspect > 6:
+                continue
+            # Amostrar cor da regiao
+            roi = legenda_img[y:y+h, x:x+w]
+            if roi.size == 0:
+                continue
+            pixels = roi.reshape(-1, 3).astype(np.float32)
+            # Remover pixels muito claros (bordas brancas)
+            brightness = pixels.mean(axis=1)
+            colored = pixels[brightness < 240]
+            if len(colored) < 3:
+                colored = pixels
+            cor_bgr = np.median(colored, axis=0).astype(int)
+            b, g, r = int(cor_bgr[0]), int(cor_bgr[1]), int(cor_bgr[2])
+            cor_hex = f'#{r:02X}{g:02X}{b:02X}'
+            # Calcular Y global (relativo a imagem toda)
+            y_global = y
+            swatches.append({
+                'x': x + legenda_x, 'y': y_global,
+                'w': w, 'h': h,
+                'cor_hex': cor_hex,
+                'area': area
+            })
+
+        # Ordenar por Y (ordem na legenda)
+        swatches.sort(key=lambda s: (s['y'], s['x']))
+        logs.append({'nivel': 'info', 'msg': f'  OpenCV detectou {len(swatches)} swatches de cor na legenda'})
+
+        # --- PASSO 2: Gemini identifica nomes das zonas ---
         import mimetypes
         mime = mimetypes.guess_type(img_path)[0] or 'image/png'
         with open(img_path, 'rb') as fp:
             img_bytes = fp.read()
 
-        # Pedir ao Gemini para identificar posicao dos swatches na legenda
         prompt = (
             f"Esta e uma planta de zoneamento municipal de {municipio}/{estado}.\n"
-            f"Analise a LEGENDA e para cada zona informe:\n"
-            f"- nome: codigo/nome da zona\n"
+            f"Liste todas as zonas/categorias da LEGENDA, na ordem em que aparecem (de cima para baixo).\n"
+            f"Para cada zona informe:\n"
+            f"- nome: codigo/sigla da zona\n"
             f"- descricao: descricao completa\n"
             f"- tipo_fill: 'solido', 'hachura_sobre_branco', ou 'hachura_sobre_cor'\n"
-            f"- swatch_x: posicao X do centro do swatch de cor na legenda (0-100, % da largura da imagem)\n"
-            f"- swatch_y: posicao Y do centro do swatch de cor na legenda (0-100, % da altura da imagem)\n"
-            f"- swatch_w: largura do swatch (0-100, % da largura da imagem)\n"
-            f"- swatch_h: altura do swatch (0-100, % da altura da imagem)\n\n"
-            f"IMPORTANTE: O swatch deve apontar para a amostra de cor pura da zona, "
-            f"nao para a area hachura/texto. Para hachura sobre branco, apontar para "
-            f"onde as linhas da hachura estao mais densas.\n\n"
             f"Responda APENAS com JSON valido:\n"
-            f'[{{"nome":"ZR1","descricao":"Zona Residencial 1","tipo_fill":"solido",'
-            f'"swatch_x":85.2,"swatch_y":12.3,"swatch_w":2.5,"swatch_h":1.2}}]'
+            f'[{{"nome":"ZR1","descricao":"Zona Residencial 1","tipo_fill":"solido"}}]'
         )
 
         parts = [_gv_types.Part.from_text(text=prompt),
@@ -191,80 +245,45 @@ def _extrair_legenda(fpath, fname, municipio, estado, logs, tmp):
             return None
 
         txt = re.sub(r'^```json\s*|\s*```$', '', resp.text.strip())
-        zonas_raw = _j.loads(txt)
+        zonas_gemini = _j.loads(txt)
+        logs.append({'nivel': 'info', 'msg': f'  Gemini identificou {len(zonas_gemini)} zonas'})
 
-        # Amostrar cores diretamente dos pixels da imagem
+        # --- PASSO 3: Associar zonas aos swatches pela ordem ---
+        # Filtrar swatches duplicados muito proximos (mesmo swatch detectado 2x)
+        swatches_filtrados = []
+        for s in swatches:
+            if swatches_filtrados and abs(s['y'] - swatches_filtrados[-1]['y']) < 10:
+                # Manter o maior
+                if s['area'] > swatches_filtrados[-1]['area']:
+                    swatches_filtrados[-1] = s
+            else:
+                swatches_filtrados.append(s)
+
+        logs.append({'nivel': 'info', 'msg': f'  Swatches filtrados: {len(swatches_filtrados)}'})
+
         legenda = []
-        for zona in zonas_raw:
-            nome = zona.get('nome', '')
-            descricao = zona.get('descricao', '')
-            tipo_fill = zona.get('tipo_fill', 'solido')
-
-            sx = zona.get('swatch_x', 0)
-            sy = zona.get('swatch_y', 0)
-            sw = zona.get('swatch_w', 2)
-            sh = zona.get('swatch_h', 1)
-
-            # Detectar se Gemini retornou pixels absolutos ou porcentagens
-            # Se sx > 100 ou sy > 100, sao pixels absolutos
-            if sx > 100 or sy > 100:
-                # Pixels absolutos — usar diretamente
-                cx_px = int(sx)
-                cy_px = int(sy)
-                cw_px = max(20, int(sw))
-                ch_px = max(10, int(sh))
-            else:
-                # Porcentagens — converter para pixels
-                cx_px = int(sx / 100 * img_w)
-                cy_px = int(sy / 100 * img_h)
-                cw_px = max(20, int(sw / 100 * img_w))
-                ch_px = max(10, int(sh / 100 * img_h))
-
-            # O swatch colorido fica tipicamente a esquerda do texto na legenda
-            # Deslocar para a esquerda para pegar o quadradinho de cor
-            x1 = max(0, cx_px - cw_px * 3)
-            x2 = max(x1 + 5, cx_px - cw_px)
-            y1 = max(0, cy_px - ch_px // 2)
-            y2 = min(img_h, cy_px + ch_px // 2)
-            if y2 <= y1: y2 = y1 + 5
-
-            if x2 <= x1 or y2 <= y1:
-                continue
-
-            # Recortar regiao do swatch
-            swatch = img_cv[y1:y2, x1:x2]
-            if swatch.size == 0:
-                continue
-
-            # Para hachura sobre branco: filtrar pixels brancos e pegar a cor predominante
-            if tipo_fill == 'hachura_sobre_branco':
-                # Converter para HSV para filtrar branco
-                pixels = swatch.reshape(-1, 3).astype(np.float32)
-                # Remover pixels muito claros (branco/quase branco)
-                brightness = pixels.mean(axis=1)
-                dark_pixels = pixels[brightness < 220]
-                if len(dark_pixels) > 0:
-                    cor_bgr = dark_pixels.mean(axis=0).astype(int)
-                else:
-                    cor_bgr = pixels.mean(axis=0).astype(int)
-            else:
-                # Para cor solida ou hachura sobre cor: usar mediana dos pixels
-                pixels = swatch.reshape(-1, 3)
-                cor_bgr = np.median(pixels, axis=0).astype(int)
-
-            # Converter BGR para HEX
-            b, g, r = int(cor_bgr[0]), int(cor_bgr[1]), int(cor_bgr[2])
-            cor_hex = f'#{r:02X}{g:02X}{b:02X}'
+        n = min(len(zonas_gemini), len(swatches_filtrados))
+        for i in range(n):
+            zona = zonas_gemini[i]
+            swatch = swatches_filtrados[i]
+            cor_hex = swatch['cor_hex']
+            # Para hachura sobre branco, a cor pode ser quase branca — usar a do Gemini como fallback
+            brightness = sum(int(cor_hex[j:j+2], 16) for j in [1,3,5]) / 3
+            if brightness > 230 and zona.get('tipo_fill') == 'hachura_sobre_branco':
+                cor_hex = '#808080'  # cinza como fallback para hachura sobre branco
 
             legenda.append({
-                'nome': nome,
-                'descricao': descricao,
+                'nome': zona['nome'],
+                'descricao': zona.get('descricao', ''),
                 'cor_hex': cor_hex,
-                'tipo_fill': tipo_fill,
-                'swatch_pos': [x1, y1, x2, y2]
+                'tipo_fill': zona.get('tipo_fill', 'solido'),
             })
+            logs.append({'nivel': 'info', 'msg': f'  {zona["nome"]}: {cor_hex} ({zona.get("tipo_fill","?")})'})
 
-            logs.append({'nivel': 'info', 'msg': f'  {nome}: {cor_hex} ({tipo_fill}) px=[{x1},{y1},{x2},{y2}]'})
+        # Zonas sem swatch correspondente — usar cores do Gemini como estimativa
+        for i in range(n, len(zonas_gemini)):
+            zona = zonas_gemini[i]
+            logs.append({'nivel': 'aviso', 'msg': f'  {zona["nome"]}: sem swatch detectado'})
 
         return legenda if legenda else None
 
