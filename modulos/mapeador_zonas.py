@@ -205,16 +205,28 @@ def _extrair_legenda(fpath, fname, municipio, estado, logs, tmp):
             sw = zona.get('swatch_w', 2)
             sh = zona.get('swatch_h', 1)
 
-            # Converter % para pixels
-            # O Gemini tende a apontar para o texto — deslocar para a esquerda para pegar o swatch
-            swatch_offset = sw * 1.5  # deslocar 1.5x a largura do swatch para a esquerda
-            x1 = max(0, int((sx - sw/2 - swatch_offset) / 100 * img_w))
-            x2 = min(img_w, int((sx + sw/2 - swatch_offset) / 100 * img_w))
-            y1 = max(0, int((sy - sh/2) / 100 * img_h))
-            y2 = min(img_h, int((sy + sh/2) / 100 * img_h))
-            # Garantir que tem pelo menos alguns pixels para amostrar
-            if x2 <= x1: x2 = x1 + max(5, int(sw/100*img_w))
-            if y2 <= y1: y2 = y1 + max(5, int(sh/100*img_h))
+            # Detectar se Gemini retornou pixels absolutos ou porcentagens
+            # Se sx > 100 ou sy > 100, sao pixels absolutos
+            if sx > 100 or sy > 100:
+                # Pixels absolutos — usar diretamente
+                cx_px = int(sx)
+                cy_px = int(sy)
+                cw_px = max(20, int(sw))
+                ch_px = max(10, int(sh))
+            else:
+                # Porcentagens — converter para pixels
+                cx_px = int(sx / 100 * img_w)
+                cy_px = int(sy / 100 * img_h)
+                cw_px = max(20, int(sw / 100 * img_w))
+                ch_px = max(10, int(sh / 100 * img_h))
+
+            # O swatch colorido fica tipicamente a esquerda do texto na legenda
+            # Deslocar para a esquerda para pegar o quadradinho de cor
+            x1 = max(0, cx_px - cw_px * 3)
+            x2 = max(x1 + 5, cx_px - cw_px)
+            y1 = max(0, cy_px - ch_px // 2)
+            y2 = min(img_h, cy_px + ch_px // 2)
+            if y2 <= y1: y2 = y1 + 5
 
             if x2 <= x1 or y2 <= y1:
                 continue
