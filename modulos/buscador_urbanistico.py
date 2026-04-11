@@ -28,6 +28,14 @@ def _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta="", stat
 def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
     resultado = {"encontradas": [], "nao_encontrada": False}
     analisadas = set()
+    # Resetar contador global de tokens
+    try:
+        from modulos.buscador_legislacoes import reset_token_stats as _reset_ts, get_token_stats as _get_ts
+        _reset_ts()
+    except Exception:
+        _reset_ts = None
+        _get_ts = None
+    _token_stats = {'input': 0, 'output': 0}
 
     # ETAPA 1: 3 perguntas ao Gemini para identificar legislacoes
     PERGUNTAS = [
@@ -56,6 +64,10 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             with _cf.ThreadPoolExecutor() as _ex:
                 _fut = _ex.submit(client.models.generate_content, model="gemini-2.5-flash", contents=pergunta, config=config)
                 response = _fut.result(timeout=30)
+            # Contar tokens
+            if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                _token_stats['input'] += getattr(response.usage_metadata, 'prompt_token_count', 0) or 0
+                _token_stats['output'] += getattr(response.usage_metadata, 'candidates_token_count', 0) or 0
             resp_texto = (response.text or "").strip()
             if not resp_texto:
                 raise ValueError("Gemini retornou texto vazio")
@@ -651,6 +663,23 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
 
     if not resultado["encontradas"]:
         resultado["nao_encontrada"] = True
+
+    # Mesclar contador global (chamar_llm) com contador local (_gemini_pergunta)
+    try:
+        if _get_ts:
+            _global = _get_ts()
+            _token_stats['input'] += _global.get('input', 0)
+            _token_stats['output'] += _global.get('output', 0)
+    except Exception:
+        pass
+    # Log tokens e custo estimado (Gemini 2.5 Flash: $0.30/M input, $2.50/M output)
+    _custo_i = _token_stats['input'] / 1_000_000 * 0.30
+    _custo_o = _token_stats['output'] / 1_000_000 * 2.50
+    _custo_t = _custo_i + _custo_o
+    logs.append({"nivel": "info", "msg": f"📊 Tokens Gemini — Entrada: {_token_stats['input']:,} | Saída: {_token_stats['output']:,}"})
+    logs.append({"nivel": "info", "msg": f"💰 Custo estimado — US${_custo_t:.4f} (≈ R${_custo_t*5.8:.2f})"})
+    resultado["token_stats"] = _token_stats
+    resultado["custo_usd"] = round(_custo_t, 6)
     return resultado
 
 

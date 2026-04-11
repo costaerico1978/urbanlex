@@ -220,6 +220,16 @@ def _extrair_texto_html(html_raw: str) -> str:
     return txt
 
 
+# Contador global de tokens (acumulado por sessão de busca)
+_token_stats_global = {'input': 0, 'output': 0}
+
+def reset_token_stats():
+    global _token_stats_global
+    _token_stats_global = {'input': 0, 'output': 0}
+
+def get_token_stats():
+    return dict(_token_stats_global)
+
 def _chamar_llm(prompt: str, logs: list, label: str = 'LLM', max_retries: int = 2) -> Optional[str]:
     """Chama Gemini ou GROQ e retorna texto. Retry com backoff para 429."""
     import requests as req
@@ -240,6 +250,10 @@ def _chamar_llm(prompt: str, logs: list, label: str = 'LLM', max_retries: int = 
                 model = genai.GenerativeModel('gemini-2.5-flash')
                 response = model.generate_content(prompt)
                 texto = response.text.strip()
+                # Contar tokens
+                if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                    _token_stats_global['input'] += getattr(response.usage_metadata, 'prompt_token_count', 0) or 0
+                    _token_stats_global['output'] += getattr(response.usage_metadata, 'candidates_token_count', 0) or 0
                 logs.append({'nivel': 'ok', 'msg': f'{label}: Gemini respondeu ({len(texto)} chars)'})
                 return texto
             except Exception as e:
