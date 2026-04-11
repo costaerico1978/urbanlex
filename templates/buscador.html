@@ -921,6 +921,21 @@ function renderizarResultadoBusca(r, duracao) {
     }
 
     el.innerHTML = html;
+
+    // Botão de download do ZIP se disponível
+    if (r.zip_url) {
+        const zd = document.createElement('div');
+        zd.id = 'bm-zip-download';
+        zd.style.cssText = 'margin-top:16px;padding:14px;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;display:flex;align-items:center;gap:12px;';
+        zd.innerHTML = `
+            <div style="flex:1">
+                <div style="font-size:13px;font-weight:700;color:var(--accent)">📦 Pacote Completo de Legislações</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px">${r.zip_nome || ''} — PDFs organizados por categoria + legislacoes.json</div>
+            </div>
+            <a href="${r.zip_url}" download="${r.zip_nome || 'legislacoes.zip'}" class="btn btn-primary" style="white-space:nowrap;font-size:13px;padding:8px 18px;">⬇️ Baixar ZIP</a>`;
+        document.getElementById('bm-lista-resultados').appendChild(zd);
+    }
+
     window._resultadosBusca = r.legislacoes;
     atualizarContagemSelecionados();
 }
