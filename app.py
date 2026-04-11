@@ -3374,7 +3374,16 @@ def api_buscador_municipio():
             def chamar_llm(prompt, logs, label="LLM", max_retries=2):
                 return _llm(prompt, logs, label, max_retries)
             r = buscar_legislacoes_urbanisticas(mun, est, job["logs"], chamar_llm)
-            job["result"] = r
+            # Expor ZIP e JSON no resultado do job
+            job["result"] = {
+                "encontradas": len(r.get("encontradas", [])),
+                "zip_url": r.get("zip_url"),
+                "zip_nome": r.get("zip_nome"),
+                "legislacoes_json": r.get("legislacoes_json", []),
+                "custo_usd": r.get("custo_usd"),
+                "token_stats": r.get("token_stats"),
+                "nao_encontrada": r.get("nao_encontrada", False),
+            }
             job["hist_id"] = hist_id
             # Atualizar historico ao concluir
             if hist_id:

@@ -681,6 +681,92 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
     logs.append({"nivel": "info", "msg": f"💰 Custo estimado — US${_custo_t:.4f} (≈ R${_custo_t*5.8:.2f})"})
     resultado["token_stats"] = _token_stats
     resultado["custo_usd"] = round(_custo_t, 6)
+
+    # ETAPA FINAL: Gerar ZIP consolidado com subpastas por categoria
+    if resultado.get("encontradas"):
+        try:
+            import zipfile, json as _json_zip, os as _os_zip
+            import unicodedata as _ud, re as _re_zip
+
+            def _slug(s):
+                s = _ud.normalize('NFKD', s).encode('ascii', 'ignore').decode()
+                return _re_zip.sub(r'[^A-Za-z0-9_]', '_', s).strip('_')[:60]
+
+            CATEGORIAS = {
+                'plano_diretor': ['plano diretor','pddua','pdm','plano de desenvolvimento'],
+                'zoneamento':    ['zoneamento','macrozoneamento','zona de uso','zona especial'],
+                'uso_ocupacao':  ['uso e ocupacao','uso do solo','ocupacao do solo','coeficiente'],
+                'parcelamento':  ['parcelamento','loteamento','desmembramento','condominio'],
+                'codigo_obras':  ['codigo de obras','codigo de edificacoes','obras e edificacoes'],
+            }
+            PASTAS = {
+                'plano_diretor': '01_Plano_Diretor',
+                'zoneamento':    '02_Zoneamento',
+                'uso_ocupacao':  '03_Uso_e_Ocupacao',
+                'parcelamento':  '04_Parcelamento_Solo',
+                'codigo_obras':  '05_Codigo_de_Obras',
+                'outros':        '06_Outros',
+            }
+
+            def _cat(leg):
+                desc = (leg.get('descricao') or leg.get('ementa') or '').lower()
+                for cat, palavras in CATEGORIAS.items():
+                    if any(p in desc for p in palavras):
+                        return cat
+                return 'outros'
+
+            mun_slug = _slug(municipio)
+            est_slug = _slug(estado)
+            zip_nome = f"legislacoes_{mun_slug}_{est_slug}.zip"
+            zip_path = f"/var/www/urbanlex/static/downloads/{zip_nome}"
+
+            legs_json = []
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for leg in resultado["encontradas"]:
+                    tipo = leg.get('tipo','')
+                    num  = leg.get('numero','')
+                    ano  = leg.get('ano','')
+                    desc = leg.get('descricao') or leg.get('ementa') or ''
+                    cat  = _cat(leg)
+                    pasta = PASTAS[cat]
+                    leg_slug = _slug(f"{tipo}_{num}_{ano}")
+                    base = f"{pasta}/{leg_slug}/"
+
+                    # PDF principal
+                    pdf = leg.get('pdf_path') or leg.get('caminho_pdf') or ''
+                    if pdf and _os_zip.path.exists(pdf):
+                        ext_p = _os_zip.path.splitext(pdf)[1] or '.pdf'
+                        zf.write(pdf, base + leg_slug + ext_p)
+
+                    # Anexos
+                    for anx in (leg.get('anexos') or []):
+                        ap = anx.get('path') or anx.get('caminho') or ''
+                        an = anx.get('nome') or _os_zip.path.basename(ap)
+                        if ap and _os_zip.path.exists(ap):
+                            zf.write(ap, base + 'anexos/' + an)
+
+                    legs_json.append({
+                        'tipo': tipo, 'numero': num, 'ano': ano,
+                        'descricao': desc, 'categoria': cat,
+                        'status': 'vigente',
+                        'link': leg.get('link') or leg.get('url') or '',
+                        'pasta_zip': base,
+                    })
+
+                # JSON consolidado dentro do ZIP
+                zf.writestr('legislacoes.json', _json_zip.dumps({
+                    'municipio': municipio, 'estado': estado,
+                    'total': len(legs_json), 'legislacoes': legs_json
+                }, ensure_ascii=False, indent=2))
+
+            resultado['zip_url']  = f"/static/downloads/{zip_nome}"
+            resultado['zip_nome'] = zip_nome
+            resultado['legislacoes_json'] = legs_json
+            logs.append({'nivel': 'ok', 'msg': f'📦 ZIP consolidado: {zip_nome} ({len(resultado["encontradas"])} legislações em {len(set(l["categoria"] for l in legs_json))} categorias)'})
+
+        except Exception as _ez:
+            logs.append({'nivel': 'aviso', 'msg': f'ZIP: erro — {str(_ez)[:120]}'})
+
     return resultado
 
 
