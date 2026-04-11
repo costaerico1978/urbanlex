@@ -39,11 +39,12 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
 
     # ETAPA 1: 3 perguntas ao Gemini para identificar legislacoes
     PERGUNTAS = [
-        f"qual legislacao define atualmente os parametros urbanisticos de {municipio} {estado}?",
-        f"qual e a legislacao atual de zoneamento de {municipio} {estado}?",
-        f"qual e a legislacao atual de uso e ocupacao do solo de {municipio} {estado}?",
-        f"qual e atualmente a legislacao de parcelamento do solo de {municipio} {estado}?",
-        f"qual e atualmente o codigo de obras de {municipio} {estado}?",
+        f"quais sao todas as legislacoes vigentes que definem parametros urbanisticos de {municipio} {estado}? Liste todas, inclusive leis complementares, decretos regulamentadores e legislacoes especificas por zona.",
+        f"quais sao todas as legislacoes vigentes de zoneamento e macrozoneamento de {municipio} {estado}? Inclua leis complementares, planos diretores e decretos relacionados.",
+        f"quais sao todas as legislacoes vigentes de uso e ocupacao do solo de {municipio} {estado}? Liste todas, inclusive alteracoes parciais ainda em vigor.",
+        f"quais sao todas as legislacoes vigentes de parcelamento do solo urbano de {municipio} {estado}? Inclua leis de loteamento, desmembramento e condominio.",
+        f"quais sao todas as legislacoes vigentes que compoem o codigo de obras e edificacoes de {municipio} {estado}? Inclua decretos regulamentadores ainda em vigor.",
+        f"qual e o Plano Diretor vigente de {municipio} {estado}? Inclua o nome oficial, numero e ano. Houve revisoes ou atualizacoes recentes?",
     ]
     legs = []
     _chaves_legs = set()
