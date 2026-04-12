@@ -750,7 +750,7 @@ async function executarBuscaManual() {
         logRemoveSpinner();
         const duracao = ((Date.now() - t0) / 1000).toFixed(1);
 
-        document.getElementById('bm-loading').style.display = 'none';
+        const _bmLoad = document.getElementById('bm-loading'); if (_bmLoad) _bmLoad.style.display = 'none';
         // Manter buscador_job_id por 5min para reconectarJob poder restaurar log se usuário voltar
         setTimeout(() => { localStorage.removeItem('buscador_job_id'); localStorage.removeItem('buscador_campos'); localStorage.removeItem('bm_log_cache'); }, 300000);
         history.replaceState({}, '', '/buscador');
@@ -771,7 +771,7 @@ async function executarBuscaManual() {
 
     } catch(e) {
         logRemoveSpinner();
-        document.getElementById('bm-loading').style.display = 'none';
+        const _bmLoad = document.getElementById('bm-loading'); if (_bmLoad) _bmLoad.style.display = 'none';
         logLine('❌', `Erro na conexão: ${e.message}`, 'var(--red)');
 
         // Fallback: tentar rota clássica (sem streaming)
@@ -956,7 +956,7 @@ function cancelarENovasBusca() {
     ['buscador_job_id','buscador_campos','bm_log_cache',
      'mun_job_id','mun_campos','mun_log_cache','mun_log_cache_done','mun_zip_data',
      'mun_tabela_legs','mun_tabela_job_id'].forEach(k => localStorage.removeItem(k));
-    document.getElementById('bm-loading').style.display = 'none';
+    const _bmLoad = document.getElementById('bm-loading'); if (_bmLoad) _bmLoad.style.display = 'none';
     const logEl = document.getElementById('bm-log-lines');
     if (logEl) logEl.innerHTML = '';
     const logBox = document.getElementById('bm-log');
@@ -966,7 +966,7 @@ function cancelarENovasBusca() {
     if (logElAuto) logElAuto.innerHTML = '';
     const logBoxAuto = document.getElementById('bm-log-auto');
     if (logBoxAuto) logBoxAuto.style.display = 'none';
-    document.getElementById('bm-resultados').style.display = 'none';
+    const _bmRes = document.getElementById('bm-resultados'); if (_bmRes) _bmRes.style.display = 'none';
     const btnCanc = document.getElementById('btn-cancelar-busca');
     if (btnCanc) btnCanc.style.display = 'none';
     const zipDiv = document.getElementById('bm-zip-download');
@@ -2098,7 +2098,7 @@ carregarFila();
         });
         if (check.done) {
             logRemoveSpinner();
-            document.getElementById('bm-loading').style.display = 'none';
+            const _bmLoad = document.getElementById('bm-loading'); if (_bmLoad) _bmLoad.style.display = 'none';
             document.getElementById('bm-resultados').style.display = 'block';
             if (check.result) renderizarResultadoBusca(check.result, '0');
             localStorage.removeItem('buscador_job_id');
@@ -2131,7 +2131,7 @@ carregarFila();
             } catch(e) {}
         }
         logRemoveSpinner();
-        document.getElementById('bm-loading').style.display = 'none';
+        const _bmLoad = document.getElementById('bm-loading'); if (_bmLoad) _bmLoad.style.display = 'none';
         document.getElementById('bm-resultados').style.display = 'block';
         localStorage.removeItem('buscador_job_id');
         localStorage.removeItem('buscador_campos');
