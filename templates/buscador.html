@@ -1845,10 +1845,16 @@ carregarFila();
     const munDone = localStorage.getItem('mun_log_cache_done');
     const munCache = JSON.parse(localStorage.getItem('mun_log_cache') || '[]');
     if (munDone === 'true' && munCache.length) {
-        const logBox = document.getElementById('bm-log-auto');
-        const logEl = document.getElementById('log-auto-lines');
-        if (logBox && logEl) {
-            logBox.style.display = 'block';
+        // Criar/encontrar elemento de log
+        let logEl = document.getElementById('log-municipio');
+        if (!logEl) {
+            logEl = document.createElement('div');
+            logEl.id = 'log-municipio';
+            logEl.style.cssText = 'margin-top:16px;background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;max-height:400px;overflow-y:auto;';
+            const panel = document.getElementById('panel-auto');
+            if (panel) panel.appendChild(logEl);
+        }
+        if (logEl) {
             logEl.innerHTML = '';
             munCache.forEach(l => {
                 const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : l.nivel === 'anexo' ? '#ff9800' : 'var(--muted)';
@@ -1857,13 +1863,18 @@ carregarFila();
                 d.textContent = l.msg || '';
                 logEl.appendChild(d);
             });
-            // Adicionar indicador de conclusão
             const df = document.createElement('div');
             df.style.color = 'var(--accent)';
             df.style.marginTop = '8px';
             df.textContent = '✅ Busca concluída (log restaurado após reload)';
             logEl.appendChild(df);
             logEl.scrollTop = logEl.scrollHeight;
+            // Mostrar botão PDF se houver tabela
+            const _bPdfR = document.getElementById('btn-baixar-tabela-pdf');
+            if (_bPdfR && _tabelaLegsData && Object.keys(_tabelaLegsData).length > 0) _bPdfR.style.display = 'inline-block';
+            // Mostrar botão log
+            const _bLogR = document.getElementById('btn-baixar-log-auto');
+            if (_bLogR) _bLogR.style.display = 'inline-block';
         }
         // Restaurar resultado ZIP se houver
         const zipData = localStorage.getItem('mun_zip_data');
