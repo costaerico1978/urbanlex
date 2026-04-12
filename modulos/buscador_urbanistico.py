@@ -273,10 +273,18 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         _pergunta_origem = leg.get("_pergunta_label", "")
         _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=_pergunta_origem, status="analisando")
         enc = _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, modo=leg.get("_modo_verificacao","geral"))
+        texto_enc = ""
+        _altera_enc = []
+        _revoga_enc = []
+        _regulamenta_enc = []
+        _alterado_por_enc = []
+        _revogado_por_enc = []
+        _regulamentado_por_enc = []
+        _cita_enc = []
+        _revoga_parcialmente_enc = []
+        _revogado_parcialmente_por_enc = []
         if enc:
             resultado["encontradas"].append(enc)
-            _altera_enc = []
-            _revoga_enc = []
             # Verificar via IA se esta legislacao revoga outras da lista
             html_enc = enc.get("html", "") or ""
             if html_enc:
