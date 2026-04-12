@@ -994,110 +994,246 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
             _pdf = fs_result.get("pdf_nativo_s3") or fs_result.get("pdf_path") or ""
             _anexos = fs_result.get("anexos_lm") or []
             return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc, "pdf_path": _pdf, "html": html_lei if "html_lei" in dir() else "", "anexos_lm": _anexos, "_leis_referenciadas": _leis_ref if "_leis_ref" in dir() else []}
-        logs.append({"nivel": "aviso", "msg": f"  {tipo} {numero}/{ano} nao encontrada no LeisMunicipais — buscando site da prefeitura..."})
-        return _buscar_site_prefeitura(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
+        logs.append({"nivel": "aviso", "msg": f"  {tipo} {numero}/{ano} nao encontrada no LeisMunicipais — tentando 1º fallback..."})
+        enc = _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
+        if enc:
+            return enc
+        logs.append({"nivel": "aviso", "msg": f"  1º fallback falhou — tentando 2º fallback (portal câmara/prefeitura)..."})
+        return _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
     except Exception as e:
         logs.append({"nivel": "aviso", "msg": f"  Erro LeisMunicipais: {str(e)[:80]}"})
     return None
 
-def _buscar_site_prefeitura(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas):
-    """Fallback: busca legislacao no site oficial da prefeitura via Google."""
-    try:
-        import urllib.parse
-        # Passo 1: buscar site da prefeitura no Google
-        query = urllib.parse.quote_plus(f"prefeitura {municipio} {estado}")
-        url_g = f"https://www.google.com/search?q={query}&num=10"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        logs.append({"nivel": "info", "msg": f"  Google: buscando site da prefeitura de {municipio}/{estado}..."})
-        r = requests.get(url_g, headers=headers, timeout=15)
-        # Extrair links dos resultados
-        import re as _re
-        links = _re.findall(r'href="(https?://(?!google)[^"&]+)"', r.text)
-        # Filtrar links relevantes — ignorar redes sociais e agregadores
-        ignorar = ["facebook.com", "twitter.com", "instagram.com", "wikipedia.org",
-                   "youtube.com", "linkedin.com", "tiktok.com", "leismunicipais.com.br",
-                   "jusbrasil.com", "camara.leg.br", "google.com"]
-        links_filtrados = [l for l in links if not any(ig in l for ig in ignorar)][:5]
-        if not links_filtrados:
-            logs.append({"nivel": "aviso", "msg": f"  Google nao retornou site da prefeitura de {municipio}"})
-            return None
-        logs.append({"nivel": "info", "msg": f"  Sites candidatos: {', '.join(l[:60] for l in links_filtrados[:3])}"})
-        # Passo 2: IA navega no site da prefeitura buscando a legislacao
-        from modulos.navegador_universal import navegar_com_cookies_flaresolverr
-        for url_pref in links_filtrados[:3]:
-            if url_pref.lower() in analisadas:
-                continue
-            analisadas.add(url_pref.lower())
-            logs.append({"nivel": "info", "msg": f"  Tentando site da prefeitura: {url_pref[:80]}"})
-            leg_dict = {
-                "tipo": tipo,
-                "numero": numero,
-                "ano": ano,
-                "municipio": municipio,
-                "estado": estado,
-                "_site_prefeitura": True
-            }
-            try:
-                import requests as _rfs, os as _ofs
-                _rn = _rfs.post("http://localhost:8191/v1", json={"cmd": "sessions.create"}, timeout=10)
-                _ns = _rn.json().get("session", "")
-                if _ns:
-                    _ofs.environ["FLARESOLVERR_SESSION"] = _ns
-                    import subprocess as _sp
-                    _sp.run(["sed", "-i", f"s/FLARESOLVERR_SESSION=.*/FLARESOLVERR_SESSION={_ns}/", "/var/www/urbanlex/.env"], capture_output=True)
-            except Exception:
-                pass
-            fs_result = navegar_com_cookies_flaresolverr(
-                url_pref, leg_dict, logs,
-                label=f"Pref {municipio}",
-                chamar_llm=chamar_llm,
-                max_passos=15
-            )
-            if fs_result.get("encontrada") and fs_result.get("url"):
-                url_enc = fs_result["url"]
-                logs.append({"nivel": "ok", "msg": f"  Prefeitura: encontrada! {url_enc[:80]}"})
-                html_lei = fs_result.get("html", "")
-                if html_lei:
-                    from bs4 import BeautifulSoup as _bs
-                    texto_lei = _bs(html_lei, "html.parser").get_text()
-                    define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo=modo)
-                    if not define:
-                        logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros urbanisticos — descartando"})
-                        continue
-                return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc}
-        logs.append({"nivel": "aviso", "msg": f"  Legislacao nao encontrada no site da prefeitura de {municipio}"})
-    except Exception as e:
-        logs.append({"nivel": "aviso", "msg": f"  Erro busca prefeitura: {str(e)[:80]}"})
-    return None
+def _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas):
+    """1º Fallback: busca via Google com query formal, avalia snippets, tenta até 5 resultados."""
+    import urllib.parse, re as _re
+    from bs4 import BeautifulSoup as _bs
 
-def _buscar_google(termo, municipio, estado, logs, chamar_llm, analisadas):
+    # Montar query formal dependendo do tipo
+    _tipo_lower = tipo.lower()
+    _eh_decreto = 'decreto' in _tipo_lower
+    _tipo_label = tipo  # ex: "Decreto", "Lei Complementar", "Lei"
+
+    if _eh_decreto:
+        query_str = f'"{_tipo_label} Nº {numero}" prefeitura {municipio} {estado} {ano}'
+    else:
+        query_str = f'"{_tipo_label} Nº {numero}" {municipio} {estado} {ano}'
+
+    logs.append({"nivel": "info", "msg": f"  [Fallback1] Query: {query_str}"})
+
+    headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"}
+    IGNORAR = ["leismunicipais.com.br", "legisweb.com.br", "jusbrasil.com",
+               "facebook.com", "twitter.com", "instagram.com", "youtube.com",
+               "wikipedia.org", "tiktok.com", "google.com", "bing.com"]
+
     try:
-        import urllib.parse
-        query = urllib.parse.quote_plus(termo + " site:leismunicipais.com.br")
-        url_g = f"https://www.google.com/search?q={query}&num=10"
-        headers = {"User-Agent": "Mozilla/5.0"}
+        url_g = f"https://www.google.com/search?q={urllib.parse.quote_plus(query_str)}&num=10&hl=pt-BR"
         r = requests.get(url_g, headers=headers, timeout=15)
-        pattern = r"https?://(?:www\.)?leismunicipais\.com\.br/[^\s\"&<>]+"
-        links = list(dict.fromkeys(re.findall(pattern, r.text)))[:10]
-        for link in links:
-            if link in analisadas:
+
+        # Extrair resultados com snippet (título + URL + descrição)
+        soup = _bs(r.text, "html.parser")
+        resultados = []
+        for div in soup.select("div.g, div[data-sokoban-container]"):
+            a_tag = div.find("a", href=True)
+            if not a_tag:
                 continue
-            analisadas.add(link)
-            logs.append({"nivel": "info", "msg": f"  Verificando: {link[:80]}"})
+            url = a_tag["href"]
+            if not url.startswith("http"):
+                continue
+            if any(ig in url for ig in IGNORAR):
+                continue
+            titulo = div.get_text(" ", strip=True)[:200]
+            resultados.append({"url": url, "snippet": titulo})
+        resultados = resultados[:5]
+
+        if not resultados:
+            logs.append({"nivel": "aviso", "msg": "  [Fallback1] Google não retornou resultados úteis"})
+            return None
+
+        # Avaliar snippets antes de visitar
+        for i, res in enumerate(resultados):
+            url = res["url"]
+            snippet = res["snippet"]
+
+            if url.lower() in analisadas:
+                continue
+
+            # Avaliação rápida do snippet — vale a pena visitar?
+            snippet_lower = snippet.lower()
+            tipo_ok = any(t in snippet_lower for t in [tipo.lower(), numero, ano, municipio.lower()])
+            if not tipo_ok:
+                logs.append({"nivel": "info", "msg": f"  [Fallback1] Resultado {i+1} ignorado pelo snippet: {snippet[:80]}"})
+                continue
+
+            analisadas.add(url.lower())
+            logs.append({"nivel": "info", "msg": f"  [Fallback1] Tentando resultado {i+1}: {url[:80]}"})
+
             try:
-                r2 = requests.get(link, headers=headers, timeout=15)
+                r2 = requests.get(url, headers=headers, timeout=15)
                 if r2.status_code != 200:
                     continue
-                from bs4 import BeautifulSoup
-                texto = BeautifulSoup(r2.text, "html.parser").get_text()
-                m = re.search(r"/([a-z-]+)/(\d{2})/(\d+)/(\d+)", link)
-                tipo_u = m.group(1).replace("-", " ").title() if m else "Legislacao"
-                ano_u = "20" + m.group(2) if m else ""
-                num_u = m.group(4) if m else ""
-                if _verificar_parametros(texto, municipio, estado, tipo_u, num_u, ano_u, logs, chamar_llm, modo="geral")[0]:
-                    return {"tipo": tipo_u, "numero": num_u, "ano": ano_u, "link": link}
+                texto = _bs(r2.text, "html.parser").get_text()
+
+                # Verificar se é a legislação correta
+                texto_lower = texto.lower()
+                numero_ok = numero in texto_lower or numero in texto
+                tipo_presente = tipo.lower() in texto_lower
+                municipio_ok = municipio.lower() in texto_lower
+
+                if numero_ok and tipo_presente:
+                    logs.append({"nivel": "ok", "msg": f"  [Fallback1] Legislação encontrada: {url[:80]}"})
+
+                    # Tentar baixar PDF se houver link
+                    pdf_url = None
+                    soup2 = _bs(r2.text, "html.parser")
+                    for a in soup2.find_all("a", href=True):
+                        href = a["href"]
+                        if href.lower().endswith(".pdf"):
+                            pdf_url = href if href.startswith("http") else urllib.parse.urljoin(url, href)
+                            break
+
+                    resultado = {"tipo": tipo, "numero": numero, "ano": ano, "link": url}
+                    if pdf_url:
+                        resultado["pdf_url"] = pdf_url
+                        logs.append({"nivel": "info", "msg": f"  [Fallback1] PDF encontrado: {pdf_url[:80]}"})
+                    return resultado
+                else:
+                    logs.append({"nivel": "info", "msg": f"  [Fallback1] Resultado {i+1} não contém a legislação esperada"})
+
             except Exception as e2:
-                logs.append({"nivel": "aviso", "msg": f"  Erro link: {str(e2)[:50]}"})
+                logs.append({"nivel": "aviso", "msg": f"  [Fallback1] Erro ao acessar resultado {i+1}: {str(e2)[:60]}"})
+
     except Exception as e:
-        logs.append({"nivel": "aviso", "msg": f"Erro Google: {str(e)[:60]}"})
+        logs.append({"nivel": "aviso", "msg": f"  [Fallback1] Erro na busca Google: {str(e)[:80]}"})
+
+    logs.append({"nivel": "aviso", "msg": f"  [Fallback1] {tipo} {numero}/{ano} não encontrada nos 5 primeiros resultados"})
     return None
+
+
+def _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas):
+    """2º Fallback: encontra portal legislativo da câmara/prefeitura e busca a lei lá."""
+    import urllib.parse, re as _re
+    from bs4 import BeautifulSoup as _bs
+
+    _tipo_lower = tipo.lower()
+    _eh_decreto = 'decreto' in _tipo_lower
+    headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"}
+    IGNORAR = ["leismunicipais.com.br", "legisweb.com.br", "jusbrasil.com",
+               "facebook.com", "twitter.com", "instagram.com", "youtube.com",
+               "wikipedia.org", "tiktok.com", "google.com"]
+
+    # Query para encontrar o portal legislativo
+    if _eh_decreto:
+        query_portal = f"Decretos prefeitura {municipio} {estado} legislação"
+    else:
+        query_portal = f"Legislação Câmara municipal {municipio} {estado}"
+
+    logs.append({"nivel": "info", "msg": f"  [Fallback2] Buscando portal legislativo: {query_portal}"})
+
+    try:
+        url_g = f"https://www.google.com/search?q={urllib.parse.quote_plus(query_portal)}&num=10&hl=pt-BR"
+        r = requests.get(url_g, headers=headers, timeout=15)
+        soup = _bs(r.text, "html.parser")
+
+        dominios_candidatos = []
+        for a in soup.find_all("a", href=True):
+            url = a["href"]
+            if not url.startswith("http"):
+                continue
+            if any(ig in url for ig in IGNORAR):
+                continue
+            # Preferir domínios .leg.br, .gov.br, prefeitura, camara
+            parsed = urllib.parse.urlparse(url)
+            dominio = parsed.netloc
+            if dominio and dominio not in [d for d, _ in dominios_candidatos]:
+                score = 0
+                if ".leg.br" in dominio: score += 3
+                if ".gov.br" in dominio: score += 2
+                if "prefeitura" in dominio or "camara" in dominio: score += 1
+                if municipio.lower().replace(" ", "") in dominio.lower().replace("-", "").replace(".", ""): score += 2
+                dominios_candidatos.append((dominio, score))
+
+        dominios_candidatos.sort(key=lambda x: -x[1])
+        dominios_top = [d for d, s in dominios_candidatos[:3]]
+
+        if not dominios_top:
+            logs.append({"nivel": "aviso", "msg": "  [Fallback2] Nenhum portal legislativo encontrado"})
+            return None
+
+        logs.append({"nivel": "info", "msg": f"  [Fallback2] Portais candidatos: {', '.join(dominios_top)}"})
+
+        # Para cada domínio candidato, buscar a lei específica
+        for dominio in dominios_top:
+            logs.append({"nivel": "info", "msg": f"  [Fallback2] Buscando no domínio: {dominio}"})
+
+            query_lei = f'"{tipo} {numero}" {ano} site:{dominio}'
+            url_g2 = f"https://www.google.com/search?q={urllib.parse.quote_plus(query_lei)}&num=5&hl=pt-BR"
+
+            passos = 0
+            try:
+                r2 = requests.get(url_g2, headers=headers, timeout=15)
+                soup2 = _bs(r2.text, "html.parser")
+
+                links_lei = []
+                for a in soup2.find_all("a", href=True):
+                    href = a["href"]
+                    if dominio in href and href.startswith("http"):
+                        links_lei.append(href)
+                links_lei = list(dict.fromkeys(links_lei))[:5]
+
+                for url_lei in links_lei:
+                    if url_lei.lower() in analisadas:
+                        continue
+                    analisadas.add(url_lei.lower())
+                    passos += 1
+                    if passos > 10:
+                        logs.append({"nivel": "aviso", "msg": f"  [Fallback2] Limite de 10 passos atingido em {dominio}"})
+                        break
+
+                    logs.append({"nivel": "info", "msg": f"  [Fallback2] Verificando (passo {passos}): {url_lei[:80]}"})
+                    try:
+                        r3 = requests.get(url_lei, headers=headers, timeout=15)
+                        if r3.status_code != 200:
+                            continue
+                        texto = _bs(r3.text, "html.parser").get_text()
+                        if numero in texto and tipo.lower() in texto.lower():
+                            logs.append({"nivel": "ok", "msg": f"  [Fallback2] Legislação encontrada: {url_lei[:80]}"})
+                            # Tentar PDF
+                            pdf_url = None
+                            soup3 = _bs(r3.text, "html.parser")
+                            for a in soup3.find_all("a", href=True):
+                                href = a["href"]
+                                if href.lower().endswith(".pdf"):
+                                    pdf_url = href if href.startswith("http") else urllib.parse.urljoin(url_lei, href)
+                                    break
+                            resultado = {"tipo": tipo, "numero": numero, "ano": ano, "link": url_lei}
+                            if pdf_url:
+                                resultado["pdf_url"] = pdf_url
+                            return resultado
+                    except Exception as e3:
+                        logs.append({"nivel": "aviso", "msg": f"  [Fallback2] Erro passo {passos}: {str(e3)[:60]}"})
+
+            except Exception as e2:
+                logs.append({"nivel": "aviso", "msg": f"  [Fallback2] Erro ao buscar em {dominio}: {str(e2)[:60]}"})
+
+    except Exception as e:
+        logs.append({"nivel": "aviso", "msg": f"  [Fallback2] Erro geral: {str(e)[:80]}"})
+
+    logs.append({"nivel": "aviso", "msg": f"  [Fallback2] {tipo} {numero}/{ano} não encontrada — encerrando busca desta legislação"})
+    return None
+
+
+# Aliases para compatibilidade com chamadas existentes
+def _buscar_site_prefeitura(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas):
+    return _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
+
+
+def _buscar_google(termo, municipio, estado, logs, chamar_llm, analisadas):
+    # Extrai tipo/numero/ano do termo se possível
+    import re as _re
+    m = _re.search(r'(Lei Complementar|Lei|Decreto)[^\d]*(\d+)[^\d]*(\d{4})', termo, _re.IGNORECASE)
+    if m:
+        tipo, numero, ano = m.group(1), m.group(2), m.group(3)
+    else:
+        tipo, numero, ano = "Lei", "", ""
+    return _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
