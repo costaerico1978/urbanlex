@@ -3379,6 +3379,8 @@ def api_buscador_municipio():
                 "encontradas": len(r.get("encontradas", [])),
                 "zip_url": r.get("zip_url"),
                 "zip_nome": r.get("zip_nome"),
+                "relatorio_url": r.get("relatorio_url"),
+                "relatorio_nome": r.get("relatorio_nome"),
                 "legislacoes_json": r.get("legislacoes_json", []),
                 "custo_usd": r.get("custo_usd"),
                 "token_stats": r.get("token_stats"),

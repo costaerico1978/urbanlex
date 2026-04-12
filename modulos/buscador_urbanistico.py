@@ -792,6 +792,31 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         except Exception as _ez:
             logs.append({'nivel': 'aviso', 'msg': f'ZIP: erro — {str(_ez)[:120]}'})
 
+    # ETAPA FINAL: Gerar relatório PDF
+    try:
+        from modulos.gerar_relatorio import gerar_relatorio_pdf as _gerar_pdf
+        _custo = resultado.get('custo_usd')
+        _tokens = resultado.get('token_stats')
+        _nao_enc = [
+            {'tipo': l.get('tipo',''), 'numero': l.get('numero',''), 'ano': l.get('ano',''), 'descricao': l.get('descricao','')}
+            for l in legs if not any(
+                e.get('tipo','').lower() == l.get('tipo','').lower() and
+                e.get('numero','') == l.get('numero','') and
+                e.get('ano','') == l.get('ano','')
+                for e in resultado.get('encontradas', [])
+            )
+        ] if 'legs' in dir() else []
+        _pdf_path, _pdf_url = _gerar_pdf(
+            resultado, municipio, estado,
+            custo_usd=_custo, token_stats=_tokens,
+            nao_encontradas=_nao_enc, logs=logs
+        )
+        if _pdf_url:
+            resultado['relatorio_url']  = _pdf_url
+            resultado['relatorio_nome'] = _pdf_url.split('/')[-1]
+    except Exception as _er:
+        logs.append({'nivel': 'aviso', 'msg': f'Relatório: erro — {str(_er)[:100]}'})
+
     return resultado
 
 
