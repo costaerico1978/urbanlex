@@ -1737,11 +1737,9 @@ function baixarLogAuto() {
         window.location.href = '/api/buscador/historico/log/' + hid + '/download';
         return;
     }
-    // Fallback: baixar log do DOM
     const logEl = document.getElementById('log-municipio');
-    const txt = logEl ? Array.from(logEl.querySelectorAll('div')).map(d => d.textContent).join('
-') : '';
-    if (!txt) { alert('Log não disponível ainda.'); return; }
+    const txt = logEl ? Array.from(logEl.querySelectorAll('div')).map(function(d){ return d.textContent; }).join('\n') : '';
+    if (!txt) { alert('Log nao disponivel ainda.'); return; }
     const a = document.createElement('a');
     const nd = new Date();
     a.href = URL.createObjectURL(new Blob([txt], {type:'text/plain'}));
