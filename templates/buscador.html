@@ -1713,7 +1713,7 @@ function _abrevTipo(t) {
 function _renderTabelaLegs() {
     // Mostrar botão PDF se houver linhas
     const _btnPdf2 = document.getElementById('btn-baixar-tabela-pdf');
-    if (_btnPdf2 && window._tabelaLegsData && Object.keys(window._tabelaLegsData).length > 0) {
+    if (_btnPdf2 && _tabelaLegsData && Object.keys(_tabelaLegsData).length > 0) {
         _btnPdf2.style.display = 'inline-block';
     }
     const tbl=document.getElementById("tabela-legs-auto");
@@ -1751,7 +1751,7 @@ function _renderTabelaLegs() {
 
 // ── Baixar Tabela de Legislações em PDF ──
 function baixarTabelaPDF() {
-    const dados = window._tabelaLegsData || {};
+    const dados = _tabelaLegsData || {};
     const rows = Object.values(dados);
     if (!rows.length) { alert('Nenhuma legislação na tabela ainda.'); return; }
 
