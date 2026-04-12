@@ -239,7 +239,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         numero = leg.get("numero", "")
         ano = leg.get("ano", "")
         descricao = leg.get("descricao", "")
-        chave = f"{tipo}_{numero}_{ano}".lower()
+        _num_norm = numero.replace('.','').replace(' ','').strip()
+        chave = f"{tipo}_{_num_norm}_{ano}".lower()
         # 1. Verificar por chave exata
         if chave in revogadas:
             # Buscar quem revogou na lista enriquecida
@@ -421,7 +422,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                             _altera_enc.append(alt.get('lei',''))
                         for outra in outras_legs:
                             num_outra = outra.get("numero", "").strip()
-                            chave_outra = f"{outra.get('tipo','').lower()}_{num_outra}_{outra.get('ano','')}".lower()
+                            _num_outra_n = num_outra.replace('.','').replace(' ','').strip()
+                            chave_outra = f"{outra.get('tipo','').lower()}_{_num_outra_n}_{outra.get('ano','')}".lower()
                             for rev_str in revogadas_ia:
                                 if num_outra and num_outra in rev_str:
                                     revogadas.add(chave_outra)
@@ -612,7 +614,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                 if _num_r and _ano_r:
                     for _tp in ["Lei Complementar", "Decreto-Lei", "Decreto", "Resolucao", "Lei"]:
                         if _tp.lower() in _rev_str.lower():
-                            _chave_r = f"{_tp.lower()}_{_num_r}_{_ano_r}"
+                            _num_r_n = _num_r.replace('.','').replace(' ','').strip()
+                            _chave_r = f"{_tp.lower()}_{_num_r_n}_{_ano_r}"
                             revogadas.add(_chave_r)
                             revogadas_lista.append({"tipo": _tp, "numero": _num_r, "ano": _ano_r, "revogada_por": f"{tipo} {numero}/{ano}"})
                             logs.append({"nivel": "aviso", "msg": f"  [FILA] {_rev_str} marcada como revogada por {tipo} {numero}/{ano}"})
