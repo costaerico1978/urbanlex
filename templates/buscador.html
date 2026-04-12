@@ -208,7 +208,7 @@ if (_hid) {
             📊 Baixar Tabela PDF
         </button>
     </div>
-    <div id="tabela-legs-auto" style="margin-top:16px;overflow-x:auto"></div>
+    <div id="tabela-legs-auto" style="margin-top:16px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:var(--accent) var(--surface)"></div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
@@ -1710,7 +1710,7 @@ function _renderTabelaLegs() {
         tbl.innerHTML='<div style="font-size:11px;color:var(--muted);font-family:monospace;padding:10px;background:#0d1117;border:1px solid var(--border);border-radius:6px">📋 Aguardando identificação das legislações...</div>';
         return;
     }
-    const cols=["Estado","Município","Tipo","N°","Ano","Pergunta","Status","Regulamenta/Altera","Regulamentado por","Revoga","Revogado por","Faz referência à legislação","Referenciada em","Link"];
+    const cols=["Estado","Município","Tipo","N°","Ano","Pergunta","Status","Regulamenta/Altera","Regulamentado por","Revoga","Revogado por","Revoga parcialmente","Revogada parcialmente por?","Faz referência à legislação","Referenciada em","Link"];
     let h=`<div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:6px;font-family:monospace">📋 LEGISLAÇÕES IDENTIFICADAS (${rows.length})</div>`;
     h+=`<table style="width:100%;border-collapse:collapse;font-size:10px;font-family:monospace">`;
     h+=`<thead><tr>${cols.map(c=>`<th style="padding:4px 6px;background:#111418;border:1px solid var(--border);color:var(--muted);text-align:left;white-space:nowrap">${c}</th>`).join("")}</tr></thead><tbody>`;
@@ -1723,7 +1723,9 @@ function _renderTabelaLegs() {
         if(r.status==="revogada"){
             h+=`<td colspan="6" style="padding:3px 6px;border:1px solid var(--border);color:#ff4d6d;font-style:italic">Revogada por: ${(r.revogado_por||[]).join(", ")||"—"}</td>`;
         } else {
-            h+=cel((r.altera||[]).map(_abrevTipo).join("\n"))+cel((r.alterado_por||[]).map(_abrevTipo).join("\n"))+cel((r.revoga||[]).map(_abrevTipo).join("\n"))+cel((r.revogado_por||[]).map(_abrevTipo).join("\n"))+cel((r.cita||[]).map(_abrevTipo).join("\n"))+cel((r.citado_em||[]).map(_abrevTipo).join("\n"));
+            // Formatar revogação parcial como "Lei X: partes revogadas"
+            const _fmtRp = arr => (arr||[]).map(o => typeof o==='object' ? `${_abrevTipo(o.lei||'')}${o.partes?'\n  └ '+o.partes:''}` : _abrevTipo(o)).join("\n");
+            h+=cel((r.altera||[]).map(_abrevTipo).join("\n"))+cel((r.alterado_por||[]).map(_abrevTipo).join("\n"))+cel((r.revoga||[]).map(_abrevTipo).join("\n"))+cel((r.revogado_por||[]).map(_abrevTipo).join("\n"))+cel(_fmtRp(r.revoga_parcialmente))+cel(_fmtRp(r.revogado_parcialmente_por))+cel((r.cita||[]).map(_abrevTipo).join("\n"))+cel((r.citado_em||[]).map(_abrevTipo).join("\n"));
         }
         h+=`<td style="padding:3px 6px;border:1px solid var(--border)">${r.link?`<a href="${r.link}" target="_blank" style="color:var(--accent)">🔗</a>`:"—"}</td>`;
         h+=`</tr>`;
@@ -1752,8 +1754,14 @@ function baixarTabelaPDF() {
         {key:'numero', label:'Nº'},
         {key:'ano', label:'Ano'},
         {key:'status', label:'Status'},
-        {key:'regulamenta_altera', label:'Regulamenta/Altera'},
+        {key:'altera', label:'Regulamenta/Altera'},
+        {key:'alterado_por', label:'Regulamentado por'},
         {key:'revoga', label:'Revoga'},
+        {key:'revogado_por', label:'Revogado por'},
+        {key:'revoga_parcialmente', label:'Revoga parcialmente'},
+        {key:'revogado_parcialmente_por', label:'Revogada parcialmente por?'},
+        {key:'cita', label:'Faz referência à'},
+        {key:'citado_em', label:'Referenciada em'},
         {key:'link', label:'Link'},
     ];
 
@@ -1763,11 +1771,20 @@ function baixarTabelaPDF() {
         const statusColor = r.status === 'encontrada' ? '#4ade80' : r.status === 'nao_encontrada' ? '#f87171' : '#fbbf24';
         linhas += `<tr style="background:${bg}">`;
         COLS.forEach(col => {
-            let val = r[col.key] || '–';
+            let val = r[col.key];
+            // Formatar arrays e objetos
+            if (Array.isArray(val)) {
+                if (val.length === 0) { val = '–'; }
+                else if (typeof val[0] === 'object') {
+                    val = val.map(o => `${o.lei||''}${o.partes ? ': '+o.partes : ''}`).join('<br>');
+                } else {
+                    val = val.join('<br>');
+                }
+            } else if (!val) { val = '–'; }
             if (col.key === 'status') {
                 val = `<span style="color:${statusColor};font-weight:700">${val}</span>`;
             } else if (col.key === 'link' && val !== '–') {
-                val = `<a href="${val}" style="color:#60a5fa;font-size:9px">${val.substring(0,40)}...</a>`;
+                val = `<a href="${val}" style="color:#60a5fa;font-size:9px">${String(val).substring(0,40)}...</a>`;
             }
             linhas += `<td style="padding:5px 8px;border:1px solid #2d3748;font-size:10px;color:#e2e8f0">${val}</td>`;
         });

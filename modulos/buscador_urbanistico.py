@@ -11,7 +11,8 @@ def _brt_now():
 
 def _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta="", status="analisando",
                    altera=None, alterado_por=None, revoga=None, revogado_por=None,
-                   cita=None, citado_em=None, link=None):
+                   cita=None, citado_em=None, link=None,
+                   revoga_parcialmente=None, revogado_parcialmente_por=None):
     """Emite evento estruturado para atualizar a tabela de legislacoes em tempo real."""
     import json as _j
     dados = {
@@ -20,6 +21,8 @@ def _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta="", stat
         "pergunta": pergunta, "status": status,
         "altera": altera or [], "alterado_por": alterado_por or [],
         "revoga": revoga or [], "revogado_por": revogado_por or [],
+        "revoga_parcialmente": revoga_parcialmente or [],
+        "revogado_parcialmente_por": revogado_parcialmente_por or [],
         "cita": cita or [], "citado_em": citado_em or [],
         "link": link or ""
     }
@@ -436,21 +439,25 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                 prompt_rel = (
                     f"Analise o texto da {tipo} {numero}/{ano} de {municipio}/{estado} e responda:\n\n"
                     f"1. Esta lei ALTERA outra lei? Liste todas as leis que ela altera (parcialmente).\n"
-                    f"2. Esta lei REVOGA outra lei? Liste todas as leis que ela revoga totalmente.\n"
-                    f"3. Esta lei REGULAMENTA outra lei? Liste as leis que ela regulamenta.\n"
-                    f"4. Esta lei e ALTERADA por alguma lei mais recente mencionada no texto? Liste.\n"
-                    f"5. Esta lei e REVOGADA por alguma lei mais recente mencionada no texto? Liste.\n"
-                    f"6. Esta lei e REGULAMENTADA por alguma lei mencionada no texto? Liste.\n"
-                    f"7. Ha trechos tachados/riscados no texto (tags <s>, <del>, text-decoration:line-through) indicando revogacao parcial por lei posterior? Se sim, identifique qual lei posterior causou isso.\n"
-                    f"8. Ha anotacoes de 'Redacao dada por', 'Acrescido por', 'Incluido por', 'Nova redacao' ou similares indicando que uma lei posterior alterou trechos desta lei? Liste todas as leis posteriores mencionadas.\n\n"
+                    f"2. Esta lei REVOGA TOTALMENTE outra lei? Liste apenas as que foram completamente substituidas.\n"
+                    f"3. Esta lei REVOGA PARCIALMENTE outra lei? Liste as leis parcialmente revogadas e descreva QUAIS artigos, incisos ou partes foram revogados.\n"
+                    f"4. Esta lei REGULAMENTA outra lei? Liste as leis que ela regulamenta.\n"
+                    f"5. Esta lei e ALTERADA por alguma lei mais recente mencionada no texto? Liste.\n"
+                    f"6. Esta lei e REVOGADA TOTALMENTE por alguma lei mais recente mencionada no texto? Liste.\n"
+                    f"7. Esta lei e REVOGADA PARCIALMENTE por alguma lei mais recente mencionada no texto? Liste as leis e descreva QUAIS artigos, incisos ou partes foram atingidos.\n"
+                    f"8. Esta lei e REGULAMENTADA por alguma lei mencionada no texto? Liste.\n"
+                    f"9. Ha trechos tachados/riscados no texto (tags <s>, <del>, text-decoration:line-through) indicando revogacao parcial por lei posterior? Se sim, identifique qual lei posterior causou isso.\n"
+                    f"10. Ha anotacoes de 'Redacao dada por', 'Acrescido por', 'Incluido por', 'Nova redacao' ou similares indicando que uma lei posterior alterou trechos desta lei? Liste todas as leis posteriores mencionadas.\n\n"
                     f"Use formato 'Tipo Numero/Ano' para cada lei (ex: 'Lei Complementar 270/2024').\n"
                     f"Responda APENAS com JSON:\n"
                     f'{{\n'
                     f'  "altera": ["Lei X/ano"],\n'
                     f'  "revoga": ["Lei X/ano"],\n'
+                    f'  "revoga_parcialmente": [{{"lei": "Lei X/ano", "partes": "descricao dos artigos/partes revogados"}}],\n'
                     f'  "regulamenta": ["Lei X/ano"],\n'
                     f'  "alterado_por": ["Lei X/ano"],\n'
                     f'  "revogado_por": ["Lei X/ano"],\n'
+                    f'  "revogado_parcialmente_por": [{{"lei": "Lei X/ano", "partes": "descricao dos artigos/partes atingidos"}}],\n'
                     f'  "regulamentado_por": ["Lei X/ano"],\n'
                     f'  "cita": ["Lei X/ano"],\n'
                     f'  "tachado_por": ["Lei X/ano"],\n'
@@ -482,9 +489,25 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                         dados_rel = _json.loads(resp_rel_c)
                         _altera_enc = list(set(_altera_enc + dados_rel.get("altera", [])))
                         _revoga_enc = list(set(_revoga_enc + dados_rel.get("revoga", [])))
+                        # Revogação parcial — lista de objetos {lei, partes}
+                        _new_rp = dados_rel.get("revoga_parcialmente", [])
+                        if isinstance(_new_rp, list):
+                            _revoga_parcialmente_enc = locals().get('_revoga_parcialmente_enc', [])
+                            _chaves_rp = {r.get('lei','') for r in _revoga_parcialmente_enc}
+                            for _rp in _new_rp:
+                                if isinstance(_rp, dict) and _rp.get('lei','') not in _chaves_rp:
+                                    _revoga_parcialmente_enc.append(_rp)
                         _regulamenta_enc = list(set(_regulamenta_enc + dados_rel.get("regulamenta", [])))
                         _alterado_por_enc = list(set(_alterado_por_enc + dados_rel.get("alterado_por", [])))
                         _revogado_por_enc = list(set(_revogado_por_enc + dados_rel.get("revogado_por", [])))
+                        # Revogado parcialmente por — lista de objetos {lei, partes}
+                        _new_rpb = dados_rel.get("revogado_parcialmente_por", [])
+                        if isinstance(_new_rpb, list):
+                            _revogado_parcialmente_por_enc = locals().get('_revogado_parcialmente_por_enc', [])
+                            _chaves_rpb = {r.get('lei','') for r in _revogado_parcialmente_por_enc}
+                            for _rpb in _new_rpb:
+                                if isinstance(_rpb, dict) and _rpb.get('lei','') not in _chaves_rpb:
+                                    _revogado_parcialmente_por_enc.append(_rpb)
                         _regulamentado_por_enc = list(set(_regulamentado_por_enc + dados_rel.get("regulamentado_por", [])))
                         _cita_enc = list(set(locals().get('_cita_enc', []) + dados_rel.get("cita", [])))
                         _tachado_por = dados_rel.get("tachado_por", [])
@@ -516,6 +539,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             pergunta=_pergunta_origem, status="encontrada",
             altera=_altera_enc, alterado_por=_alterado_por_enc,
             revoga=_revoga_enc, revogado_por=_revogado_por_enc,
+            revoga_parcialmente=locals().get('_revoga_parcialmente_enc', []),
+            revogado_parcialmente_por=locals().get('_revogado_parcialmente_por_enc', []),
             cita=list(set(_regulamenta_enc + locals().get('_cita_enc', []))), citado_em=_regulamentado_por_enc,
             link=enc.get('link',''))
         # Adicionar leis descobertas nas relacoes a fila dinamica
