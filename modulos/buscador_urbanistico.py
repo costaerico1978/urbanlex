@@ -218,15 +218,14 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             try:
                 import re as _re_rv
                 resp_c = _re_rv.sub(r"^```json\s*|\s*```$", "", (resp or "").strip())
-                # Brace-counting para evitar "Extra data"
-        _s_c = resp_c.find('{')
-        _d_c = 0; _e_c = _s_c
-        for _i_c, _ch_c in enumerate(resp_c[_s_c:], _s_c):
-            if _ch_c == '{': _d_c += 1
-            elif _ch_c == '}':
-                _d_c -= 1
-                if _d_c == 0: _e_c = _i_c + 1; break
-        dados = _json.loads(resp_c[_s_c:_e_c] if _s_c >= 0 else resp_c)
+                _s_c = resp_c.find('{')
+                _d_c = 0; _e_c = _s_c
+                for _i_c, _ch_c in enumerate(resp_c[_s_c:], _s_c):
+                    if _ch_c == '{': _d_c += 1
+                    elif _ch_c == '}':
+                        _d_c -= 1
+                        if _d_c == 0: _e_c = _i_c + 1; break
+                dados = _json.loads(resp_c[_s_c:_e_c] if _s_c >= 0 else resp_c)
                 if dados.get("esta_revogada"):
                     return True, dados.get("revogada_por", "legislacao mais recente")
             except Exception:
