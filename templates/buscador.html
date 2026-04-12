@@ -204,6 +204,9 @@ if (_hid) {
 }">
             📥 Baixar Log .txt
         </button>
+        <button id="btn-baixar-tabela-pdf" class="btn btn-secondary btn-sm" style="display:none;" onclick="baixarTabelaPDF()">
+            📊 Baixar Tabela PDF
+        </button>
     </div>
     <div id="tabela-legs-auto" style="margin-top:16px;overflow-x:auto"></div>
 </div>
@@ -970,6 +973,8 @@ function cancelarENovasBusca() {
     if (btnCanc) btnCanc.style.display = 'none';
     const zipDiv = document.getElementById('bm-zip-download');
     if (zipDiv) zipDiv.remove();
+    const pdfBtn = document.getElementById('btn-baixar-tabela-pdf');
+    if (pdfBtn) pdfBtn.style.display = 'none';
     history.replaceState({}, '', '/buscador');
 }
 function limparFormManual() {
@@ -1206,7 +1211,7 @@ async function confirmarBuscaNovoMun() {
                     if (_sp) _sp.remove();
                     const _ldMun = document.getElementById('loading-mun');
                     if (_ldMun) _ldMun.style.display = 'none';
-                    if (poll.hist_id) { btnLog._histId = poll.hist_id; window._munHistId = poll.hist_id; const _btnAuto = document.getElementById('btn-baixar-log-auto'); if(_btnAuto) _btnAuto.style.display='inline-block'; }
+                    if (poll.hist_id) { btnLog._histId = poll.hist_id; window._munHistId = poll.hist_id; const _btnAuto = document.getElementById('btn-baixar-log-auto'); if(_btnAuto) _btnAuto.style.display='inline-block'; const _bPdf=document.getElementById('btn-baixar-tabela-pdf'); if(_bPdf) _bPdf.style.display='inline-block'; }
                     // Manter log no cache após conclusão (só limpa em nova busca)
                     try {
                         const _lc = JSON.parse(localStorage.getItem('mun_log_cache') || '[]');
@@ -1691,6 +1696,11 @@ function _abrevTipo(t) {
              .replace(/\bLei\b/g, 'Lei');
 }
 function _renderTabelaLegs() {
+    // Mostrar botão PDF se houver linhas
+    const _btnPdf2 = document.getElementById('btn-baixar-tabela-pdf');
+    if (_btnPdf2 && window._tabelaLegsData && Object.keys(window._tabelaLegsData).length > 0) {
+        _btnPdf2.style.display = 'inline-block';
+    }
     const tbl=document.getElementById("tabela-legs-auto");
     if(!tbl) return;
     const rows=Object.values(_tabelaLegsData);
@@ -1720,6 +1730,80 @@ function _renderTabelaLegs() {
     });
     h+=`</tbody></table>`;
     tbl.innerHTML=h;
+}
+
+// ── Baixar Tabela de Legislações em PDF ──
+function baixarTabelaPDF() {
+    const dados = window._tabelaLegsData || {};
+    const rows = Object.values(dados);
+    if (!rows.length) { alert('Nenhuma legislação na tabela ainda.'); return; }
+
+    // Montar HTML do PDF
+    const mun = (document.getElementById('mun-input') && document.getElementById('mun-input').value) ||
+                (localStorage.getItem('mun_campos') ? JSON.parse(localStorage.getItem('mun_campos')).mun : '') || '';
+    const est = (document.getElementById('est-input') && document.getElementById('est-input').value) ||
+                (localStorage.getItem('mun_campos') ? JSON.parse(localStorage.getItem('mun_campos')).est : '') || '';
+    const agora = new Date().toLocaleString('pt-BR', {timeZone:'America/Sao_Paulo'});
+
+    const COLS = [
+        {key:'estado', label:'Estado'},
+        {key:'municipio', label:'Município'},
+        {key:'tipo', label:'Tipo'},
+        {key:'numero', label:'Nº'},
+        {key:'ano', label:'Ano'},
+        {key:'status', label:'Status'},
+        {key:'regulamenta_altera', label:'Regulamenta/Altera'},
+        {key:'revoga', label:'Revoga'},
+        {key:'link', label:'Link'},
+    ];
+
+    let linhas = '';
+    rows.forEach((r, i) => {
+        const bg = i % 2 === 0 ? '#1a1a2e' : '#16213e';
+        const statusColor = r.status === 'encontrada' ? '#4ade80' : r.status === 'nao_encontrada' ? '#f87171' : '#fbbf24';
+        linhas += `<tr style="background:${bg}">`;
+        COLS.forEach(col => {
+            let val = r[col.key] || '–';
+            if (col.key === 'status') {
+                val = `<span style="color:${statusColor};font-weight:700">${val}</span>`;
+            } else if (col.key === 'link' && val !== '–') {
+                val = `<a href="${val}" style="color:#60a5fa;font-size:9px">${val.substring(0,40)}...</a>`;
+            }
+            linhas += `<td style="padding:5px 8px;border:1px solid #2d3748;font-size:10px;color:#e2e8f0">${val}</td>`;
+        });
+        linhas += '</tr>';
+    });
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Legislações - ${mun} ${est}</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #0f172a; color: #e2e8f0; margin: 20px; }
+        h1 { color: #7c3aed; font-size: 16px; margin-bottom: 4px; }
+        .sub { font-size: 11px; color: #94a3b8; margin-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #7c3aed; color: white; padding: 7px 8px; font-size: 10px; text-align: left; border: 1px solid #4c1d95; }
+        @media print {
+            body { margin: 10px; }
+            a { text-decoration: none; }
+        }
+    </style></head><body>
+    <h1>📋 Legislações Identificadas — ${mun} ${est ? '/ ' + est : ''}</h1>
+    <div class="sub">Gerado em ${agora} · ${rows.length} legislação(ões)</div>
+    <table>
+        <thead><tr>${COLS.map(c => `<th>${c.label}</th>`).join('')}</tr></thead>
+        <tbody>${linhas}</tbody>
+    </table>
+    </body></html>`;
+
+    // Abrir em nova aba para imprimir como PDF
+    const blob = new Blob([html], {type: 'text/html'});
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, '_blank');
+    if (w) {
+        w.onload = () => {
+            setTimeout(() => { w.print(); }, 500);
+        };
+    }
 }
 
 carregarFila();
@@ -1795,7 +1879,7 @@ carregarFila();
             mun = ativo.municipio || '';
             est = ativo.estado || '';
             localStorage.setItem('mun_job_id', jobId);
-            if (ativo.hist_id) { window._munHistId = ativo.hist_id; const _ba = document.getElementById('btn-baixar-log-auto'); if(_ba) _ba.style.display='inline-block'; }
+            if (ativo.hist_id) { window._munHistId = ativo.hist_id; const _ba = document.getElementById('btn-baixar-log-auto'); if(_ba) _ba.style.display='inline-block'; const _bPdf2=document.getElementById('btn-baixar-tabela-pdf'); if(_bPdf2) _bPdf2.style.display='inline-block'; }
         } else if (!jobId) {
             return;
         } else {
@@ -1871,7 +1955,7 @@ carregarFila();
             return;
         }
         // Restaurar hist_id para botao de download
-        if (check.hist_id) { window._munHistId = check.hist_id; const _btnAuto = document.getElementById('btn-baixar-log-auto'); if(_btnAuto) _btnAuto.style.display='inline-block'; }
+        if (check.hist_id) { window._munHistId = check.hist_id; const _btnAuto = document.getElementById('btn-baixar-log-auto'); if(_btnAuto) _btnAuto.style.display='inline-block'; const _bPdf=document.getElementById('btn-baixar-tabela-pdf'); if(_bPdf) _bPdf.style.display='inline-block'; }
         // Restaurar tabela com eventos tabela do servidor
         const _srvLogs = check.logs || [];
         _srvLogs.filter(l => l.nivel === 'tabela').forEach(l => _atualizarTabelaLegs(l));
@@ -1917,7 +2001,7 @@ carregarFila();
                         logEl.scrollTop = logEl.scrollHeight;
                     });
                 }
-                if (poll.hist_id) { window._munHistId = poll.hist_id; const _btnA2 = document.getElementById('btn-baixar-log-auto'); if(_btnA2) _btnA2.style.display='inline-block'; }
+                if (poll.hist_id) { window._munHistId = poll.hist_id; const _btnA2 = document.getElementById('btn-baixar-log-auto'); if(_btnA2) _btnA2.style.display='inline-block'; const _bPdf3=document.getElementById('btn-baixar-tabela-pdf'); if(_bPdf3) _bPdf3.style.display='inline-block'; }
                 cursor = poll.cursor || cursor;
                 if (poll.done) break;
             } catch(e) {}
