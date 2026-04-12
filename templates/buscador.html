@@ -405,6 +405,7 @@ if (_hid) {
                         setTimeout(() => this.textContent = '📋 Copiar Log', 2000);
                     });
                 ">📋 Copiar Log</button>
+                <button class="btn btn-ghost" style="padding:2px 8px;font-size:10px" onclick="logDownload()">📥 Baixar Log .txt</button>
                 <button class="btn btn-ghost" style="padding:2px 8px;font-size:10px" id="btn-log-expandir" onclick="logToggleExpand()">⛶ Expandir</button>
                 <button class="btn btn-ghost" style="padding:2px 8px;font-size:10px" onclick="document.getElementById('bm-log').style.display='none'">✕ Fechar</button>
             </div>
@@ -1148,11 +1149,8 @@ async function confirmarBuscaNovoMun() {
     // Botão baixar log
     let btnLog = document.getElementById("btn-baixar-log-mun");
     if (!btnLog) {
-        btnLog = document.createElement("button");
+        btnLog = document.createElement("span");
         btnLog.id = "btn-baixar-log-mun";
-        btnLog.className = "btn btn-secondary btn-sm";
-        btnLog.style = "margin-bottom:8px;";
-        btnLog.textContent = "⬇️ Baixar Log .txt";
         btnLog._histId = null;
         btnLog.onclick = () => {
             if (btnLog._histId) {
@@ -1173,7 +1171,6 @@ async function confirmarBuscaNovoMun() {
                 a.click();
             }
         };
-        logEl.insertAdjacentElement("beforebegin", btnLog);
     }
     // Loading spinner abaixo do log (igual busca manual)
     let loadingMun = document.getElementById("loading-mun");
@@ -1954,20 +1951,12 @@ carregarFila();
         }
         mudarTab('auto');
         logEl.innerHTML = '<div style="color:var(--accent);margin-bottom:8px;">🔄 Reconectando busca de ' + mun + '/' + est + '...</div>';
-        // Recriar botão Baixar Log se não existir
+        // btn-baixar-log-mun removido — usar btn-baixar-log-auto no topo
         let btnLogMun = document.getElementById('btn-baixar-log-mun');
         if (!btnLogMun) {
-            btnLogMun = document.createElement('button');
+            btnLogMun = document.createElement('span');
             btnLogMun.id = 'btn-baixar-log-mun';
-            btnLogMun.className = 'btn btn-secondary btn-sm';
-            btnLogMun.style = 'margin-bottom:8px;';
-            btnLogMun.textContent = '⬇️ Baixar Log .txt';
             btnLogMun._histId = null;
-            btnLogMun.onclick = () => {
-                if (btnLogMun._histId) {
-                    window.location.href = '/api/buscador/historico/log/' + btnLogMun._histId + '/download';
-                }
-            };
             logEl.insertAdjacentElement('beforebegin', btnLogMun);
         }
         // Restaurar cache do localStorage
