@@ -533,7 +533,11 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             _alterado_por_enc = []
             _revogado_por_enc = []
             _regulamentado_por_enc = []
+            _revoga_parcialmente_enc = []
+            _revogado_parcialmente_por_enc = []
         # Emitir evento final com todos os relacionamentos (sempre, independente da analise)
+        if not enc:
+            enc = {}
         _tabela_evento(logs, municipio, estado,
             enc.get('tipo', tipo), enc.get('numero', numero), enc.get('ano', ano),
             pergunta=_pergunta_origem, status="encontrada",
