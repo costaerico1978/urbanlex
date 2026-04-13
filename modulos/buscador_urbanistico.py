@@ -580,10 +580,11 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                     if _tp.lower() in _lei_str.lower():
                         _tipo_f = _tp
                         break
-                _chave_f = f"{_tipo_f.lower()}_{_num}_{_ano}"
+                _num_norm_f = _num.replace('.','').replace(' ','').strip()
+                _chave_f = f"{_tipo_f.lower()}_{_num_norm_f}_{_ano}"
                 if _chave_f in analisadas or _chave_f in revogadas:
                     continue
-                if any(f"{l.get('tipo','').lower()}_{l.get('numero','')}_{l.get('ano','')}" == _chave_f for l in fila):
+                if any(f"{l.get('tipo','').lower()}_{l.get('numero','').replace('.','').replace(' ','').strip()}_{l.get('ano','')}" == _chave_f for l in fila):
                     continue
                 logs.append({"nivel": "info", "msg": f"  [FILA] Adicionando {_tipo_f} {_num}/{_ano} nivel={nivel} — {motivo}"})
                 fila.append({"tipo": _tipo_f, "numero": _num, "ano": _ano, "descricao": motivo, "_nivel": nivel, "_pergunta_label": ""})
@@ -592,8 +593,10 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             _adicionar_na_fila(_regulamenta_enc, _nivel_atual + 1, "regulamentada por lei atual")
             _adicionar_na_fila(_alterado_por_enc, _nivel_atual + 1, "altera lei atual")
             _adicionar_na_fila(_regulamentado_por_enc, _nivel_atual + 1, "regulamenta lei atual")
-            # Leis citadas: avaliar contexto antes de adicionar na fila
+            # Leis citadas: só adicionar se nivel_atual == 0 (lei principal), nunca em cascata
             _cita_enc_local = locals().get('_cita_enc', [])
+            if _nivel_atual > 0:
+                _cita_enc_local = []  # não propagar citações de leis descobertas
             for _cit_str in (_cita_enc_local or []):
                 _num_c, _ano_c = _extrair_num_ano_fila(_cit_str)
                 if not _num_c or not _ano_c:
@@ -618,8 +621,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                     )
                     _resp_ctx = chamar_llm(_prompt_ctx, logs, f"Ctx cita {_num_c}")
                     if _resp_ctx and "sim" in _resp_ctx.lower():
-                        logs.append({"nivel": "info", "msg": f"  [FILA] {_cit_str} citada em contexto urbanistico — adicionando nivel={_nivel_atual+1}"})
-                        fila.append({"tipo": _tipo_c, "numero": _num_c, "ano": _ano_c, "descricao": "citada em contexto urbanistico", "_nivel": _nivel_atual + 1, "_pergunta_label": ""})
+                        logs.append({"nivel": "info", "msg": f"  [FILA] {_cit_str} citada em contexto urbanistico — adicionando nivel=1"})
+                        fila.append({"tipo": _tipo_c, "numero": _num_c, "ano": _ano_c, "descricao": "citada em contexto urbanistico", "_nivel": 1, "_pergunta_label": ""})
                     else:
                         logs.append({"nivel": "info", "msg": f"  [FILA] {_cit_str} citada mas contexto nao urbanistico — ignorando"})
                 except Exception:
