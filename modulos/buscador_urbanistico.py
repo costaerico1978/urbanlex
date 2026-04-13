@@ -503,7 +503,14 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                         continue
                     try:
                         resp_rel_c = _re_rel.sub(r"^```json\s*|\s*```$", "", (resp_rel or "").strip())
-                        dados_rel = _json.loads(resp_rel_c)
+                        _s_rl = resp_rel_c.find('{')
+                        _d_rl = 0; _e_rl = _s_rl
+                        for _i_rl, _c_rl in enumerate(resp_rel_c[_s_rl:], _s_rl):
+                            if _c_rl == '{': _d_rl += 1
+                            elif _c_rl == '}':
+                                _d_rl -= 1
+                                if _d_rl == 0: _e_rl = _i_rl + 1; break
+                        dados_rel = _json.loads(resp_rel_c[_s_rl:_e_rl] if _s_rl >= 0 else resp_rel_c)
                         _altera_enc = list(set(_altera_enc + dados_rel.get("altera", [])))
                         _revoga_enc = list(set(_revoga_enc + dados_rel.get("revoga", [])))
                         # Revogação parcial — lista de objetos {lei, partes}
