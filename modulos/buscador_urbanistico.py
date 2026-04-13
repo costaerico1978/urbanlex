@@ -580,7 +580,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             revogado_parcialmente_por=_revogado_parcialmente_por_enc,
             cita=list(set(_regulamenta_enc + _cita_enc)), citado_em=_regulamentado_por_enc,
             link=enc.get('link',''),
-            ementa=enc.get('ementa',''))
+            ementa=enc.get('ementa','') or leg.get('descricao','') or '')
         # Adicionar leis descobertas nas relacoes a fila dinamica
         _nivel_atual = leg.get("_nivel", 0)
         def _extrair_num_ano_fila(s):
@@ -1007,9 +1007,11 @@ def _buscar_plano_diretor_lm(municipio, estado, logs, chamar_llm, analisadas):
             if html_lei:
                 from bs4 import BeautifulSoup as _bs
                 _soup_em = _bs(html_lei, "html.parser")
-                _em_tag = _soup_em.find(class_=lambda x: x and 'ementa' in x.lower())
-                if _em_tag:
-                    _ementa_lei = _em_tag.get_text(separator=" ", strip=True)[:300]
+                _lc = _soup_em.find(class_='law-container')
+                if _lc:
+                    _p = _lc.find('p')
+                    if _p:
+                        _ementa_lei = _p.get_text(separator=' ', strip=True)[:300]
                 texto_lei = _soup_em.get_text()
                 # Extrair tipo/numero/ano da URL ou do HTML
                 import re as _re
