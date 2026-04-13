@@ -405,7 +405,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                     except Exception:
                         pass
             # Montar lista das demais legislacoes para verificar revogacao
-            outras_legs = [l for l in legs if f"{l.get('tipo','').lower()}_{l.get('numero','').strip()}_{l.get('ano','')}" != chave and f"{l.get('tipo','').lower()}_{l.get('numero','').strip()}_{l.get('ano','')}" not in revogadas and f"{l.get('tipo','').lower()}_{l.get('numero','').strip()}_{l.get('ano','')}" not in analisadas]
+            outras_legs = [l for l in legs if f"{l.get('tipo','').lower()}_{l.get('numero','').replace('.','').replace(' ','').strip()}_{l.get('ano','')}" != chave and f"{l.get('tipo','').lower()}_{l.get('numero','').replace('.','').replace(' ','').strip()}_{l.get('ano','')}" not in revogadas and f"{l.get('tipo','').lower()}_{l.get('numero','').replace('.','').replace(' ','').strip()}_{l.get('ano','')}" not in analisadas]
             if outras_legs and texto_enc:
                 lista_outras = ", ".join(f"{l.get('tipo','')} {l.get('numero','')}/{l.get('ano','')}" for l in outras_legs)
                 prompt_rev = (
