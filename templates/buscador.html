@@ -1706,7 +1706,7 @@ function _renderTabelaLegs() {
         tbl.innerHTML='<div style="font-size:11px;color:var(--muted);font-family:monospace;padding:10px;background:#0d1117;border:1px solid var(--border);border-radius:6px">📋 Aguardando identificação das legislações...</div>';
         return;
     }
-    const cols=["Estado","Município","Tipo","N°","Ano","Pergunta","Status","Regulamenta/Altera","Regulamentado por","Revoga","Revogado por","Revoga parcialmente","Revogada parcialmente por?","Faz referência à legislação","Referenciada em","Link"];
+    const cols=["Estado","Município","Tipo","N°","Ano","Ementa","Pergunta","Status","Regulamenta/Altera","Regulamentado por","Revoga","Revogado por","Revoga parcialmente","Revogada parcialmente por?","Faz referência à legislação","Referenciada em","Link"];
     let h=`<div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:6px;font-family:monospace">📋 LEGISLAÇÕES IDENTIFICADAS (${rows.length})</div>`;
     h+=`<table style="width:100%;border-collapse:collapse;font-size:10px;font-family:monospace">`;
     h+=`<thead><tr>${cols.map(c=>`<th style="padding:4px 6px;background:#111418;border:1px solid var(--border);color:var(--muted);text-align:left;white-space:nowrap">${c}</th>`).join("")}</tr></thead><tbody>`;
@@ -1765,6 +1765,7 @@ function baixarTabelaPDF() {
         {key:'tipo', label:'Tipo'},
         {key:'numero', label:'Nº'},
         {key:'ano', label:'Ano'},
+        {key:'ementa', label:'Ementa'},
         {key:'status', label:'Status'},
         {key:'altera', label:'Regulamenta/Altera'},
         {key:'alterado_por', label:'Regulamentado por'},

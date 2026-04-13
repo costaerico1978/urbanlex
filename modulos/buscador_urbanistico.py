@@ -12,7 +12,7 @@ def _brt_now():
 def _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta="", status="analisando",
                    altera=None, alterado_por=None, revoga=None, revogado_por=None,
                    cita=None, citado_em=None, link=None,
-                   revoga_parcialmente=None, revogado_parcialmente_por=None):
+                   revoga_parcialmente=None, revogado_parcialmente_por=None, ementa=None):
     """Emite evento estruturado para atualizar a tabela de legislacoes em tempo real."""
     import json as _j
     dados = {
@@ -24,7 +24,8 @@ def _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta="", stat
         "revoga_parcialmente": revoga_parcialmente or [],
         "revogado_parcialmente_por": revogado_parcialmente_por or [],
         "cita": cita or [], "citado_em": citado_em or [],
-        "link": link or ""
+        "link": link or "",
+        "ementa": ementa or ""
     }
     logs.append({"nivel": "tabela", "msg": _j.dumps(dados, ensure_ascii=False)})
 
@@ -569,7 +570,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             revoga_parcialmente=_revoga_parcialmente_enc,
             revogado_parcialmente_por=_revogado_parcialmente_por_enc,
             cita=list(set(_regulamenta_enc + _cita_enc)), citado_em=_regulamentado_por_enc,
-            link=enc.get('link',''))
+            link=enc.get('link',''),
+            ementa=enc.get('ementa',''))
         # Adicionar leis descobertas nas relacoes a fila dinamica
         _nivel_atual = leg.get("_nivel", 0)
         def _extrair_num_ano_fila(s):
@@ -855,6 +857,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
 def _verificar_parametros(texto, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo="parametros"):
     if modo == "parametros":
         criterio = (
+            f"ATENCAO: Se o texto desta lei NAO pertencer ao municipio de {municipio}/{estado}, responda com define_parametros=false e motivo='Lei nao pertence ao municipio correto'.\n\n"
             f"Faca uma analise PROFUNDA e HOLISTICA de todo o texto da {tipo} {numero}/{ano} de {municipio}/{estado}, incluindo todos os artigos, paragrafos, incisos e anexos.\n"
             "Verifique se a lei define PELO MENOS 2 dos seguintes parametros urbanisticos:\n"
             "  - Taxa de ocupacao\n"
@@ -870,6 +873,7 @@ def _verificar_parametros(texto, municipio, estado, tipo, numero, ano, logs, cha
         )
     else:
         criterio = (
+            f"ATENCAO: Se o texto desta lei NAO pertencer ao municipio de {municipio}/{estado}, responda com define_parametros=false e motivo='Lei nao pertence ao municipio correto'.\n\n"
             f"Analise de forma PROFUNDA e HOLISTICA a {tipo} {numero}/{ano} de {municipio}/{estado}.\n"
             "Leia o texto completo e compreenda o PROPOSITO GERAL da lei.\n"
             "define_parametros = true se a lei tratar de zoneamento, uso/ocupacao do solo, "
@@ -989,9 +993,14 @@ def _buscar_plano_diretor_lm(municipio, estado, logs, chamar_llm, analisadas):
             analisadas.add(url_enc.lower())
             logs.append({"nivel": "ok", "msg": f"  LeisMunicipais: encontrada! {url_enc[:80]}"})
             html_lei = fs_result.get("html", "")
+            _ementa_lei = ""
             if html_lei:
                 from bs4 import BeautifulSoup as _bs
-                texto_lei = _bs(html_lei, "html.parser").get_text()
+                _soup_em = _bs(html_lei, "html.parser")
+                _em_tag = _soup_em.find(class_=lambda x: x and 'ementa' in x.lower())
+                if _em_tag:
+                    _ementa_lei = _em_tag.get_text(separator=" ", strip=True)[:300]
+                texto_lei = _soup_em.get_text()
                 # Extrair tipo/numero/ano da URL ou do HTML
                 import re as _re
                 m = _re.search(r"/([a-z-]+)/(\d{4})/\d+/(\d+)/", url_enc)
@@ -1083,7 +1092,7 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
                     # Se altera outra lei, manter mesmo sem definir parametros diretamente
             _pdf = fs_result.get("pdf_nativo_s3") or fs_result.get("pdf_path") or ""
             _anexos = fs_result.get("anexos_lm") or []
-            return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc, "pdf_path": _pdf, "html": html_lei if "html_lei" in dir() else "", "anexos_lm": _anexos, "_leis_referenciadas": _leis_ref if "_leis_ref" in dir() else []}
+            return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc, "pdf_path": _pdf, "html": html_lei if "html_lei" in dir() else "", "anexos_lm": _anexos, "_leis_referenciadas": _leis_ref if "_leis_ref" in dir() else [], "ementa": _ementa_lei if "_ementa_lei" in dir() else ""}
         logs.append({"nivel": "aviso", "msg": f"  {tipo} {numero}/{ano} nao encontrada no LeisMunicipais — tentando 1º fallback..."})
         enc = _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
         if enc:
