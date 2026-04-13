@@ -463,6 +463,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                     f"6. Esta lei e REVOGADA TOTALMENTE por alguma lei mais recente mencionada no texto? Liste.\n"
                     f"7. Esta lei e REVOGADA PARCIALMENTE por alguma lei mais recente mencionada no texto? Liste as leis e descreva QUAIS artigos, incisos ou partes foram atingidos.\n"
                     f"8. Esta lei e REGULAMENTADA por alguma lei mencionada no texto? Liste.\n"
+                    f"REGRA ABSOLUTA: os campos 'revogado_por' e 'revogado_parcialmente_por' so podem conter leis com ano POSTERIOR a {ano}. Uma lei de {ano} JAMAIS pode ser revogada por lei anterior a {ano}. Se mencionar lei de ano anterior, coloque em 'alterado_por' ou 'cita', NUNCA em 'revogado_por'.\n"
                     f"9. Ha trechos tachados/riscados no texto (tags <s>, <del>, text-decoration:line-through) indicando revogacao parcial por lei posterior? Se sim, identifique qual lei posterior causou isso.\n"
                     f"10. Ha anotacoes de 'Redacao dada por', 'Acrescido por', 'Incluido por', 'Nova redacao' ou similares indicando que uma lei posterior alterou trechos desta lei? Liste todas as leis posteriores mencionadas.\n\n"
                     f"Use formato 'Tipo Numero/Ano' para cada lei (ex: 'Lei Complementar 270/2024').\n"
@@ -522,7 +523,16 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                                     _revoga_parcialmente_enc.append(_rp)
                         _regulamenta_enc = list(set(_regulamenta_enc + dados_rel.get("regulamenta", [])))
                         _alterado_por_enc = list(set(_alterado_por_enc + dados_rel.get("alterado_por", [])))
-                        _revogado_por_enc = list(set(_revogado_por_enc + dados_rel.get("revogado_por", [])))
+                        _rp_raw = dados_rel.get("revogado_por", [])
+                        import re as _re_ano
+                        _rp_filtrado = []
+                        for _rp_item in _rp_raw:
+                            _m_ano = _re_ano.search(r'/(\d{4})', _rp_item)
+                            if _m_ano and int(_m_ano.group(1)) <= int(ano):
+                                logs.append({"nivel": "aviso", "msg": f"  [FILTRO] Ignorando revogado_por {_rp_item} — ano <= {ano} (impossivel)"})
+                            else:
+                                _rp_filtrado.append(_rp_item)
+                        _revogado_por_enc = list(set(_revogado_por_enc + _rp_filtrado))
                         # Revogado parcialmente por — lista de objetos {lei, partes}
                         _new_rpb = dados_rel.get("revogado_parcialmente_por", [])
                         if isinstance(_new_rpb, list):
