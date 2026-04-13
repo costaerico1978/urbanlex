@@ -891,7 +891,7 @@ def _verificar_parametros(texto, municipio, estado, tipo, numero, ano, logs, cha
         "  \"parametros_encontrados\": [\"lista dos parametros ou temas encontrados\"],\n"
         "  \"referencias\": [\"Art. 10\", \"Anexo I\", ...],\n"
         "  \"leis_referenciadas\": [{\"tipo\": \"Lei\", \"numero\": \"123\", \"ano\": \"2010\", \"motivo\": \"complementa o zoneamento\"}],\n"
-        "  \"motivo\": \"Explicacao clara sobre o que a lei trata e por que define_parametros e true ou false.\"\n"
+        "  \"ementa\": \"Ementa ou assunto da lei em ate 150 caracteres\",\n  \"motivo\": \"Explicacao clara sobre o que a lei trata e por que define_parametros e true ou false.\"\n"
         "}\n\n"
         "Regras:\n"
         "- define_zoneamento = true se a lei divide o municipio em zonas ou macrozonas\n"
@@ -900,7 +900,7 @@ def _verificar_parametros(texto, municipio, estado, tipo, numero, ano, logs, cha
     )
     resp = chamar_llm(prompt, logs, f"Verif {tipo} {numero}")
     if not resp:
-        return False, []
+        return False, [], ""
     try:
         import re as _re2
         resp_c = _re2.sub(r"^```json\s*|\s*```$", "", (resp or "").strip())
@@ -932,13 +932,14 @@ def _verificar_parametros(texto, municipio, estado, tipo, numero, ano, logs, cha
                 logs.append({"nivel": "info", "msg": f"  Leis referenciadas: {len(leis_ref)}"})
                 for lr in leis_ref:
                     logs.append({"nivel": "info", "msg": f"    -> {lr.get('tipo','')} {lr.get('numero','')}/{lr.get('ano','')}: {lr.get('motivo','')[:80]}"})
-            return True, leis_ref
+            _ementa_verif = dados.get("ementa", "")[:150]
+            return True, leis_ref, _ementa_verif
         else:
             logs.append({"nivel": "info", "msg": f"  {motivo}"})
-            return False, []
+            return False, [], ""
     except Exception as _e:
         logs.append({"nivel": "aviso", "msg": f"  Erro parse verificacao: {str(_e)[:60]}"})
-        return False, []
+        return False, [], ""
 
 
 def _buscar_plano_diretor_lm(municipio, estado, logs, chamar_llm, analisadas):
@@ -1062,7 +1063,7 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
                         texto_lei += f"\n\nANEXO: {_anx_texto}"
                 if _anexos_lm:
                     logs.append({"nivel": "info", "msg": f"  Incluindo {len(_anexos_lm)} anexo(s) na verificacao"})
-                define, _leis_ref = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo=modo)
+                define, _leis_ref, _ementa_verif = _verificar_parametros(texto_lei, municipio, estado, tipo, numero, ano, logs, chamar_llm, modo=modo)
                 if not define:
                     # REGRA 2: Verificar se altera/complementa/regulamenta outra lei antes de descartar
                     prompt_altera = (
@@ -1092,7 +1093,7 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
                     # Se altera outra lei, manter mesmo sem definir parametros diretamente
             _pdf = fs_result.get("pdf_nativo_s3") or fs_result.get("pdf_path") or ""
             _anexos = fs_result.get("anexos_lm") or []
-            return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc, "pdf_path": _pdf, "html": html_lei if "html_lei" in dir() else "", "anexos_lm": _anexos, "_leis_referenciadas": _leis_ref if "_leis_ref" in dir() else [], "ementa": _ementa_lei if "_ementa_lei" in dir() else ""}
+            return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc, "pdf_path": _pdf, "html": html_lei if "html_lei" in dir() else "", "anexos_lm": _anexos, "_leis_referenciadas": _leis_ref if "_leis_ref" in dir() else [], "ementa": _ementa_verif if "_ementa_verif" in dir() else (_ementa_lei if "_ementa_lei" in dir() else "")}
         logs.append({"nivel": "aviso", "msg": f"  {tipo} {numero}/{ano} nao encontrada no LeisMunicipais — tentando 1º fallback..."})
         enc = _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
         if enc:
