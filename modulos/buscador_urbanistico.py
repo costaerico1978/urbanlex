@@ -251,7 +251,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         # 1. Verificar por chave exata
         if chave in revogadas:
             # Buscar quem revogou na lista enriquecida
-            _rev_entry = next((r for r in revogadas_lista if f"{r.get('tipo','').lower()}_{r.get('numero','').strip()}_{r.get('ano','')}" == chave), None)
+            _rev_entry = next((r for r in revogadas_lista if f"{r.get('tipo','').lower()}_{r.get('numero','').replace('.','').replace(' ','').strip()}_{r.get('ano','')}" == chave), None)
             _rev_info = _rev_entry.get("revogada_por", "legislacao mais recente") if _rev_entry else "legislacao mais recente"
             logs.append({"nivel": "aviso", "msg": f"⚠️ REVOGADA — {tipo} {numero}/{ano} foi revogada por {_rev_info} e NAO sera analisada"})
             logs.append({"nivel": "aviso", "msg": f"   Motivo: legislacao mais recente ({_rev_info}) revoga explicitamente esta"})
@@ -606,10 +606,11 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                     if _tp.lower() in _cit_str.lower():
                         _tipo_c = _tp
                         break
-                _chave_c = f"{_tipo_c.lower()}_{_num_c}_{_ano_c}"
+                _num_c_n = _num_c.replace('.','').replace(' ','').strip()
+                _chave_c = f"{_tipo_c.lower()}_{_num_c_n}_{_ano_c}"
                 if _chave_c in analisadas or _chave_c in revogadas:
                     continue
-                if any(f"{l.get('tipo','').lower()}_{l.get('numero','')}_{l.get('ano','')}" == _chave_c for l in fila):
+                if any(f"{l.get('tipo','').lower()}_{l.get('numero','').replace('.','').replace(' ','').strip()}_{l.get('ano','')}" == _chave_c for l in fila):
                     continue
                 # IA avalia se a citacao e em contexto urbanistico relevante
                 try:
