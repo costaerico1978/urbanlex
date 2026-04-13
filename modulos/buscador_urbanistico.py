@@ -516,7 +516,6 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                         # Revogação parcial — lista de objetos {lei, partes}
                         _new_rp = dados_rel.get("revoga_parcialmente", [])
                         if isinstance(_new_rp, list):
-                            _revoga_parcialmente_enc = locals().get('_revoga_parcialmente_enc', [])
                             _chaves_rp = {r.get('lei','') for r in _revoga_parcialmente_enc}
                             for _rp in _new_rp:
                                 if isinstance(_rp, dict) and _rp.get('lei','') not in _chaves_rp:
@@ -527,13 +526,12 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                         # Revogado parcialmente por — lista de objetos {lei, partes}
                         _new_rpb = dados_rel.get("revogado_parcialmente_por", [])
                         if isinstance(_new_rpb, list):
-                            _revogado_parcialmente_por_enc = locals().get('_revogado_parcialmente_por_enc', [])
                             _chaves_rpb = {r.get('lei','') for r in _revogado_parcialmente_por_enc}
                             for _rpb in _new_rpb:
                                 if isinstance(_rpb, dict) and _rpb.get('lei','') not in _chaves_rpb:
                                     _revogado_parcialmente_por_enc.append(_rpb)
                         _regulamentado_por_enc = list(set(_regulamentado_por_enc + dados_rel.get("regulamentado_por", [])))
-                        _cita_enc = list(set(locals().get('_cita_enc', []) + dados_rel.get("cita", [])))
+                        _cita_enc = list(set(_cita_enc + dados_rel.get("cita", [])))
                         _tachado_por = dados_rel.get("tachado_por", [])
                         if _tachado_por:
                             logs.append({"nivel": "aviso", "msg": f"  [TACHADO] Trechos riscados identificados — revogado parcialmente por: {_tachado_por}"})
@@ -552,6 +550,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                 _alterado_por_enc = []
                 _revogado_por_enc = []
                 _regulamentado_por_enc = []
+                _revoga_parcialmente_enc = []
+                _revogado_parcialmente_por_enc = []
         else:
             _regulamenta_enc = []
             _alterado_por_enc = []
@@ -559,17 +559,16 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             _regulamentado_por_enc = []
             _revoga_parcialmente_enc = []
             _revogado_parcialmente_por_enc = []
-        # Emitir evento final com todos os relacionamentos (sempre, independente da analise)
-        if not enc:
-            enc = {}
-        _tabela_evento(logs, municipio, estado,
+        # Emitir evento final com todos os relacionamentos (apenas se encontrada)
+        if enc:
+            _tabela_evento(logs, municipio, estado,
             enc.get('tipo', tipo), enc.get('numero', numero), enc.get('ano', ano),
             pergunta=_pergunta_origem, status="encontrada",
             altera=_altera_enc, alterado_por=_alterado_por_enc,
             revoga=_revoga_enc, revogado_por=_revogado_por_enc,
-            revoga_parcialmente=locals().get('_revoga_parcialmente_enc', []),
-            revogado_parcialmente_por=locals().get('_revogado_parcialmente_por_enc', []),
-            cita=list(set(_regulamenta_enc + locals().get('_cita_enc', []))), citado_em=_regulamentado_por_enc,
+            revoga_parcialmente=_revoga_parcialmente_enc,
+            revogado_parcialmente_por=_revogado_parcialmente_por_enc,
+            cita=list(set(_regulamenta_enc + _cita_enc)), citado_em=_regulamentado_por_enc,
             link=enc.get('link',''))
         # Adicionar leis descobertas nas relacoes a fila dinamica
         _nivel_atual = leg.get("_nivel", 0)
@@ -601,7 +600,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             _adicionar_na_fila(_alterado_por_enc, _nivel_atual + 1, "altera lei atual")
             _adicionar_na_fila(_regulamentado_por_enc, _nivel_atual + 1, "regulamenta lei atual")
             # Leis citadas: só adicionar se nivel_atual == 0 (lei principal), nunca em cascata
-            _cita_enc_local = locals().get('_cita_enc', [])
+            _cita_enc_local = _cita_enc
             if _nivel_atual > 0:
                 _cita_enc_local = []  # não propagar citações de leis descobertas
             for _cit_str in (_cita_enc_local or []):
