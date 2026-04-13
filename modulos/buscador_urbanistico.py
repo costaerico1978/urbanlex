@@ -827,11 +827,11 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             {'tipo': l.get('tipo',''), 'numero': l.get('numero',''), 'ano': l.get('ano',''), 'descricao': l.get('descricao','')}
             for l in legs if not any(
                 e.get('tipo','').lower() == l.get('tipo','').lower() and
-                e.get('numero','') == l.get('numero','') and
+                e.get('numero','').replace('.','').strip() == l.get('numero','').replace('.','').strip() and
                 e.get('ano','') == l.get('ano','')
                 for e in resultado.get('encontradas', [])
             )
-        ] if 'legs' in dir() else []
+        ]
         _pdf_path, _pdf_url = _gerar_pdf(
             resultado, municipio, estado,
             custo_usd=_custo, token_stats=_tokens,
