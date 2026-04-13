@@ -685,9 +685,9 @@ def _extrair_publicacoes_com_ia(html: str, url_base: str,
     html_t = html[:20000]
 
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=gemini_key)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        from google import genai as genai
+        from google.genai import types as _gv_types
+        client = genai.Client(api_key=gemini_key)
 
         prompt = f"""Analise o HTML abaixo de um sistema de busca de Diário Oficial.
 O termo buscado foi: "{termo_busca}"
@@ -720,7 +720,7 @@ Responda APENAS com JSON válido (sem markdown):
 HTML:
 {html_t}"""
 
-        resp = model.generate_content(prompt)
+        resp = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         texto = resp.text.strip().replace('```json', '').replace('```', '').strip()
         dados = json.loads(texto)
 
@@ -977,9 +977,9 @@ def _inferir_url_diario(nome_municipio: str, estado: str) -> dict:
     if not gemini_key:
         return {'url': None, 'plataforma': 'desconhecido', 'confianca': 'baixa'}
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=gemini_key)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        from google import genai as genai
+        from google.genai import types as _gv_types
+        client = genai.Client(api_key=gemini_key)
 
         prompt = f"""Você é especialista em legislação municipal brasileira.
 Preciso da URL oficial do Diário Oficial de: {nome_municipio} - {estado} - Brasil
@@ -993,7 +993,7 @@ Responda APENAS com JSON válido, sem markdown:
   "observacao": "breve nota"
 }}"""
 
-        resp = model.generate_content(prompt)
+        resp = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         texto = resp.text.strip().replace('```json', '').replace('```', '').strip()
         return json.loads(texto)
     except Exception as e:
@@ -1034,9 +1034,9 @@ def _analisar_screenshot_com_ia(screenshot_bytes: bytes, url: str,
     if not gemini_key or not screenshot_bytes:
         return {}
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=gemini_key)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        from google import genai as genai
+        from google.genai import types as _gv_types
+        client = genai.Client(api_key=gemini_key)
 
         img_b64 = base64.b64encode(screenshot_bytes).decode()
         img_part = {'mime_type': 'image/png', 'data': img_b64}
@@ -1054,7 +1054,7 @@ Extraia perfil de navegação em JSON (sem markdown):
   "observacoes": "como buscar neste site"
 }}"""
 
-        resp = model.generate_content([prompt, img_part])
+        resp = client.models.generate_content(model='gemini-2.5-flash', contents=[prompt, img_part])
         texto = resp.text.strip().replace('```json', '').replace('```', '').strip()
         return json.loads(texto)
     except Exception as e:
@@ -1067,9 +1067,9 @@ def _extrair_perfil_do_html(html: str, url: str, nome_municipio: str) -> dict:
     if not gemini_key:
         return {}
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=gemini_key)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        from google import genai as genai
+        from google.genai import types as _gv_types
+        client = genai.Client(api_key=gemini_key)
         html_t = html[:12000]
         prompt = f"""Analise o HTML do Diário Oficial de {nome_municipio} ({url}).
 Extraia o perfil de navegação em JSON (sem markdown):
@@ -1077,7 +1077,7 @@ Extraia o perfil de navegação em JSON (sem markdown):
 "tem_busca_por_data":true/false,"url_busca":"...","requer_javascript":true/false,
 "requer_login":false,"tem_captcha":false,"observacoes":"..."}}
 HTML: {html_t}"""
-        resp = model.generate_content(prompt)
+        resp = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         texto = resp.text.strip().replace('```json', '').replace('```', '').strip()
         return json.loads(texto)
     except Exception:

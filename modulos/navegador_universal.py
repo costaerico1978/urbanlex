@@ -49,20 +49,17 @@ def _screenshot_base64(page) -> str:
 
 def _chamar_gemini_visao(prompt: str, screenshot_b64: str, logs: list, label: str) -> str:
     """Chama Gemini com imagem (visão) e retorna texto."""
-    import google.generativeai as genai
+    from google import genai as genai
 
     api_key = os.getenv('GEMINI_API_KEY', '')
     if not api_key:
         logs.append({'nivel': 'erro', 'msg': f'{label}: GEMINI_API_KEY não configurada'})
         return ''
 
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    client = genai.Client(api_key=api_key)
 
-    image_part = {
-        'mime_type': 'image/png',
-        'data': screenshot_b64
-    }
+    from google.genai import types as _gv_types
+    image_part = _gv_types.Part.from_bytes(data=__import__('base64').b64decode(screenshot_b64), mime_type='image/png')
 
     for tentativa in range(3):
         if tentativa > 0:
@@ -71,7 +68,7 @@ def _chamar_gemini_visao(prompt: str, screenshot_b64: str, logs: list, label: st
             time.sleep(wait)
 
         try:
-            response = model.generate_content([prompt, image_part])
+            response = client.models.generate_content(model='gemini-2.5-flash', contents=[prompt, image_part])
             texto = response.text.strip()
             logs.append({'nivel': 'ok', 'msg': f'{label}: Gemini respondeu ({len(texto)} chars)'})
             return texto
@@ -2603,18 +2600,18 @@ Responda APENAS com JSON:
 
 def _chamar_gemini_texto(prompt: str, logs: list, label: str) -> str:
     """Chama Gemini com texto puro (sem imagem)."""
-    import google.generativeai as genai
+    from google import genai as genai
+    from google.genai import types as _gv_types
     api_key = os.getenv('GEMINI_API_KEY', '')
     if not api_key:
         logs.append({'nivel': 'erro', 'msg': f'{label}: GEMINI_API_KEY nao configurada'})
         return ''
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    client = genai.Client(api_key=api_key)
     for tentativa in range(3):
         if tentativa > 0:
             time.sleep(tentativa * 3)
         try:
-            response = model.generate_content(prompt)
+            response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
             return response.text.strip()
         except Exception as e:
             err = str(e)[:120]

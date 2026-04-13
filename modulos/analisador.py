@@ -66,12 +66,11 @@ class AnalisadorIA:
             self.client = Anthropic(api_key=self.api_key)
             
         elif self.provider == 'gemini':
-            import google.generativeai as genai
+            from google import genai as genai
             self.api_key = api_key or GEMINI_API_KEY
             if not self.api_key:
                 raise ValueError("Gemini API Key não configurada")
-            genai.configure(api_key=self.api_key)
-            self.client = genai.GenerativeModel(self.model)
+            self.client = genai.Client(api_key=self.api_key)
         
         else:
             raise ValueError(f"Provider '{self.provider}' não suportado. Use: groq, claude ou gemini")
@@ -144,7 +143,7 @@ class AnalisadorIA:
     
     def _chamar_gemini(self, prompt: str) -> str:
         """Chama API do Gemini"""
-        response = self.client.generate_content(prompt)
+        response = self.client.models.generate_content(model=self.model, contents=prompt)
         return response.text
     
     def _criar_prompt_analise(self, conteudo_diario: str, legislacoes: List[Dict]) -> str:

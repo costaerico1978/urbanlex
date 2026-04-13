@@ -245,10 +245,9 @@ def _chamar_llm(prompt: str, logs: list, label: str = 'LLM', max_retries: int = 
         # Tentar Gemini
         if GEMINI_API_KEY:
             try:
-                import google.generativeai as genai
-                genai.configure(api_key=GEMINI_API_KEY)
-                model = genai.GenerativeModel('gemini-2.5-flash')
-                response = model.generate_content(prompt)
+                from google import genai as genai
+                client = genai.Client(api_key=GEMINI_API_KEY)
+                response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                 texto = response.text.strip()
                 # Contar tokens
                 if hasattr(response, 'usage_metadata') and response.usage_metadata:

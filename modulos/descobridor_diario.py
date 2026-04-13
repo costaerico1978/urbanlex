@@ -264,9 +264,8 @@ def _buscar_google(municipio: str, estado: str, esfera: str) -> str:
     query = f"diário oficial {municipio} {estado}" if esfera == 'municipal' else f"diário oficial estado {estado}"
 
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        from google import genai as genai
+        client = genai.Client(api_key=GEMINI_API_KEY)
 
         prompt = f"""Qual é a URL do site oficial do diário oficial do município de {municipio}, estado {estado}, Brasil?
 
@@ -278,7 +277,7 @@ Regras:
 
 Responda APENAS com JSON: {{"url": "https://...", "confianca": 0.9}}"""
 
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         texto = response.text.strip()
 
         import re

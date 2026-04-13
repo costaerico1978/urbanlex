@@ -361,15 +361,14 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                                    capture_output=True, timeout=120)
                         _pages = sorted([f for f in _os_gs.listdir(_tmpdir_gs) if f.endswith('.png')])[:10]
                         if _pages:
-                            import google.generativeai as _gai_ax
-                            _gai_ax.configure(api_key=__import__('os').environ.get('GEMINI_API_KEY',''))
-                            _model_ax = _gai_ax.GenerativeModel('gemini-2.5-flash')
+                            from google import genai as _gai_ax
+                            _model_ax = _gai_ax.Client(api_key=__import__('os').environ.get('GEMINI_API_KEY',''))
                             _parts = [f"Extraia todo o texto desta pagina de documento municipal brasileiro. Retorne apenas o texto, sem comentarios."]
                             for _pg_name in _pages:
                                 _pg_path = _os_gs.path.join(_tmpdir_gs, _pg_name)
                                 with open(_pg_path, 'rb') as _f_pg:
                                     _parts.append({"mime_type": "image/png", "data": _b64_ax.b64encode(_f_pg.read()).decode()})
-                            _resp_ax = _model_ax.generate_content(_parts)
+                            _resp_ax = _model_ax.models.generate_content(model='gemini-2.5-flash', contents=_parts)
                             _txt_vision = _resp_ax.text or ""
                             if _txt_vision:
                                 logs.append({"nivel": "info", "msg": f"  [ANEXOS] {label}: {len(_txt_vision)} chars via Gemini Vision"})

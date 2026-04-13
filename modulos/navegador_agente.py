@@ -42,15 +42,15 @@ def _dominio_permitido(url: str) -> bool:
 def _gemini_vision(screenshot_b64: str, html: str, prompt: str) -> dict:
     """Chama Gemini com screenshot + prompt, retorna JSON."""
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        from google import genai as genai
+        from google.genai import types as _gv_types
+        client = genai.Client(api_key=GEMINI_API_KEY)
 
         import base64
         img_bytes = base64.b64decode(screenshot_b64)
 
-        response = model.generate_content([
-            {'mime_type': 'image/jpeg', 'data': img_bytes},
+        img_part = _gv_types.Part.from_bytes(data=img_bytes, mime_type='image/jpeg')
+        response = client.models.generate_content(model='gemini-2.5-flash', contents=[img_part,
             f"HTML simplificado da página:\n{html[:4000]}\n\n{prompt}"
         ])
 
@@ -69,10 +69,10 @@ def _gemini_vision(screenshot_b64: str, html: str, prompt: str) -> dict:
 def _gemini_texto(prompt: str) -> dict:
     """Chama Gemini só com texto, retorna JSON."""
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        response = model.generate_content(prompt)
+        from google import genai as genai
+        from google.genai import types as _gv_types
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         texto = response.text.strip()
         match = re.search(r'\{.*\}', texto, re.DOTALL)
         if match:
