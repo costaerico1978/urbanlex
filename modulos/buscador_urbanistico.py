@@ -240,6 +240,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         if "_nivel" not in _l:
             _l["_nivel"] = 0
     fila = _deque(legs)
+    _descartadas_log = []  # rastrear leis descartadas por nao definir parametros
     while fila:
       leg = fila.popleft()
       if True:
@@ -682,6 +683,18 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
     logs.append({"nivel": "ok", "msg": "=" * 50})
     logs.append({"nivel": "ok", "msg": f"RESUMO DA BUSCA — {municipio}/{estado}"})
     logs.append({"nivel": "ok", "msg": "=" * 50})
+    # Sumario de leis descartadas por nivel
+    if _descartadas_log:
+        _desc_n0 = [d for d in _descartadas_log if d["nivel"] == 0]
+        _desc_n1 = [d for d in _descartadas_log if d["nivel"] == 1]
+        if _desc_n0:
+            logs.append({"nivel": "aviso", "msg": f"⚠️ {len(_desc_n0)} lei(s) de nivel 0 descartadas (identificadas pelo Gemini mas sem parametros urbanisticos):"})
+            for _d in _desc_n0:
+                logs.append({"nivel": "aviso", "msg": f"   — {_d['tipo']} {_d['numero']}/{_d['ano']}: {_d['motivo']}"})
+        if _desc_n1:
+            logs.append({"nivel": "info", "msg": f"ℹ️ {len(_desc_n1)} lei(s) de nivel 1 descartadas (descobertas via relacoes mas sem parametros urbanisticos):"})
+            for _d in _desc_n1:
+                logs.append({"nivel": "info", "msg": f"   — {_d['tipo']} {_d['numero']}/{_d['ano']}: {_d['motivo']}"})
 
     # Associar cada legislacao encontrada a uma pergunta pelo tipo/descricao
     KEYWORDS_PERGUNTAS = [
@@ -1024,6 +1037,7 @@ def _buscar_plano_diretor_lm(municipio, estado, logs, chamar_llm, analisadas):
                 define, _leis_ref_pd = _verificar_parametros(texto_lei, municipio, estado, tipo_enc, numero_enc, ano_enc, logs, chamar_llm, modo="geral")
                 if not define:
                     logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros urbanisticos — descartando"})
+                    _descartadas_log.append({"tipo": tipo, "numero": numero, "ano": ano, "nivel": leg.get("_nivel",0), "motivo": "nao define parametros"})
                     return None
             return {"tipo": tipo_enc if 'tipo_enc' in dir() else "Legislacao", "numero": numero_enc if 'numero_enc' in dir() else "?", "ano": ano_enc if 'ano_enc' in dir() else "?", "link": url_enc}
         logs.append({"nivel": "info", "msg": f"  LeisMunicipais: Plano Diretor nao encontrado para {municipio}"})
@@ -1102,6 +1116,7 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
                             pass
                     if not _altera:
                         logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros e nao altera outras — descartando"})
+                        _descartadas_log.append({"tipo": tipo, "numero": numero, "ano": ano, "nivel": leg.get("_nivel",0), "motivo": "nao define parametros nem altera outras"})
                         return None
                     # Se altera outra lei, manter mesmo sem definir parametros diretamente
             _pdf = fs_result.get("pdf_nativo_s3") or fs_result.get("pdf_path") or ""
