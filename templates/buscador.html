@@ -561,7 +561,7 @@ function logClear() {
 }
 function logDownload() {
     if (window._buscadorHistId) {
-        window.location.href = '/api/buscador/historico/log/' + window._buscadorHistId + '/download';
+        const _dla = document.createElement('a'); _dla.href = '/api/buscador/historico/log/' + window._buscadorHistId + '/download'; _dla.target = '_blank'; _dla.rel = 'noopener'; document.body.appendChild(_dla); _dla.click(); setTimeout(() => document.body.removeChild(_dla), 1000);
         return;
     }
     const text = _logBuffer.join('\n');
@@ -1139,7 +1139,7 @@ async function confirmarBuscaNovoMun() {
         btnLog._histId = null;
         btnLog.onclick = () => {
             if (btnLog._histId) {
-                window.location.href = "/api/buscador/historico/log/" + btnLog._histId + "/download";
+                const _dla = document.createElement('a'); _dla.href = "/api/buscador/historico/log/" + btnLog._histId + "/download"; _dla.target = '_blank'; _dla.rel = 'noopener'; document.body.appendChild(_dla); _dla.click(); setTimeout(() => document.body.removeChild(_dla), 1000);
             } else {
                 const txt = Array.from(logEl.querySelectorAll("div")).map(d => d.textContent).join("\n");
                 const a = document.createElement("a");
@@ -1734,7 +1734,13 @@ function _renderTabelaLegs() {
 function baixarLogAuto() {
     const hid = window._munHistId;
     if (hid) {
-        window.location.href = '/api/buscador/historico/log/' + hid + '/download';
+        const _a = document.createElement('a');
+        _a.href = '/api/buscador/historico/log/' + hid + '/download';
+        _a.target = '_blank';
+        _a.rel = 'noopener';
+        document.body.appendChild(_a);
+        _a.click();
+        setTimeout(() => document.body.removeChild(_a), 1000);
         return;
     }
     const logEl = document.getElementById('log-municipio');
