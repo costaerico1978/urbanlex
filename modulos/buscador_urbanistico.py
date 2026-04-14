@@ -553,6 +553,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                                 if isinstance(_rpb, dict) and _rpb.get('lei','') not in _chaves_rpb:
                                     _revogado_parcialmente_por_enc.append(_rpb)
                         _rp2_raw = dados_rel.get("regulamentado_por", [])
+                        if _rp2_raw: logs.append({"nivel": "relacao", "msg": f"  [DEBUG] regulamentado_por raw: {_rp2_raw}"})
                         import re as _re_ano2
                         _rp2_filtrado = []
                         for _rp2_item in _rp2_raw:
