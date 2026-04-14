@@ -374,7 +374,9 @@ def gerar_relatorio_pdf(resultado, municipio, estado, custo_usd=None, token_stat
     # Tentar WeasyPrint
     try:
         import weasyprint
-        weasyprint.HTML(string=html_content).write_pdf(path)
+        # Sanitizar HTML: remover caracteres fora do range latin (causa "expected 0 <= int <= 122")
+        _html_wp = html_content.encode('ascii', 'xmlcharrefreplace').decode('ascii')
+        weasyprint.HTML(string=_html_wp).write_pdf(path)
         if logs is not None:
             logs.append({'nivel':'ok','msg':f'📄 Relatório PDF gerado: {nome}'})
         return path, url
