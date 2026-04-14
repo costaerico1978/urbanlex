@@ -1642,14 +1642,6 @@ carregarStatusPlataforma();
 
 // ===== TABELA DE LEGISLACOES =====
 let _tabelaLegsData = {};
-try {
-    const _s = localStorage.getItem("mun_tabela_legs");
-    const _jobAtual = localStorage.getItem("mun_job_id");
-    const _jobTabela = localStorage.getItem("mun_tabela_job_id");
-    if (_s && _jobAtual && _jobAtual === _jobTabela) {
-        _tabelaLegsData = JSON.parse(_s);
-    }
-} catch(e) {}
 setTimeout(function(){ console.log("tabela div:", document.getElementById("tabela-legs-auto")); _renderTabelaLegs(); console.log("tabela rendered"); }, 300);
 
 function _atualizarTabelaLegs(dados) {
