@@ -3376,7 +3376,7 @@ def api_buscador_municipio():
             r = buscar_legislacoes_urbanisticas(mun, est, job["logs"], chamar_llm)
             # Expor ZIP e JSON no resultado do job
             job["result"] = {
-                "encontradas": len(r.get("encontradas", [])),
+                "encontradas": r.get("encontradas", []),
                 "zip_url": r.get("zip_url"),
                 "zip_nome": r.get("zip_nome"),
                 "relatorio_url": r.get("relatorio_url"),
@@ -3419,6 +3419,14 @@ def api_buscador_municipio():
             job["logs"].append({"nivel": "erro", "msg": f"Erro: {str(e)[:200]}"})
         finally:
             job["done"] = True
+            # Persistir resultado no JSONL para recuperacao apos restart
+            try:
+                import json as _json_auto
+                _auto_path = f"/var/www/urbanlex/static/downloads/job_{job_id}.jsonl"
+                with open(_auto_path, 'a', encoding='utf-8') as _af:
+                    _af.write(_json_auto.dumps({'_result': job.get('result')}, ensure_ascii=False) + '\n')
+            except Exception:
+                pass
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({"success": True, "job_id": job_id})
 @app.route('/api/buscador/manual', methods=['POST'])
