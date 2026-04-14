@@ -1667,6 +1667,9 @@ function _atualizarTabelaLegs(dados) {
         dados.revogado_por = dados.revogado_por || [];
         dados.cita = dados.cita || [];
         dados.citado_em = dados.citado_em || [];
+        dados.regulamentado_por = dados.regulamentado_por || [];
+        dados.revoga_parcialmente = dados.revoga_parcialmente || [];
+        dados.revogado_parcialmente_por = dados.revogado_parcialmente_por || [];
     } else {
         // Preservar campos ja preenchidos
         dados.altera = dados.altera && dados.altera.length ? dados.altera : (ex.altera||[]);
