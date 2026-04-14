@@ -1732,25 +1732,18 @@ function _renderTabelaLegs() {
 
 // ── Baixar Tabela de Legislações em PDF ──
 function baixarLogAuto() {
-    const hid = window._munHistId;
-    if (hid) {
-        const _a = document.createElement('a');
-        _a.href = '/api/buscador/historico/log/' + hid + '/download';
-        _a.target = '_blank';
-        _a.rel = 'noopener';
-        document.body.appendChild(_a);
-        _a.click();
-        setTimeout(() => document.body.removeChild(_a), 1000);
-        return;
-    }
     const logEl = document.getElementById('log-municipio');
     const txt = logEl ? Array.from(logEl.querySelectorAll('div')).map(function(d){ return d.textContent; }).join('\n') : '';
     if (!txt) { alert('Log nao disponivel ainda.'); return; }
-    const a = document.createElement('a');
     const nd = new Date();
-    a.href = URL.createObjectURL(new Blob([txt], {type:'text/plain'}));
-    a.download = 'Log_busca_' + nd.getDate().toString().padStart(2,'0') + '_' + (nd.getMonth()+1).toString().padStart(2,'0') + '_' + nd.getFullYear() + '_' + nd.getHours() + 'h' + nd.getMinutes() + '.txt';
-    a.click();
+    let mun = 'municipio', est = 'XX';
+    try { const _c = JSON.parse(localStorage.getItem('mun_campos')||'{}'); mun = (_c.mun||'municipio').replace(/ /g,'_'); est = (_c.est||'XX'); } catch(e) {}
+    const _dla = document.createElement('a');
+    _dla.href = URL.createObjectURL(new Blob([txt], {type:'text/plain'}));
+    _dla.download = 'Log_busca_automatica_' + est + '_' + mun + '_' + nd.getDate().toString().padStart(2,'0') + '_' + (nd.getMonth()+1).toString().padStart(2,'0') + '_' + nd.getFullYear() + '_' + nd.getHours() + 'h' + nd.getMinutes() + '.txt';
+    document.body.appendChild(_dla);
+    _dla.click();
+    setTimeout(() => { document.body.removeChild(_dla); URL.revokeObjectURL(_dla.href); }, 1000);
 }
 
 function baixarTabelaPDF() {
