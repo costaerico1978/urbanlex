@@ -247,7 +247,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         numero = leg.get("numero", "")
         ano = leg.get("ano", "")
         descricao = leg.get("descricao", "")
-        _num_norm = numero.replace('.','').replace(' ','').strip()
+        _num_norm = numero.replace('.','').replace(' ','').strip().lstrip('0') or '0'
         chave = f"{tipo}_{_num_norm}_{ano}".lower()
         # 1. Verificar por chave exata
         if chave in revogadas:
@@ -269,6 +269,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                 revogadas.add(chave)
                 continue
         if chave in analisadas:
+            logs.append({"nivel": "info", "msg": f"Duplicata normalizada ignorada: {tipo} {numero}/{ano}"})
+            _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=leg.get('_pergunta_label',''), status="nao_encontrada")
             continue
         analisadas.add(chave)
         # Nivel 2: apenas listar na tabela, sem busca completa
@@ -597,7 +599,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                     if _tp.lower() in _lei_str.lower():
                         _tipo_f = _tp
                         break
-                _num_norm_f = _num.replace('.','').replace(' ','').strip()
+                _num_norm_f = (_num.replace('.','').replace(' ','').strip().lstrip('0') or '0')
                 _chave_f = f"{_tipo_f.lower()}_{_num_norm_f}_{_ano}"
                 if _chave_f in analisadas or _chave_f in revogadas:
                     continue
@@ -650,7 +652,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                 if _num_r and _ano_r:
                     for _tp in ["Lei Complementar", "Decreto-Lei", "Decreto", "Resolucao", "Lei"]:
                         if _tp.lower() in _rev_str.lower():
-                            _num_r_n = _num_r.replace('.','').replace(' ','').strip()
+                            _num_r_n = (_num_r.replace('.','').replace(' ','').strip().lstrip('0') or '0')
                             _chave_r = f"{_tp.lower()}_{_num_r_n}_{_ano_r}"
                             revogadas.add(_chave_r)
                             revogadas_lista.append({"tipo": _tp, "numero": _num_r, "ano": _ano_r, "revogada_por": f"{tipo} {numero}/{ano}"})
