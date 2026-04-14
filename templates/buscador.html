@@ -1658,6 +1658,13 @@ function _atualizarTabelaLegs(dados) {
     const k=`${dados.tipo}_${dados.numero}_${dados.ano}`.toLowerCase();
     const ex=_tabelaLegsData[k]||{};
     // Se chegou encontrada, substituir campos de relacoes completamente
+    // Zerar campos ao iniciar analise (evita dados antigos de busca anterior)
+    if (dados.status === 'analisando') {
+        dados.altera = []; dados.alterado_por = []; dados.revoga = [];
+        dados.revogado_por = []; dados.cita = []; dados.citado_em = [];
+        dados.regulamentado_por = []; dados.revoga_parcialmente = [];
+        dados.revogado_parcialmente_por = [];
+    }
     // Se chegou analisando, preservar campos ja preenchidos de evento anterior
     if (dados.status === 'encontrada') {
         // Substituir completamente — dados do Gemini sao definitivos
