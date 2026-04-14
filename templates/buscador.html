@@ -1716,7 +1716,7 @@ function _renderTabelaLegs() {
     rows.forEach(r=>{
         const cor=sc[r.status]||"#6b7d8f";
         h+=`<tr>`;
-        h+=cel(r.estado)+cel(r.municipio)+cel(_abrevTipo(r.tipo))+cel(r.numero)+cel(r.ano)+cel(r.pergunta);
+        h+=cel(r.estado)+cel(r.municipio)+cel(_abrevTipo(r.tipo))+cel(r.numero)+cel(r.ano)+cel(r.ementa||"")+cel(r.pergunta);
         h+=`<td style="padding:3px 6px;border:1px solid var(--border);color:${cor};font-weight:700;white-space:nowrap">${sl[r.status]||r.status}</td>`;
         if(r.status==="revogada"){
             h+=`<td colspan="6" style="padding:3px 6px;border:1px solid var(--border);color:#ff4d6d;font-style:italic">Revogada por: ${(r.revogado_por||[]).join(", ")||"—"}</td>`;
