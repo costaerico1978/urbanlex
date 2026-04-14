@@ -548,9 +548,16 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                         # Revogado parcialmente por — lista de objetos {lei, partes}
                         _new_rpb = dados_rel.get("revogado_parcialmente_por", [])
                         if isinstance(_new_rpb, list):
+                            import re as _re_rpb
                             _chaves_rpb = {r.get('lei','') for r in _revogado_parcialmente_por_enc}
                             for _rpb in _new_rpb:
-                                if isinstance(_rpb, dict) and _rpb.get('lei','') not in _chaves_rpb:
+                                if not isinstance(_rpb, dict): continue
+                                _rpb_lei = _rpb.get('lei','')
+                                _m_rpb = _re_rpb.search(r'/(\d{4})', _rpb_lei)
+                                if _m_rpb and int(_m_rpb.group(1)) <= int(ano):
+                                    logs.append({"nivel": "aviso", "msg": f"  [FILTRO] Ignorando revogado_parcialmente_por {_rpb_lei} — ano <= {ano} (impossivel)"})
+                                    continue
+                                if _rpb_lei not in _chaves_rpb:
                                     _revogado_parcialmente_por_enc.append(_rpb)
                         _rp2_raw = dados_rel.get("regulamentado_por", [])
                         import re as _re_ano2
