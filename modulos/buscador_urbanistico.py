@@ -525,7 +525,16 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                                 if isinstance(_rp, dict) and _rp.get('lei','') not in _chaves_rp:
                                     _revoga_parcialmente_enc.append(_rp)
                         _regulamenta_enc = list(set(_regulamenta_enc + dados_rel.get("regulamenta", [])))
-                        _alterado_por_enc = list(set(_alterado_por_enc + dados_rel.get("alterado_por", [])))
+                        _ap_raw = dados_rel.get("alterado_por", [])
+                        import re as _re_ano3
+                        _ap_filtrado = []
+                        for _ap_item in _ap_raw:
+                            _m_ano3 = _re_ano3.search(r'/(\d{4})', _ap_item)
+                            if _m_ano3 and int(_m_ano3.group(1)) <= int(ano):
+                                logs.append({"nivel": "aviso", "msg": f"  [FILTRO] Ignorando alterado_por {_ap_item} — ano <= {ano} (impossivel)"})
+                            else:
+                                _ap_filtrado.append(_ap_item)
+                        _alterado_por_enc = list(set(_alterado_por_enc + _ap_filtrado))
                         _rp_raw = dados_rel.get("revogado_por", [])
                         import re as _re_ano
                         _rp_filtrado = []
@@ -543,7 +552,16 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                             for _rpb in _new_rpb:
                                 if isinstance(_rpb, dict) and _rpb.get('lei','') not in _chaves_rpb:
                                     _revogado_parcialmente_por_enc.append(_rpb)
-                        _regulamentado_por_enc = list(set(_regulamentado_por_enc + dados_rel.get("regulamentado_por", [])))
+                        _rp2_raw = dados_rel.get("regulamentado_por", [])
+                        import re as _re_ano2
+                        _rp2_filtrado = []
+                        for _rp2_item in _rp2_raw:
+                            _m_ano2 = _re_ano2.search(r'/(\d{4})', _rp2_item)
+                            if _m_ano2 and int(_m_ano2.group(1)) <= int(ano):
+                                logs.append({"nivel": "aviso", "msg": f"  [FILTRO] Ignorando regulamentado_por {_rp2_item} — ano <= {ano} (impossivel)"})
+                            else:
+                                _rp2_filtrado.append(_rp2_item)
+                        _regulamentado_por_enc = list(set(_regulamentado_por_enc + _rp2_filtrado))
                         _cita_enc = list(set(_cita_enc + dados_rel.get("cita", [])))
                         _tachado_por = dados_rel.get("tachado_por", [])
                         if _tachado_por:
