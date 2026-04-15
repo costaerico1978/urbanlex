@@ -621,7 +621,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         _nivel_atual = leg.get("_nivel", 0)
         def _extrair_num_ano_fila(s):
             import re as _refa
-            m = _refa.search(r'(\d+)[/\-](\d{4})', s)
+            m = _refa.search(r'([\d\.]+)[/\-](\d{4})', s)
             return (m.group(1), m.group(2)) if m else (None, None)
         def _adicionar_na_fila(lista_leis, nivel, motivo):
             for _lei_str in (lista_leis or []):
