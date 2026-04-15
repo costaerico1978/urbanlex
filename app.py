@@ -3671,6 +3671,16 @@ def api_buscador_job_ativo():
     except Exception as e:
         return jsonify({'ativo': False})
 
+try:
+    import subprocess as _git_sp
+    _APP_COMMIT = _git_sp.check_output(['git','rev-parse','--short','HEAD'], cwd='/var/www/urbanlex', stderr=_git_sp.DEVNULL).decode().strip()
+except:
+    _APP_COMMIT = 'desconhecido'
+
+@app.route('/api/versao')
+def api_versao():
+    return jsonify({'commit': _APP_COMMIT, 'success': True})
+
 @app.route('/api/buscador/jobs-ativos')
 def api_buscador_jobs_ativos():
     """Verifica se ha jobs de busca ativos — usado pelo webhook de deploy."""

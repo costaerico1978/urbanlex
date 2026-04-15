@@ -1177,6 +1177,7 @@ async function confirmarBuscaNovoMun() {
         const r = await api("POST", "/api/buscador/municipio", {municipio: mun, estado: est, cadastrar, monitorar: cadastrar});
         if (!r.success) { alert("Erro: " + (r.error || "desconhecido")); btn.disabled = false; btn.textContent = "🔎 Buscar"; return; }
         fecharModalNovoMun();
+        try { const _v = await api('GET','/api/versao'); window._mun_commit_inicio = _v.commit||'?'; } catch(e) { window._mun_commit_inicio = '?'; }
         const jobId = r.job_id;
         localStorage.setItem("mun_job_id", jobId);
         // Resetar tabela ao iniciar nova busca
@@ -1208,6 +1209,18 @@ async function confirmarBuscaNovoMun() {
                     });
                 }
                 cursor = poll.cursor || cursor;
+                if (!poll.success && poll.error) {
+                    const _sp2 = logEl.querySelector('.log-line-spinner'); if (_sp2) _sp2.remove();
+                    const _ldI = document.getElementById('loading-mun'); if (_ldI) _ldI.style.display = 'none';
+                    try {
+                        const _vv = await api('GET','/api/versao');
+                        const _nc = _vv.commit||'?'; const _oc = window._mun_commit_inicio||'?';
+                        const _dm2 = document.createElement('div'); _dm2.style.cssText='color:#e74c3c;margin-top:8px;font-weight:600;';
+                        _dm2.textContent = (_nc !== _oc) ? '\u26a1 Busca interrompida \u2014 deploy do commit ' + _nc : '\u26a0\ufe0f Busca interrompida \u2014 servidor reiniciado';
+                        logEl.appendChild(_dm2); logEl.scrollTop = logEl.scrollHeight;
+                    } catch(e2) {}
+                    break;
+                }
                 if (poll.done) {
                     // Remover spinner ao concluir
                     const _sp = logEl.querySelector('.log-line-spinner');
