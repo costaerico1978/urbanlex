@@ -1124,7 +1124,7 @@ function fecharModalNovoMun() {
 async function confirmarBuscaNovoMun() {
     const mun = document.getElementById("nm-municipio").value.trim();
     const est = document.getElementById("nm-estado").value;
-    const cadastrar = document.getElementById("nm-cadastrar").checked;
+    const cadastrar = true;
     if (!mun) { alert("Informe o município"); return; }
     const btn = document.getElementById("btn-nm-ok");
     btn.disabled = true; btn.textContent = "⏳ Iniciando...";
