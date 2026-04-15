@@ -1708,7 +1708,7 @@ function _renderTabelaLegs() {
     }
     const tbl=document.getElementById("tabela-legs-auto");
     if(!tbl) return;
-    const rows=Object.values(_tabelaLegsData);
+    const rows=Object.values(_tabelaLegsData).sort((a,b)=>(parseInt(b.ano)||0)-(parseInt(a.ano)||0)||((parseInt((b.numero||"").replace(/\D/g,""))||0)-(parseInt((a.numero||"").replace(/\D/g,""))||0)));
     const sc={"analisando":"#f5a623","encontrada":"#00e5a0","nao_encontrada":"#6b7d8f","revogada":"#ff4d6d","referenciada":"#9b59b6"};
     const sl={"analisando":"⏳ Analisando","encontrada":"✅ Encontrada","nao_encontrada":"❌ Não encontrada","revogada":"🚫 Revogada","referenciada":"🔗 Referenciada"};
     if(rows.length===0){
