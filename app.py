@@ -3373,7 +3373,14 @@ def api_buscador_municipio():
             from modulos.buscador_urbanistico import buscar_legislacoes_urbanisticas
             def chamar_llm(prompt, logs, label="LLM", max_retries=2):
                 return _llm(prompt, logs, label, max_retries)
-            r = buscar_legislacoes_urbanisticas(mun, est, job["logs"], chamar_llm)
+            _fb_url = None
+            try:
+                _fb_conn = get_db(); _fb_cur = _fb_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                _fb_cur.execute("SELECT url FROM municipio_fallback WHERE LOWER(municipio)=LOWER(%s) AND LOWER(estado)=LOWER(%s)", (mun, est))
+                _fb_row = _fb_cur.fetchone(); _fb_conn.close()
+                if _fb_row: _fb_url = _fb_row['url']
+            except: pass
+            r = buscar_legislacoes_urbanisticas(mun, est, job["logs"], chamar_llm, fallback_url=_fb_url)
             # Expor ZIP e JSON no resultado do job
             job["result"] = {
                 "encontradas": r.get("encontradas", []),
@@ -4747,9 +4754,66 @@ def inicializar():
         print("Tabela monitoramento_legislacao_log verificada/criada")
     except Exception as e:
         print(f"Aviso criacao tabela log legislacao: {e}")
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""CREATE TABLE IF NOT EXISTS municipio_fallback (
+            id SERIAL PRIMARY KEY,
+            municipio VARCHAR(200) NOT NULL,
+            estado VARCHAR(2) NOT NULL,
+            url TEXT NOT NULL,
+            criado_em TIMESTAMP DEFAULT NOW(),
+            atualizado_em TIMESTAMP DEFAULT NOW(),
+            UNIQUE(municipio, estado)
+        )""")
+        conn.commit(); conn.close()
+        print("Tabela municipio_fallback verificada/criada")
+    except Exception as e:
+        print(f"Aviso municipio_fallback: {e}")
     if SCHEDULER_OK:
         try: iniciar_scheduler(); print("Scheduler iniciado")
         except Exception as e: print(f"Scheduler: {e}")
+
+@app.route('/api/municipio/fallback', methods=['GET'])
+@login_required
+def api_municipio_fallback_get():
+    mun = request.args.get('municipio','').strip()
+    est = request.args.get('estado','').strip()
+    if not mun or not est: return jsonify({'url': None})
+    try:
+        conn = get_db(); cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT url FROM municipio_fallback WHERE LOWER(municipio)=LOWER(%s) AND LOWER(estado)=LOWER(%s)", (mun, est))
+        row = cur.fetchone(); conn.close()
+        return jsonify({'url': row['url'] if row else None})
+    except Exception as e:
+        return jsonify({'url': None, 'error': str(e)})
+
+@app.route('/api/municipio/fallback', methods=['POST'])
+@login_required
+def api_municipio_fallback_post():
+    d = request.get_json() or {}
+    mun = d.get('municipio','').strip(); est = d.get('estado','').strip(); url = d.get('url','').strip()
+    if not mun or not est or not url: return jsonify({'success': False, 'error': 'Campos obrigatorios'})
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("INSERT INTO municipio_fallback (municipio, estado, url, atualizado_em) VALUES (%s,%s,%s,NOW()) ON CONFLICT (municipio, estado) DO UPDATE SET url=%s, atualizado_em=NOW()", (mun, est, url, url))
+        conn.commit(); conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/municipio/fallback', methods=['DELETE'])
+@login_required
+def api_municipio_fallback_delete():
+    d = request.get_json() or {}
+    mun = d.get('municipio','').strip(); est = d.get('estado','').strip()
+    if not mun or not est: return jsonify({'success': False})
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("DELETE FROM municipio_fallback WHERE LOWER(municipio)=LOWER(%s) AND LOWER(estado)=LOWER(%s)", (mun, est))
+        conn.commit(); conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 inicializar()
 

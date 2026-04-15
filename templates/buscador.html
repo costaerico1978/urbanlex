@@ -145,23 +145,6 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
 <!-- TAB 1: BUSCAS AUTOMÁTICAS                                      -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <div class="tab-panel active" id="panel-auto">
-
-    <!-- Cards de configuração -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;">
-        <div class="busca-card">
-            <div class="busca-card-header">
-                <span class="busca-card-icon">📍</span>
-                <span class="busca-card-title">Municípios Novos</span>
-            </div>
-            <div class="busca-card-desc">
-                Quando a plataforma externa detecta um terreno em um município que ainda não existe na biblioteca,
-                o sistema busca automaticamente todas as legislações urbanísticas desse município.
-            </div>
-            <div class="busca-card-status">
-                <span class="status-dot" id="dot-plataforma"></span>
-                <span class="status-text" id="txt-plataforma">Verificando...</span>
-            </div>
-        </div>
         <div class="busca-card">
             <div class="busca-card-header">
                 <span class="busca-card-icon">⚙️</span>
@@ -452,10 +435,32 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
                 <option value="SE">SE</option><option value="SP">SP</option><option value="TO">TO</option>
             </select>
         </div>
-        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-bottom:16px;">
-            <input type="checkbox" id="nm-cadastrar" checked style="accent-color:var(--accent);">
-            Cadastrar automaticamente na biblioteca e ativar monitoramento
-        </label>
+        <div id="nm-fallback-box" style="margin-bottom:16px;display:none;">
+            <div id="nm-fb-vazia">
+                <label style="font-size:10px;color:var(--muted);letter-spacing:1px;display:block;margin-bottom:6px;">FONTE PARA FALLBACK PRIORITÁRIO</label>
+                <div style="display:flex;gap:6px;">
+                    <input type="text" id="nm-fb-input" placeholder="https://..." style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;padding:6px 8px;outline:none;" />
+                    <button class="btn btn-primary btn-sm" onclick="_nmFbSalvar()" style="white-space:nowrap;">Salvar</button>
+                </div>
+                <p style="margin:6px 0 0;font-size:10px;color:var(--muted);">Tentada antes do Fallback 1 (Google/DDG) se o LeisMunicipais falhar.</p>
+            </div>
+            <div id="nm-fb-salva" style="border:1px solid #0f3d2e;background:#0a1f18;border-radius:6px;padding:12px;display:none;">
+                <label style="font-size:10px;color:var(--accent);letter-spacing:1px;display:block;margin-bottom:8px;">&#11088; FALLBACK PRIORITÁRIO CONFIGURADO</label>
+                <div style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:7px 9px;font-size:11px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:8px;" id="nm-fb-url-display"></div>
+                <div style="display:flex;gap:6px;">
+                    <button class="btn btn-secondary btn-sm" onclick="_nmFbEditar()" style="flex:1;">Editar</button>
+                    <button class="btn btn-sm" onclick="_nmFbRemover()" style="flex:1;border:1px solid #3d1414;color:#e74c3c;background:transparent;">Remover</button>
+                </div>
+            </div>
+            <div id="nm-fb-editando" style="border:1px solid var(--border);border-radius:6px;padding:12px;display:none;">
+                <label style="font-size:10px;color:var(--muted);letter-spacing:1px;display:block;margin-bottom:6px;">FONTE PARA FALLBACK PRIORITÁRIO</label>
+                <div style="display:flex;gap:6px;">
+                    <input type="text" id="nm-fb-input-edit" placeholder="https://..." style="flex:1;background:var(--bg);border:1px solid var(--accent);border-radius:5px;color:var(--text);font-size:12px;padding:6px 8px;outline:none;" />
+                    <button class="btn btn-primary btn-sm" onclick="_nmFbSalvarEdit()" style="white-space:nowrap;">Salvar</button>
+                    <button class="btn btn-secondary btn-sm" onclick="_nmFbCancelarEdit()">X</button>
+                </div>
+            </div>
+        </div>
         <div style="display:flex;gap:10px;justify-content:flex-end;">
             <button class="btn btn-secondary btn-sm" onclick="fecharModalNovoMun()">Cancelar</button>
             <button class="btn btn-primary btn-sm" onclick="confirmarBuscaNovoMun()" id="btn-nm-ok">🔎 Buscar</button>
@@ -1257,6 +1262,17 @@ async function confirmarBuscaNovoMun() {
 }
 
 // ── Sincronizar Plataforma ──
+
+// --- Fonte para Fallback Prioritario ---
+let _nmFbUrlAtual=null;
+async function _nmCarregarFonte(){const mun=(document.getElementById("nm-municipio")||{}).value||"",est=(document.getElementById("nm-estado")||{}).value||"",box=document.getElementById("nm-fallback-box");if(!mun||!est){if(box)box.style.display="none";return;}if(box)box.style.display="block";try{const r=await api("GET","/api/municipio/fallback?municipio="+encodeURIComponent(mun)+"&estado="+encodeURIComponent(est));_nmFbUrlAtual=r.url||null;_nmFbMostrarEstado();}catch(e){_nmFbUrlAtual=null;_nmFbMostrarEstado();}}
+function _nmFbMostrarEstado(){const v=document.getElementById("nm-fb-vazia"),s=document.getElementById("nm-fb-salva"),e=document.getElementById("nm-fb-editando"),d=document.getElementById("nm-fb-url-display");if(_nmFbUrlAtual){if(v)v.style.display="none";if(s)s.style.display="block";if(e)e.style.display="none";if(d)d.textContent=_nmFbUrlAtual;}else{if(v)v.style.display="block";if(s)s.style.display="none";if(e)e.style.display="none";const inp=document.getElementById("nm-fb-input");if(inp)inp.value="";}}
+async function _nmFbSalvar(){const mun=(document.getElementById("nm-municipio")||{}).value||"",est=(document.getElementById("nm-estado")||{}).value||"",url=(document.getElementById("nm-fb-input")||{}).value||"";if(!url)return;try{await api("POST","/api/municipio/fallback",{municipio:mun,estado:est,url});_nmFbUrlAtual=url;_nmFbMostrarEstado();}catch(e){alert("Erro: "+e.message);}}
+function _nmFbEditar(){const v=document.getElementById("nm-fb-vazia"),s=document.getElementById("nm-fb-salva"),e=document.getElementById("nm-fb-editando"),inp=document.getElementById("nm-fb-input-edit");if(v)v.style.display="none";if(s)s.style.display="none";if(e)e.style.display="block";if(inp)inp.value=_nmFbUrlAtual||"";}
+async function _nmFbSalvarEdit(){const mun=(document.getElementById("nm-municipio")||{}).value||"",est=(document.getElementById("nm-estado")||{}).value||"",url=(document.getElementById("nm-fb-input-edit")||{}).value||"";if(!url)return;try{await api("POST","/api/municipio/fallback",{municipio:mun,estado:est,url});_nmFbUrlAtual=url;_nmFbMostrarEstado();}catch(e){alert("Erro: "+e.message);}}
+function _nmFbCancelarEdit(){_nmFbMostrarEstado();}
+async function _nmFbRemover(){if(!confirm("Remover fonte prioritaria?"))return;const mun=(document.getElementById("nm-municipio")||{}).value||"",est=(document.getElementById("nm-estado")||{}).value||"";try{await api("DELETE","/api/municipio/fallback",{municipio:mun,estado:est});_nmFbUrlAtual=null;_nmFbMostrarEstado();}catch(e){alert("Erro: "+e.message);}}
+// --- fim Fonte Fallback ---
 async function sincronizarPlataforma() {
     if (!confirm('Consultar a plataforma externa agora e processar municípios novos?')) return;
     try {
@@ -1449,7 +1465,7 @@ function acSelecionar(el, prefix) {
     prefix = prefix || 'bm';
     const nome = el.dataset.nome;
     const estado = el.dataset.estado;
-    document.getElementById(prefix === 'bm' ? 'bm-municipio' : 'nm-municipio').value = nome;
+    document.getElementById(prefix === 'bm' ? 'bm-municipio' : 'nm-municipio').value = nome; if(prefix!=='bm') setTimeout(_nmCarregarFonte,100);
     document.getElementById(prefix === 'bm' ? 'bm-estado' : 'nm-estado').value = estado;
     document.getElementById(prefix + '-ac-list').classList.remove('open');
 

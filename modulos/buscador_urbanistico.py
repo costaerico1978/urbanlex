@@ -29,7 +29,7 @@ def _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta="", stat
     }
     logs.append({"nivel": "tabela", "msg": _j.dumps(dados, ensure_ascii=False)})
 
-def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
+def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallback_url=None):
     resultado = {"encontradas": [], "nao_encontrada": False}
     analisadas = set()
     # Resetar contador global de tokens
@@ -291,7 +291,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
         logs.append({"nivel": "info", "msg": f"Buscando {tipo} n {numero}/{ano} ({descricao}) no LeisMunicipais..."})
         _pergunta_origem = leg.get("_pergunta_label", "")
         _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=_pergunta_origem, status="analisando")
-        enc = _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, modo=leg.get("_modo_verificacao","geral"))
+        enc = _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, modo=leg.get("_modo_verificacao","geral"), fallback_url=fallback_url)
         texto_enc = ""
         _altera_enc = []
         _revoga_enc = []
@@ -1078,7 +1078,8 @@ def _buscar_plano_diretor_lm(municipio, estado, logs, chamar_llm, analisadas):
         logs.append({"nivel": "aviso", "msg": f"  Erro busca palavra-chave LM: {str(e)[:80]}"})
     return None
 
-def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, modo="geral"):
+def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, modo="geral", fallback_url=None):
+    _fb_url_local = fallback_url
     try:
         from modulos.navegador_universal import navegar_com_cookies_flaresolverr
         # Renovar sessao FlareSolverr
@@ -1156,6 +1157,18 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
             _anexos = fs_result.get("anexos_lm") or []
             return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc, "pdf_path": _pdf, "html": html_lei if "html_lei" in dir() else "", "anexos_lm": _anexos, "_leis_referenciadas": _leis_ref if "_leis_ref" in dir() else [], "ementa": _ementa_verif if "_ementa_verif" in dir() else (_ementa_lei if "_ementa_lei" in dir() else "")}
         logs.append({"nivel": "aviso", "msg": f"  {tipo} {numero}/{ano} nao encontrada no LeisMunicipais — tentando 1º fallback..."})
+        if _fb_url_local:
+            logs.append({"nivel": "info", "msg": f"  [FallbackP] Tentando fonte prioritaria: {_fb_url_local[:80]}"})
+            try:
+                import urllib.parse as _upl
+                _q = _upl.quote(f"{tipo} {numero} {ano}")
+                from modulos.navegador_universal import navegar_com_cookies_flaresolverr as _ncf
+                _html_fp = _ncf(f"{_fb_url_local.rstrip('/')}?q={_q}", municipio, estado, tipo, numero, ano, logs)
+                if _html_fp and len(_html_fp) > 500:
+                    _enc_fp = _verificar_parametros(_html_fp, municipio, estado, tipo, numero, ano, logs, chamar_llm)
+                    if _enc_fp: return {"tipo": tipo, "numero": numero, "ano": ano, "link": f"{_fb_url_local}?q={_q}", "html": _html_fp, "ementa": _enc_fp.get("ementa","") if isinstance(_enc_fp,dict) else ""}
+            except Exception as _efp:
+                logs.append({"nivel": "aviso", "msg": f"  [FallbackP] Erro: {str(_efp)[:60]}"})
         enc = _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
         if enc:
             return enc
