@@ -1096,6 +1096,8 @@ function dispararBuscaNovoMunicipio() {
         localStorage.removeItem('mun_job_id');
     }
     // Zerar log e tabela
+    const _ldMun = document.getElementById('loading-mun');
+    if (_ldMun) _ldMun.style.display = 'none';
     const _logEl = document.getElementById('log-municipio');
     if (_logEl) _logEl.innerHTML = '';
     localStorage.removeItem('mun_log_cache');
