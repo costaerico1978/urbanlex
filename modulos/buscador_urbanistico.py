@@ -79,7 +79,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             logs.append({"nivel": "ok", "msg": f"Gemini respondeu ({len(resp_texto)} chars)"})
             prompt_e = (
                 f"Com base na resposta abaixo, extraia as legislacoes mencionadas de {municipio}/{estado}.\n"
-                f"Use APENAS informacoes presentes — nao invente numeros.\n"
+                f"IMPORTANTE: Inclua APENAS legislacoes do municipio de {municipio}/{estado}. IGNORE qualquer legislacao de outros municipios ou estados.\n"
+            f"Use APENAS informacoes presentes — nao invente numeros.\n"
                 f"Considere APENAS atos do tipo: Lei, Lei Complementar, Decreto, Decreto-Lei, Resolucao. Ignore Portaria, Instrucao Normativa, Edital, Aviso ou qualquer outro tipo.\n\n"
                 f"RESPOSTA:\n{resp_texto}\n\n"
                 "Responda APENAS com JSON: {\"legislacoes\": [{\"tipo\": \"Lei Complementar\", \"numero\": \"148\", \"ano\": \"2023\", \"descricao\": \"Plano Diretor\"}]}"
