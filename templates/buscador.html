@@ -145,44 +145,6 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
 <!-- TAB 1: BUSCAS AUTOMÁTICAS                                      -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <div class="tab-panel active" id="panel-auto">
-        <div class="busca-card">
-            <div class="busca-card-header">
-                <span class="busca-card-icon">⚙️</span>
-                <span class="busca-card-title">Tipos Buscados</span>
-            </div>
-            <div class="busca-card-desc">
-                <span style="display:inline-block;padding:2px 8px;background:var(--surface2);border-radius:4px;font-size:11px;margin:2px;">Plano Diretor</span>
-                <span style="display:inline-block;padding:2px 8px;background:var(--surface2);border-radius:4px;font-size:11px;margin:2px;">Uso e Ocupação do Solo</span>
-                <span style="display:inline-block;padding:2px 8px;background:var(--surface2);border-radius:4px;font-size:11px;margin:2px;">Código de Obras</span>
-                <span style="display:inline-block;padding:2px 8px;background:var(--surface2);border-radius:4px;font-size:11px;margin:2px;">Parcelamento do Solo</span>
-                <span style="display:inline-block;padding:2px 8px;background:var(--surface2);border-radius:4px;font-size:11px;margin:2px;">Código de Posturas</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Botão buscar agora -->
-    <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
-        <button class="btn btn-primary btn-sm" onclick="dispararBuscaNovoMunicipio()">
-            📍 Buscar Novo Município...
-        </button>
-        <button class="btn btn-secondary btn-sm" onclick="sincronizarPlataforma()">
-            🔄 Sincronizar com Plataforma
-        </button>
-        <button id="btn-baixar-log-auto" class="btn btn-secondary btn-sm" style="display:none;" onclick="baixarLogAuto()">
-            📥 Baixar Log .txt
-        </button>
-        <button id="btn-baixar-tabela-pdf" class="btn btn-secondary btn-sm" style="display:none;" onclick="baixarTabelaPDF()">
-            📊 Baixar Tabela PDF
-        </button>
-    </div>
-    <div id="tabela-legs-auto" style="margin-top:16px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:var(--accent) var(--surface)"></div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════════════ -->
-<!-- TAB 2: REFERÊNCIAS CRUZADAS                                    -->
-<!-- ═══════════════════════════════════════════════════════════════ -->
-<div class="tab-panel" id="panel-ref">
-
     <div class="busca-card">
         <div class="busca-card-header">
             <span class="busca-card-icon">🔗</span>
