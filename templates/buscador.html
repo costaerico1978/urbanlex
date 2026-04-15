@@ -1106,6 +1106,8 @@ function dispararBuscaNovoMunicipio() {
     document.getElementById('modal-novo-mun').style.display = 'flex';
     document.getElementById('nm-municipio').value = '';
     document.getElementById('nm-estado').value = '';
+    const _btnNm = document.getElementById('btn-nm-ok');
+    if (_btnNm) { _btnNm.disabled = false; _btnNm.textContent = 'Buscar'; }
     setTimeout(() => document.getElementById('nm-municipio').focus(), 100);
 }
 function fecharModalNovoMun() {
