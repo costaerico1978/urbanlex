@@ -68,7 +68,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
             import concurrent.futures as _cf
             with _cf.ThreadPoolExecutor() as _ex:
                 _fut = _ex.submit(client.models.generate_content, model="gemini-2.5-flash", contents=pergunta, config=config)
-                response = _fut.result(timeout=30)
+                response = _fut.result(timeout=60)
             # Contar tokens
             if hasattr(response, 'usage_metadata') and response.usage_metadata:
                 _token_stats['input'] += getattr(response.usage_metadata, 'prompt_token_count', 0) or 0
