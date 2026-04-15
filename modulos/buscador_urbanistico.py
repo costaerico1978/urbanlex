@@ -97,8 +97,15 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm):
                 from modulos.buscador_legislacoes import _pesquisar_web
                 resultados_ddg = _pesquisar_web(pergunta, logs, "DDG", max_results=5)
                 conteudo_ddg = ""
+                _mun_norm = municipio.lower().replace(" ","")
                 for res in (resultados_ddg or []):
-                    conteudo_ddg += f"{res.get('title','')}\n{res.get('body','')}\n\n"
+                    _title = res.get("title","")
+                    _url = res.get("url","").lower()
+                    _check = (_title + " " + _url).lower().replace("-"," ").replace("_"," ")
+                    if _mun_norm not in _check.replace(" ","") and municipio.lower() not in _check:
+                        logs.append({"nivel": "info", "msg": f"  [DDG] Ignorando resultado de outro municipio: {_title[:50]}"})
+                        continue
+                    conteudo_ddg += f"{_title}\n{res.get('body','')}\n\n"
                 if conteudo_ddg:
                     prompt_ddg = (
                         f"Identifique legislacoes de {municipio}/{estado} nos resultados.\n"
