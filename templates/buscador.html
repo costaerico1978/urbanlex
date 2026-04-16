@@ -360,6 +360,10 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
                 <button class="btn btn-ghost" style="padding:2px 8px;font-size:10px" onclick="document.getElementById('bm-log').style.display='none'">✕ Fechar</button>
             </div>
         </div>
+        <div id="bm-token-bar" style="display:none;padding:4px 12px;border-bottom:1px solid var(--border);background:rgba(255,255,255,0.02);font-family:var(--font-mono);font-size:10px;color:var(--muted);display:flex;gap:16px;">
+            <span>Tokens: <b id="bm-tk-in">0</b> entrada / <b id="bm-tk-out">0</b> saida</span>
+            <span>Custo: <b id="bm-tk-usd">US$0.0000</b></span>
+        </div>
         <div id="bm-log-lines" style="padding:10px 12px;max-height:400px;overflow-y:auto;font-family:var(--font-mono);font-size:11px;line-height:1.8;">
         </div>
     </div>
@@ -703,6 +707,7 @@ async function executarBuscaManual() {
                 if (poll.logs && poll.logs.length) {
                     logRemoveSpinner();
                     poll.logs.forEach(l => {
+                        if (l.nivel === 'token') { const b=document.getElementById('bm-token-bar'); if(b){b.style.display='flex'; const ti=document.getElementById('bm-tk-in'); const to=document.getElementById('bm-tk-out'); const tu=document.getElementById('bm-tk-usd'); if(ti)ti.textContent=(l.input||0).toLocaleString('pt-BR'); if(to)to.textContent=(l.output||0).toLocaleString('pt-BR'); if(tu)tu.textContent='US$'+(l.custo||0).toFixed(4);} return; }
                         if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
                         const c = l.nivel === 'erro' ? 'var(--red)' : l.nivel === 'aviso' ? 'var(--amber)' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : l.nivel === 'anexo' ? '#ff9800' : 'var(--muted)';
                         const icon = l.nivel === 'erro' ? '❌' : l.nivel === 'aviso' ? '⚠️' : l.nivel === 'ok' ? '✅' : '🔹';
@@ -1182,6 +1187,7 @@ async function confirmarBuscaNovoMun() {
                 const poll = await api("GET", `/api/buscador/job/${jobId}?cursor=${cursor}`);
                 if (poll.logs && poll.logs.length) {
                     poll.logs.forEach(l => {
+                        if (l.nivel === 'token') { const b=document.getElementById('bm-token-bar'); if(b){b.style.display='flex'; const ti=document.getElementById('bm-tk-in'); const to=document.getElementById('bm-tk-out'); const tu=document.getElementById('bm-tk-usd'); if(ti)ti.textContent=(l.input||0).toLocaleString('pt-BR'); if(to)to.textContent=(l.output||0).toLocaleString('pt-BR'); if(tu)tu.textContent='US$'+(l.custo||0).toFixed(4);} return; }
                         if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
                         const c = l.nivel === "erro" ? "#ff6b6b" : l.nivel === "aviso" ? "#ffb347" : l.nivel === "ok" ? "var(--accent)" : "var(--muted)";
                         const d = document.createElement("div");
@@ -2047,6 +2053,7 @@ carregarFila();
                 if (poll.logs && poll.logs.length) {
                     logRemoveSpinner();
                     poll.logs.forEach(l => {
+                        if (l.nivel === 'token') { const b=document.getElementById('bm-token-bar'); if(b){b.style.display='flex'; const ti=document.getElementById('bm-tk-in'); const to=document.getElementById('bm-tk-out'); const tu=document.getElementById('bm-tk-usd'); if(ti)ti.textContent=(l.input||0).toLocaleString('pt-BR'); if(to)to.textContent=(l.output||0).toLocaleString('pt-BR'); if(tu)tu.textContent='US$'+(l.custo||0).toFixed(4);} return; }
                         if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
                         const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : l.nivel === 'anexo' ? '#ff9800' : 'var(--muted)';
                         const d = document.createElement('div');

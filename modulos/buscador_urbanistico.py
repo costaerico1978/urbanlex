@@ -73,6 +73,9 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
             if hasattr(response, 'usage_metadata') and response.usage_metadata:
                 _token_stats['input'] += getattr(response.usage_metadata, 'prompt_token_count', 0) or 0
                 _token_stats['output'] += getattr(response.usage_metadata, 'candidates_token_count', 0) or 0
+                _ci = _token_stats['input'] / 1_000_000 * 0.30
+                _co = _token_stats['output'] / 1_000_000 * 2.50
+                logs.append({"nivel": "token", "input": _token_stats['input'], "output": _token_stats['output'], "custo": _ci + _co})
             resp_texto = (response.text or "").strip()
             if not resp_texto:
                 raise ValueError("Gemini retornou texto vazio")
