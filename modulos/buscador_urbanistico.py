@@ -286,6 +286,11 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
             logs.append({"nivel": "info", "msg": f"Duplicata normalizada ignorada: {tipo} {numero}/{ano}"})
             continue
         analisadas.add(chave)
+        # Filtrar leis federais/estaduais — nao buscaveis no LeisMunicipais
+        if _is_federal_ou_estadual(leg):
+            logs.append({"nivel": "aviso", "msg": f"  [FEDERAL/ESTADUAL] {tipo} {numero}/{ano} — fora do escopo municipal"})
+            _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=leg.get("_pergunta_label",""), status="nao_encontrada")
+            continue
         # Nivel 2: apenas listar na tabela, sem busca completa
         _nivel_leg = leg.get("_nivel", 0)
         if _nivel_leg >= 2:
@@ -296,6 +301,9 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
         _pergunta_origem = leg.get("_pergunta_label", "")
         _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=_pergunta_origem, status="analisando")
         enc = _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, modo=leg.get("_modo_verificacao","geral"), fallback_url=fallback_url)
+        if not enc:
+            _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=_pergunta_origem, status="nao_encontrada")
+            continue
         texto_enc = ""
         _altera_enc = []
         _revoga_enc = []
