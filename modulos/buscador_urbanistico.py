@@ -247,6 +247,11 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
     for _l in legs:
         if "_nivel" not in _l:
             _l["_nivel"] = 0
+    # Chaves das leis de nivel 0 para deteccao de promocao de nivel
+    nivel0_chaves = set()
+    for _l0 in legs:
+        _n0 = _l0.get("numero","").replace('.','').replace(' ','').strip().lstrip('0') or '0'
+        nivel0_chaves.add(f"{_l0.get('tipo','').lower()}_{_n0}_{_l0.get('ano','')}")
     fila = _deque(legs)
     _descartadas_log = []  # rastrear leis descartadas por nao definir parametros
     while fila:
@@ -261,7 +266,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
         # 1. Verificar por chave exata
         if chave in revogadas:
             # Buscar quem revogou na lista enriquecida
-            _rev_entry = next((r for r in revogadas_lista if f"{r.get('tipo','').lower()}_{r.get('numero','').replace('.','').replace(' ','').strip()}_{r.get('ano','')}" == chave), None)
+            _rev_entry = next((r for r in revogadas_lista if f"{r.get('tipo','').lower()}_{(r.get('numero','').replace('.','').replace(' ','').strip().lstrip('0') or '0')}_{r.get('ano','')}" == chave), None)
             _rev_info = _rev_entry.get("revogada_por", "legislacao mais recente") if _rev_entry else "legislacao mais recente"
             logs.append({"nivel": "aviso", "msg": f"⚠️ REVOGADA — {tipo} {numero}/{ano} foi revogada por {_rev_info} e NAO sera analisada"})
             logs.append({"nivel": "aviso", "msg": f"   Motivo: legislacao mais recente ({_rev_info}) revoga explicitamente esta"})
@@ -279,7 +284,6 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                 continue
         if chave in analisadas:
             logs.append({"nivel": "info", "msg": f"Duplicata normalizada ignorada: {tipo} {numero}/{ano}"})
-            _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=leg.get('_pergunta_label',''), status="nao_encontrada")
             continue
         analisadas.add(chave)
         # Nivel 2: apenas listar na tabela, sem busca completa
@@ -642,10 +646,17 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                 logs.append({"nivel": "info", "msg": f"  [FILA] Adicionando {_tipo_f} {_num}/{_ano} nivel={nivel} — {motivo}"})
                 fila.append({"tipo": _tipo_f, "numero": _num, "ano": _ano, "descricao": motivo, "_nivel": nivel, "_pergunta_label": ""})
         if _nivel_atual < 2:
-            _adicionar_na_fila(_altera_enc, _nivel_atual + 1, "alterada por lei atual")
-            _adicionar_na_fila(_regulamenta_enc, _nivel_atual + 1, "regulamentada por lei atual")
-            _adicionar_na_fila(_alterado_por_enc, _nivel_atual + 1, "altera lei atual")
-            _adicionar_na_fila(_regulamentado_por_enc, _nivel_atual + 1, "regulamenta lei atual")
+            # Se esta lei (nivel 1) altera uma lei de nivel 0, suas regulamentadoras
+            # sao promovidas a nivel 1 (Gemini pode ter omitido na busca inicial)
+            _altera_nivel0 = (_nivel_atual == 1) and any(
+                f"{_a.get('tipo','').lower()}_{(_a.get('numero','').replace('.','').replace(' ','').strip().lstrip('0') or '0')}_{_a.get('ano','')}"
+                in nivel0_chaves for _a in _altera_enc
+            )
+            _nivel_filho = 1 if _altera_nivel0 else (_nivel_atual + 1)
+            _adicionar_na_fila(_altera_enc, _nivel_filho, "alterada por lei atual")
+            _adicionar_na_fila(_regulamenta_enc, _nivel_filho, "regulamentada por lei atual")
+            _adicionar_na_fila(_alterado_por_enc, _nivel_filho, "altera lei atual")
+            _adicionar_na_fila(_regulamentado_por_enc, _nivel_filho, "regulamenta lei atual")
             # Leis citadas: só adicionar se nivel_atual == 0 (lei principal), nunca em cascata
             _cita_enc_local = _cita_enc
             if _nivel_atual > 0:
@@ -659,11 +670,11 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                     if _tp.lower() in _cit_str.lower():
                         _tipo_c = _tp
                         break
-                _num_c_n = _num_c.replace('.','').replace(' ','').strip()
+                _num_c_n = _num_c.replace('.','').replace(' ','').strip().lstrip('0') or '0'
                 _chave_c = f"{_tipo_c.lower()}_{_num_c_n}_{_ano_c}"
                 if _chave_c in analisadas or _chave_c in revogadas:
                     continue
-                if any(f"{l.get('tipo','').lower()}_{l.get('numero','').replace('.','').replace(' ','').strip()}_{l.get('ano','')}" == _chave_c for l in fila):
+                if any(f"{l.get('tipo','').lower()}_{(l.get('numero','').replace('.','').replace(' ','').strip().lstrip('0') or '0')}_{l.get('ano','')}" == _chave_c for l in fila):
                     continue
                 # IA avalia se a citacao e em contexto urbanistico relevante
                 try:
