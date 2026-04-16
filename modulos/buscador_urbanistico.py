@@ -656,10 +656,22 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
         if _nivel_atual < 2:
             # Se esta lei (nivel 1) altera uma lei de nivel 0, suas regulamentadoras
             # sao promovidas a nivel 1 (Gemini pode ter omitido na busca inicial)
-            _altera_nivel0 = (_nivel_atual == 1) and any(
-                f"{_a.get('tipo','').lower()}_{(_a.get('numero','').replace('.','').replace(' ','').strip().lstrip('0') or '0')}_{_a.get('ano','')}"
-                in nivel0_chaves for _a in _altera_enc
-            )
+            # Verificar se alguma lei em _altera_enc (strings) bate com nivel0_chaves
+            _altera_nivel0 = False
+            if _nivel_atual == 1:
+                for _a in _altera_enc:
+                    _an, _ay = _extrair_num_ano_fila(str(_a))
+                    if not _an or not _ay:
+                        continue
+                    _at = "lei"
+                    for _tp in ["lei complementar", "decreto-lei", "decreto", "resolucao", "resolução"]:
+                        if _tp in str(_a).lower():
+                            _at = _tp
+                            break
+                    _an_n = _an.replace('.','').replace(' ','').strip().lstrip('0') or '0'
+                    if f"{_at}_{_an_n}_{_ay}" in nivel0_chaves:
+                        _altera_nivel0 = True
+                        break
             _nivel_filho = 1 if _altera_nivel0 else (_nivel_atual + 1)
             _adicionar_na_fila(_altera_enc, _nivel_filho, "alterada por lei atual")
             _adicionar_na_fila(_regulamenta_enc, _nivel_filho, "regulamentada por lei atual")
