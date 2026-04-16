@@ -1127,6 +1127,7 @@ async function confirmarBuscaNovoMun() {
         document.getElementById("panel-auto").appendChild(logEl);
     }
     localStorage.removeItem('mun_log_cache');
+    const _oldTb2 = document.getElementById('auto-token-bar'); if(_oldTb2) _oldTb2.remove();
     logEl.innerHTML = '<div style="color:var(--accent);margin-bottom:8px;">🔍 Buscando legislações urbanísticas de ' + mun + "/" + est + '...</div>';
     const _btnLogShow = document.getElementById('btn-baixar-log-auto');
     if (_btnLogShow) _btnLogShow.style.display = 'inline-block';
@@ -1981,6 +1982,7 @@ carregarFila();
             document.getElementById('panel-auto').appendChild(logEl);
         }
         mudarTab('auto');
+        const _oldTb = document.getElementById('auto-token-bar'); if(_oldTb) _oldTb.remove();
         logEl.innerHTML = '<div style="color:var(--accent);margin-bottom:8px;">🔄 Reconectando busca de ' + mun + '/' + est + '...</div>';
         // btn-baixar-log-mun removido — usar btn-baixar-log-auto no topo
         let btnLogMun = document.getElementById('btn-baixar-log-mun');
