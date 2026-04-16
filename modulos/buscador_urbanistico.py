@@ -1104,7 +1104,6 @@ def _buscar_plano_diretor_lm(municipio, estado, logs, chamar_llm, analisadas):
                 define, _leis_ref_pd = _verificar_parametros(texto_lei, municipio, estado, tipo_enc, numero_enc, ano_enc, logs, chamar_llm, modo="geral")
                 if not define:
                     logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros urbanisticos — descartando"})
-                    _descartadas_log.append({"tipo": tipo, "numero": numero, "ano": ano, "nivel": leg.get("_nivel",0), "motivo": "nao define parametros"})
                     return None
             return {"tipo": tipo_enc if 'tipo_enc' in dir() else "Legislacao", "numero": numero_enc if 'numero_enc' in dir() else "?", "ano": ano_enc if 'ano_enc' in dir() else "?", "link": url_enc}
         logs.append({"nivel": "info", "msg": f"  LeisMunicipais: Plano Diretor nao encontrado para {municipio}"})
@@ -1183,9 +1182,11 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
                         except Exception:
                             pass
                     if not _altera:
-                        logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros e nao altera outras — descartando"})
-                        _descartadas_log.append({"tipo": tipo, "numero": numero, "ano": ano, "nivel": leg.get("_nivel",0), "motivo": "nao define parametros nem altera outras"})
-                        return None
+                        if leg.get("_nivel", 1) == 0:
+                            logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros mas e nivel 0 — mantendo"})
+                        else:
+                            logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros e nao altera outras — descartando"})
+                            return None
                     # Se altera outra lei, manter mesmo sem definir parametros diretamente
             _pdf = fs_result.get("pdf_nativo_s3") or fs_result.get("pdf_path") or ""
             _anexos = fs_result.get("anexos_lm") or []
