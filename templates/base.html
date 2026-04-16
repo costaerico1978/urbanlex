@@ -536,6 +536,7 @@
             </button>
             
         </div>
+        <div id="captcha-saldo-bar" style="margin:8px 12px 4px;padding:6px 10px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);"><span style="display:flex;align-items:center;gap:5px;"><span>2Captcha</span></span><span id="captcha-saldo-val" style="font-weight:500;font-family:monospace;">...</span><button onclick="_captchaAtualizar()" title="Atualizar" style="background:none;border:none;cursor:pointer;padding:0;font-size:11px;color:var(--muted);">atualizar</button></div>
         <div class="sidebar-footer">
             <div class="user-chip">
                 <div class="user-avatar" id="user-avatar">A</div>
@@ -663,6 +664,23 @@ async function emergencyCall(endpoint) {
     return r.json();
 }
 
+async function _captchaAtualizar() {
+  const el = document.getElementById('captcha-saldo-val');
+  const bar = document.getElementById('captcha-saldo-bar');
+  if (el) el.textContent = '...';
+  try {
+    const r = await fetch('/api/captcha/saldo');
+    const d = await r.json();
+    if (el) {
+      const v = parseFloat(d.saldo);
+      el.textContent = isNaN(v) ? '?' : '$' + v.toFixed(2);
+      if (bar) bar.style.borderColor = v < 1.0 ? 'rgba(255,80,80,0.4)' : 'rgba(255,255,255,0.08)';
+      el.style.color = v < 1.0 ? '#ff6b6b' : 'var(--accent)';
+    }
+  } catch(e) { if (el) el.textContent = 'erro'; }
+}
+setTimeout(_captchaAtualizar, 2000);
+setInterval(_captchaAtualizar, 300000);
 async function reiniciarWorker() {
     if (!confirm('Reiniciar o worker? Buscas em andamento serão interrompidas.')) return;
     const btn = document.querySelector('[onclick="reiniciarWorker()"]');

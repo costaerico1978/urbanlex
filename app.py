@@ -164,6 +164,17 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', '')
 
 # -- Debug: screenshots do navegador universal --
+@app.route('/api/captcha/saldo')
+def api_captcha_saldo():
+    import requests as _req, os as _os
+    key = _os.getenv('TWOCAPTCHA_API_KEY', '6d9468712a495eae8e97cbfa4c855191')
+    try:
+        r = _req.get(f'https://2captcha.com/res.php?key={key}&action=getbalance', timeout=8)
+        saldo = r.text.strip(); float(saldo)
+        return jsonify({'saldo': saldo})
+    except Exception as e:
+        return jsonify({'saldo': 'erro', 'msg': str(e)})
+
 @app.route('/debug/screenshots')
 def debug_screenshots():
     """Lista screenshots de debug do navegador universal."""
