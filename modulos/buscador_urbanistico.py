@@ -544,7 +544,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                             elif _c_rl == '}':
                                 _d_rl -= 1
                                 if _d_rl == 0: _e_rl = _i_rl + 1; break
-                        dados_rel = _json.loads(resp_rel_c[_s_rl:_e_rl] if _s_rl >= 0 else resp_rel_c)
+                        if _s_rl < 0: raise ValueError("sem JSON na resposta Gemini")
+                        dados_rel = _json.loads(resp_rel_c[_s_rl:_e_rl])
                         _altera_enc = list(set(_altera_enc + dados_rel.get("altera", [])))
                         _revoga_enc = list(set(_revoga_enc + dados_rel.get("revoga", [])))
                         # Revogação parcial — lista de objetos {lei, partes}
