@@ -396,12 +396,14 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                         if _pages:
                             from google import genai as _gai_ax
                             _model_ax = _gai_ax.Client(api_key=__import__('os').environ.get('GEMINI_API_KEY',''))
-                            _parts = [f"Extraia todo o texto desta pagina de documento municipal brasileiro. Retorne apenas o texto, sem comentarios."]
+                            _prompt_vision = "Extraia todo o texto desta pagina de documento municipal brasileiro. Retorne apenas o texto, sem comentarios."
+                            _img_parts = []
                             for _pg_name in _pages:
                                 _pg_path = _os_gs.path.join(_tmpdir_gs, _pg_name)
-                                with open(_pg_path, 'rb') as _f_pg:
-                                    _parts.append({"mime_type": "image/png", "data": _b64_ax.b64encode(_f_pg.read()).decode()})
-                            _resp_ax = _model_ax.models.generate_content(model='gemini-2.5-flash', contents=_parts)
+                                with open(_pg_path, "rb") as _f_pg:
+                                    _img_parts.append({"inline_data": {"mime_type": "image/png", "data": _b64_ax.b64encode(_f_pg.read()).decode()}})
+                            _contents = [{"role": "user", "parts": [{"text": _prompt_vision}] + _img_parts}]
+                            _resp_ax = _model_ax.models.generate_content(model="gemini-2.5-flash", contents=_contents)
                             _txt_vision = _resp_ax.text or ""
                             if _txt_vision:
                                 logs.append({"nivel": "info", "msg": f"  [ANEXOS] {label}: {len(_txt_vision)} chars via Gemini Vision"})
