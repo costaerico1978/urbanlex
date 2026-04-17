@@ -707,7 +707,7 @@ async function executarBuscaManual() {
                 if (poll.logs && poll.logs.length) {
                     logRemoveSpinner();
                     poll.logs.forEach(l => {
-                        if (l.nivel === 'token') { let tb=document.getElementById('auto-token-bar'); if(!tb){ tb=document.createElement('div'); tb.id='auto-token-bar'; tb.style='padding:4px 10px;margin-bottom:4px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;font-size:10px;color:#666;display:flex;gap:16px;'; logEl.insertAdjacentElement('beforebegin', tb); } tb.innerHTML='<span>Tokens: <b style="color:#00e5a0">'+(l.input||0).toLocaleString('pt-BR')+'</b> entrada / <b style="color:#00e5a0">'+(l.output||0).toLocaleString('pt-BR')+'</b> saída</span><span>Custo: <b style="color:#ffd06b">US$'+(l.custo||0).toFixed(4)+'</b></span>'; return; }
+                        if (l.nivel === 'token') { const tb=document.getElementById('auto-token-bar'); if(tb){ tb=document.createElement('div'); } tb.innerHTML='<span>Tokens: <b style="color:#00e5a0">'+(l.input||0).toLocaleString('pt-BR')+'</b> entrada / <b style="color:#00e5a0">'+(l.output||0).toLocaleString('pt-BR')+'</b> saída</span><span>Custo: <b style="color:#ffd06b">US$'+(l.custo||0).toFixed(4)+'</b></span>'; return; }
                         if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
                         const c = l.nivel === 'erro' ? 'var(--red)' : l.nivel === 'aviso' ? 'var(--amber)' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : l.nivel === 'anexo' ? '#ff9800' : 'var(--muted)';
                         const icon = l.nivel === 'erro' ? '❌' : l.nivel === 'aviso' ? '⚠️' : l.nivel === 'ok' ? '✅' : '🔹';
@@ -1127,7 +1127,7 @@ async function confirmarBuscaNovoMun() {
         document.getElementById("panel-auto").appendChild(logEl);
     }
     localStorage.removeItem('mun_log_cache');
-    const _oldTb2 = document.getElementById('auto-token-bar'); if(_oldTb2) _oldTb2.remove();
+    const _oldTb2 = document.getElementById('auto-token-bar'); if(_oldTb2) _oldTb2.style.display='none';
     logEl.innerHTML = '<div style="color:var(--accent);margin-bottom:8px;">🔍 Buscando legislações urbanísticas de ' + mun + "/" + est + '...</div>';
     const _btnLogShow = document.getElementById('btn-baixar-log-auto');
     if (_btnLogShow) _btnLogShow.style.display = 'inline-block';
@@ -1188,7 +1188,7 @@ async function confirmarBuscaNovoMun() {
                 const poll = await api("GET", `/api/buscador/job/${jobId}?cursor=${cursor}`);
                 if (poll.logs && poll.logs.length) {
                     poll.logs.forEach(l => {
-                        if (l.nivel === 'token') { let tb=document.getElementById('auto-token-bar'); if(!tb){ tb=document.createElement('div'); tb.id='auto-token-bar'; tb.style='padding:4px 10px;margin-bottom:4px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;font-size:10px;color:#666;display:flex;gap:16px;'; logEl.insertAdjacentElement('beforebegin', tb); } tb.innerHTML='<span>Tokens: <b style="color:#00e5a0">'+(l.input||0).toLocaleString('pt-BR')+'</b> entrada / <b style="color:#00e5a0">'+(l.output||0).toLocaleString('pt-BR')+'</b> saída</span><span>Custo: <b style="color:#ffd06b">US$'+(l.custo||0).toFixed(4)+'</b></span>'; return; }
+                        if (l.nivel === 'token') { const tb=document.getElementById('auto-token-bar'); if(tb){ tb=document.createElement('div'); } tb.innerHTML='<span>Tokens: <b style="color:#00e5a0">'+(l.input||0).toLocaleString('pt-BR')+'</b> entrada / <b style="color:#00e5a0">'+(l.output||0).toLocaleString('pt-BR')+'</b> saída</span><span>Custo: <b style="color:#ffd06b">US$'+(l.custo||0).toFixed(4)+'</b></span>'; return; }
                         if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
                         const c = l.nivel === "erro" ? "#ff6b6b" : l.nivel === "aviso" ? "#ffb347" : l.nivel === "ok" ? "var(--accent)" : "var(--muted)";
                         const d = document.createElement("div");
@@ -1982,7 +1982,7 @@ carregarFila();
             document.getElementById('panel-auto').appendChild(logEl);
         }
         mudarTab('auto');
-        const _oldTb = document.getElementById('auto-token-bar'); if(_oldTb) _oldTb.remove();
+        const _oldTb = document.getElementById('auto-token-bar'); if(_oldTb) _oldTb.style.display='none';
         logEl.innerHTML = '<div style="color:var(--accent);margin-bottom:8px;">🔄 Reconectando busca de ' + mun + '/' + est + '...</div>';
         // btn-baixar-log-mun removido — usar btn-baixar-log-auto no topo
         let btnLogMun = document.getElementById('btn-baixar-log-mun');
@@ -2055,7 +2055,7 @@ carregarFila();
                 if (poll.logs && poll.logs.length) {
                     logRemoveSpinner();
                     poll.logs.forEach(l => {
-                        if (l.nivel === 'token') { let tb=document.getElementById('auto-token-bar'); if(!tb){ tb=document.createElement('div'); tb.id='auto-token-bar'; tb.style='padding:4px 10px;margin-bottom:4px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;font-size:10px;color:#666;display:flex;gap:16px;'; logEl.insertAdjacentElement('beforebegin', tb); } tb.innerHTML='<span>Tokens: <b style="color:#00e5a0">'+(l.input||0).toLocaleString('pt-BR')+'</b> entrada / <b style="color:#00e5a0">'+(l.output||0).toLocaleString('pt-BR')+'</b> saída</span><span>Custo: <b style="color:#ffd06b">US$'+(l.custo||0).toFixed(4)+'</b></span>'; return; }
+                        if (l.nivel === 'token') { const tb=document.getElementById('auto-token-bar'); if(tb){ tb=document.createElement('div'); } tb.innerHTML='<span>Tokens: <b style="color:#00e5a0">'+(l.input||0).toLocaleString('pt-BR')+'</b> entrada / <b style="color:#00e5a0">'+(l.output||0).toLocaleString('pt-BR')+'</b> saída</span><span>Custo: <b style="color:#ffd06b">US$'+(l.custo||0).toFixed(4)+'</b></span>'; return; }
                         if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
                         const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : l.nivel === 'anexo' ? '#ff9800' : 'var(--muted)';
                         const d = document.createElement('div');
