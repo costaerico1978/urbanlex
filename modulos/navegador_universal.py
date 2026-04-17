@@ -3531,6 +3531,15 @@ def navegar_como_humano(
     pagina_ativa = page
     _edicoes_sem_lei = 0  # PDFs do DO baixados que não contêm a lei
     _MAX_EDICOES = 4      # Parar após 4 edições sem encontrar — evita busca infinita
+    # Auto-dismiss cookie banner antes do loop (sem gastar passo do Gemini)
+    try:
+        _cookie_btn = pagina_ativa.locator("text=Aceitar todos").first
+        if _cookie_btn.is_visible(timeout=1500):
+            _cookie_btn.click(timeout=2000)
+            pagina_ativa.wait_for_timeout(500)
+            logs.append({"nivel": "info", "msg": f"{label}: [auto] Banner de cookies dispensado"})
+    except Exception:
+        pass
 
     for passo in range(1, max_passos + 1):
         try:

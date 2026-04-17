@@ -266,6 +266,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
         descricao = leg.get("descricao", "")
         _num_norm = numero.replace('.','').replace(' ','').strip().lstrip('0') or '0'
         chave = f"{tipo}_{_num_norm}_{ano}".lower()
+        analisadas.add(chave)  # Reservar imediatamente para evitar re-enfileiramento
         # 1. Verificar por chave exata
         if chave in revogadas:
             # Buscar quem revogou na lista enriquecida
