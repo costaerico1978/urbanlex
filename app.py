@@ -3359,6 +3359,10 @@ def api_buscador_municipio():
     est = d.get("estado", "").strip()
     if not mun or not est:
         return jsonify({"success": False, "error": "municipio e estado obrigatorios"}), 400
+    # Bloquear jobs concorrentes
+    _jc_ativos=[j for jid,j in _buscador_jobs.items() if not j.get("done") and not j.get("cancelled") and j.get("tipo")=="auto"]
+    if _jc_ativos:
+        return jsonify({"success":False,"error":"job_concorrente"}), 409
     job_id = str(uuid.uuid4())[:8]
     job = {"done": False, "cancelled": False, "logs": [], "result": None, "tipo": "auto"}
     _buscador_jobs[job_id] = job

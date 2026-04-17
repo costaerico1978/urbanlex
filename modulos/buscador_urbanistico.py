@@ -43,12 +43,12 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
 
     # ETAPA 1: 3 perguntas ao Gemini para identificar legislacoes
     PERGUNTAS = [
-        f"quais sao todas as legislacoes vigentes que definem parametros urbanisticos de {municipio} {estado}? Liste todas, inclusive leis complementares, decretos regulamentadores e legislacoes especificas por zona.",
-        f"quais sao todas as legislacoes vigentes de zoneamento e macrozoneamento de {municipio} {estado}? Inclua leis complementares, planos diretores e decretos relacionados.",
-        f"quais sao todas as legislacoes vigentes de uso e ocupacao do solo de {municipio} {estado}? Liste todas, inclusive alteracoes parciais ainda em vigor.",
-        f"quais sao todas as legislacoes vigentes de parcelamento do solo urbano de {municipio} {estado}? Inclua leis de loteamento, desmembramento e condominio.",
-        f"quais sao todas as legislacoes vigentes que compoem o codigo de obras e edificacoes de {municipio} {estado}? Inclua decretos regulamentadores ainda em vigor.",
-        f"qual e o Plano Diretor vigente de {municipio} {estado}? Inclua o nome oficial, numero e ano. Houve revisoes ou atualizacoes recentes?",
+        f"quais sao todas as legislacoes vigentes que definem parametros urbanisticos de {municipio} {estado}? Liste todas, inclusive leis complementares, decretos regulamentadores e legislacoes especificas por zona. IMPORTANTE: Liste APENAS legislacoes MUNICIPAIS de {municipio}. NAO inclua leis federais nem estaduais.",
+        f"quais sao todas as legislacoes vigentes de zoneamento e macrozoneamento de {municipio} {estado}? Inclua leis complementares, planos diretores e decretos relacionados. IMPORTANTE: Liste APENAS legislacoes MUNICIPAIS de {municipio}. NAO inclua leis federais nem estaduais.",
+        f"quais sao todas as legislacoes vigentes de uso e ocupacao do solo de {municipio} {estado}? Liste todas, inclusive alteracoes parciais ainda em vigor. IMPORTANTE: Liste APENAS legislacoes MUNICIPAIS de {municipio}. NAO inclua leis federais nem estaduais.",
+        f"quais sao todas as legislacoes vigentes de parcelamento do solo urbano de {municipio} {estado}? Inclua leis de loteamento, desmembramento e condominio. IMPORTANTE: Liste APENAS legislacoes MUNICIPAIS de {municipio}. NAO inclua leis federais nem estaduais.",
+        f"quais sao todas as legislacoes vigentes que compoem o codigo de obras e edificacoes de {municipio} {estado}? Inclua decretos regulamentadores ainda em vigor. IMPORTANTE: Liste APENAS legislacoes MUNICIPAIS de {municipio}. NAO inclua leis federais nem estaduais.",
+        f"qual e o Plano Diretor vigente de {municipio} {estado}? Inclua o nome oficial, numero e ano. Houve revisoes ou atualizacoes recentes? IMPORTANTE: Liste APENAS legislacoes MUNICIPAIS de {municipio}. NAO inclua leis federais nem estaduais.",
     ]
     legs = []
     _chaves_legs = set()
@@ -294,12 +294,18 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
             logs.append({"nivel": "aviso", "msg": f"  [FEDERAL/ESTADUAL] {tipo} {numero}/{ano} — fora do escopo municipal"})
             _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=leg.get("_pergunta_label",""), status="nao_encontrada")
             continue
-        # Nivel 2: apenas listar na tabela, sem busca completa
-        _nivel_leg = leg.get("_nivel", 0)
-        if _nivel_leg >= 2:
-            logs.append({"nivel": "info", "msg": f"  [FILA] {tipo} {numero}/{ano} nivel=2 — apenas listada na tabela, sem busca"})
-            _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=leg.get("_pergunta_label",""), status="referenciada", link="")
+        _nivel_leg=leg.get("_nivel",0);_desc_leg=leg.get("descricao","").lower();_via_cita="citada em contexto" in _desc_leg;_limite_nivel=1 if _via_cita else 3
+        if _nivel_leg>_limite_nivel:
+            logs.append({"nivel":"info","msg":f"  [FILA] {tipo} {numero}/{ano} nivel={_nivel_leg} limite={_limite_nivel}"})
+            _tabela_evento(logs,municipio,estado,tipo,numero,ano,pergunta=leg.get("_pergunta_label",""),status="referenciada",link="")
             continue
+        if _nivel_leg>0:
+            try:
+                _re=chamar_llm(f"A {tipo} {numero}/{ano} e municipal de {municipio}/{estado} ou estadual/federal? Responda APENAS: municipal, estadual ou federal.",logs,f"Esfera {numero}")
+                if _re and ("estadual" in _re.lower() or "federal" in _re.lower()):
+                    logs.append({"nivel":"aviso","msg":f"  [FILTRO] {tipo} {numero}/{ano} {_re.strip()[:20]} (Gemini)"})
+                    _tabela_evento(logs,municipio,estado,tipo,numero,ano,pergunta=leg.get("_pergunta_label",""),status="nao_encontrada");continue
+            except Exception: pass
         logs.append({"nivel": "info", "msg": f"Buscando {tipo} n {numero}/{ano} ({descricao}) no LeisMunicipais..."})
         _pergunta_origem = leg.get("_pergunta_label", "")
         _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=_pergunta_origem, status="analisando")
@@ -643,6 +649,10 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                 _num, _ano = _extrair_num_ano_fila(_lei_str)
                 if not _num or not _ano:
                     continue
+                _lstr_low = str(_lei_str).lower()
+                if " federal" in _lstr_low or "lei federal" in _lstr_low or " estadual" in _lstr_low or "lei estadual" in _lstr_low:
+                    logs.append({"nivel": "info", "msg": f"  [FILTRO] {_lei_str} federal/estadual"})
+                    continue
                 _tipo_f = "Lei"
                 for _tp in ["Lei Complementar", "Decreto-Lei", "Decreto", "Resolucao", "Resolucao", "Lei"]:
                     if _tp.lower() in _lei_str.lower():
@@ -656,6 +666,16 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                     continue
                 logs.append({"nivel": "info", "msg": f"  [FILA] Adicionando {_tipo_f} {_num}/{_ano} nivel={nivel} — {motivo}"})
                 fila.append({"tipo": _tipo_f, "numero": _num, "ano": _ano, "descricao": motivo, "_nivel": nivel, "_pergunta_label": ""})
+        for _rr in (_revoga_enc or []):
+            _rn,_ra=_extrair_num_ano_fila(_rr)
+            if not _rn or not _ra: continue
+            _rt="lei"
+            for _tp in ["lei complementar","decreto-lei","decreto","resolucao"]:
+                if _tp in str(_rr).lower(): _rt=_tp;break
+            _rnorm=_rn.replace(".","").replace(" ","").strip().lstrip("0") or "0"
+            if f"{_rt}_{_rnorm}_{_ra}" in analisadas:
+                logs.append({"nivel":"aviso","msg":f"  [RETRO] {_rr} ja analisada — revogada por {tipo} {numero}/{ano}"})
+                _tabela_evento(logs,municipio,estado,_rt,_rn,_ra,pergunta="",status="revogada",revogado_por=[f"{tipo} {numero}/{ano}"])
         if _nivel_atual < 2:
             # Se esta lei (nivel 1) altera uma lei de nivel 0, suas regulamentadoras
             # sao promovidas a nivel 1 (Gemini pode ter omitido na busca inicial)
@@ -701,12 +721,12 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                     continue
                 # IA avalia se a citacao e em contexto urbanistico relevante
                 try:
-                    _prompt_ctx = (
-                        f"No texto da {tipo} {numero}/{ano} de {municipio}/{estado}, "
-                        f"a legislacao '{_cit_str}' e citada em contexto de zoneamento, zonas, subzonas, "
-                        f"parametros de parcelamento do solo ou uso e ocupacao do solo?\n"
-                        f"Responda APENAS: sim ou nao"
-                    )
+                    _trecho=""
+                    try:
+                        _ii=texto_enc.lower().find(_num_c.lower())
+                        if _ii>=0: _trecho=texto_enc[max(0,_ii-200):min(len(texto_enc),_ii+200)].replace("\n"," ").strip()
+                    except: pass
+                    _prompt_ctx=f"Trecho de {municipio}/{estado}:\n[TRECHO]:{_trecho or str(_cit_str)}\n\nA citacao a '{_cit_str}' condiciona parametros como gabarito, recuos, CA, TO, zoneamento, parcelamento, lote minimo, areas computaveis ou qualquer parametro que influencie ocupacao e potencial construtivo?\nResponda APENAS: sim ou nao"
                     _resp_ctx = chamar_llm(_prompt_ctx, logs, f"Ctx cita {_num_c}")
                     if _resp_ctx and "sim" in _resp_ctx.lower():
                         logs.append({"nivel": "info", "msg": f"  [FILA] {_cit_str} citada em contexto urbanistico — adicionando nivel=1"})
