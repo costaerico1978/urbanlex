@@ -2020,6 +2020,8 @@ carregarFila();
             localStorage.removeItem('mun_job_id');
             localStorage.setItem('mun_log_cache_done', 'true');
             // Não remover mun_log_cache — persiste até nova busca
+            // Exibir resultados e botoes ZIP/PDF se disponivel
+            if (check.result) { document.getElementById('bm-resultados').style.display='block'; renderizarResultadoBusca(check.result, '0'); }
             return;
         }
         // Restaurar hist_id para botao de download
