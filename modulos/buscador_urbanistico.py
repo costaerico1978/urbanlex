@@ -1182,6 +1182,97 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
             logs.append({"nivel": "aviso", "msg": f"FlareSolverr renovacao falhou: {str(_ef)[:60]}"})
         url_fs = "https://leismunicipais.com.br"
         leg_dict = {"tipo": tipo, "numero": numero, "ano": ano, "municipio": municipio, "estado": estado}
+        _STATUS_DEF = ("nenhum_resultado_relevante", "palavra_chave_nao_encontrada", "municipio_nao_encontrado")
+        _MAX_TENT = 3
+        fs_result = {"encontrada": False}
+        for _tent in range(_MAX_TENT):
+            if _tent > 0:
+                logs.append({"nivel": "aviso", "msg": f"  [Retry {_tent}/{_MAX_TENT-1}] Falha tecnica — renovando sessao e retentando LeisMunicipais..."})
+                try:
+                    import requests as _rfs2, os as _ofs2
+                    _old2 = _ofs2.environ.get("FLARESOLVERR_SESSION", "")
+                    if _old2:
+                        _rfs2.post("http://localhost:8191/v1", json={"cmd": "sessions.destroy", "session": _old2}, timeout=5)
+                    _rn2 = _rfs2.post("http://localhost:8191/v1", json={"cmd": "sessions.create"}, timeout=10)
+                    _ns2 = _rn2.json().get("session", "")
+                    if _ns2:
+                        _ofs2.environ["FLARESOLVERR_SESSION"] = _ns2
+                        import subprocess as _sp2
+                        _sp2.run(["sed", "-i", f"s/FLARESOLVERR_SESSION=.*/FLARESOLVERR_SESSION={_ns2}/", "/var/www/urbanlex/.env"], capture_output=True)
+                        logs.append({"nivel": "info", "msg": f"FlareSolverr sessao renovada: {_ns2[:8]}..."})
+                except Exception as _ef2:
+                    logs.append({"nivel": "aviso", "msg": f"FlareSolverr renovacao falhou: {str(_ef2)[:60]}"})
+            logs.append({"nivel": "info", "msg": f"  Buscando {tipo} {numero}/{ano} no LeisMunicipais via FlareSolverr..."})
+            fs_result = navegar_com_cookies_flaresolverr(url_fs, leg_dict, logs, label=f"LM {tipo} {numero}", chamar_llm=chamar_llm)
+            if fs_result.get("site_fora_do_ar"):
+                logs.append({"nivel": "erro", "msg": "  LeisMunicipais esta fora do ar — encerrando busca"})
+                return None
+            if fs_result.get("encontrada") and fs_result.get("url"):
+                break
+            if any(fs_result.get(s) for s in _STATUS_DEF):
+                break
+            if _tent < _MAX_TENT - 1:
+                logs.append({"nivel": "aviso", "msg": f"  [Retry] Tentativa {_tent+1} sem resultado tecnico — tentando novamente..."})
+        if fs_result.get("municipio_nao_encontrado"):
+            logs.append({"nivel": "aviso", "msg": f"  Municipio '{municipio}' nao consta no LeisMunicipais"})
+            return None
+        if fs_result.get("palavra_chave_nao_encontrada"):
+            logs.append({"nivel": "aviso", "msg": f"  Termo 'plano diretor' nao encontrado no LeisMunicipais para {municipio}"})
+            return None
+        if fs_result.get("encontrada") and fs_result.get("url"):
+            url_enc = fs_result["url"]
+            if url_enc.lower() in analisadas:
+                return None
+            analisadas.add(url_enc.lower())
+            logs.append({"nivel": "ok", "msg": f"  LeisMunicipais: encontrada! {url_enc[:80]}"})
+            html_lei = fs_result.get("html", "")
+            _ementa_lei = ""
+            if html_lei:
+                from bs4 import BeautifulSoup as _bs
+                _soup_em = _bs(html_lei, "html.parser")
+                _lc = _soup_em.find(class_='law-container')
+                if _lc:
+                    _p = _lc.find('p')
+                    if _p:
+                        _ementa_lei = _p.get_text(separator=' ', strip=True)[:300]
+                texto_lei = _soup_em.get_text()
+                # Extrair tipo/numero/ano da URL ou do HTML
+                import re as _re
+                m = _re.search(r"/([a-z-]+)/(\d{4})/\d+/(\d+)/", url_enc)
+                tipo_enc = m.group(1).replace("-", " ").title() if m else "Legislacao"
+                numero_enc = m.group(3) if m else "?"
+                ano_enc = m.group(2) if m else "?"
+                define, _leis_ref_pd = _verificar_parametros(texto_lei, municipio, estado, tipo_enc, numero_enc, ano_enc, logs, chamar_llm, modo="geral")
+                if not define:
+                    logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros urbanisticos — descartando"})
+                    return None
+            return {"tipo": tipo_enc if 'tipo_enc' in dir() else "Legislacao", "numero": numero_enc if 'numero_enc' in dir() else "?", "ano": ano_enc if 'ano_enc' in dir() else "?", "link": url_enc}
+        logs.append({"nivel": "info", "msg": f"  LeisMunicipais: Plano Diretor nao encontrado para {municipio}"})
+    except Exception as e:
+        logs.append({"nivel": "aviso", "msg": f"  Erro busca palavra-chave LM: {str(e)[:80]}"})
+    return None
+
+def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, modo="geral", fallback_url=None, _nivel=1):
+    _fb_url_local = fallback_url
+    try:
+        from modulos.navegador_universal import navegar_com_cookies_flaresolverr
+        # Renovar sessao FlareSolverr
+        try:
+            import requests as _rfs, os as _ofs
+            _old = _ofs.environ.get("FLARESOLVERR_SESSION", "")
+            if _old:
+                _rfs.post("http://localhost:8191/v1", json={"cmd": "sessions.destroy", "session": _old}, timeout=5)
+            _rn = _rfs.post("http://localhost:8191/v1", json={"cmd": "sessions.create"}, timeout=10)
+            _ns = _rn.json().get("session", "")
+            if _ns:
+                _ofs.environ["FLARESOLVERR_SESSION"] = _ns
+                import subprocess as _sp
+                _sp.run(["sed", "-i", f"s/FLARESOLVERR_SESSION=.*/FLARESOLVERR_SESSION={_ns}/", "/var/www/urbanlex/.env"], capture_output=True)
+                logs.append({"nivel": "info", "msg": f"FlareSolverr sessao renovada: {_ns[:8]}..."})
+        except Exception as _ef:
+            logs.append({"nivel": "aviso", "msg": f"FlareSolverr renovacao falhou: {str(_ef)[:60]}"})
+        url_fs = "https://leismunicipais.com.br"
+        leg_dict = {"tipo": tipo, "numero": numero, "ano": ano, "municipio": municipio, "estado": estado}
         logs.append({"nivel": "info", "msg": f"  Buscando {tipo} {numero}/{ano} no LeisMunicipais via FlareSolverr..."})
         fs_result = navegar_com_cookies_flaresolverr(url_fs, leg_dict, logs, label=f"LM {tipo} {numero}", chamar_llm=chamar_llm)
         if fs_result.get("site_fora_do_ar"):
