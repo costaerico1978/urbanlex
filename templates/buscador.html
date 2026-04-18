@@ -811,6 +811,10 @@ function renderizarResultadoBusca(r, duracao) {
         return;
     }
 
+    // Normalizar resultado: suportar tanto {legislacoes} quanto {encontradas}
+    if (!r.legislacoes && r.encontradas) r.legislacoes = r.encontradas;
+    if (r.legislacoes === undefined) r.success = false;
+    else if (r.success === undefined) r.success = true;
     if (!r.success || !r.legislacoes || r.legislacoes.length === 0) {
         logLine('🤷', 'Nenhuma legislação encontrada', 'var(--amber)');
         el.innerHTML = `<div class="empty-busca"><div class="empty-icon">🤷</div>

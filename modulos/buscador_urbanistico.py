@@ -936,6 +936,32 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
             resultado['zip_url']  = f"/static/downloads/{zip_nome}"
             resultado['zip_nome'] = zip_nome
             resultado['legislacoes_json'] = legs_json
+            # Mapear para formato que o frontend renderizarResultadoBusca espera
+            # Usar encontradas para pegar pdf_path e anexos_lm
+            _enc_map = {}
+            for _e in resultado.get('encontradas', []):
+                _k = f"{_e.get('tipo','').lower()}_{_e.get('numero','').replace('.','').replace(' ','').strip()}_{_e.get('ano','')}"
+                _enc_map[_k] = _e
+            resultado['legislacoes'] = []
+            for l in legs_json:
+                _k2 = f"{l['tipo'].lower()}_{l['numero'].replace('.','').replace(' ','').strip()}_{l['ano']}"
+                _enc_e = _enc_map.get(_k2, {})
+                _pdf_path = _enc_e.get('pdf_path') or ''
+                _pdf_url = f"/static/downloads/{_os_zip.path.basename(_pdf_path)}" if _pdf_path and _os_zip.path.exists(_pdf_path) else ''
+                _anexos = [{'nome': a.get('nome','Anexo'), 'url': a.get('url', '')} for a in (_enc_e.get('anexos_lm') or [])]
+                resultado['legislacoes'].append({
+                    'nome': f"{l['tipo']} {l['numero']}/{l['ano']}",
+                    'tipo': l['tipo'], 'numero': l['numero'], 'ano': l['ano'],
+                    'url': l['link'], 'link': l['link'],
+                    'descricao': l['descricao'], 'categoria': l['categoria'],
+                    'relevancia': 1.0,
+                    'texto_preview': l['descricao'][:200] if l['descricao'] else '',
+                    '_fonte': 'leismunicipais',
+                    'pdf_download_url': _pdf_url,
+                    'anexos_lm': _anexos,
+                    'ementa': _enc_e.get('ementa', ''),
+                })
+            resultado['success'] = True
             logs.append({'nivel': 'ok', 'msg': f'📦 ZIP consolidado: {zip_nome} ({len(resultado["encontradas"])} legislações em {len(set(l["categoria"] for l in legs_json))} categorias)'})
 
         except Exception as _ez:
