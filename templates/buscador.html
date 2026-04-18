@@ -707,7 +707,7 @@ async function executarBuscaManual() {
                 if (poll.logs && poll.logs.length) {
                     logRemoveSpinner();
                     poll.logs.forEach(l => {
-                        if (l.nivel === 'token') { const tb=document.getElementById('auto-token-bar'); if(tb){ tb=document.createElement('div'); } tb.innerHTML='<span>Tokens: <b style="color:#00e5a0">'+(l.input||0).toLocaleString('pt-BR')+'</b> entrada / <b style="color:#00e5a0">'+(l.output||0).toLocaleString('pt-BR')+'</b> saída</span><span>Custo: <b style="color:#ffd06b">US$'+(l.custo||0).toFixed(4)+'</b></span>'; return; }
+                        if (l.nivel === 'token') { const tb=document.getElementById('auto-token-bar'); if(tb){ tb.style.display=''; tb.innerHTML='<span>Tokens: <b style="color:#00e5a0">'+(l.input||0).toLocaleString('pt-BR')+'</b> entrada / <b style="color:#00e5a0">'+(l.output||0).toLocaleString('pt-BR')+'</b> saída</span><span>Custo: <b style="color:#ffd06b">US$'+(l.custo||0).toFixed(4)+'</b></span>'; } return; }
                         if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
                         const c = l.nivel === 'erro' ? 'var(--red)' : l.nivel === 'aviso' ? 'var(--amber)' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : l.nivel === 'anexo' ? '#ff9800' : 'var(--muted)';
                         const icon = l.nivel === 'erro' ? '❌' : l.nivel === 'aviso' ? '⚠️' : l.nivel === 'ok' ? '✅' : '🔹';
@@ -1192,7 +1192,7 @@ async function confirmarBuscaNovoMun() {
                 const poll = await api("GET", `/api/buscador/job/${jobId}?cursor=${cursor}`);
                 if (poll.logs && poll.logs.length) {
                     poll.logs.forEach(l => {
-                        if (l.nivel === 'token') { const tb=document.getElementById('auto-token-bar'); if(tb){ tb=document.createElement('div'); } tb.innerHTML='<span>Tokens: <b style="color:#00e5a0">'+(l.input||0).toLocaleString('pt-BR')+'</b> entrada / <b style="color:#00e5a0">'+(l.output||0).toLocaleString('pt-BR')+'</b> saída</span><span>Custo: <b style="color:#ffd06b">US$'+(l.custo||0).toFixed(4)+'</b></span>'; return; }
+                        if (l.nivel === 'token') { const tb=document.getElementById('auto-token-bar'); if(tb){ tb.style.display=''; tb.innerHTML='<span>Tokens: <b style="color:#00e5a0">'+(l.input||0).toLocaleString('pt-BR')+'</b> entrada / <b style="color:#00e5a0">'+(l.output||0).toLocaleString('pt-BR')+'</b> saída</span><span>Custo: <b style="color:#ffd06b">US$'+(l.custo||0).toFixed(4)+'</b></span>'; } return; }
                         if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
                         const c = l.nivel === "erro" ? "#ff6b6b" : l.nivel === "aviso" ? "#ffb347" : l.nivel === "ok" ? "var(--accent)" : "var(--muted)";
                         const d = document.createElement("div");
@@ -2059,7 +2059,7 @@ carregarFila();
                 if (poll.logs && poll.logs.length) {
                     logRemoveSpinner();
                     poll.logs.forEach(l => {
-                        if (l.nivel === 'token') { const tb=document.getElementById('auto-token-bar'); if(tb){ tb=document.createElement('div'); } tb.innerHTML='<span>Tokens: <b style="color:#00e5a0">'+(l.input||0).toLocaleString('pt-BR')+'</b> entrada / <b style="color:#00e5a0">'+(l.output||0).toLocaleString('pt-BR')+'</b> saída</span><span>Custo: <b style="color:#ffd06b">US$'+(l.custo||0).toFixed(4)+'</b></span>'; return; }
+                        if (l.nivel === 'token') { const tb=document.getElementById('auto-token-bar'); if(tb){ tb.style.display=''; tb.innerHTML='<span>Tokens: <b style="color:#00e5a0">'+(l.input||0).toLocaleString('pt-BR')+'</b> entrada / <b style="color:#00e5a0">'+(l.output||0).toLocaleString('pt-BR')+'</b> saída</span><span>Custo: <b style="color:#ffd06b">US$'+(l.custo||0).toFixed(4)+'</b></span>'; } return; }
                         if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
                         const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : l.nivel === 'anexo' ? '#ff9800' : 'var(--muted)';
                         const d = document.createElement('div');
