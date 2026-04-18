@@ -168,9 +168,11 @@ REGRAS:
     (b) Digitar o nome do municipio no campo de cidade e aguardar autocomplete — selecionar da lista (regra 12). ATENCAO: apos selecionar o municipio no autocomplete o formulario avancado pode fechar automaticamente — isso e normal, clique em 'Mais opcoes' novamente para reabri-lo e continue.
     (c) Clicar no dropdown "Todos os Atos" e selecionar o tipo correto (ex: "Leis Complementares").
     (d) Digitar SOMENTE o NUMERO da lei no campo de numero/palavra-chave — SEM o ano, SEM barra, SEM qualquer outro caractere. Exemplo: se a lei e 270/2024, digitar apenas "270".
-    (e) Clicar em "Pesquisar".
-    (f) Nos resultados, clicar SOMENTE no TITULO da legislacao (texto em vermelho). NUNCA clique em links encurtados como "http://leis.org/..." ou "bit.ly/..." — ignorar completamente.
-    (g) Apos abrir a pagina da legislacao e ela carregar completamente (div com o texto da lei visivel), procure o botao de download do PDF original (pode aparecer como "PDF", "Baixar PDF", "Download PDF", icone de PDF, ou similar) e clique nele. So marque "concluido" DEPOIS de clicar no botao de download.
+    (e) Filtrar por ano: clicar em "Qualquer data" para expandir o filtro de datas. Usar acao "digitar" no campo "A partir de" com "01/01/ANO" (ANO = ano real da lei, ex: 01/01/2024). Para o campo "Ate": tente "digitar" com "31/12/ANO"; se for dropdown (select), clicar nele e selecionar a opcao do ano correto. NUNCA use preencher_formulario para campos de data — use sempre acoes digitar ou clicar individuais.
+    (f) Clicar em "Pesquisar".
+    (g) Nos resultados, clicar SOMENTE no TITULO da legislacao (texto em vermelho). NUNCA clique em links encurtados como "http://leis.org/..." ou "bit.ly/..." — ignorar completamente.
+    (h) Apos abrir a pagina da legislacao e ela carregar completamente (div com o texto da lei visivel), procure o botao de download do PDF original (pode aparecer como "PDF", "Baixar PDF", "Download PDF", icone de PDF, ou similar) e clique nele. So marque "concluido" DEPOIS
+de clicar no botao de download.
 12. CAMPOS COM AUTOCOMPLETE (campo de cidade/municipio): NUNCA use preencher_formulario nesses campos. Use a sequencia: (a) "digitar" no campo; (b) aguarde a lista de sugestoes aparecer (ela aparece abaixo do campo); (c) "clicar" na primeira sugestao da lista. Se nao aparecer lista imediatamente e a pagina mostrar "Pesquisando..." isso significa que a lista AINDA ESTA CARREGANDO — tire outro screenshot para ver se ela ja apareceu. Tente tambem digitar so as primeiras 3 letras para forcar o autocomplete. O sistema REJEITA o municipio se voce nao SELECIONAR da lista — digitar sem clicar na sugestao nunca funciona. Somente desista se apos multiplas tentativas a lista realmente nao aparecer.
 12. TEXTO DO ELEMENTO: copie o texto EXATO como aparece na tela. Exemplos:
     - Botao "OK" -> texto_elemento: "OK"
