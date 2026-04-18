@@ -166,7 +166,7 @@ REGRAS:
 13. LEISMUNICIPAIS.COM.BR — siga EXATAMENTE esta sequencia, sem pular passos:
     (a) Clicar em "Mais opcoes" para expandir o formulario avancado.
     (b) Digitar o nome do municipio no campo de cidade e aguardar autocomplete — selecionar da lista (regra 12). ATENCAO: apos selecionar o municipio no autocomplete o formulario avancado pode fechar automaticamente — isso e normal, clique em 'Mais opcoes' novamente para reabri-lo e continue.
-    (c) Clicar no dropdown "Todos os Atos" e selecionar o tipo correto (ex: "Leis Complementares").
+    (c) Clicar no dropdown "Todos os Atos" e selecionar o tipo correto. Use SEMPRE o plural exato como aparece na lista: "Leis" (nao "Lei"), "Leis Complementares" (nao "Lei Complementar"), "Decretos" (nao "Decreto"), "Decretos-Leis" (nao "Decreto-Lei"), "Portarias" (nao "Portaria").
     (d) Digitar SOMENTE o NUMERO da lei no campo de numero/palavra-chave — SEM o ano, SEM barra, SEM qualquer outro caractere. Exemplo: se a lei e 270/2024, digitar apenas "270".
     (e) Filtrar por ano: clicar em "Qualquer data" para expandir o filtro de datas. Usar acao "digitar" no campo "A partir de" com "01/01/ANO" (ANO = ano real da lei, ex: 01/01/2023). Em seguida usar preencher_formulario no campo "Ate" com tipo_campo "select" e valor "Proximos 12 meses". Apos preencher os dois campos prosseguir imediatamente para (f). CRITICO: apos preencher as datas, o dropdown de tipo de ato pode exibir "1 Ato selecionado" — isso e NORMAL e significa que o tipo ja esta corretamente selecionado desde o passo (c). NAO clique nele novamente.
     (f) Clicar em "Pesquisar".
