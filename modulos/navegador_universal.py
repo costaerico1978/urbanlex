@@ -222,6 +222,9 @@ def _clicar_por_texto(page, texto_elemento: str, logs: list, label: str) -> str:
     if not texto:
         return 'Erro: texto_elemento vazio'
     
+    # Normalizar variacoes conhecidas do LeisMunicipais
+    _lm_map = {"lei complementares": "Leis Complementares", "lei complementar": "Leis Complementares", "leis complementar": "Leis Complementares", "decreto leis": "Decretos-Lei", "decreto-leis": "Decretos-Lei", "decreto lei": "Decretos-Lei", "decretos lei": "Decretos-Lei", "leis ordinarias": "Leis", "lei ordinaria": "Leis"}
+    texto = _lm_map.get(texto.lower(), texto)
     try:
         url_antes = page.url
     except Exception:
