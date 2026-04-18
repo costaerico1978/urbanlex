@@ -667,6 +667,7 @@ async function executarBuscaManual() {
         const jobId = startResp.job_id;
         window._buscadorJobId = jobId;
         window._buscadorCancelado = false;
+        try { const _vi = await api("GET","/api/versao"); window._buscador_commit_inicio = _vi.commit||"?"; } catch(e) { window._buscador_commit_inicio = "?"; }
         // Salvar estado no localStorage e atualizar URL
         localStorage.setItem('buscador_job_id', jobId);
         localStorage.setItem('buscador_campos', JSON.stringify(body));
@@ -694,6 +695,14 @@ async function executarBuscaManual() {
                     if (notFoundCount > 13) { // 13 * 1.5s = ~20s sem encontrar
                         done = true;
                         finalResult = null;
+                        const _sp3 = logEl.querySelector('.log-line-spinner'); if (_sp3) _sp3.remove();
+                        try {
+                            const _vv3 = await api('GET','/api/versao');
+                            const _nc3 = _vv3.commit||'?'; const _oc3 = window._buscador_commit_inicio||'?';
+                            const _dm3 = document.createElement('div'); _dm3.style.cssText='color:#e74c3c;margin-top:8px;font-weight:600;';
+                            _dm3.textContent = (_nc3 !== _oc3) ? '⚡ Busca interrompida — deploy do commit ' + _nc3 : '⚠️ Busca interrompida — servidor reiniciado';
+                            logEl.appendChild(_dm3); logEl.scrollTop = logEl.scrollHeight;
+                        } catch(e3) {}
                     } else {
                         logSpinner(`Aguardando worker... (${notFoundCount})`);
                     }
