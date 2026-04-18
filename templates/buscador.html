@@ -1987,6 +1987,16 @@ carregarFila();
         }
         mudarTab('auto');
         const _oldTb = document.getElementById('auto-token-bar'); if(_oldTb) _oldTb.style.display='none';
+        // Se job ja concluiu, nao mostrar spinner de reconexao
+        if (check.done) {
+            localStorage.removeItem('mun_job_id');
+            localStorage.removeItem('mun_log_cache');
+            if (check.result) {
+                document.getElementById('bm-resultados').style.display = 'block';
+                renderizarResultadoBusca(check.result, '0');
+            }
+            return;
+        }
         logEl.innerHTML = '<div style="color:var(--accent);margin-bottom:8px;">🔄 Reconectando busca de ' + mun + '/' + est + '...</div>';
         // btn-baixar-log-mun removido — usar btn-baixar-log-auto no topo
         let btnLogMun = document.getElementById('btn-baixar-log-mun');
