@@ -908,7 +908,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                     desc = leg.get('descricao') or leg.get('ementa') or ''
                     cat  = _cat(leg)
                     pasta = PASTAS[cat]
-                    leg_slug = _slug(f"{tipo}_{num}_{ano}")
+                    _tipo_abrev = tipo.replace('Lei Complementar','LC').replace('Decreto-Lei','DL').replace('Decreto Lei','DL').replace('Decreto','Dec').replace('Lei Ordinaria','Lei').replace('Lei Orgânica','LO').replace('Resolucao','Res').replace('Portaria','Port')
+                    leg_slug = _slug(f"{_tipo_abrev}_{num}_{ano}")
                     base = f"{pasta}/{leg_slug}/"
 
                     # PDF principal
