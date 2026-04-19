@@ -3854,7 +3854,6 @@ def api_buscador_manual_start():
                         continue
                     if tf.get('_fonte') == 'leismunicipais' and tf.get('texto') and not tf.get('pdf_path'):
                         try:
-                            from weasyprint import HTML as _WH
                             from reportlab.lib.pagesizes import A4
                             from reportlab.lib.styles import getSampleStyleSheet
                             from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
@@ -3868,7 +3867,6 @@ def api_buscador_manual_start():
                             linhas = []
                             if tf.get('html_lei'):
                                 # WeasyPrint: renderiza HTML com formatação completa
-                                from weasyprint import HTML as _WH
                                 _css = 'body{font-family:Arial,sans-serif;font-size:10pt;margin:20mm;} p{margin:4px 0;text-align:justify;}'
                                 _body = '<h2>' + titulo.strip() + '</h2><p><i>Fonte: LeisMunicipais.com.br (texto consolidado)</i></p>' + tf['html_lei']
                                 _html = '<html><head><meta charset="utf-8"><style>' + _css + '</style></head><body>' + _body + '</body></html>'

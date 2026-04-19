@@ -405,7 +405,6 @@ def gerar_relatorio_pdf(resultado, municipio, estado, custo_usd=None, token_stat
 def gerar_tabela_pdf(resultado, municipio, estado, logs=None):
     """Gera PDF da tabela completa de legislações (equivalente ao baixarTabelaPDF do frontend)."""
     import os, re, datetime
-    from weasyprint import HTML as WP_HTML
 
     COLS = [
         ('estado','Estado'),('municipio','Município'),('tipo','Tipo'),('numero','Nº'),
