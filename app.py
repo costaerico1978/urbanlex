@@ -3872,7 +3872,11 @@ def api_buscador_manual_start():
                                 _css = 'body{font-family:Arial,sans-serif;font-size:10pt;margin:20mm;} p{margin:4px 0;text-align:justify;}'
                                 _body = '<h2>' + titulo.strip() + '</h2><p><i>Fonte: LeisMunicipais.com.br (texto consolidado)</i></p>' + tf['html_lei']
                                 _html = '<html><head><meta charset="utf-8"><style>' + _css + '</style></head><body>' + _body + '</body></html>'
-                                _WH(string=_html).write_pdf(dest)
+                                import tempfile as _tf_wk, subprocess as _sp_wk
+                                with _tf_wk.NamedTemporaryFile(suffix='.html', mode='w', encoding='utf-8', delete=False) as _tmp_wk:
+                                    _tmp_wk.write(_html); _tmp_wk_path = _tmp_wk.name
+                                _sp_wk.run(['wkhtmltopdf','--encoding','utf-8','--quiet', _tmp_wk_path, dest], capture_output=True, timeout=60)
+                                import os as _os_wk; _os_wk.unlink(_tmp_wk_path)
                                 linhas = ['html_lei']
                             else:
                                 # ReportLab: texto puro com quebras por marcadores legais
