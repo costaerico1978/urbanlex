@@ -1286,6 +1286,40 @@ async function confirmarBuscaNovoMun() {
     finally { btn.disabled = false; btn.textContent = "🔎 Buscar"; }
 }
 
+
+// Restaurar botoes ZIP/Relatorio/Tabela sempre ao carregar (independente de job ativo)
+(function restaurarBotoesDownload() {
+    setTimeout(function() {
+        const zipData = localStorage.getItem('mun_zip_data');
+        if (!zipData) return;
+        try {
+            const zd = JSON.parse(zipData);
+            const resDiv = document.getElementById('resultado-auto');
+            if (!resDiv) return;
+            if (zd.zip_url && !document.getElementById('bm-zip-download')) {
+                const zEl = document.createElement('div');
+                zEl.id = 'bm-zip-download';
+                zEl.style.cssText = 'margin-top:16px;padding:14px;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;display:flex;align-items:center;gap:12px;';
+                zEl.innerHTML = '<div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--accent)">📦 Pacote Completo de Legislações</div><div style="font-size:11px;color:var(--muted);margin-top:2px">' + (zd.zip_nome||'') + ' — restaurado após reload</div></div><a href="' + zd.zip_url + '" download="' + (zd.zip_nome||'legislacoes.zip') + '" class="btn btn-primary" style="white-space:nowrap;font-size:13px;padding:8px 18px;">⬇️ Baixar ZIP</a>';
+                resDiv.appendChild(zEl);
+            }
+            if (zd.relatorio_url && !document.getElementById('bm-relatorio-download')) {
+                const rEl = document.createElement('div');
+                rEl.id = 'bm-relatorio-download';
+                rEl.style.cssText = 'margin-top:10px;padding:14px;background:var(--surface2);border:1px solid #7c6af7;border-radius:8px;display:flex;align-items:center;gap:12px;';
+                rEl.innerHTML = '<div style="flex:1"><div style="font-size:13px;font-weight:700;color:#7c6af7">📄 Relatório de Legislação Urbanística</div><div style="font-size:11px;color:var(--muted);margin-top:2px">' + (zd.relatorio_nome||'') + ' — restaurado após reload</div></div><a href="' + zd.relatorio_url + '" target="_blank" class="btn btn-primary" style="white-space:nowrap;font-size:13px;padding:8px 18px;background:#7c6af7;border-color:#7c6af7;">📄 Abrir Relatório</a>';
+                resDiv.appendChild(rEl);
+            }
+            if (zd.tabela_url && !document.getElementById('bm-tabela-download')) {
+                const tEl = document.createElement('div');
+                tEl.id = 'bm-tabela-download';
+                tEl.style.cssText = 'margin-top:10px;padding:14px;background:var(--surface2);border:1px solid #1D9E75;border-radius:8px;display:flex;align-items:center;gap:12px;';
+                tEl.innerHTML = '<div style="flex:1"><div style="font-size:13px;font-weight:700;color:#1D9E75">📋 Tabela de Legislações</div><div style="font-size:11px;color:var(--muted);margin-top:2px">' + (zd.tabela_nome||'') + ' — restaurado após reload</div></div><a href="' + zd.tabela_url + '" target="_blank" class="btn btn-primary" style="white-space:nowrap;font-size:13px;padding:8px 18px;background:#1D9E75;border-color:#1D9E75;">📋 Abrir Tabela</a>';
+                resDiv.appendChild(tEl);
+            }
+        } catch(e) {}
+    }, 600);
+})();
 // ── Sincronizar Plataforma ──
 
 // --- Fonte para Fallback Prioritario ---
@@ -1937,38 +1971,6 @@ carregarFila();
             // Mostrar botão log
             const _bLogR = document.getElementById('btn-baixar-log-auto');
             if (_bLogR) _bLogR.style.display = 'inline-block';
-        }
-        // Restaurar resultado ZIP se houver
-        const zipData = localStorage.getItem('mun_zip_data');
-        if (zipData) {
-            try {
-                const zd = JSON.parse(zipData);
-                const resDiv = document.getElementById('resultado-auto');
-                if (resDiv && zd.zip_url) {
-                    const existingZip = document.getElementById('bm-zip-download');
-                    if (!existingZip) {
-                        const zEl = document.createElement('div');
-                        zEl.id = 'bm-zip-download';
-                        zEl.style.cssText = 'margin-top:16px;padding:14px;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;display:flex;align-items:center;gap:12px;';
-                        zEl.innerHTML = `<div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--accent)">📦 Pacote Completo de Legislações</div><div style="font-size:11px;color:var(--muted);margin-top:2px">${zd.zip_nome||''} — restaurado após reload</div></div><a href="${zd.zip_url}" download="${zd.zip_nome||'legislacoes.zip'}" class="btn btn-primary" style="white-space:nowrap;font-size:13px;padding:8px 18px;">⬇️ Baixar ZIP</a>`;
-                        resDiv.appendChild(zEl);
-                    }
-                }
-                if (resDiv && zd.relatorio_url && !document.getElementById('bm-relatorio-download')) {
-                    const rEl = document.createElement('div');
-                    rEl.id = 'bm-relatorio-download';
-                    rEl.style.cssText = 'margin-top:10px;padding:14px;background:var(--surface2);border:1px solid #7c6af7;border-radius:8px;display:flex;align-items:center;gap:12px;';
-                    rEl.innerHTML = `<div style="flex:1"><div style="font-size:13px;font-weight:700;color:#7c6af7">📄 Relatório de Legislação Urbanística</div><div style="font-size:11px;color:var(--muted);margin-top:2px">${zd.relatorio_nome||''} — restaurado após reload</div></div><a href="${zd.relatorio_url}" target="_blank" class="btn btn-primary" style="white-space:nowrap;font-size:13px;padding:8px 18px;background:#7c6af7;border-color:#7c6af7;">📄 Abrir Relatório</a>`;
-                    resDiv.appendChild(rEl);
-                }
-                if (resDiv && zd.tabela_url && !document.getElementById('bm-tabela-download')) {
-                    const tEl = document.createElement('div');
-                    tEl.id = 'bm-tabela-download';
-                    tEl.style.cssText = 'margin-top:10px;padding:14px;background:var(--surface2);border:1px solid #1D9E75;border-radius:8px;display:flex;align-items:center;gap:12px;';
-                    tEl.innerHTML = `<div style="flex:1"><div style="font-size:13px;font-weight:700;color:#1D9E75">📋 Tabela de Legislações</div><div style="font-size:11px;color:var(--muted);margin-top:2px">${zd.tabela_nome||''} — restaurado após reload</div></div><a href="${zd.tabela_url}" target="_blank" class="btn btn-primary" style="white-space:nowrap;font-size:13px;padding:8px 18px;background:#1D9E75;border-color:#1D9E75;">📋 Abrir Tabela</a>`;
-                    resDiv.appendChild(tEl);
-                }
-            } catch(e) {}
         }
         return;
     }
