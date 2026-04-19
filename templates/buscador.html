@@ -1295,7 +1295,7 @@ async function confirmarBuscaNovoMun() {
         if (!zipData) return;
         try {
             const zd = JSON.parse(zipData);
-            const resDiv = document.getElementById('resultado-auto');
+            const resDiv = document.getElementById('panel-auto');
             if (!resDiv) return;
             if (zd.zip_url && !document.getElementById('bm-zip-download')) {
                 const zEl = document.createElement('div');
