@@ -987,6 +987,14 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
     # ETAPA FINAL: Gerar tabela PDF
     try:
         from modulos.gerar_relatorio import gerar_tabela_pdf as _gerar_tabela
+        # Montar lista completa com todos os status para a tabela
+        _enc_set = {(e.get('tipo','').lower(), e.get('numero','').replace('.','').strip(), e.get('ano','')) for e in resultado.get('encontradas',[])}
+        _tabela_todas = list(resultado.get('legislacoes') or [])
+        for _l in legs:
+            _k = (_l.get('tipo','').lower(), _l.get('numero','').replace('.','').strip(), _l.get('ano',''))
+            if _k not in _enc_set:
+                _tabela_todas.append({'tipo':_l.get('tipo',''),'numero':_l.get('numero',''),'ano':_l.get('ano',''),'municipio':municipio,'estado':estado,'status':_l.get('_status','nao_encontrada'),'ementa':_l.get('descricao',''),'link':''})
+        resultado['tabela_legislacoes'] = _tabela_todas
         _tabela_path, _tabela_url = _gerar_tabela(resultado, municipio, estado, logs=logs)
         if _tabela_url:
             resultado['tabela_url']  = _tabela_url
