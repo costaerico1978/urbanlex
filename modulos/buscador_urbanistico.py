@@ -1352,6 +1352,20 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
                             return None
                     # Se altera outra lei, manter mesmo sem definir parametros diretamente
             _pdf = fs_result.get("pdf_nativo_s3") or fs_result.get("pdf_path") or ""
+            if not _pdf and html_lei:
+                try:
+                    import weasyprint as _wp, tempfile as _tf, os as _os_wp, re as _re_wp
+                    _slug_pdf = _re_wp.sub(r'[^a-zA-Z0-9_]','_',f'{estado}_{municipio}_{tipo}_{numero}_{ano}')
+                    _pdf_gen = f'/var/www/urbanlex/static/downloads/{_slug_pdf}_gerado.pdf'
+                    with _tf.NamedTemporaryFile(suffix='.html', mode='w', encoding='utf-8', delete=False) as _tmp:
+                        _tmp.write(html_lei)
+                        _tmp_path = _tmp.name
+                    _wp.HTML(filename=_tmp_path).write_pdf(_pdf_gen)
+                    _os_wp.unlink(_tmp_path)
+                    _pdf = _pdf_gen
+                    logs.append({'nivel': 'info', 'msg': f'  PDF gerado via WeasyPrint: {_os_wp.path.basename(_pdf_gen)}'})
+                except Exception as _ewp:
+                    logs.append({'nivel': 'aviso', 'msg': f'  PDF WeasyPrint falhou: {str(_ewp)[:60]}'})
             _anexos = fs_result.get("anexos_lm") or []
             return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc, "pdf_path": _pdf, "html": html_lei if "html_lei" in dir() else "", "anexos_lm": _anexos, "_leis_referenciadas": _leis_ref if "_leis_ref" in dir() else [], "ementa": _ementa_verif if "_ementa_verif" in dir() else (_ementa_lei if "_ementa_lei" in dir() else "")}
         logs.append({"nivel": "aviso", "msg": f"  {tipo} {numero}/{ano} nao encontrada no LeisMunicipais — tentando 1º fallback..."})

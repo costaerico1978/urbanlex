@@ -374,9 +374,12 @@ def gerar_relatorio_pdf(resultado, municipio, estado, custo_usd=None, token_stat
     # Tentar WeasyPrint
     try:
         import weasyprint
-        # Sanitizar HTML: remover caracteres fora do range latin (causa "expected 0 <= int <= 122")
-        _html_wp = html_content.encode('ascii', 'xmlcharrefreplace').decode('ascii')
-        weasyprint.HTML(string=_html_wp).write_pdf(path)
+        import tempfile as _tf
+        with _tf.NamedTemporaryFile(suffix='.html', mode='w', encoding='utf-8', delete=False) as _tmp:
+            _tmp.write(html_content)
+            _tmp_path = _tmp.name
+        weasyprint.HTML(filename=_tmp_path).write_pdf(path)
+        import os as _os_wp; _os_wp.unlink(_tmp_path)
         if logs is not None:
             logs.append({'nivel':'ok','msg':f'📄 Relatório PDF gerado: {nome}'})
         return path, url
