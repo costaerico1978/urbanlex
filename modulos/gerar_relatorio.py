@@ -51,7 +51,7 @@ def _anexo_badge(nome_lower):
 def gerar_html_relatorio(resultado, municipio, estado, custo_usd=None, token_stats=None, tempo_segundos=None, nao_encontradas=None):
     enc = resultado.get('encontradas', [])
     legs_json = resultado.get('legislacoes_json', [])
-    agora = datetime.datetime.now().strftime('%d/%m/%Y às %H:%M')
+    agora = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-3))).strftime('%d/%m/%Y às %H:%M')
     custo_str = f'US$ {custo_usd:.4f} (≈ R$ {custo_usd*5.8:.2f})' if custo_usd else '—'
     tokens_str = ''
     if token_stats:
@@ -421,7 +421,7 @@ def gerar_tabela_pdf(resultado, municipio, estado, logs=None):
     if not todas:
         todas = resultado.get('encontradas') or []
 
-    agora = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
+    agora = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-3))).strftime('%d/%m/%Y %H:%M')
 
     def fmt_val(key, val):
         if isinstance(val, list):
