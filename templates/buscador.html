@@ -1129,6 +1129,9 @@ function dispararBuscaNovoMunicipio() {
     if (_logEl) _logEl.innerHTML = '';
     localStorage.removeItem('mun_log_cache');
     localStorage.removeItem('mun_tabela_legs');
+    localStorage.removeItem('mun_zip_data');
+    ['bm-zip-download','bm-relatorio-download','bm-tabela-download'].forEach(id => { const el = document.getElementById(id); if(el) el.remove(); });
+    const _oldTbD = document.getElementById('auto-token-bar'); if(_oldTbD) _oldTbD.style.display='none';
     window._tabelaLegsData = {};
     const _tblEl = document.getElementById('tabela-legs-auto');
     if (_tblEl) _tblEl.textContent = 'Aguardando identificacao das legislacoes...';
