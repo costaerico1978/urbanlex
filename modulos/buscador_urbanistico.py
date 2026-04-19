@@ -29,7 +29,7 @@ def _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta="", stat
     }
     logs.append({"nivel": "tabela", "msg": _j.dumps(dados, ensure_ascii=False)})
 
-def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallback_url=None):
+def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallback_url=None, max_legislacoes=None):
     resultado = {"encontradas": [], "nao_encontrada": False}
     analisadas = set()
     # Resetar contador global de tokens
@@ -188,6 +188,10 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
         enc = _buscar_plano_diretor_lm(municipio, estado, logs, chamar_llm, analisadas)
         if enc:
             resultado["encontradas"].append(enc)
+
+            if max_legislacoes and len(resultado["encontradas"]) >= max_legislacoes:
+                logs.append({"nivel": "ok", "msg": f"  Limite de {max_legislacoes} legislacoes encontradas atingido — encerrando busca"})
+                return resultado
         else:
             resultado["nao_encontrada"] = True
         return resultado
@@ -319,6 +323,10 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
         _revogado_parcialmente_por_enc = []
         if enc:
             resultado["encontradas"].append(enc)
+
+            if max_legislacoes and len(resultado["encontradas"]) >= max_legislacoes:
+                logs.append({"nivel": "ok", "msg": f"  Limite de {max_legislacoes} legislacoes encontradas atingido — encerrando busca"})
+                break
             # Verificar via IA se esta legislacao revoga outras da lista
             html_enc = enc.get("html", "") or ""
             if html_enc:
@@ -755,6 +763,10 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
             enc = _buscar_google(termo, municipio, estado, logs, chamar_llm, analisadas)
             if enc:
                 resultado["encontradas"].append(enc)
+
+            if max_legislacoes and len(resultado["encontradas"]) >= max_legislacoes:
+                logs.append({"nivel": "ok", "msg": f"  Limite de {max_legislacoes} legislacoes encontradas atingido — encerrando busca"})
+                break
 
     # Resultado final — resumo por pergunta
     LABELS_PERGUNTAS = [

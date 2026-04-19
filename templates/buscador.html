@@ -423,6 +423,11 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
                 <option value="SE">SE</option><option value="SP">SP</option><option value="TO">TO</option>
             </select>
         </div>
+        <div style="margin-bottom:12px;">
+            <div class="field-label">Máximo de legislações encontradas <span style="color:var(--muted);font-size:10px;">(opcional)</span></div>
+            <input type="number" class="field-input" id="nm-max-legs" min="1" max="999" placeholder="Sem limite" style="width:100%;" />
+            <div style="font-size:10px;color:var(--muted);margin-top:4px;">O job encerra assim que atingir este número de legislações encontradas com sucesso.</div>
+        </div>
         <div id="nm-fallback-box" style="margin-bottom:16px;display:none;">
             <div id="nm-fb-vazia">
                 <label style="font-size:10px;color:var(--muted);letter-spacing:1px;display:block;margin-bottom:6px;">FONTE PARA FALLBACK PRIORITÁRIO</label>
@@ -1197,7 +1202,8 @@ async function confirmarBuscaNovoMun() {
         logEl.insertAdjacentElement("afterend", loadingMun);
     }
     try {
-        const r = await api("POST", "/api/buscador/municipio", {municipio: mun, estado: est, cadastrar, monitorar: cadastrar});
+        const _maxLegsVal = document.getElementById("nm-max-legs") ? parseInt(document.getElementById("nm-max-legs").value) || null : null;
+        const r = await api("POST", "/api/buscador/municipio", {municipio: mun, estado: est, cadastrar, monitorar: cadastrar, max_legislacoes: _maxLegsVal});
         if (!r.success) { alert("Erro: " + (r.error || "desconhecido")); btn.disabled = false; btn.textContent = "🔎 Buscar"; return; }
         fecharModalNovoMun();
         try { const _v = await api('GET','/api/versao'); window._mun_commit_inicio = _v.commit||'?'; } catch(e) { window._mun_commit_inicio = '?'; }

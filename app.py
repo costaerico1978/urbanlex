@@ -3357,6 +3357,8 @@ def api_buscador_municipio():
     d = request.json or {}
     mun = d.get("municipio", "").strip()
     est = d.get("estado", "").strip()
+    _max_legs = d.get("max_legislacoes", None)
+    if _max_legs: _max_legs = int(_max_legs)
     if not mun or not est:
         return jsonify({"success": False, "error": "municipio e estado obrigatorios"}), 400
     # Bloquear jobs concorrentes
@@ -3395,7 +3397,7 @@ def api_buscador_municipio():
                 _fb_row = _fb_cur.fetchone(); _fb_conn.close()
                 if _fb_row: _fb_url = _fb_row['url']
             except: pass
-            r = buscar_legislacoes_urbanisticas(mun, est, job["logs"], chamar_llm, fallback_url=_fb_url)
+            r = buscar_legislacoes_urbanisticas(mun, est, job["logs"], chamar_llm, fallback_url=_fb_url, max_legislacoes=_max_legs)
             # Expor ZIP e JSON no resultado do job
             job["result"] = {
                 "encontradas": r.get("encontradas", []),
