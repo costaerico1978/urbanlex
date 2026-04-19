@@ -86,29 +86,29 @@ def gerar_html_relatorio(resultado, municipio, estado, custo_usd=None, token_sta
 <meta charset="UTF-8">
 <title>Relatório Urbanístico — {_esc(municipio)} {_esc(estado)}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+  /* fontes do sistema */
   *{{box-sizing:border-box;margin:0;padding:0}}
-  body{{font-family:'IBM Plex Sans',sans-serif;background:#f5f5f0;color:#1a1a1a;font-size:11px;line-height:1.5}}
+  body{{font-family:Arial, sans-serif;background:#f5f5f0;color:#1a1a1a;font-size:11px;line-height:1.5}}
   .page{{background:#fff;width:210mm;min-height:297mm;margin:0 auto;padding:0}}
   @media print{{body{{background:#fff}}.page{{margin:0;box-shadow:none}}}}
   /* CAPA */
   .capa-bar{{background:#0f0f1a;padding:18px 28px;display:flex;justify-content:space-between;align-items:center}}
-  .capa-logo{{font-family:'IBM Plex Mono',monospace;color:#7c6af7;font-size:14px;letter-spacing:3px;font-weight:500}}
-  .capa-tag{{font-size:9px;background:rgba(124,106,247,0.2);color:#7c6af7;border:0.5px solid #7c6af7;border-radius:3px;padding:2px 8px;font-family:'IBM Plex Mono',monospace}}
+  .capa-logo{{font-family:Courier New, monospace;color:#7c6af7;font-size:14px;letter-spacing:3px;font-weight:500}}
+  .capa-tag{{font-size:9px;background:rgba(124,106,247,0.2);color:#7c6af7;border:0.5px solid #7c6af7;border-radius:3px;padding:2px 8px;font-family:Courier New, monospace}}
   .capa-title{{padding:20px 28px 16px;border-bottom:1px solid #e8e8e0}}
   .capa-mun{{font-size:22px;font-weight:600;color:#0f0f1a;margin-bottom:3px}}
   .capa-sub{{font-size:11px;color:#666;margin-bottom:10px}}
   .capa-meta{{display:flex;gap:18px;flex-wrap:wrap}}
-  .meta-item{{font-size:9px;color:#999;font-family:'IBM Plex Mono',monospace}}
+  .meta-item{{font-size:9px;color:#999;font-family:Courier New, monospace}}
   .meta-item strong{{color:#444}}
-  /* SEÇÕES */
-  .sec-divider{{background:#f0f0e8;padding:5px 28px;font-size:9px;color:#888;font-family:'IBM Plex Mono',monospace;letter-spacing:1px;border-bottom:1px solid #e8e8e0;border-top:1px solid #e8e8e0;margin-top:16px}}
+  /* SECOES */
+  .sec-divider{{background:#f0f0e8;padding:5px 28px;font-size:9px;color:#888;font-family:Courier New, monospace;letter-spacing:1px;border-bottom:1px solid #e8e8e0;border-top:1px solid #e8e8e0;margin-top:16px}}
   .sec{{padding:14px 28px}}
-  .sec-label{{font-size:8px;font-weight:600;letter-spacing:1.5px;color:#aaa;text-transform:uppercase;font-family:'IBM Plex Mono',monospace;margin-bottom:10px}}
+  .sec-label{{font-size:8px;font-weight:600;letter-spacing:1.5px;color:#aaa;text-transform:uppercase;font-family:Courier New, monospace;margin-bottom:10px}}
   /* CARDS */
   .cards{{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}}
   .card{{background:#f8f8f4;border-radius:6px;padding:10px 12px;border:0.5px solid #e0e0d8}}
-  .card-num{{font-size:24px;font-weight:600;font-family:'IBM Plex Mono',monospace}}
+  .card-num{{font-size:24px;font-weight:600;font-family:Courier New, monospace}}
   .card-lbl{{font-size:9px;color:#888;margin-top:2px}}
   .card-num.ok{{color:#1D9E75}}.card-num.warn{{color:#BA7517}}.card-num.err{{color:#E24B4A}}
   /* ALERTAS */
@@ -125,11 +125,11 @@ def gerar_html_relatorio(resultado, municipio, estado, custo_usd=None, token_sta
   .planta-title{{font-size:11px;font-weight:500;color:#1a1a1a;margin-bottom:2px}}
   .planta-desc{{font-size:9px;color:#777}}
   /* PILLS */
-  .pill{{display:inline-block;font-size:9px;padding:1px 6px;border-radius:3px;font-family:'IBM Plex Mono',monospace;margin-left:6px;vertical-align:middle}}
+  .pill{{display:inline-block;font-size:9px;padding:1px 6px;border-radius:3px;font-family:Courier New, monospace;margin-left:6px;vertical-align:middle}}
   .pill.ok{{background:rgba(29,158,117,0.1);color:#1D9E75;border:0.5px solid rgba(29,158,117,0.3)}}
   .pill.nok{{background:rgba(226,75,74,0.08);color:#E24B4A;border:0.5px solid rgba(226,75,74,0.25)}}
   .pill.warn{{background:rgba(186,117,23,0.08);color:#BA7517;border:0.5px solid rgba(186,117,23,0.25)}}
-  /* LEGISLAÇÕES */
+  /* LEGISLACOES */
   .leg-row{{display:flex;margin-bottom:10px;background:#f8f8f4;border-radius:6px;overflow:hidden;border:0.5px solid #e0e0d8;page-break-inside:avoid}}
   .leg-strip{{width:4px;flex-shrink:0}}
   .leg-body{{padding:10px 12px;flex:1}}
@@ -137,29 +137,29 @@ def gerar_html_relatorio(resultado, municipio, estado, custo_usd=None, token_sta
   .leg-desc{{font-size:9px;color:#666;margin-bottom:8px;line-height:1.5}}
   .anx-list{{margin-top:4px}}
   .anx-row{{display:flex;align-items:flex-start;gap:6px;font-size:9px;color:#555;margin-bottom:3px}}
-  .badge-tabela{{font-size:8px;padding:1px 5px;border-radius:2px;background:rgba(29,158,117,0.1);color:#1D9E75;border:0.5px solid rgba(29,158,117,0.3);white-space:nowrap;font-family:'IBM Plex Mono',monospace}}
-  .badge-mapa{{font-size:8px;padding:1px 5px;border-radius:2px;background:rgba(124,106,247,0.1);color:#7c6af7;border:0.5px solid rgba(124,106,247,0.3);white-space:nowrap;font-family:'IBM Plex Mono',monospace}}
-  .badge-doc{{font-size:8px;padding:1px 5px;border-radius:2px;background:#f0f0e8;color:#888;border:0.5px solid #ddd;white-space:nowrap;font-family:'IBM Plex Mono',monospace}}
+  .badge-tabela{{font-size:8px;padding:1px 5px;border-radius:2px;background:rgba(29,158,117,0.1);color:#1D9E75;border:0.5px solid rgba(29,158,117,0.3);white-space:nowrap;font-family:Courier New, monospace}}
+  .badge-mapa{{font-size:8px;padding:1px 5px;border-radius:2px;background:rgba(124,106,247,0.1);color:#7c6af7;border:0.5px solid rgba(124,106,247,0.3);white-space:nowrap;font-family:Courier New, monospace}}
+  .badge-doc{{font-size:8px;padding:1px 5px;border-radius:2px;background:#f0f0e8;color:#888;border:0.5px solid #ddd;white-space:nowrap;font-family:Courier New, monospace}}
   .rel-tags{{margin-top:7px;display:flex;flex-wrap:wrap;gap:4px}}
-  .rel-tag{{font-size:8px;padding:1px 6px;border-radius:3px;font-family:'IBM Plex Mono',monospace}}
+  .rel-tag{{font-size:8px;padding:1px 6px;border-radius:3px;font-family:Courier New, monospace}}
   .rel-tag.reg{{background:rgba(55,138,221,0.08);color:#378ADD;border:0.5px solid rgba(55,138,221,0.25)}}
   .rel-tag.rev{{background:rgba(226,75,74,0.07);color:#E24B4A;border:0.5px solid rgba(226,75,74,0.2)}}
   .rel-tag.revp{{background:rgba(186,117,23,0.08);color:#BA7517;border:0.5px solid rgba(186,117,23,0.25)}}
   /* RELACIONAMENTOS */
   .rel-row{{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:10px;flex-wrap:wrap}}
-  .rel-lei{{font-family:'IBM Plex Mono',monospace;font-size:9px;background:#f0f0e8;border:0.5px solid #ddd;border-radius:3px;padding:2px 6px;color:#1a1a1a}}
+  .rel-lei{{font-family:Courier New, monospace;font-size:9px;background:#f0f0e8;border:0.5px solid #ddd;border-radius:3px;padding:2px 6px;color:#1a1a1a}}
   .rel-seta{{color:#aaa;font-size:9px}}
   .rel-desc{{font-size:9px;color:#777}}
-  /* NÃO ENCONTRADAS */
+  /* NAO ENCONTRADAS */
   .nenc-row{{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:#f8f8f4;border-radius:5px;margin-bottom:5px;border:0.5px solid #e0e0d8}}
-  .nenc-lei{{font-family:'IBM Plex Mono',monospace;font-size:10px;color:#1a1a1a}}
+  .nenc-lei{{font-family:Courier New, monospace;font-size:10px;color:#1a1a1a}}
   .nenc-orig{{font-size:9px;color:#aaa;margin-top:1px}}
   /* FONTES */
   .fonte-row{{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:0.5px solid #f0f0e8;font-size:10px}}
   .fonte-row:last-child{{border-bottom:none}}
   .fonte-dot{{width:8px;height:8px;border-radius:50%;flex-shrink:0}}
   /* FOOTER */
-  .footer{{background:#f0f0e8;padding:8px 28px;display:flex;justify-content:space-between;font-size:8px;color:#aaa;font-family:'IBM Plex Mono',monospace;border-top:1px solid #e0e0d8;margin-top:20px}}
+  .footer{{background:#f0f0e8;padding:8px 28px;display:flex;justify-content:space-between;font-size:8px;color:#aaa;font-family:Courier New, monospace;border-top:1px solid #e0e0d8;margin-top:20px}}
 </style>
 </head><body><div class="page">
 '''
@@ -371,22 +371,23 @@ def gerar_relatorio_pdf(resultado, municipio, estado, custo_usd=None, token_stat
         tempo_segundos=tempo_segundos, nao_encontradas=nao_encontradas
     )
 
-    # Tentar WeasyPrint
+    # Tentar wkhtmltopdf
     try:
-        import weasyprint
-        import tempfile as _tf
+        import tempfile as _tf, os as _os_wp, subprocess as _sp_wp
         with _tf.NamedTemporaryFile(suffix='.html', mode='w', encoding='utf-8', delete=False) as _tmp:
             _tmp.write(html_content)
             _tmp_path = _tmp.name
-        weasyprint.HTML(filename=_tmp_path).write_pdf(path)
-        import os as _os_wp; _os_wp.unlink(_tmp_path)
-        if logs is not None:
-            logs.append({'nivel':'ok','msg':f'📄 Relatório PDF gerado: {nome}'})
-        return path, url
+        _r_wk = _sp_wp.run(['wkhtmltopdf','--encoding','utf-8','--quiet','--page-size','A4', _tmp_path, path], capture_output=True, text=True, timeout=60)
+        _os_wp.unlink(_tmp_path)
+        if _os_wp.path.exists(path) and _os_wp.path.getsize(path) > 1000:
+            if logs is not None:
+                logs.append({'nivel':'ok','msg':f'Relatorio PDF gerado: {nome}'})
+            return path, url
+        else:
+            raise Exception(_r_wk.stderr[:100] if _r_wk.stderr else 'PDF vazio')
     except Exception as e1:
         if logs is not None:
-            logs.append({'nivel':'aviso','msg':f'WeasyPrint falhou ({str(e1)[:60]}), tentando ReportLab...'})
-
+            logs.append({'nivel':'aviso','msg':f'wkhtmltopdf falhou ({str(e1)[:60]}), tentando fallback...'})
     # Fallback: salvar HTML como arquivo (abrível pelo browser)
     try:
         html_path = path.replace('.pdf','.html')
@@ -473,8 +474,11 @@ def gerar_tabela_pdf(resultado, municipio, estado, logs=None):
         with _tf2.NamedTemporaryFile(suffix='.html', mode='w', encoding='utf-8', delete=False) as _tmp2:
             _tmp2.write(html)
             _tmp2_path = _tmp2.name
-        WP_HTML(filename=_tmp2_path).write_pdf(path)
+        import subprocess as _sp_wk2
+        _r_wk2 = _sp_wk2.run(['wkhtmltopdf','--encoding','utf-8','--quiet','--page-size','A3','--orientation','Landscape', _tmp2_path, path], capture_output=True, text=True, timeout=60)
         _os2.unlink(_tmp2_path)
+        if not (_os2.path.exists(path) and _os2.path.getsize(path) > 1000):
+            raise Exception(_r_wk2.stderr[:100] if _r_wk2.stderr else 'PDF vazio')
         if logs is not None:
             logs.append({'nivel':'ok','msg':f'📋 Tabela PDF gerada: {nome}'})
         return path, url
