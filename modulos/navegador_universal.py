@@ -3243,7 +3243,7 @@ def navegar_com_cookies_flaresolverr(
                                                                 _r_anx = _rq_anx.get(_href_anx, timeout=60)
                                                                 if _r_anx.status_code == 200:
                                                                     _ext_anx = '.zip' if 'zip' in _href_anx.lower() else '.pdf'
-                                                                    _fname_anx = f'lm_anexo_{len(_anexos_anx)+1}{_ext_anx}'
+                                                                    import re as _re_anx; _slug_anx = _re_anx.sub(r'[^a-zA-Z0-9_\-]','',f"{legislacao.get('estado','XX')}_{legislacao.get('municipio','').replace(' ','_')}_{legislacao.get('tipo','').replace(' ','_')}_{legislacao.get('numero','')}_{legislacao.get('ano','')}"); _fname_anx = f'{_slug_anx}_anexo{len(_anexos_anx)+1}{_ext_anx}'
                                                                     open(_os_anx.path.join(_pdf_dir_anx, _fname_anx), 'wb').write(_r_anx.content)
                                                                     _anexos_anx.append({'url': f'/static/downloads/{_fname_anx}', 'nome': _txt_anx, 'path': _os_anx.path.join(_pdf_dir_anx, _fname_anx)})
                                                                     logs.append({'nivel': 'ok', 'msg': f'{label}: 📎 Anexo "{_txt_anx}" baixado ({len(_r_anx.content)//1024}KB)'})
@@ -3391,7 +3391,7 @@ def navegar_com_cookies_flaresolverr(
                                 _r2 = _rq_anx2.get(_href2, timeout=60)
                                 if _r2.status_code == 200:
                                     _ext2 = '.zip' if 'zip' in _href2.lower() else '.pdf'
-                                    _fname2 = f'lm_anexo_{len(_anexos_anx2)+1}{_ext2}'
+                                    import re as _re_anx2; _slug_anx2 = _re_anx2.sub(r'[^a-zA-Z0-9_\-]','',f"{legislacao.get('estado','XX')}_{legislacao.get('municipio','').replace(' ','_')}_{legislacao.get('tipo','').replace(' ','_')}_{legislacao.get('numero','')}_{legislacao.get('ano','')}"); _fname2 = f'{_slug_anx2}_anexo{len(_anexos_anx2)+1}{_ext2}'
                                     open(_os_anx2.path.join(_pdf_dir_anx2, _fname2), 'wb').write(_r2.content)
                                     _anexos_anx2.append({'url': f'/static/downloads/{_fname2}', 'nome': _txt2, 'path': _os_anx2.path.join(_pdf_dir_anx2, _fname2)})
                                     logs.append({'nivel': 'ok', 'msg': f'{label}: 📎 Anexo "{_txt2}" baixado ({len(_r2.content)//1024}KB)'})
