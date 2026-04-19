@@ -397,3 +397,80 @@ def gerar_relatorio_pdf(resultado, municipio, estado, custo_usd=None, token_stat
         if logs is not None:
             logs.append({'nivel':'aviso','msg':f'Relatório: erro — {str(e2)[:80]}'})
         return None, None
+
+def gerar_tabela_pdf(resultado, municipio, estado, logs=None):
+    """Gera PDF da tabela completa de legislações (equivalente ao baixarTabelaPDF do frontend)."""
+    import os, re, datetime
+    from weasyprint import HTML as WP_HTML
+
+    COLS = [
+        ('estado','Estado'),('municipio','Município'),('tipo','Tipo'),('numero','Nº'),
+        ('ano','Ano'),('ementa','Ementa'),('pergunta','Pergunta'),('status','Status'),
+        ('altera','Regulamenta/Altera'),('alterado_por','Regulamentado por'),
+        ('revoga','Revoga'),('revogado_por','Revogado por'),
+        ('revoga_parcialmente','Revoga parcialmente'),
+        ('revogado_parcialmente_por','Revogada parcialmente por?'),
+        ('cita','Faz referência à'),('citado_em','Referenciada em'),('link','Link'),
+    ]
+
+    # Coletar todas as legislações da tabela (todas as entradas incluindo revogadas/nao_encontradas)
+    todas = resultado.get('tabela_legislacoes') or resultado.get('legislacoes') or []
+    if not todas:
+        todas = resultado.get('encontradas') or []
+
+    agora = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
+
+    def fmt_val(key, val):
+        if isinstance(val, list):
+            if not val: return '–'
+            if isinstance(val[0], dict):
+                return '<br>'.join(f"{o.get('lei','')}{ ': '+o['partes'] if o.get('partes') else ''}" for o in val)
+            return '<br>'.join(str(v) for v in val)
+        if not val: return '–'
+        if key == 'status':
+            cor = '#4ade80' if val=='encontrada' else '#f87171' if val=='nao_encontrada' else '#fbbf24'
+            return f'<span style="color:{cor};font-weight:700">{val}</span>'
+        if key == 'link' and val != '–':
+            return f'<a href="{val}" style="color:#60a5fa;font-size:9px">{str(val)[:40]}...</a>'
+        return str(val)
+
+    linhas = ''
+    for i, r in enumerate(todas):
+        bg = '#1a1a2e' if i % 2 == 0 else '#16213e'
+        linhas += f'<tr style="background:{bg}">'
+        for key, _ in COLS:
+            val = r.get(key, '')
+            linhas += f'<td style="padding:5px 8px;border:1px solid #2d3748;font-size:9px;color:#e2e8f0;vertical-align:top">{fmt_val(key, val)}</td>'
+        linhas += '</tr>'
+
+    cabecalho = ''.join(f'<th>{lbl}</th>' for _, lbl in COLS)
+
+    html = f'''<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Legislações - {municipio}/{estado}</title>
+<style>
+  body{{font-family:Arial,sans-serif;background:#0f172a;color:#e2e8f0;margin:16px;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+  h1{{color:#7c3aed;font-size:15px;margin-bottom:2px}}
+  .sub{{font-size:10px;color:#94a3b8;margin-bottom:12px}}
+  table{{width:100%;border-collapse:collapse;table-layout:fixed}}
+  th{{background:#7c3aed;color:white;padding:6px 8px;font-size:9px;text-align:left;border:1px solid #4c1d95;word-wrap:break-word}}
+  td{{word-wrap:break-word;overflow-wrap:break-word}}
+  @page{{size:A3 landscape;margin:12mm}}
+</style></head><body>
+<h1>📋 Legislações Identificadas — {municipio} / {estado}</h1>
+<div class="sub">Gerado em {agora} · {len(todas)} legislação(ões)</div>
+<table><thead><tr>{cabecalho}</tr></thead><tbody>{linhas}</tbody></table>
+</body></html>'''
+
+    slug = re.sub(r'[^a-zA-Z0-9_]', '_', f'{estado}_{municipio}')
+    nome = f'tabela_legislacoes_{slug}.pdf'
+    path = f'/var/www/urbanlex/static/downloads/{nome}'
+    url  = f'/static/downloads/{nome}'
+    try:
+        WP_HTML(string=html).write_pdf(path)
+        if logs is not None:
+            logs.append({'nivel':'ok','msg':f'📋 Tabela PDF gerada: {nome}'})
+        return path, url
+    except Exception as e:
+        if logs is not None:
+            logs.append({'nivel':'aviso','msg':f'Tabela PDF erro: {str(e)[:80]}'})
+        return None, None

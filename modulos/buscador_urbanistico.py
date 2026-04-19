@@ -300,13 +300,6 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
             logs.append({"nivel":"info","msg":f"  [FILA] {tipo} {numero}/{ano} nivel={_nivel_leg} limite={_limite_nivel}"})
             _tabela_evento(logs,municipio,estado,tipo,numero,ano,pergunta=leg.get("_pergunta_label",""),status="referenciada",link="")
             continue
-        if _nivel_leg>0:
-            try:
-                _re=chamar_llm(f"A {tipo} {numero}/{ano} e municipal de {municipio}/{estado} ou estadual/federal? Responda APENAS: municipal, estadual ou federal.",logs,f"Esfera {numero}")
-                if _re and _re.strip().split()[0].lower().rstrip(".,;") in ("estadual", "federal"):
-                    logs.append({"nivel":"aviso","msg":f"  [FILTRO] {tipo} {numero}/{ano} {_re.strip()[:20]} (Gemini)"})
-                    _tabela_evento(logs,municipio,estado,tipo,numero,ano,pergunta=leg.get("_pergunta_label",""),status="nao_encontrada");continue
-            except Exception: pass
         logs.append({"nivel": "info", "msg": f"Buscando {tipo} n {numero}/{ano} ({descricao}) no LeisMunicipais..."})
         _pergunta_origem = leg.get("_pergunta_label", "")
         _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=_pergunta_origem, status="analisando")
@@ -991,6 +984,15 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
             resultado['relatorio_nome'] = _pdf_url.split('/')[-1]
     except Exception as _er:
         logs.append({'nivel': 'aviso', 'msg': f'Relatório: erro — {str(_er)[:100]}'})
+    # ETAPA FINAL: Gerar tabela PDF
+    try:
+        from modulos.gerar_relatorio import gerar_tabela_pdf as _gerar_tabela
+        _tabela_path, _tabela_url = _gerar_tabela(resultado, municipio, estado, logs=logs)
+        if _tabela_url:
+            resultado['tabela_url']  = _tabela_url
+            resultado['tabela_nome'] = _tabela_url.split('/')[-1]
+    except Exception as _et:
+        logs.append({'nivel': 'aviso', 'msg': f'Tabela PDF: erro — {str(_et)[:100]}'})
 
     return resultado
 
