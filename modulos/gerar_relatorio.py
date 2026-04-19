@@ -469,7 +469,12 @@ def gerar_tabela_pdf(resultado, municipio, estado, logs=None):
     path = f'/var/www/urbanlex/static/downloads/{nome}'
     url  = f'/static/downloads/{nome}'
     try:
-        WP_HTML(string=html).write_pdf(path)
+        import tempfile as _tf2, os as _os2
+        with _tf2.NamedTemporaryFile(suffix='.html', mode='w', encoding='utf-8', delete=False) as _tmp2:
+            _tmp2.write(html)
+            _tmp2_path = _tmp2.name
+        WP_HTML(filename=_tmp2_path).write_pdf(path)
+        _os2.unlink(_tmp2_path)
         if logs is not None:
             logs.append({'nivel':'ok','msg':f'📋 Tabela PDF gerada: {nome}'})
         return path, url
