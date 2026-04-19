@@ -1356,18 +1356,23 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
             if not _pdf and html_lei:
                 try:
                     import tempfile as _tf, os as _os_wp, subprocess as _sp_wp, re as _re_wp
+                    from bs4 import BeautifulSoup as _bs_pdf
                     _slug_pdf = _re_wp.sub(r'[^a-zA-Z0-9_]','_',f'{estado}_{municipio}_{tipo}_{numero}_{ano}')
                     _pdf_gen = f'/var/www/urbanlex/static/downloads/{_slug_pdf}_gerado.pdf'
+                    _soup_pdf = _bs_pdf(html_lei, 'html.parser')
+                    _container = _soup_pdf.find(class_='law-container') or _soup_pdf.find(class_='law-content') or _soup_pdf.find(class_='ato-content')
+                    _html_pdf = _container if _container else _soup_pdf.find('body') or _soup_pdf
+                    _html_limpo = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{{font-family:Arial,sans-serif;font-size:11pt;margin:20mm;color:#111;}}p{{margin:4px 0;text-align:justify;line-height:1.5;}}strong,b{{font-weight:bold;}}em,i{{font-style:italic;}}h1,h2,h3{{text-align:center;margin:12px 0;}}</style></head><body>{str(_html_pdf)}</body></html>"""
                     with _tf.NamedTemporaryFile(suffix='.html', mode='w', encoding='utf-8', delete=False) as _tmp:
-                        _tmp.write(html_lei)
+                        _tmp.write(_html_limpo)
                         _tmp_path = _tmp.name
-                    _r_wk = _sp_wp.run(['wkhtmltopdf','--encoding','utf-8','--quiet', _tmp_path, _pdf_gen], capture_output=True, text=True, timeout=60)
+                    _r_wk = _sp_wp.run(['wkhtmltopdf','--encoding','utf-8','--quiet','--disable-javascript','--no-images','--load-error-handling','ignore', _tmp_path, _pdf_gen], capture_output=True, text=True, timeout=30)
                     _os_wp.unlink(_tmp_path)
                     if _os_wp.path.exists(_pdf_gen) and _os_wp.path.getsize(_pdf_gen) > 1000:
                         _pdf = _pdf_gen
                         logs.append({'nivel': 'info', 'msg': f'  PDF gerado via wkhtmltopdf: {_os_wp.path.basename(_pdf_gen)}'})
                     else:
-                        raise Exception('PDF vazio')
+                        raise Exception(f'PDF vazio. stderr: {_r_wk.stderr[:200]}')
                 except Exception as _ewp:
                     logs.append({'nivel': 'aviso', 'msg': f'  PDF wkhtmltopdf falhou: {str(_ewp)[:60]}'})
             _anexos = fs_result.get("anexos_lm") or []
