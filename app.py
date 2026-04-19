@@ -3405,6 +3405,8 @@ def api_buscador_municipio():
                 "zip_nome": r.get("zip_nome"),
                 "relatorio_url": r.get("relatorio_url"),
                 "relatorio_nome": r.get("relatorio_nome"),
+                "tabela_url": r.get("tabela_url"),
+                "tabela_nome": r.get("tabela_nome"),
                 "legislacoes_json": r.get("legislacoes_json", []),
                 "custo_usd": r.get("custo_usd"),
                 "token_stats": r.get("token_stats"),
