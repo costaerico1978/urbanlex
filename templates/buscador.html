@@ -1266,6 +1266,7 @@ async function confirmarBuscaNovoMun() {
                     } catch(e) {}
                     const _bp = document.getElementById('btn-parar-auto');
                     if (_bp) _bp.style.display = 'none';
+                    if (poll.result) { try { renderizarResultadoBusca(poll.result, ''); } catch(e) {} }
                     break;
                 }
                 // Mostrar spinner enquanto processa
