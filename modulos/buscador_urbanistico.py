@@ -322,6 +322,15 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
         _revoga_parcialmente_enc = []
         _revogado_parcialmente_por_enc = []
         if enc:
+            enc['_altera_enc'] = _altera_enc
+            enc['_alterado_por_enc'] = _alterado_por_enc
+            enc['_revoga_enc'] = _revoga_enc
+            enc['_revogado_por_enc'] = _revogado_por_enc
+            enc['_revoga_parcialmente_enc'] = _revoga_parcialmente_enc
+            enc['_revogado_parcialmente_por_enc'] = _revogado_parcialmente_por_enc
+            enc['_regulamenta_enc'] = _regulamenta_enc
+            enc['_regulamentado_por_enc'] = _regulamentado_por_enc
+            enc['_cita_enc'] = list(set(_regulamenta_enc + _cita_enc))
             resultado["encontradas"].append(enc)
 
             if max_legislacoes and len(resultado["encontradas"]) >= max_legislacoes:
@@ -958,6 +967,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                 resultado['legislacoes'].append({
                     'nome': f"{l['tipo']} {l['numero']}/{l['ano']}",
                     'tipo': l['tipo'], 'numero': l['numero'], 'ano': l['ano'],
+                    'municipio': municipio, 'estado': estado,
                     'url': l['link'], 'link': l['link'],
                     'descricao': l['descricao'], 'categoria': l['categoria'],
                     'relevancia': 1.0,
@@ -966,6 +976,17 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                     'pdf_download_url': _pdf_url,
                     'anexos_lm': _anexos,
                     'ementa': _enc_e.get('ementa', ''),
+                    'status': 'encontrada',
+                    'altera': _enc_e.get('_altera_enc', []),
+                    'alterado_por': _enc_e.get('_alterado_por_enc', []),
+                    'revoga': _enc_e.get('_revoga_enc', []),
+                    'revogado_por': _enc_e.get('_revogado_por_enc', []),
+                    'revoga_parcialmente': _enc_e.get('_revoga_parcialmente_enc', []),
+                    'revogado_parcialmente_por': _enc_e.get('_revogado_parcialmente_por_enc', []),
+                    'regulamenta': _enc_e.get('_regulamenta_enc', []),
+                    'regulamentado_por': _enc_e.get('_regulamentado_por_enc', []),
+                    'cita': _enc_e.get('_cita_enc', []),
+                    'citado_em': _enc_e.get('_citado_em_enc', []),
                 })
             resultado['success'] = True
             logs.append({'nivel': 'ok', 'msg': f'📦 ZIP consolidado: {zip_nome} ({len(resultado["encontradas"])} legislações em {len(set(l["categoria"] for l in legs_json))} categorias)'})
