@@ -905,7 +905,10 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
 
             mun_slug = _slug(municipio)
             est_slug = _slug(estado)
-            zip_nome = f"legislacoes_{mun_slug}_{est_slug}.zip"
+            import datetime as _dt_zip
+            _agora_zip = _dt_zip.datetime.now(_dt_zip.timezone(_dt_zip.timedelta(hours=-3)))
+            _ts_zip = _agora_zip.strftime('%d%m%Y_%H%M')
+            zip_nome = f"legislacoes_{mun_slug}_{est_slug}_{_ts_zip}.zip"
             zip_path = f"/var/www/urbanlex/static/downloads/{zip_nome}"
 
             legs_json = []
