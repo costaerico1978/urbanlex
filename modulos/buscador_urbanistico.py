@@ -918,8 +918,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                         ext_p = _os_zip.path.splitext(pdf)[1] or '.pdf'
                         zf.write(pdf, base + leg_slug + ext_p)
 
-                    # Anexos
-                    for anx in (leg.get('anexos') or []):
+                    # Anexos (suporta 'anexos' e 'anexos_lm')
+                    for anx in (leg.get('anexos') or leg.get('anexos_lm') or []):
                         ap = anx.get('path') or anx.get('caminho') or ''
                         an = anx.get('nome') or _os_zip.path.basename(ap)
                         if ap and _os_zip.path.exists(ap):
