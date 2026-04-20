@@ -1682,7 +1682,8 @@ async function carregarHistorico() {
             const ini = _fmtDT(item.iniciado_em);
             const fim = _fmtDT(item.concluido_em);
             const tipoBadge = item.tipo === 'manual' ? '&#x1F527; Manual' : '&#x1F916; Auto';
-            const pdfBtn = (item.pdf_path || (item.anexos_paths && item.anexos_paths !== '[]')) ? `<a href="/api/buscador/historico/download/${item.id}" title="Download PDF + Anexos (ZIP)" style="color:var(--accent);text-decoration:none;font-size:16px;">&#x1F4E5;</a>` : `<span title="Sem downloads disponíveis" style="color:var(--border);font-size:16px;cursor:pointer;" onclick="alert('Não há downloads disponíveis para essa busca.')">&#x1F4E5;</span>`;
+            const _temArquivos = item.sucesso && (item.relatorio_path || item.tabela_path || item.zip_path || item.pdf_path);
+            const pdfBtn = _temArquivos ? `<a href="/api/buscador/historico/download/${item.id}" title="Baixar pacote completo (Relatório + Tabela + Legislações)" style="color:var(--accent);text-decoration:none;font-size:16px;">&#x1F4E5;</a>` : item.sucesso ? `<span title="Arquivos não disponíveis" style="color:var(--border);font-size:16px;cursor:pointer;" onclick="alert('Arquivos não disponíveis para esta busca.')">&#x1F4E5;</span>` : `<span title="Busca não concluída" style="color:var(--border);font-size:16px;cursor:pointer;" onclick="alert('A busca não foi concluída — pacote indisponível.')">&#x1F4E5;</span>`;
             return `<div style="display:grid;grid-template-columns:32px 80px 1fr 210px 110px 1fr 110px;gap:0;padding:10px 12px;border-bottom:1px solid var(--border);align-items:center;font-size:12px;" data-id="${item.id}">
                 <div><input type="checkbox" class="hist-check" value="${item.id}" style="cursor:pointer"></div>
                 <div style="color:var(--muted);font-size:11px;">${tipoBadge}</div>

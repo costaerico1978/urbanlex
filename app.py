@@ -3430,12 +3430,15 @@ def api_buscador_municipio():
                         concluido_em=NOW(), sucesso=%s,
                         legislacao_tipo=%s, legislacao_numero=%s,
                         legislacao_ano=%s, legislacao_link=%s,
-                        log_texto=%s, pdf_path=%s, anexos_paths=%s
+                        log_texto=%s, pdf_path=%s, anexos_paths=%s,
+                        relatorio_path=%s, tabela_path=%s, zip_path=%s
                         WHERE id=%s""",
                         (_sucesso,
                          _leg.get("tipo",""), _leg.get("numero",""),
                          _leg.get("ano",""), _leg.get("link",""),
-                         _log_txt, _leg.get("pdf_path",""), _anexos_json, hist_id))
+                         _log_txt, _leg.get("pdf_path",""), _anexos_json,
+                         r.get("relatorio_url",""), r.get("tabela_url",""), r.get("zip_url",""),
+                         hist_id))
                     _hconn2.commit()
                     _hcur2.close()
                     _hconn2.close()
@@ -4157,7 +4160,8 @@ def api_buscador_historico():
                               job_id,
                               legislacao_tipo, legislacao_numero,
                               legislacao_ano, legislacao_link,
-                              pdf_path, anexos_paths
+                              pdf_path, anexos_paths,
+                              relatorio_path, tabela_path, zip_path
                        FROM buscas_historico
                        ORDER BY iniciado_em DESC LIMIT %s""", (limit,))
         rows = cur.fetchall()
@@ -4267,44 +4271,40 @@ def api_buscador_historico_log_download(hist_id):
 @app.route('/api/buscador/historico/download/<int:hist_id>')
 @login_required
 def api_buscador_historico_download(hist_id):
-    """Gera ZIP com PDF e anexos de uma busca."""
+    """Gera ZIP master com relatorio PDF + tabela PDF + zip das legislacoes."""
     import zipfile, io, json as _json_z, os as _os_z
     from flask import send_file
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT municipio, estado, pdf_path, anexos_paths, legislacao_numero, legislacao_ano FROM buscas_historico WHERE id=%s", (hist_id,))
+        cur.execute("SELECT municipio, estado, sucesso, pdf_path, anexos_paths, legislacao_numero, legislacao_ano, relatorio_path, tabela_path, zip_path FROM buscas_historico WHERE id=%s", (hist_id,))
         r = cur.fetchone()
         cur.close()
         conn.close()
         if not r:
             return "Não encontrado", 404
+        if not r.get('sucesso'):
+            return jsonify({'success': False, 'error': 'A busca nao foi concluida com sucesso — pacote indisponivel'}), 400
         base_dir = "/var/www/urbanlex"
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-            # PDF principal
-            pdf = r.get('pdf_path') or ''
-            if pdf:
-                pdf_full = base_dir + pdf if pdf.startswith('/static') else pdf
-                if _os_z.path.exists(pdf_full):
-                    zf.write(pdf_full, _os_z.path.basename(pdf_full))
-            # Anexos
-            anexos_raw = r.get('anexos_paths') or '[]'
-            try:
-                anexos = _json_z.loads(anexos_raw) if isinstance(anexos_raw, str) else anexos_raw
-            except:
-                anexos = []
-            for anx in (anexos or []):
-                anx_url = anx.get('url','') if isinstance(anx, dict) else str(anx)
-                anx_full = base_dir + anx_url if anx_url.startswith('/static') else anx_url
-                if _os_z.path.exists(anx_full):
-                    nome = anx.get('nome', _os_z.path.basename(anx_full)) if isinstance(anx, dict) else _os_z.path.basename(anx_full)
-                    zf.write(anx_full, nome[:50] + '.pdf' if not nome.endswith('.pdf') else nome[:50])
-        zip_buffer.seek(0)
         mun = (r.get('municipio') or 'municipio').replace(' ','_')
-        nome_zip = f"legislacao_{mun}_{r.get('legislacao_numero','?')}_{r.get('legislacao_ano','?')}.zip"
-        return send_file(zip_buffer, mimetype='application/zip',
-                        as_attachment=True, download_name=nome_zip)
+        est = (r.get('estado') or 'XX').replace(' ','_')
+        zip_buffer = io.BytesIO()
+        arquivos_incluidos = []
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+            def _add(url_or_path, nome_interno):
+                if not url_or_path: return
+                full = base_dir + url_or_path if url_or_path.startswith('/static') else url_or_path
+                if _os_z.path.exists(full):
+                    zf.write(full, nome_interno)
+                    arquivos_incluidos.append(nome_interno)
+            _add(r.get('relatorio_path'), 'relatorio.pdf')
+            _add(r.get('tabela_path'), 'tabela_legislacoes.pdf')
+            _add(r.get('zip_path'), 'legislacoes.zip')
+        if not arquivos_incluidos:
+            return jsonify({'success': False, 'error': 'Nenhum arquivo encontrado para esta busca'}), 404
+        zip_buffer.seek(0)
+        nome_zip = f"busca_{mun}_{est}_id{hist_id}.zip"
+        return send_file(zip_buffer, mimetype='application/zip', as_attachment=True, download_name=nome_zip)
     except Exception as e:
         return str(e), 500
 
