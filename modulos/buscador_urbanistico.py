@@ -923,6 +923,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
 
                     # PDF principal
                     pdf = leg.get('pdf_path') or leg.get('caminho_pdf') or ''
+                    if pdf and pdf.startswith('/static'):
+                        pdf = '/var/www/urbanlex' + pdf
                     if pdf and _os_zip.path.exists(pdf):
                         ext_p = _os_zip.path.splitext(pdf)[1] or '.pdf'
                         zf.write(pdf, base + leg_slug + ext_p)
