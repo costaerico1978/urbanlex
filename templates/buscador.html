@@ -1177,8 +1177,10 @@ function _nmAdicionarFila() {
     const mun = (document.getElementById('nm-municipio').value || '').trim();
     const est = document.getElementById('nm-estado').value;
     const maxLegs = document.getElementById('nm-max-legs').value;
-    if (!mun || !est) { alert('Preencha município e estado.'); return; }
-    _nmFila.push({ mun, est, maxLegs: maxLegs ? parseInt(maxLegs) : null, status: 'aguardando' });
+    if (!mun) { alert('Preencha o município.'); return; }
+    if (!est) { alert('Selecione o estado.'); return; }
+    // Adicionar localmente para exibir na fila visual do modal
+    _nmFila.push({ mun, est, maxLegs: maxLegs ? parseInt(maxLegs) : null, status: 'aguardando', local: true });
     document.getElementById('nm-municipio').value = '';
     document.getElementById('nm-estado').value = '';
     _nmRenderFila();
@@ -1219,16 +1221,73 @@ async function _nmIniciarFila() {
     const mun = (document.getElementById('nm-municipio').value || '').trim();
     const est = document.getElementById('nm-estado').value;
     const maxLegs = document.getElementById('nm-max-legs').value;
-    // Se fila vazia, comportamento antigo (busca simples)
-    if (_nmFila.length === 0) {
-        confirmarBuscaNovoMun();
-        return;
+    // Se campo preenchido, adicionar à fila local primeiro
+    if (mun && est) _nmFila.push({ mun, est, maxLegs: maxLegs ? parseInt(maxLegs) : null, status: 'aguardando', local: true });
+    // Se fila vazia, busca simples direta
+    if (_nmFila.length === 0) { confirmarBuscaNovoMun(); return; }
+    // Enviar fila para o servidor
+    let enviados = 0;
+    for (const item of _nmFila) {
+        try {
+            const r = await fetch('/api/fila/adicionar', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({municipio:item.mun, estado:item.est, max_legislacoes:item.maxLegs||null})});
+            const d = await r.json();
+            if (d.success) enviados++;
+        } catch(e) {}
     }
-    // Se também preencheu o campo, adiciona à fila primeiro
-    if (mun && est) _nmFila.push({ mun, est, maxLegs: maxLegs ? parseInt(maxLegs) : null, status: 'aguardando' });
-    // Fechar modal e iniciar sequência
+    _nmFila = [];
     fecharModalNovoMun();
-    _nmExecutarFila();
+    if (enviados > 0) {
+        // Mostrar progresso da fila no painel
+        _nmAtualizarProgressoFila();
+        // Polling da fila a cada 5s
+        if (!window._nmFilaPolling) {
+            window._nmFilaPolling = setInterval(_nmAtualizarProgressoFila, 5000);
+        }
+    }
+}
+
+async function _nmAtualizarProgressoFila() {
+    try {
+        const r = await fetch('/api/fila/listar');
+        const d = await r.json();
+        if (!d.success) return;
+        const fila = d.fila;
+        if (!fila || fila.length === 0) {
+            clearInterval(window._nmFilaPolling); window._nmFilaPolling = null;
+            const el = document.getElementById('nm-fila-progresso');
+            if (el) el.remove();
+            return;
+        }
+        const total = fila.length;
+        const done = fila.filter(i => i.status === 'concluido' || i.status === 'erro').length;
+        const rodando = fila.find(i => i.status === 'rodando');
+        const pct = total ? Math.round(done/total*100) : 0;
+        let el = document.getElementById('nm-fila-progresso');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'nm-fila-progresso';
+            el.style.cssText = 'padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;font-size:11px;';
+            const panel = document.getElementById('panel-auto');
+            if (panel) panel.insertBefore(el, panel.firstChild);
+        }
+        el.innerHTML = '<div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--accent);font-weight:600;">Fila de buscas' + (rodando ? ' — ' + rodando.municipio + '/' + rodando.estado : ' (concluída)') + '</span><span style="color:var(--muted);">' + done + '/' + total + '</span></div>' +
+            '<div style="height:3px;background:var(--border);border-radius:2px;"><div style="height:100%;width:' + pct + '%;background:var(--accent);border-radius:2px;transition:width .3s;"></div></div>' +
+            '<div style="margin-top:8px;display:flex;flex-direction:column;gap:3px;">' +
+            fila.map(item => {
+                const col = item.status==='concluido'?'#1D9E75':item.status==='rodando'?'var(--accent)':item.status==='erro'?'#e74c3c':'var(--muted)';
+                const ic = item.status==='concluido'?'✓':item.status==='rodando'?'▶':item.status==='erro'?'✕':'·';
+                return '<span style="color:' + col + ';font-size:10px;">' + ic + ' ' + item.municipio + '/' + item.estado + '</span>';
+            }).join('') + '</div>';
+        // Se job rodando, monitorar via polling normal
+        if (rodando && rodando.job_id && !localStorage.getItem('mun_job_id')) {
+            localStorage.setItem('mun_job_id', rodando.job_id);
+            reconectarMunJob();
+        }
+        // Se tudo concluido, parar polling
+        if (done === total) {
+            clearInterval(window._nmFilaPolling); window._nmFilaPolling = null;
+        }
+    } catch(e) {}
 }
 
 async function _nmExecutarFila() {
