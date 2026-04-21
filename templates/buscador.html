@@ -1281,9 +1281,23 @@ async function _nmAtualizarProgressoFila() {
                 return '<span style="color:' + col + ';font-size:10px;">' + ic + ' ' + item.municipio + '/' + item.estado + '</span>';
             }).join('') + '</div>';
         // Se job rodando, monitorar via polling normal
-        if (rodando && rodando.job_id && !localStorage.getItem('mun_job_id')) {
-            localStorage.setItem('mun_job_id', rodando.job_id);
-            reconectarMunJob();
+        if (rodando && rodando.job_id) {
+            const _jobAtual = localStorage.getItem('mun_job_id');
+            if (_jobAtual !== rodando.job_id) {
+                // Novo job — limpar tabela, log e botoes do anterior
+                localStorage.removeItem('mun_zip_data');
+                localStorage.removeItem('mun_log_cache');
+                localStorage.removeItem('mun_log_cache_done');
+                localStorage.removeItem('mun_tabela_legs');
+                ['bm-zip-download','bm-relatorio-download','bm-tabela-download'].forEach(id => { const el = document.getElementById(id); if(el) el.remove(); });
+                window._tabelaLegsData = {};
+                const _tblEl = document.getElementById('tabela-legs-auto');
+                if (_tblEl) _tblEl.textContent = 'Aguardando identificacao das legislacoes...';
+                const _logEl = document.getElementById('log-municipio');
+                if (_logEl) _logEl.innerHTML = '';
+                localStorage.setItem('mun_job_id', rodando.job_id);
+                reconectarMunJob();
+            }
         }
         // Se tudo concluido, parar polling
         if (done === total) {
