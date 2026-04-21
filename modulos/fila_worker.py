@@ -23,8 +23,8 @@ def iniciar_worker(app, get_db, buscador_jobs):
                 try:
                     with app.app_context():
                         from modulos.buscador_urbanistico import buscar_legislacoes_urbanisticas
-                        from modulos.gemini_client import chamar_gemini
-                        def llm(p,l,lb=''): return chamar_gemini(p,l,lb)
+                        from modulos.buscador_legislacoes import _chamar_llm as _llm_fila
+                        def llm(p,l,lb='',mr=2): return _llm_fila(p,l,lb,mr)
                         fb=None
                         try:
                             c3=get_db();cu3=c3.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
