@@ -150,6 +150,9 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
             <button class="btn btn-primary btn-sm" onclick="dispararBuscaNovoMunicipio()">
                 🔍 Buscar Novo Município...
             </button>
+            <button id="btn-cancelar-limpar" class="btn btn-sm" onclick="cancelarELimpar()" style="display:none;border-color:rgba(231,76,60,.4);color:#e74c3c;background:transparent;">
+                ✕ Cancelar e Limpar
+            </button>
             <button class="btn btn-secondary btn-sm" onclick="sincronizarPlataforma()">
                 🔄 Sincronizar com Plataforma
             </button>
@@ -1123,30 +1126,42 @@ function pararBuscaAuto() {
     if (ldMun) ldMun.style.display = 'none';
     dispararBuscaNovoMunicipio();
 }
-function dispararBuscaNovoMunicipio() {
-    // Cancelar busca em andamento
+function cancelarELimpar() {
     const _jobAtivo = localStorage.getItem('mun_job_id');
     if (_jobAtivo) {
         window._buscadorCancelado = true;
         fetch('/api/buscador/cancelar', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({job_id: _jobAtivo})}).catch(()=>{});
         localStorage.removeItem('mun_job_id');
     }
-    // Zerar log e tabela
+    // Cancelar fila se ativa
+    if (typeof _nmFila !== 'undefined') _nmFila = [];
     const _ldMun = document.getElementById('loading-mun');
     if (_ldMun) _ldMun.style.display = 'none';
     const _logEl = document.getElementById('log-municipio');
     if (_logEl) _logEl.innerHTML = '';
     localStorage.removeItem('mun_log_cache');
+    localStorage.removeItem('mun_log_cache_done');
     localStorage.removeItem('mun_tabela_legs');
     localStorage.removeItem('mun_zip_data');
-    ['bm-zip-download','bm-relatorio-download','bm-tabela-download'].forEach(id => { const el = document.getElementById(id); if(el) el.remove(); });
+    ['bm-zip-download','bm-relatorio-download','bm-tabela-download','nm-fila-progresso'].forEach(id => { const el = document.getElementById(id); if(el) el.remove(); });
     const _oldTbD = document.getElementById('auto-token-bar'); if(_oldTbD) _oldTbD.style.display='none';
     window._tabelaLegsData = {};
     const _tblEl = document.getElementById('tabela-legs-auto');
     if (_tblEl) _tblEl.textContent = 'Aguardando identificacao das legislacoes...';
+    _atualizarBtnCancelar();
+}
+function _atualizarBtnCancelar() {
+    const btn = document.getElementById('btn-cancelar-limpar');
+    if (!btn) return;
+    const ativo = localStorage.getItem('mun_job_id') || (typeof _nmFila !== 'undefined' && _nmFila.some(i => i.status === 'aguardando' || i.status === 'rodando'));
+    btn.style.display = ativo ? 'inline-flex' : 'none';
+}
+function dispararBuscaNovoMunicipio() {
+    // So abrir modal — sem resetar nada
     document.getElementById('modal-novo-mun').style.display = 'flex';
     document.getElementById('nm-municipio').value = '';
     document.getElementById('nm-estado').value = '';
+    if (typeof _nmFila !== 'undefined' && _nmFila.length > 0) _nmRenderFila();
     const _btnNm = document.getElementById('btn-nm-ok');
     if (_btnNm) { _btnNm.disabled = false; _btnNm.textContent = 'Buscar'; }
     setTimeout(() => document.getElementById('nm-municipio').focus(), 100);
@@ -1348,6 +1363,7 @@ async function confirmarBuscaNovoMun() {
         try { const _v = await api('GET','/api/versao'); window._mun_commit_inicio = _v.commit||'?'; } catch(e) { window._mun_commit_inicio = '?'; }
         const jobId = r.job_id;
         localStorage.setItem("mun_job_id", jobId);
+    _atualizarBtnCancelar();
         // Resetar tabela ao iniciar nova busca
         localStorage.removeItem('mun_tabela_legs');
         window._tabelaLegsData = {};
@@ -1405,6 +1421,7 @@ async function confirmarBuscaNovoMun() {
                     } catch(e) {}
                     const _bp = document.getElementById('btn-parar-auto');
                     if (_bp) _bp.style.display = 'none';
+                    _atualizarBtnCancelar();
                     // Notificar fila se modo fila ativo
                     if (window._nmFilaModo && window._nmFilaResolve) {
                         window._nmFilaModo = false;
