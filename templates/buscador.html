@@ -399,8 +399,11 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <div id="modal-novo-mun" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.6);
      align-items:center;justify-content:center;">
-    <div style="background:var(--surface);border-radius:12px;padding:24px;width:400px;max-width:90vw;">
-        <div style="font-size:16px;font-weight:700;margin-bottom:16px;">📍 Buscar Legislações de Novo Município</div>
+    <div style="background:var(--surface);border-radius:12px;padding:24px;width:440px;max-width:95vw;">
+        <div style="font-size:16px;font-weight:700;margin-bottom:4px;">📍 Buscar Municípios</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:16px;">Monte a fila — as buscas serão executadas em sequência</div>
+        <!-- FILA DE MUNICIPIOS -->
+        <div id="nm-fila-lista" style="max-height:180px;overflow-y:auto;margin-bottom:12px;display:none;"></div>
         <div style="margin-bottom:12px;">
             <div class="field-label">Município</div>
             <div class="ac-wrapper">
@@ -454,9 +457,16 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
                 </div>
             </div>
         </div>
-        <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <!-- FILA VISUAL -->
+        <div id="nm-fila-container" style="display:none;margin-bottom:12px;">
+            <div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Fila de buscas</div>
+            <div id="nm-fila-lista" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;"></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:4px;">
+            <button class="btn btn-secondary btn-sm" id="btn-nm-add-fila" onclick="_nmAdicionarFila()" style="white-space:nowrap;">+ Fila</button>
+            <div style="flex:1"></div>
             <button class="btn btn-secondary btn-sm" onclick="fecharModalNovoMun()">Cancelar</button>
-            <button class="btn btn-primary btn-sm" onclick="confirmarBuscaNovoMun()" id="btn-nm-ok">🔎 Buscar</button>
+            <button class="btn btn-primary btn-sm" onclick="_nmIniciarFila()" id="btn-nm-ok">🔎 Buscar</button>
         </div>
     </div>
 </div>
@@ -1146,6 +1156,131 @@ function fecharModalNovoMun() {
     document.getElementById('modal-novo-mun').style.display = 'none';
 }
 
+// ── Fila de Municípios ──
+let _nmFila = [];
+
+function _nmAdicionarFila() {
+    const mun = (document.getElementById('nm-municipio').value || '').trim();
+    const est = document.getElementById('nm-estado').value;
+    const maxLegs = document.getElementById('nm-max-legs').value;
+    if (!mun || !est) { alert('Preencha município e estado.'); return; }
+    _nmFila.push({ mun, est, maxLegs: maxLegs ? parseInt(maxLegs) : null, status: 'aguardando' });
+    document.getElementById('nm-municipio').value = '';
+    document.getElementById('nm-estado').value = '';
+    _nmRenderFila();
+}
+
+function _nmRenderFila() {
+    const lista = document.getElementById('nm-fila-lista');
+    const container = document.getElementById('nm-fila-container');
+    if (!lista) return;
+    if (_nmFila.length === 0) { container.style.display = 'none'; lista.innerHTML = ''; return; }
+    container.style.display = 'block';
+    const statusCfg = {
+        aguardando: { label: 'Aguardando', color: 'var(--muted)' },
+        rodando: { label: 'Em andamento', color: 'var(--accent)' },
+        concluido: { label: 'Concluído', color: '#1D9E75' },
+        erro: { label: 'Erro', color: '#e74c3c' },
+    };
+    lista.innerHTML = _nmFila.map((item, idx) => {
+        const cfg = statusCfg[item.status] || statusCfg.aguardando;
+        const icone = item.status === 'concluido' ? '✓' : item.status === 'rodando' ? '▶' : item.status === 'erro' ? '✕' : (idx+1);
+        const riscado = item.status === 'concluido' ? 'text-decoration:line-through;opacity:.5;' : '';
+        const remBtn = item.status === 'aguardando' ? `<button onclick="_nmRemoverFila(${idx})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:0 2px;">✕</button>` : '';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg);border:1px solid ${item.status==='rodando'?'var(--accent)':'var(--border)'};border-radius:6px;">
+            <span style="color:${cfg.color};font-size:11px;min-width:16px;text-align:center;">${icone}</span>
+            <span style="flex:1;font-size:12px;font-weight:600;${riscado}">${item.mun}/${item.est}</span>
+            <span style="font-size:10px;color:${cfg.color};">${cfg.label}</span>
+            ${remBtn}
+        </div>`;
+    }).join('');
+}
+
+function _nmRemoverFila(idx) {
+    _nmFila.splice(idx, 1);
+    _nmRenderFila();
+}
+
+async function _nmIniciarFila() {
+    const mun = (document.getElementById('nm-municipio').value || '').trim();
+    const est = document.getElementById('nm-estado').value;
+    const maxLegs = document.getElementById('nm-max-legs').value;
+    // Se fila vazia, comportamento antigo (busca simples)
+    if (_nmFila.length === 0) {
+        confirmarBuscaNovoMun();
+        return;
+    }
+    // Se também preencheu o campo, adiciona à fila primeiro
+    if (mun && est) _nmFila.push({ mun, est, maxLegs: maxLegs ? parseInt(maxLegs) : null, status: 'aguardando' });
+    // Fechar modal e iniciar sequência
+    fecharModalNovoMun();
+    _nmExecutarFila();
+}
+
+async function _nmExecutarFila() {
+    for (let i = 0; i < _nmFila.length; i++) {
+        const item = _nmFila[i];
+        if (item.status !== 'aguardando') continue;
+        _nmFila[i].status = 'rodando';
+        // Atualizar painel com progresso
+        _nmMostrarProgressoFila();
+        try {
+            await _nmExecutarBuscaItem(item);
+            _nmFila[i].status = 'concluido';
+        } catch(e) {
+            _nmFila[i].status = 'erro';
+        }
+        _nmMostrarProgressoFila();
+    }
+    // Fila concluída
+    const progressoEl = document.getElementById('nm-fila-progresso');
+    if (progressoEl) progressoEl.remove();
+    _nmFila = [];
+}
+
+function _nmMostrarProgressoFila() {
+    let el = document.getElementById('nm-fila-progresso');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'nm-fila-progresso';
+        el.style.cssText = 'padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;font-size:11px;';
+        const panel = document.getElementById('panel-auto');
+        if (panel) panel.insertBefore(el, panel.firstChild);
+    }
+    const total = _nmFila.length;
+    const done = _nmFila.filter(i => i.status === 'concluido' || i.status === 'erro').length;
+    const rodando = _nmFila.find(i => i.status === 'rodando');
+    const pct = total ? Math.round(done/total*100) : 0;
+    el.innerHTML = `<div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+        <span style="color:var(--accent);font-weight:600;">📋 Fila de buscas${rodando ? ' — ' + rodando.mun + '/' + rodando.est : ''}</span>
+        <span style="color:var(--muted);">${done}/${total}</span>
+    </div>
+    <div style="height:3px;background:var(--border);border-radius:2px;">
+        <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:2px;transition:width .3s;"></div>
+    </div>
+    <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px;">
+        ${_nmFila.map(item => {
+            const c = item.status==='concluido'?'#1D9E75':item.status==='rodando'?'var(--accent)':item.status==='erro'?'#e74c3c':'var(--muted)';
+            const ic = item.status==='concluido'?'✓':item.status==='rodando'?'▶':item.status==='erro'?'✕':'·';
+            return `<span style="color:${c};font-size:10px;">${ic} ${item.mun}/${item.est}</span>`;
+        }).join('')}
+    </div>`;
+}
+
+function _nmExecutarBuscaItem(item) {
+    return new Promise((resolve, reject) => {
+        // Simular confirmarBuscaNovoMun com os dados do item
+        document.getElementById('nm-municipio').value = item.mun;
+        document.getElementById('nm-estado').value = item.est;
+        if (document.getElementById('nm-max-legs')) document.getElementById('nm-max-legs').value = item.maxLegs || '';
+        // Usar flag para notificar quando job concluir
+        window._nmFilaResolve = resolve;
+        window._nmFilaReject = reject;
+        window._nmFilaModo = true;
+        confirmarBuscaNovoMun();
+    });
+}
+
 async function confirmarBuscaNovoMun() {
     const mun = document.getElementById("nm-municipio").value.trim();
     const est = document.getElementById("nm-estado").value;
@@ -1271,6 +1406,13 @@ async function confirmarBuscaNovoMun() {
                     } catch(e) {}
                     const _bp = document.getElementById('btn-parar-auto');
                     if (_bp) _bp.style.display = 'none';
+                    // Notificar fila se modo fila ativo
+                    if (window._nmFilaModo && window._nmFilaResolve) {
+                        window._nmFilaModo = false;
+                        const _res = window._nmFilaResolve;
+                        window._nmFilaResolve = null;
+                        setTimeout(_res, 500);
+                    }
                     if (poll.result) { try { const _r=poll.result; if(_r.zip_url) try{localStorage.setItem('mun_zip_data',JSON.stringify({zip_url:_r.zip_url,zip_nome:_r.zip_nome||'legislacoes.zip',relatorio_url:_r.relatorio_url,relatorio_nome:_r.relatorio_nome,tabela_url:_r.tabela_url,tabela_nome:_r.tabela_nome}));}catch(e){} const _ra=document.getElementById('panel-auto'); if(_ra&&_r.zip_url&&!document.getElementById('bm-zip-download')){const _z=document.createElement('div');_z.id='bm-zip-download';_z.style.cssText='margin-top:16px;padding:14px;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;display:flex;align-items:center;gap:12px;';_z.innerHTML='<div style="flex:1"><b style="color:var(--accent)">Pacote ZIP</b><br><small>'+(_r.zip_nome||'')+'</small></div><a href="'+_r.zip_url+'" download class="btn btn-primary">Baixar ZIP</a>';_ra.appendChild(_z);} if(_ra&&_r.relatorio_url&&!document.getElementById('bm-relatorio-download')){const _rl=document.createElement('div');_rl.id='bm-relatorio-download';_rl.style.cssText='margin-top:10px;padding:14px;background:var(--surface2);border:1px solid #7c6af7;border-radius:8px;display:flex;align-items:center;gap:12px;';_rl.innerHTML='<div style="flex:1"><b style="color:#7c6af7">Relatorio PDF</b><br><small>'+(_r.relatorio_nome||'')+'</small></div><a href="'+_r.relatorio_url+'" target="_blank" class="btn btn-primary" style="background:#7c6af7;border-color:#7c6af7;">Abrir</a>';_ra.appendChild(_rl);} if(_ra&&_r.tabela_url&&!document.getElementById('bm-tabela-download')){const _tl=document.createElement('div');_tl.id='bm-tabela-download';_tl.style.cssText='margin-top:10px;padding:14px;background:var(--surface2);border:1px solid #1D9E75;border-radius:8px;display:flex;align-items:center;gap:12px;';_tl.innerHTML='<div style="flex:1"><b style="color:#1D9E75">Tabela PDF</b><br><small>'+(_r.tabela_nome||'')+'</small></div><a href="'+_r.tabela_url+'" target="_blank" class="btn btn-primary" style="background:#1D9E75;border-color:#1D9E75;">Abrir</a>';_ra.appendChild(_tl);} } catch(e) {} }
                     break;
                 }
