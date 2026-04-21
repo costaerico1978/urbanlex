@@ -1181,7 +1181,7 @@ function fecharModalNovoMun() {
 // ── Fila de Municípios ──
 let _nmFila = [];
 
-function _nmAdicionarFila() {
+async function _nmAdicionarFila() {
     const mun = (document.getElementById('nm-municipio').value || '').trim();
     const est = document.getElementById('nm-estado').value;
     const maxLegs = document.getElementById('nm-max-legs').value;
