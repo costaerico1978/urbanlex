@@ -1,0 +1,60 @@
+import threading, time, uuid, psycopg2, psycopg2.extras
+
+def iniciar_worker(app, get_db, buscador_jobs):
+    def worker():
+        time.sleep(8)
+        while True:
+            try:
+                conn = get_db()
+                cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                cur.execute("UPDATE fila_buscas SET status='aguardando',job_id=NULL,iniciado_em=NULL WHERE status='rodando'")
+                conn.commit()
+                cur.execute("SELECT * FROM fila_buscas WHERE status='aguardando' ORDER BY ordem ASC,criado_em ASC LIMIT 1")
+                item = cur.fetchone()
+                cur.close(); conn.close()
+                if not item:
+                    time.sleep(3)
+                    continue
+                job_id = str(uuid.uuid4())[:8]
+                c2=get_db(); cu2=c2.cursor()
+                cu2.execute("UPDATE fila_buscas SET status='rodando',job_id=%s,iniciado_em=NOW() WHERE id=%s",(job_id,item['id']))
+                c2.commit(); cu2.close(); c2.close()
+                buscador_jobs[job_id]={'logs':[],'result':None,'done':False,'tipo':'auto_fila','ts':time.time(),'municipio':item['municipio'],'estado':item['estado']}
+                try:
+                    with app.app_context():
+                        from modulos.buscador_urbanistico import buscar_legislacoes_urbanisticas
+                        from modulos.gemini_client import chamar_gemini
+                        def llm(p,l,lb=''): return chamar_gemini(p,l,lb)
+                        fb=None
+                        try:
+                            c3=get_db();cu3=c3.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                            cu3.execute("SELECT url FROM municipio_fallback WHERE LOWER(municipio)=LOWER(%s) AND LOWER(estado)=LOWER(%s)",(item['municipio'],item['estado']))
+                            row=cu3.fetchone(); cu3.close(); c3.close()
+                            if row: fb=row['url']
+                        except: pass
+                        r=buscar_legislacoes_urbanisticas(item['municipio'],item['estado'],buscador_jobs[job_id]['logs'],llm,fallback_url=fb,max_legislacoes=item.get('max_legislacoes'))
+                        buscador_jobs[job_id]['result']={'encontradas':r.get('encontradas',[]),'zip_url':r.get('zip_url'),'zip_nome':r.get('zip_nome'),'relatorio_url':r.get('relatorio_url'),'relatorio_nome':r.get('relatorio_nome'),'tabela_url':r.get('tabela_url'),'tabela_nome':r.get('tabela_nome'),'custo_usd':r.get('custo_usd'),'nao_encontrada':r.get('nao_encontrada',False),'legislacoes_json':r.get('legislacoes_json',[])}
+                        try:
+                            enc=r.get('encontradas',[]); leg=enc[0] if enc else {}
+                            c4=get_db(); cu4=c4.cursor()
+                            cu4.execute("INSERT INTO buscas_historico (tipo,municipio,estado,iniciado_em,concluido_em,sucesso,legislacao_tipo,legislacao_numero,legislacao_ano,legislacao_link,log_texto,pdf_path,anexos_paths,job_id,relatorio_path,tabela_path,zip_path) VALUES (%s,%s,%s,%s,NOW(),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",('auto',item['municipio'],item['estado'],item.get('iniciado_em'),bool(enc),leg.get('tipo',''),leg.get('numero',''),leg.get('ano',''),leg.get('link',''),'\n'.join(l.get('msg','') for l in buscador_jobs[job_id]['logs']),leg.get('pdf_path',''),'[]',job_id,r.get('relatorio_url',''),r.get('tabela_url',''),r.get('zip_url','')))
+                            c4.commit(); cu4.close(); c4.close()
+                        except: pass
+                        c5=get_db(); cu5=c5.cursor()
+                        cu5.execute("UPDATE fila_buscas SET status='concluido',concluido_em=NOW() WHERE id=%s",(item['id'],))
+                        c5.commit(); cu5.close(); c5.close()
+                except Exception as eb:
+                    try:
+                        c6=get_db(); cu6=c6.cursor()
+                        cu6.execute("UPDATE fila_buscas SET status='erro',erro=%s,concluido_em=NOW() WHERE id=%s",(str(eb)[:500],item['id']))
+                        c6.commit(); cu6.close(); c6.close()
+                    except: pass
+                finally:
+                    buscador_jobs[job_id]['done']=True
+                    try:
+                        import json
+                        with open(f'/var/www/urbanlex/static/downloads/job_{job_id}.jsonl','a') as f:
+                            f.write(json.dumps({'_result':buscador_jobs[job_id].get('result',{})})+'\\n')
+                    except: pass
+            except: time.sleep(5)
+    threading.Thread(target=worker,daemon=True,name='fila-buscas').start()

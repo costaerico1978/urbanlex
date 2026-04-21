@@ -3551,6 +3551,7 @@ threading.Thread(target=_carregar_ibge, daemon=True).start()
 
 # ── Buscador: jobs em background com polling de logs ──
 _buscador_jobs = {}  # job_id -> {'logs': [], 'result': None, 'done': False, 'ts': time.time()}
+from modulos.fila_worker import iniciar_worker as _iniciar_fila_worker
 
 def _cleanup_old_jobs():
     """Remove jobs com mais de 2 horas."""
@@ -5130,6 +5131,67 @@ def _run_diag_do():
 import os as _os
 if not _os.environ.get('GOOGLE_MAPS_KEY'):
     _os.environ['GOOGLE_MAPS_KEY'] = 'AIzaSyCuiZTfrnvUC-1X_suD3w6iGVyT_bhdVpQ'
+
+
+@app.route('/api/fila/adicionar', methods=['POST'])
+@login_required
+def api_fila_adicionar():
+    data = request.get_json()
+    municipio = (data.get('municipio') or '').strip()
+    estado = (data.get('estado') or '').strip()
+    max_legs = data.get('max_legislacoes')
+    if not municipio or not estado:
+        return jsonify({'success':False,'error':'municipio e estado obrigatorios'}),400
+    try:
+        conn=get_db(); cur=conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT COALESCE(MAX(ordem),0) as max FROM fila_buscas WHERE status IN ('aguardando','rodando')")
+        max_ordem=cur.fetchone()['max']
+        cur.execute("INSERT INTO fila_buscas (municipio,estado,max_legislacoes,ordem) VALUES (%s,%s,%s,%s) RETURNING id",(municipio,estado,max_legs,max_ordem+1))
+        new_id=cur.fetchone()['id']; conn.commit(); cur.close(); conn.close()
+        return jsonify({'success':True,'id':new_id})
+    except Exception as e:
+        return jsonify({'success':False,'error':str(e)}),500
+
+@app.route('/api/fila/listar')
+@login_required
+def api_fila_listar():
+    try:
+        conn=get_db(); cur=conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT id,municipio,estado,max_legislacoes,status,job_id,criado_em,iniciado_em,concluido_em,erro FROM fila_buscas ORDER BY ordem ASC,criado_em ASC")
+        rows=cur.fetchall(); cur.close(); conn.close()
+        result=[]
+        for r in rows:
+            item=dict(r)
+            for k in ['criado_em','iniciado_em','concluido_em']:
+                if item.get(k): item[k]=item[k].isoformat()
+            result.append(item)
+        return jsonify({'success':True,'fila':result})
+    except Exception as e:
+        return jsonify({'success':False,'error':str(e)}),500
+
+@app.route('/api/fila/remover/<int:fila_id>', methods=['DELETE'])
+@login_required
+def api_fila_remover(fila_id):
+    try:
+        conn=get_db(); cur=conn.cursor()
+        cur.execute("DELETE FROM fila_buscas WHERE id=%s AND status='aguardando'",(fila_id,))
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({'success':True})
+    except Exception as e:
+        return jsonify({'success':False,'error':str(e)}),500
+
+@app.route('/api/fila/limpar', methods=['POST'])
+@login_required
+def api_fila_limpar():
+    try:
+        conn=get_db(); cur=conn.cursor()
+        cur.execute("DELETE FROM fila_buscas WHERE status='aguardando'")
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({'success':True})
+    except Exception as e:
+        return jsonify({'success':False,'error':str(e)}),500
+
+_iniciar_fila_worker(app, get_db, _buscador_jobs)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT',5000)), debug=os.getenv('FLASK_ENV')!='production')
