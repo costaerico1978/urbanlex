@@ -1248,6 +1248,16 @@ async function _nmIniciarFila() {
     }
 }
 
+async function _nmRemoverFilaServidor(id, nome) {
+    if (!confirm('Remover ' + nome + ' da fila de buscas?')) return;
+    try {
+        const r = await fetch('/api/fila/remover/' + id, {method:'DELETE'});
+        const d = await r.json();
+        if (d.success) _nmAtualizarProgressoFila();
+        else alert('Erro ao remover: ' + (d.error||''));
+    } catch(e) { alert('Erro: ' + e.message); }
+}
+
 async function _nmAtualizarProgressoFila() {
     try {
         const r = await fetch('/api/fila/listar');
@@ -1278,7 +1288,8 @@ async function _nmAtualizarProgressoFila() {
             fila.map(item => {
                 const col = item.status==='concluido'?'#1D9E75':item.status==='rodando'?'var(--accent)':item.status==='erro'?'#e74c3c':'var(--muted)';
                 const ic = item.status==='concluido'?'✓':item.status==='rodando'?'▶':item.status==='erro'?'✕':'·';
-                return '<span style="color:' + col + ';font-size:10px;">' + ic + ' ' + item.municipio + '/' + item.estado + '</span>';
+                const remX = item.status==='aguardando' ? '<button onclick="_nmRemoverFilaServidor(' + item.id + ',\'' + item.municipio + '/' + item.estado + '\')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:0 2px;margin-left:4px;">✕</button>' : '';
+                return '<span style="display:flex;align-items:center;gap:4px;"><span style="color:' + col + ';font-size:10px;">' + ic + ' ' + item.municipio + '/' + item.estado + '</span>' + remX + '</span>';
             }).join('') + '</div>';
         // Se job rodando, monitorar via polling normal
         if (rodando && rodando.job_id) {
