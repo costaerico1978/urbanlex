@@ -1614,12 +1614,18 @@ async function confirmarBuscaNovoMun() {
             const btn = document.getElementById('btn-cancelar-limpar');
             if (btn) btn.style.display = 'inline-flex';
             const aguardando = d.fila.some(i => i.status === 'aguardando');
-            const rodando = d.fila.some(i => i.status === 'rodando');
-            const btnIF = document.getElementById('btn-iniciar-fila');
+            const aguardando = d.fila.some(i => i.status === 'aguardando');
+            const rodandoItem = d.fila.find(i => i.status === 'rodando');
             if (btnIF) btnIF.style.display = aguardando && !rodando ? 'inline-flex' : 'none';
             if (!window._nmFilaPolling) window._nmFilaPolling = setInterval(_nmAtualizarProgressoFila, 5000);
-            _nmAtualizarProgressoFila();
-        }
+            if (!window._nmFilaPolling) window._nmFilaPolling = setInterval(_nmAtualizarProgressoFila, 5000);
+            if (rodandoItem && rodandoItem.job_id && !window._nmReconectando) {
+                window._nmReconectando = true;
+                setTimeout(() => { window._nmReconectando = false; }, 60000);
+                reconectarMunJob(rodandoItem.job_id, rodandoItem.municipio, rodandoItem.estado).finally(() => { window._nmReconectando = false; });
+            } else {
+                _nmAtualizarProgressoFila();
+            }
     }).catch(()=>{});
 })();
 
