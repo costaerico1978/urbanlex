@@ -26,6 +26,14 @@ def iniciar_worker(app, get_db, buscador_jobs):
                 cu2.execute("UPDATE fila_buscas SET status='rodando',job_id=%s,iniciado_em=NOW() WHERE id=%s",(job_id,item['id']))
                 c2.commit(); cu2.close(); c2.close()
                 buscador_jobs[job_id]={'logs':[],'result':None,'done':False,'tipo':'auto_fila','ts':time.time(),'municipio':item['municipio'],'estado':item['estado']}
+                # INSERT inicial no historico para ter hist_id disponivel durante polling
+                try:
+                    _ci=get_db(); _cui=_ci.cursor()
+                    _cui.execute("INSERT INTO buscas_historico (tipo,municipio,estado,iniciado_em,sucesso,log_texto,pdf_path,anexos_paths,job_id) VALUES (%s,%s,%s,NOW(),%s,%s,%s,%s,%s) RETURNING id",('auto',item['municipio'],item['estado'],False,'','','[]',job_id))
+                    _hrow=_cui.fetchone()
+                    if _hrow: buscador_jobs[job_id]['hist_id']=_hrow[0]
+                    _ci.commit(); _cui.close(); _ci.close()
+                except: pass
                 try:
                     with app.app_context():
                         from modulos.buscador_urbanistico import buscar_legislacoes_urbanisticas

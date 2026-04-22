@@ -1266,14 +1266,20 @@ async function _nmIniciarFila() {
     _nmFila = [];
     fecharModalNovoMun();
     if (enviados > 0) {
-        // Mostrar progresso da fila no painel
         const _btnCL = document.getElementById('btn-cancelar-limpar');
         if (_btnCL) _btnCL.style.display = 'inline-flex';
         _nmAtualizarProgressoFila();
-        // Polling da fila a cada 5s
-        if (!window._nmFilaPolling) {
-            window._nmFilaPolling = setInterval(_nmAtualizarProgressoFila, 5000);
-        }
+        // Polling rapido ate detectar job rodando, depois muda para 5s
+        let _tentativas = 0;
+        const _pollRapido = setInterval(async () => {
+            _tentativas++;
+            await _nmAtualizarProgressoFila();
+            const _jid = localStorage.getItem('mun_job_id');
+            if (_jid || _tentativas > 15) {
+                clearInterval(_pollRapido);
+                if (!window._nmFilaPolling) window._nmFilaPolling = setInterval(_nmAtualizarProgressoFila, 5000);
+            }
+        }, 1500);
     }
 }
 
