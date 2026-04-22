@@ -1557,7 +1557,10 @@ async function confirmarBuscaNovoMun() {
                     const _sp = logEl.querySelector('.log-line-spinner');
                     if (_sp) _sp.remove();
                     const _ldMun = document.getElementById('loading-mun');
-                    if (_ldMun) _ldMun.style.display = 'none';
+                    if (_ldMun) {
+                        _ldMun.innerHTML = '<div style="font-size:13px;font-weight:600;color:var(--accent);">✅ Busca concluída com sucesso!</div>';
+                        setTimeout(() => { _ldMun.style.display = 'none'; }, 4000);
+                    }
                     if (poll.hist_id) { btnLog._histId = poll.hist_id; window._munHistId = poll.hist_id; const _btnAuto = document.getElementById('btn-baixar-log-auto'); if(_btnAuto) _btnAuto.style.display='inline-block'; const _bPdf=document.getElementById('btn-baixar-tabela-pdf'); if(_bPdf) _bPdf.style.display='inline-block'; }
                     // Manter log no cache após conclusão (só limpa em nova busca)
                     try {
