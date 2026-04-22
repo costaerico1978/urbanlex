@@ -1169,7 +1169,7 @@ function dispararBuscaNovoMunicipio() {
     // Carregar itens aguardando do servidor
     fetch('/api/fila/listar').then(r=>r.json()).then(d=>{
         if (!d.success) return;
-        _nmFila = d.fila.filter(i => i.status === 'aguardando').map(i => ({
+        _nmFila = d.fila.filter(i => i.status === 'aguardando' || i.status === 'rodando').map(i => ({
             id: i.id, mun: i.municipio, est: i.estado,
             maxLegs: i.max_legislacoes, status: 'aguardando', servidor: true
         }));
