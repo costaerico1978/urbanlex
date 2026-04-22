@@ -2359,6 +2359,7 @@ async function reconectarMunJob(jobIdDireto, munDireto, estDireto) {
     let jobId = localStorage.getItem('mun_job_id');
     // Se tem job_id direto, pular job-ativo e ir direto ao poll
     if (jobIdDireto) {
+        if (typeof BUSCA_PAGINA !== 'undefined' && BUSCA_PAGINA === 'buscador-historico') return;
         let logEl = document.getElementById('log-municipio');
         if (!logEl) {
             logEl = document.createElement('div');
