@@ -1245,11 +1245,17 @@ async function _nmIniciarFila() {
     const mun = (document.getElementById('nm-municipio').value || '').trim();
     const est = document.getElementById('nm-estado').value;
     const maxLegs = document.getElementById('nm-max-legs').value;
-    // Se campo preenchido, adicionar à fila local primeiro
-    if (mun && est) _nmFila.push({ mun, est, maxLegs: maxLegs ? parseInt(maxLegs) : null, status: 'aguardando', local: true });
+    // Se campo preenchido, enviar ao servidor
+    if (mun && est) {
+        try {
+            const _ra = await fetch('/api/fila/adicionar', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({municipio:mun, estado:est, max_legislacoes:maxLegs?parseInt(maxLegs):null})});
+            const _da = await _ra.json();
+            if (_da.success) _nmFila.push({ id:_da.id, mun, est, status:'aguardando', servidor:true });
+        } catch(e) {}
+    }
     // Se fila vazia, busca simples direta
     if (_nmFila.length === 0) { confirmarBuscaNovoMun(); return; }
-    // Itens ja foram enviados ao servidor ao adicionar
+    // Contar itens no servidor
     const enviados = _nmFila.filter(i => i.servidor).length;
     _nmFila = [];
     fecharModalNovoMun();
