@@ -131,7 +131,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
             numero = leg.get("numero", "").strip()
             if not numero:
                 continue
-            chave = f"{leg.get('tipo','').lower()}_{numero}_{leg.get('ano','')}".lower()
+            _num_norm = numero.replace('.','').replace('-','').strip()
+            chave = f"{leg.get('tipo','').lower()}_{_num_norm}_{leg.get('ano','')}".lower()
             if chave not in _chaves_legs:
                 _chaves_legs.add(chave)
                 leg["_modo_verificacao"] = _modo_pergunta
