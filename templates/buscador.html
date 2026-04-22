@@ -2367,6 +2367,42 @@ async function reconectarMunJob(jobIdDireto, munDireto, estDireto) {
         if (munDireto) localStorage.setItem('mun_campos', JSON.stringify({mun: munDireto, est: estDireto||''}));
     }
     let jobId = localStorage.getItem('mun_job_id');
+    // Se tem job_id direto, pular job-ativo e ir direto ao poll
+    if (jobIdDireto) {
+        let logEl = document.getElementById('log-municipio');
+        if (!logEl) {
+            logEl = document.createElement('div');
+            logEl.id = 'log-municipio';
+            logEl.style = 'margin-top:16px;background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;max-height:400px;overflow-y:auto;';
+            const _pa = document.getElementById('panel-auto');
+            if (_pa) _pa.appendChild(logEl);
+        }
+        mudarTab('auto');
+        let _cursor = 0;
+        while (true) {
+            await new Promise(ok => setTimeout(ok, 1500));
+            try {
+                const poll = await api('GET', `/api/buscador/job/${jobIdDireto}?cursor=${_cursor}`);
+                if (!poll || poll.error === 'Job não encontrado') break;
+                if (poll.logs && poll.logs.length) {
+                    poll.logs.forEach(l => {
+                        if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
+                        if (l.nivel === 'token') return;
+                        const c = l.nivel==='erro'?'#ff6b6b':l.nivel==='aviso'?'#ffb347':l.nivel==='ok'?'var(--accent)':l.nivel==='relacao'?'#4fc3f7':'var(--muted)';
+                        const d = document.createElement('div'); d.style.color=c;
+                        const ts = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'America/Sao_Paulo'});
+                        d.textContent = '['+ts+'] '+(l.msg||'');
+                        logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight;
+                    });
+                }
+                if (poll.hist_id) { window._munHistId=poll.hist_id; const _ba=document.getElementById('btn-baixar-log-auto'); if(_ba) _ba.style.display='inline-block'; }
+                _cursor = poll.cursor || _cursor;
+                localStorage.setItem('mun_log_cache_done', poll.done ? 'true' : '');
+                if (poll.done) { const _ldM=document.getElementById('loading-mun'); if(_ldM){_ldM.innerHTML='<div style="font-size:13px;font-weight:600;color:var(--accent);">✅ Busca concluída!</div>'; setTimeout(()=>{_ldM.style.display='none';},4000);} break; }
+            } catch(e) { break; }
+        }
+        return;
+    }
     let mun = '', est = '';
     try {
         const ativo = await api('GET', '/api/buscador/job-ativo');
