@@ -1354,7 +1354,7 @@ async function _nmAtualizarProgressoFila() {
                     localStorage.setItem('mun_campos', JSON.stringify({mun: rodando.municipio, est: rodando.estado}));
                     // Timeout de seguranca: resetar flag apos 60s
                     setTimeout(() => { window._nmReconectando = false; }, 60000);
-                    reconectarMunJob().finally(() => { window._nmReconectando = false; });
+                    reconectarMunJob(rodando.job_id, rodando.municipio, rodando.estado).finally(() => { window._nmReconectando = false; });
                 }
             } else if (false) { // placeholder
                 // Novo job — limpar tabela, log e botoes do anterior
@@ -2341,7 +2341,7 @@ carregarFila();
     if (_jidInit && !window._nmReconectando) {
         window._nmReconectando = true;
         setTimeout(() => { window._nmReconectando = false; }, 60000);
-        reconectarMunJob().finally(() => { window._nmReconectando = false; });
+        reconectarMunJob(rodandoItem && rodandoItem.job_id, rodandoItem && rodandoItem.municipio, rodandoItem && rodandoItem.estado).finally(() => { window._nmReconectando = false; });
     }
 })();
 
@@ -2359,9 +2359,14 @@ document.addEventListener('visibilitychange', () => {
     }
 });
 
-async function reconectarMunJob() {
-    await new Promise(ok => setTimeout(ok, 300)); // aguardar DOM e funções prontos
-    // Sempre consultar servidor — independente do localStorage
+async function reconectarMunJob(jobIdDireto, munDireto, estDireto) {
+    await new Promise(ok => setTimeout(ok, 300));
+    // Se recebeu job_id direto (chamado pelo verificarFilaAtiva), usar sem localStorage
+    if (jobIdDireto) {
+        localStorage.setItem('mun_job_id', jobIdDireto);
+        if (munDireto) localStorage.setItem('mun_campos', JSON.stringify({mun: munDireto, est: estDireto||''}));
+        return _reconectarMunJobComId(jobIdDireto, munDireto||'', estDireto||'');
+    }
     let jobId = localStorage.getItem('mun_job_id');
     let mun = '', est = '';
     try {
