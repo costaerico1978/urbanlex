@@ -2336,6 +2336,20 @@ carregarFila();
 })();
 
 // Reconectar busca automática se houver job ativo
+// Reconectar ao voltar para a aba
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        const _jid = localStorage.getItem('mun_job_id');
+        if (_jid && !window._nmReconectando) {
+            window._nmReconectando = true;
+            reconectarMunJob().finally(() => { window._nmReconectando = false; });
+        } else {
+            // Verificar fila mesmo sem job_id
+            _nmAtualizarProgressoFila();
+        }
+    }
+});
+
 async function reconectarMunJob() {
     await new Promise(ok => setTimeout(ok, 300)); // aguardar DOM e funções prontos
     // Sempre consultar servidor — independente do localStorage
