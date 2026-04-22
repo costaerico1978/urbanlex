@@ -1287,6 +1287,7 @@ async function _nmAtualizarProgressoFila() {
         }
         const total = fila.length;
         const done = fila.filter(i => i.status === 'concluido' || i.status === 'erro').length;
+        const filaVisivel = fila.filter(i => i.status === 'aguardando' || i.status === 'rodando');
         const rodando = fila.find(i => i.status === 'rodando');
         const pct = total ? Math.round(done/total*100) : 0;
         let el = document.getElementById('nm-fila-progresso');
@@ -1300,7 +1301,7 @@ async function _nmAtualizarProgressoFila() {
         el.innerHTML = '<div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--accent);font-weight:600;">Fila de buscas' + (rodando ? ' — ' + rodando.municipio + '/' + rodando.estado : ' (concluída)') + '</span><span style="color:var(--muted);">' + done + '/' + total + '</span></div>' +
             '<div style="height:3px;background:var(--border);border-radius:2px;"><div style="height:100%;width:' + pct + '%;background:var(--accent);border-radius:2px;transition:width .3s;"></div></div>' +
             '<div style="margin-top:8px;display:flex;flex-direction:column;gap:3px;">' +
-            fila.map(item => {
+            filaVisivel.map(item => {
                 const col = item.status==='concluido'?'#1D9E75':item.status==='rodando'?'var(--accent)':item.status==='erro'?'#e74c3c':'var(--muted)';
                 const ic = item.status==='concluido'?'✓':item.status==='rodando'?'▶':item.status==='erro'?'✕':'·';
                 const remX = item.status==='aguardando' ? '<button onclick="_nmRemoverFilaServidor(' + item.id + ',\'' + item.municipio + '/' + item.estado + '\')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:0 2px;margin-left:4px;">✕</button>' : '';
