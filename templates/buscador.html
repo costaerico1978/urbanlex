@@ -1133,8 +1133,10 @@ function cancelarELimpar() {
         fetch('/api/buscador/cancelar', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({job_id: _jobAtivo})}).catch(()=>{});
         localStorage.removeItem('mun_job_id');
     }
-    // Cancelar fila se ativa
+    // Cancelar item rodando no servidor
+    fetch('/api/fila/cancelar-rodando', {method:'POST'}).catch(()=>{});
     if (typeof _nmFila !== 'undefined') _nmFila = [];
+    if (window._nmFilaPolling) { clearInterval(window._nmFilaPolling); window._nmFilaPolling = null; }
     const _ldMun = document.getElementById('loading-mun');
     if (_ldMun) _ldMun.style.display = 'none';
     const _logEl = document.getElementById('log-municipio');

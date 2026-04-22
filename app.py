@@ -5191,6 +5191,23 @@ def api_fila_limpar():
     except Exception as e:
         return jsonify({'success':False,'error':str(e)}),500
 
+@app.route('/api/fila/cancelar-rodando', methods=['POST'])
+@login_required
+def api_fila_cancelar_rodando():
+    try:
+        conn=get_db(); cur=conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT job_id FROM fila_buscas WHERE status='rodando' LIMIT 1")
+        row=cur.fetchone()
+        if row and row['job_id']:
+            job_id = row['job_id']
+            if job_id in _buscador_jobs:
+                _buscador_jobs[job_id]['done'] = True
+        cur.execute("UPDATE fila_buscas SET status='cancelado',concluido_em=NOW() WHERE status='rodando'")
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({'success':True})
+    except Exception as e:
+        return jsonify({'success':False,'error':str(e)}),500
+
 _iniciar_fila_worker(app, get_db, _buscador_jobs)
 
 if __name__ == '__main__':

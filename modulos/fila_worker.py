@@ -7,7 +7,7 @@ def iniciar_worker(app, get_db, buscador_jobs):
             try:
                 conn = get_db()
                 cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                cur.execute("UPDATE fila_buscas SET status='aguardando',job_id=NULL,iniciado_em=NULL WHERE status='rodando'")
+                cur.execute("UPDATE fila_buscas SET status='aguardando',job_id=NULL,iniciado_em=NULL WHERE status='rodando' AND (concluido_em IS NULL OR concluido_em > NOW() - INTERVAL '1 minute')")
                 conn.commit()
                 cur.execute("SELECT * FROM fila_buscas WHERE status='aguardando' ORDER BY ordem ASC,criado_em ASC LIMIT 1")
                 item = cur.fetchone()
