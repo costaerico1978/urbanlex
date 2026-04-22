@@ -150,6 +150,9 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
             <button class="btn btn-primary btn-sm" onclick="dispararBuscaNovoMunicipio()">
                 🔍 Buscar Novo Município...
             </button>
+            <button id="btn-iniciar-fila" class="btn btn-secondary btn-sm" onclick="_nmIniciarFilaAgora()" style="display:none;">
+                ▶ Iniciar Busca
+            </button>
             <button id="btn-cancelar-limpar" class="btn btn-sm" onclick="cancelarELimpar()" style="display:none;border:1px solid #e74c3c !important;color:#e74c3c;background:transparent;">
                 ✕ Cancelar e Limpar
             </button>
@@ -1271,6 +1274,26 @@ async function _nmIniciarFila() {
     }
 }
 
+async function _nmIniciarFilaAgora() {
+    try {
+        const r = await fetch('/api/fila/listar');
+        const d = await r.json();
+        if (!d.success) return;
+        const rodando = d.fila.find(i => i.status === 'rodando');
+        if (rodando) {
+            alert('Já existe uma busca em andamento: ' + rodando.municipio + '/' + rodando.estado);
+            return;
+        }
+        const aguardando = d.fila.filter(i => i.status === 'aguardando');
+        if (aguardando.length === 0) { alert('Nenhum município na fila de espera.'); return; }
+        // Worker inicia automaticamente — mostrar progresso
+        if (!window._nmFilaPolling) window._nmFilaPolling = setInterval(_nmAtualizarProgressoFila, 5000);
+        _nmAtualizarProgressoFila();
+        const btn = document.getElementById('btn-iniciar-fila');
+        if (btn) btn.style.display = 'none';
+    } catch(e) { alert('Erro: ' + e.message); }
+}
+
 async function _nmRemoverFilaServidor(id, nome) {
     if (!confirm('Remover ' + nome + ' da fila de buscas?')) return;
     try {
@@ -1334,6 +1357,9 @@ async function _nmAtualizarProgressoFila() {
                 reconectarMunJob();
             }
         }
+        // Mostrar/ocultar botao Iniciar Busca
+        const _btnIF = document.getElementById('btn-iniciar-fila');
+        if (_btnIF) _btnIF.style.display = filaVisivel.some(i => i.status === 'aguardando') && !rodando ? 'inline-flex' : 'none';
         // Se tudo concluido, parar polling
         if (done === total) {
             clearInterval(window._nmFilaPolling); window._nmFilaPolling = null;
@@ -1569,6 +1595,10 @@ async function confirmarBuscaNovoMun() {
         if (ativa) {
             const btn = document.getElementById('btn-cancelar-limpar');
             if (btn) btn.style.display = 'inline-flex';
+            const aguardando = d.fila.some(i => i.status === 'aguardando');
+            const rodando = d.fila.some(i => i.status === 'rodando');
+            const btnIF = document.getElementById('btn-iniciar-fila');
+            if (btnIF) btnIF.style.display = aguardando && !rodando ? 'inline-flex' : 'none';
             if (!window._nmFilaPolling) window._nmFilaPolling = setInterval(_nmAtualizarProgressoFila, 5000);
             _nmAtualizarProgressoFila();
         }
