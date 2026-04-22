@@ -3551,6 +3551,7 @@ threading.Thread(target=_carregar_ibge, daemon=True).start()
 
 # ── Buscador: jobs em background com polling de logs ──
 _buscador_jobs = {}  # job_id -> {'logs': [], 'result': None, 'done': False, 'ts': time.time()}
+_fila_pausada = False  # pausar worker apos cancelamento
 from modulos.fila_worker import iniciar_worker as _iniciar_fila_worker
 
 def _cleanup_old_jobs():
@@ -5132,6 +5133,20 @@ import os as _os
 if not _os.environ.get('GOOGLE_MAPS_KEY'):
     _os.environ['GOOGLE_MAPS_KEY'] = 'AIzaSyCuiZTfrnvUC-1X_suD3w6iGVyT_bhdVpQ'
 
+
+@app.route('/api/fila/pausar', methods=['POST'])
+@login_required
+def api_fila_pausar():
+    import modulos.fila_worker as _fw
+    _fw._fila_pausada = True
+    return jsonify({'success': True})
+
+@app.route('/api/fila/despausar', methods=['POST'])
+@login_required
+def api_fila_despausar():
+    import modulos.fila_worker as _fw
+    _fw._fila_pausada = False
+    return jsonify({'success': True})
 
 @app.route('/api/fila/adicionar', methods=['POST'])
 @login_required

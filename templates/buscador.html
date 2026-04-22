@@ -1136,10 +1136,13 @@ function cancelarELimpar() {
         fetch('/api/buscador/cancelar', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({job_id: _jobAtivo})}).catch(()=>{});
         localStorage.removeItem('mun_job_id');
     }
-    // Cancelar item rodando no servidor
+    // Pausar fila e cancelar item rodando
+    fetch('/api/fila/pausar', {method:'POST'}).catch(()=>{});
     fetch('/api/fila/cancelar-rodando', {method:'POST'}).catch(()=>{});
     if (typeof _nmFila !== 'undefined') _nmFila = [];
     if (window._nmFilaPolling) { clearInterval(window._nmFilaPolling); window._nmFilaPolling = null; }
+    // Reload apos limpar
+    setTimeout(() => location.reload(), 800);
     const _ldMun = document.getElementById('loading-mun');
     if (_ldMun) _ldMun.style.display = 'none';
     const _logEl = document.getElementById('log-municipio');
@@ -1286,11 +1289,12 @@ async function _nmIniciarFilaAgora() {
         }
         const aguardando = d.fila.filter(i => i.status === 'aguardando');
         if (aguardando.length === 0) { alert('Nenhum município na fila de espera.'); return; }
-        // Worker inicia automaticamente — mostrar progresso
-        if (!window._nmFilaPolling) window._nmFilaPolling = setInterval(_nmAtualizarProgressoFila, 5000);
-        _nmAtualizarProgressoFila();
+        // Despausar worker e iniciar polling
+        await fetch('/api/fila/despausar', {method:'POST'}).catch(()=>{});
         const btn = document.getElementById('btn-iniciar-fila');
         if (btn) btn.style.display = 'none';
+        if (!window._nmFilaPolling) window._nmFilaPolling = setInterval(_nmAtualizarProgressoFila, 5000);
+        _nmAtualizarProgressoFila();
     } catch(e) { alert('Erro: ' + e.message); }
 }
 

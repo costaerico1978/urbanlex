@@ -1,3 +1,5 @@
+_fila_pausada = False
+
 import threading, time, uuid, psycopg2, psycopg2.extras
 
 def iniciar_worker(app, get_db, buscador_jobs):
@@ -12,6 +14,10 @@ def iniciar_worker(app, get_db, buscador_jobs):
                 cur.execute("SELECT * FROM fila_buscas WHERE status='aguardando' ORDER BY ordem ASC,criado_em ASC LIMIT 1")
                 item = cur.fetchone()
                 cur.close(); conn.close()
+                # Verificar pausa
+                if _fila_pausada:
+                    _ftime.sleep(3)
+                    continue
                 if not item:
                     time.sleep(3)
                     continue
