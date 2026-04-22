@@ -2335,6 +2335,16 @@ carregarFila();
 })();
 
 // Reconectar busca automática se houver job ativo
+// Ao carregar pagina, reconectar imediatamente se ha job ativo
+(function() {
+    const _jidInit = localStorage.getItem('mun_job_id');
+    if (_jidInit && !window._nmReconectando) {
+        window._nmReconectando = true;
+        setTimeout(() => { window._nmReconectando = false; }, 60000);
+        reconectarMunJob().finally(() => { window._nmReconectando = false; });
+    }
+})();
+
 // Reconectar ao voltar para a aba
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
