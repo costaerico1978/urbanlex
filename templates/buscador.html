@@ -2361,11 +2361,10 @@ document.addEventListener('visibilitychange', () => {
 
 async function reconectarMunJob(jobIdDireto, munDireto, estDireto) {
     await new Promise(ok => setTimeout(ok, 300));
-    // Se recebeu job_id direto (chamado pelo verificarFilaAtiva), usar sem localStorage
+    // Se recebeu job_id direto, setar no localStorage antes de continuar
     if (jobIdDireto) {
         localStorage.setItem('mun_job_id', jobIdDireto);
         if (munDireto) localStorage.setItem('mun_campos', JSON.stringify({mun: munDireto, est: estDireto||''}));
-        return _reconectarMunJobComId(jobIdDireto, munDireto||'', estDireto||'');
     }
     let jobId = localStorage.getItem('mun_job_id');
     let mun = '', est = '';
