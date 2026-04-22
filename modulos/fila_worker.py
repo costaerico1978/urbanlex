@@ -56,5 +56,6 @@ def iniciar_worker(app, get_db, buscador_jobs):
                         with open(f'/var/www/urbanlex/static/downloads/job_{job_id}.jsonl','a') as f:
                             f.write(json.dumps({'_result':buscador_jobs[job_id].get('result',{})})+'\\n')
                     except: pass
-            except: time.sleep(5)
+            except Exception as _ew_outer:
+                import traceback; print(f"[FILA WORKER ERROR] {_ew_outer} {traceback.format_exc()[-300:]}", flush=True); time.sleep(5)
     threading.Thread(target=worker,daemon=True,name='fila-buscas').start()
