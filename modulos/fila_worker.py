@@ -25,7 +25,8 @@ def iniciar_worker(app, get_db, buscador_jobs):
                 c2=get_db(); cu2=c2.cursor()
                 cu2.execute("UPDATE fila_buscas SET status='rodando',job_id=%s,iniciado_em=NOW() WHERE id=%s",(job_id,item['id']))
                 c2.commit(); cu2.close(); c2.close()
-                buscador_jobs[job_id]={'logs':[],'result':None,'done':False,'tipo':'auto_fila','ts':time.time(),'municipio':item['municipio'],'estado':item['estado']}
+                from modulos.log_persistente import LogList
+                buscador_jobs[job_id]={'logs':LogList(job_id,get_db),'result':None,'done':False,'tipo':'auto_fila','ts':time.time(),'municipio':item['municipio'],'estado':item['estado']}
                 # INSERT inicial no historico para ter hist_id disponivel durante polling
                 try:
                     _ci=get_db(); _cui=_ci.cursor()

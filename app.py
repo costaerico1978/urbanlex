@@ -3366,7 +3366,7 @@ def api_buscador_municipio():
     if _jc_ativos:
         return jsonify({"success":False,"error":"job_concorrente"}), 409
     job_id = str(uuid.uuid4())[:8]
-    job = {"done": False, "cancelled": False, "logs": [], "result": None, "tipo": "auto"}
+    job = {"done": False, "cancelled": False, "logs": __import__("modulos.log_persistente", fromlist=["LogList"]).LogList(job_id, get_db), "result": None, "tipo": "auto"}
     _buscador_jobs[job_id] = job
 
     # Registrar inicio no historico
@@ -4004,6 +4004,32 @@ def api_buscador_job_poll(job_id):
     """Polling: retorna logs novos + resultado quando pronto."""
     job = _buscador_jobs.get(job_id)
     if not job:
+        # Tentar recuperar logs do banco (log_persistente)
+        try:
+            from modulos.log_persistente import carregar_logs, contar_logs
+            _cursor_req = int(request.args.get('cursor', 0))
+            _logs_db = carregar_logs(job_id, get_db, _cursor_req)
+            if _logs_db:
+                _total_db = contar_logs(job_id, get_db)
+                _hist_id_db = None
+                try:
+                    _c2=get_db(); _cu2=_c2.cursor()
+                    _cu2.execute("SELECT id FROM buscas_historico WHERE job_id=%s LIMIT 1",(job_id,))
+                    _h2=_cu2.fetchone()
+                    if _h2: _hist_id_db=_h2[0]
+                    _cu2.close(); _c2.close()
+                except: pass
+                # Verificar se job ainda esta rodando na fila
+                _ainda_rodando = False
+                try:
+                    _c3=get_db(); _cu3=_c3.cursor()
+                    _cu3.execute("SELECT status FROM fila_buscas WHERE job_id=%s LIMIT 1",(job_id,))
+                    _r3=_cu3.fetchone()
+                    if _r3: _ainda_rodando = _r3[0] == 'rodando'
+                    _cu3.close(); _c3.close()
+                except: pass
+                return jsonify({'success':True,'logs':[{'nivel':l['nivel'],'msg':l['msg']} for l in _logs_db],'cursor':_cursor_req+len(_logs_db),'done': not _ainda_rodando,'hist_id':_hist_id_db,'result':None})
+        except Exception as _edb: pass
         # Tentar recuperar logs do arquivo persistido
         import json as _json_rec
         _log_path = f"/var/www/urbanlex/static/downloads/job_{job_id}.jsonl"
