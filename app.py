@@ -3666,7 +3666,21 @@ def api_buscador_job_ativo():
         r = cur.fetchone()
         cur.close()
         conn.close()
+        # Verificar tambem fila_buscas (worker server-side)
         if not r:
+            cur3 = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur3.execute("SELECT job_id, municipio, estado FROM fila_buscas WHERE status='rodando' LIMIT 1")
+            rf = cur3.fetchone(); cur3.close()
+            if rf and rf['job_id']:
+                job_id = rf['job_id']
+                job = _buscador_jobs.get(job_id)
+                h2 = None
+                try:
+                    c2b=get_db(); cu2b=c2b.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                    cu2b.execute("SELECT id FROM buscas_historico WHERE job_id=%s LIMIT 1",(job_id,))
+                    h2=cu2b.fetchone(); cu2b.close(); c2b.close()
+                except: pass
+                return jsonify({'ativo': True, 'job_id': job_id, 'municipio': rf['municipio'], 'estado': rf['estado'], 'hist_id': h2['id'] if h2 else None})
             return jsonify({'ativo': False})
         job_id = r['job_id']
         job = _buscador_jobs.get(job_id)

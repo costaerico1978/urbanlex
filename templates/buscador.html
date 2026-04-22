@@ -1351,11 +1351,13 @@ async function _nmAtualizarProgressoFila() {
         // Se job rodando, monitorar via polling normal
         if (rodando && rodando.job_id) {
             const _jobAtual = localStorage.getItem('mun_job_id');
-            if (!_jobAtual) {
-                // Sem job no localStorage mas ha job rodando — reconectar sem limpar
-                localStorage.setItem('mun_job_id', rodando.job_id);
-                reconectarMunJob();
-            } else if (_jobAtual !== rodando.job_id) {
+            if (!_jobAtual || _jobAtual !== rodando.job_id) {
+                if (!window._nmReconectando) {
+                    window._nmReconectando = true;
+                    localStorage.setItem('mun_job_id', rodando.job_id);
+                    reconectarMunJob().finally(() => { window._nmReconectando = false; });
+                }
+            } else if (false) { // placeholder
                 // Novo job — limpar tabela, log e botoes do anterior
                 localStorage.removeItem('mun_zip_data');
                 localStorage.removeItem('mun_log_cache');
