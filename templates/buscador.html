@@ -2343,6 +2343,11 @@ async function reconectarMunJob() {
             est = ativo.estado || '';
             localStorage.setItem('mun_job_id', jobId);
             if (ativo.hist_id) { window._munHistId = ativo.hist_id; const _ba = document.getElementById('btn-baixar-log-auto'); if(_ba) _ba.style.display='inline-block'; const _bPdf2=document.getElementById('btn-baixar-tabela-pdf'); if(_bPdf2) _bPdf2.style.display='inline-block'; }
+        } else if (jobId) {
+            // Fila server-side: usar job_id do localStorage diretamente
+            const campos = JSON.parse(localStorage.getItem('mun_campos') || '{}');
+            mun = campos.mun || '';
+            est = campos.est || '';
         } else if (!jobId) {
             return;
         } else {
