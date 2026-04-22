@@ -1607,25 +1607,19 @@ async function confirmarBuscaNovoMun() {
 
 // Verificar fila ativa ao carregar
 (function verificarFilaAtiva() {
-    fetch('/api/fila/listar').then(r=>r.json()).then(d=>{
-        if (!d.success) return;
-        const ativa = d.fila && d.fila.some(i => i.status === 'aguardando' || i.status === 'rodando');
-        if (ativa) {
-            const btn = document.getElementById('btn-cancelar-limpar');
-            if (btn) btn.style.display = 'inline-flex';
-            const aguardando = d.fila.some(i => i.status === 'aguardando');
-            const aguardando = d.fila.some(i => i.status === 'aguardando');
-            const rodandoItem = d.fila.find(i => i.status === 'rodando');
-            if (btnIF) btnIF.style.display = aguardando && !rodando ? 'inline-flex' : 'none';
-            if (!window._nmFilaPolling) window._nmFilaPolling = setInterval(_nmAtualizarProgressoFila, 5000);
-            if (!window._nmFilaPolling) window._nmFilaPolling = setInterval(_nmAtualizarProgressoFila, 5000);
-            if (rodandoItem && rodandoItem.job_id && !window._nmReconectando) {
-                window._nmReconectando = true;
-                setTimeout(() => { window._nmReconectando = false; }, 60000);
-                reconectarMunJob(rodandoItem.job_id, rodandoItem.municipio, rodandoItem.estado).finally(() => { window._nmReconectando = false; });
-            } else {
-                _nmAtualizarProgressoFila();
-            }
+    fetch('/api/buscador/job-atual?cursor=0').then(r=>r.json()).then(d=>{
+        if (!d.ativo) return;
+        // Mostrar botao cancelar
+        const btn = document.getElementById('btn-cancelar-limpar');
+        if (btn) btn.style.display = 'inline-flex';
+        // Mostrar fila no painel
+        if (!window._nmFilaPolling) window._nmFilaPolling = setInterval(_nmAtualizarProgressoFila, 5000);
+        // Reconectar direto com job_id do servidor
+        if (!window._nmReconectando) {
+            window._nmReconectando = true;
+            setTimeout(() => { window._nmReconectando = false; }, 60000);
+            reconectarMunJob(d.job_id, d.municipio, d.estado).finally(() => { window._nmReconectando = false; });
+        }
     }).catch(()=>{});
 })();
 

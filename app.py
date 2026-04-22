@@ -5175,6 +5175,38 @@ if not _os.environ.get('GOOGLE_MAPS_KEY'):
     _os.environ['GOOGLE_MAPS_KEY'] = 'AIzaSyCuiZTfrnvUC-1X_suD3w6iGVyT_bhdVpQ'
 
 
+
+@app.route('/api/buscador/job-atual')
+@login_required
+def api_buscador_job_atual():
+    """Retorna job rodando agora com logs do banco — para reconexao apos refresh."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT job_id, municipio, estado FROM fila_buscas WHERE status='rodando' ORDER BY iniciado_em DESC LIMIT 1")
+        fila = cur.fetchone()
+        cur.close(); conn.close()
+        if not fila or not fila['job_id']:
+            return jsonify({'ativo': False})
+        job_id = fila['job_id']
+        cursor_req = int(request.args.get('cursor', 0))
+        from modulos.log_persistente import carregar_logs, contar_logs
+        logs = carregar_logs(job_id, get_db, cursor_req)
+        total = contar_logs(job_id, get_db)
+        job = _buscador_jobs.get(job_id)
+        done = job['done'] if job else False
+        hist_id = job.get('hist_id') if job else None
+        if not hist_id:
+            try:
+                c2=get_db(); cu2=c2.cursor()
+                cu2.execute("SELECT id FROM buscas_historico WHERE job_id=%s LIMIT 1",(job_id,))
+                h=cu2.fetchone(); cu2.close(); c2.close()
+                if h: hist_id=h[0]
+            except: pass
+        return jsonify({'ativo': True, 'job_id': job_id, 'municipio': fila['municipio'], 'estado': fila['estado'], 'logs': [{'nivel':l['nivel'],'msg':l['msg']} for l in logs], 'cursor': cursor_req + len(logs), 'total': total, 'done': done, 'hist_id': hist_id})
+    except Exception as e:
+        return jsonify({'ativo': False, 'error': str(e)})
+
 @app.route('/api/fila/pausar', methods=['POST'])
 @login_required
 def api_fila_pausar():
