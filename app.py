@@ -3366,7 +3366,7 @@ def api_buscador_municipio():
     if _jc_ativos:
         return jsonify({"success":False,"error":"job_concorrente"}), 409
     job_id = str(uuid.uuid4())[:8]
-    job = {"done": False, "cancelled": False, "logs": __import__("modulos.log_persistente", fromlist=["LogList"]).LogList(job_id, get_db), "result": None, "tipo": "auto"}
+    job = {"done": False, "cancelled": False, "logs": _LogList(job_id, get_db), "result": None, "tipo": "auto"}
     _buscador_jobs[job_id] = job
 
     # Registrar inicio no historico
@@ -3553,6 +3553,7 @@ threading.Thread(target=_carregar_ibge, daemon=True).start()
 _buscador_jobs = {}  # job_id -> {'logs': [], 'result': None, 'done': False, 'ts': time.time()}
 _fila_pausada = False  # pausar worker apos cancelamento
 from modulos.fila_worker import iniciar_worker as _iniciar_fila_worker
+from modulos.log_persistente import LogList as _LogList
 
 def _cleanup_old_jobs():
     """Remove jobs com mais de 2 horas."""
