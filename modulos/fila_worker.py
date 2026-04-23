@@ -52,7 +52,7 @@ def iniciar_worker(app, get_db, buscador_jobs):
                         try:
                             enc=r.get('encontradas',[]); leg=enc[0] if enc else {}
                             c4=get_db(); cu4=c4.cursor()
-                            cu4.execute("INSERT INTO buscas_historico (tipo,municipio,estado,iniciado_em,concluido_em,sucesso,legislacao_tipo,legislacao_numero,legislacao_ano,legislacao_link,log_texto,pdf_path,anexos_paths,job_id,relatorio_path,tabela_path,zip_path) VALUES (%s,%s,%s,%s,NOW(),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",('auto',item['municipio'],item['estado'],item.get('iniciado_em'),bool(enc),leg.get('tipo',''),leg.get('numero',''),leg.get('ano',''),leg.get('link',''),'\n'.join(l.get('msg','') for l in buscador_jobs[job_id]['logs']),leg.get('pdf_path',''),'[]',job_id,r.get('relatorio_url',''),r.get('tabela_url',''),r.get('zip_url','')))
+                            cu4.execute("UPDATE buscas_historico SET concluido_em=NOW(),sucesso=%s,legislacao_tipo=%s,legislacao_numero=%s,legislacao_ano=%s,legislacao_link=%s,log_texto=%s,pdf_path=%s,relatorio_path=%s,tabela_path=%s,zip_path=%s WHERE job_id=%s RETURNING id",(bool(enc),leg.get('tipo',''),leg.get('numero',''),leg.get('ano',''),leg.get('link',''),'\n'.join(l.get('msg','') for l in buscador_jobs[job_id]['logs']),leg.get('pdf_path',''),r.get('relatorio_url',''),r.get('tabela_url',''),r.get('zip_url',''),job_id))
                             hist_id_row = cu4.fetchone()
                             if hist_id_row: buscador_jobs[job_id]['hist_id'] = hist_id_row[0]
                             c4.commit(); cu4.close(); c4.close()
