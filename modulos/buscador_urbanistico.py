@@ -49,6 +49,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
         f"quais sao as principais legislacoes vigentes de parcelamento do solo urbano de {municipio} {estado}? Inclua leis de loteamento, desmembramento e condominio. Liste no maximo 7 legislacoes, priorizando as mais recentes e abrangentes. IMPORTANTE: Liste APENAS legislacoes MUNICIPAIS de {municipio}. NAO inclua leis federais nem estaduais.",
         f"quais sao as principais legislacoes vigentes que compoem o codigo de obras e edificacoes de {municipio} {estado}? Inclua decretos regulamentadores relevantes. Liste no maximo 7 legislacoes, priorizando as mais recentes e abrangentes. IMPORTANTE: Liste APENAS legislacoes MUNICIPAIS de {municipio}. NAO inclua leis federais nem estaduais.",
         f"qual e o Plano Diretor vigente de {municipio} {estado}? Inclua o nome oficial, numero e ano. Houve revisoes ou atualizacoes recentes? IMPORTANTE: Liste APENAS legislacoes MUNICIPAIS de {municipio}. NAO inclua leis federais nem estaduais.",
+        f"Existem Operacoes Urbanas Consorciadas (OUC) em vigor em {municipio}/{estado}? Se sim, liste as legislacoes municipais que as criaram ou regulamentaram, incluindo numero e ano. IMPORTANTE: Liste APENAS se tiver certeza absoluta da existencia da OUC e do numero da legislacao — NAO invente nem suponha. Se nao houver OUC confirmada, retorne lista vazia.",
     ]
     legs = []
     _chaves_legs = set()
