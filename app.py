@@ -5292,6 +5292,7 @@ def api_fila_cancelar_rodando():
                 _buscador_jobs[job_id]['done'] = True
         cur.execute("UPDATE fila_buscas SET status='cancelado',concluido_em=NOW() WHERE status='rodando'")
         conn.commit(); cur.close(); conn.close()
+        import subprocess; subprocess.Popen(['pkill', '-9', '-f', 'chromium'])
         return jsonify({'success':True})
     except Exception as e:
         return jsonify({'success':False,'error':str(e)}),500
