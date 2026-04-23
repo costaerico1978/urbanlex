@@ -1357,7 +1357,7 @@ async function _nmAtualizarProgressoFila() {
                     setTimeout(() => { window._nmReconectando = false; }, 60000);
                     reconectarMunJob(rodando.job_id, rodando.municipio, rodando.estado).finally(() => { window._nmReconectando = false; });
                 }
-            } else if (_jobAtual && _jobAtual !== rodando.job_id && filaVisivel.some(i => i.status === 'aguardando')) { // Novo job — limpar so se houver proximo
+            } else if (_jobAtual && _jobAtual !== rodando.job_id) { // Novo job — limpar sempre que job mudar
                 // Novo job — limpar tabela, log e botoes do anterior
                 localStorage.removeItem('mun_zip_data');
                 localStorage.removeItem('mun_log_cache');
