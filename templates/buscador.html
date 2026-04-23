@@ -1632,42 +1632,45 @@ async function confirmarBuscaNovoMun() {
 
 // Restaurar botoes ZIP/Relatorio/Tabela sempre ao carregar (independente de job ativo)
 (function restaurarBotoesDownload() {
-    setTimeout(function() {
-        // Verificar se ha job ativo — se sim, nao restaurar botoes antigos
-        fetch('/api/fila/listar').then(r0=>r0.json()).then(d0=>{
+    setTimeout(async function() {
+        try {
+            const r0 = await fetch('/api/fila/listar');
+            const d0 = await r0.json();
             if (d0.fila && d0.fila.some(i => i.status === 'rodando' || i.status === 'aguardando')) return;
-        fetch('/api/buscador/job-atual?cursor=0').then(r=>r.json()).then(d=>{
+            const r = await fetch('/api/buscador/job-atual?cursor=0');
+            const d = await r.json();
             if (d.ativo) return;
-            // Buscar ultimo job concluido do servidor
-            fetch('/api/buscador/ultimo-concluido').then(r2=>r2.json()).then(d2=>{
-                if (!d2.success) return;
-                const resDiv = document.getElementById('panel-auto');
-                if (!resDiv) return;
-                if (d2.zip_url && !document.getElementById('bm-zip-download')) {
-                    const zEl = document.createElement('div');
-                    zEl.id = 'bm-zip-download';
-                    zEl.style.cssText = 'margin-top:16px;padding:14px;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;display:flex;align-items:center;gap:12px;';
-                    zEl.innerHTML = '<div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--accent)">📦 Pacote Completo de Legislações</div><div style="font-size:11px;color:var(--muted);margin-top:2px">' + d2.municipio + '/' + d2.estado + ' — restaurado após reload</div></div><a href="' + d2.zip_url + '" download class="btn btn-primary" style="white-space:nowrap;font-size:13px;padding:8px 18px;">⬇️ Baixar ZIP</a>';
-                    resDiv.appendChild(zEl);
-                }
-                if (d2.relatorio_url && !document.getElementById('bm-relatorio-download')) {
-                    const rlEl = document.createElement('div');
-                    rlEl.id = 'bm-relatorio-download';
-                    rlEl.style.cssText = 'margin-top:10px;padding:14px;background:var(--surface2);border:1px solid #7c6af7;border-radius:8px;display:flex;align-items:center;gap:12px;';
-                    rlEl.innerHTML = '<div style="flex:1"><b style="color:#7c6af7">Relatório PDF</b><br><small>' + d2.municipio + '/' + d2.estado + ' — restaurado após reload</small></div><a href="' + d2.relatorio_url + '" target="_blank" class="btn btn-primary" style="background:#7c6af7;border-color:#7c6af7;">Abrir</a>';
-                    resDiv.appendChild(rlEl);
-                }
-                if (d2.tabela_url && !document.getElementById('bm-tabela-download')) {
-                    const tlEl = document.createElement('div');
-                    tlEl.id = 'bm-tabela-download';
-                    tlEl.style.cssText = 'margin-top:10px;padding:14px;background:var(--surface2);border:1px solid #1D9E75;border-radius:8px;display:flex;align-items:center;gap:12px;';
-                    tlEl.innerHTML = '<div style="flex:1"><b style="color:#1D9E75">Tabela PDF</b><br><small>' + d2.municipio + '/' + d2.estado + ' — restaurado após reload</small></div><a href="' + d2.tabela_url + '" target="_blank" class="btn btn-primary" style="background:#1D9E75;border-color:#1D9E75;">Abrir</a>';
-                    resDiv.appendChild(tlEl);
-                }
-            }).catch(()=>{});
-        }).catch(()=>{});
+            const r2 = await fetch('/api/buscador/ultimo-concluido');
+            const d2 = await r2.json();
+            if (!d2.success) return;
+            const resDiv = document.getElementById('panel-auto');
+            if (!resDiv) return;
+            if (d2.zip_url && !document.getElementById('bm-zip-download')) {
+                const zEl = document.createElement('div');
+                zEl.id = 'bm-zip-download';
+                zEl.style.cssText = 'margin-top:16px;padding:14px;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;display:flex;align-items:center;gap:12px;';
+                zEl.innerHTML = '<div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--accent)">📦 Pacote Completo de Legislações</div><div style="font-size:11px;color:var(--muted);margin-top:2px">' + d2.municipio + '/' + d2.estado + ' — restaurado após reload</div></div><a href="' + d2.zip_url + '" download class="btn btn-primary" style="white-space:nowrap;font-size:13px;padding:8px 18px;">⬇️ Baixar ZIP</a>';
+                resDiv.appendChild(zEl);
+            }
+            if (d2.relatorio_url && !document.getElementById('bm-relatorio-download')) {
+                const rlEl = document.createElement('div');
+                rlEl.id = 'bm-relatorio-download';
+                rlEl.style.cssText = 'margin-top:10px;padding:14px;background:var(--surface2);border:1px solid #7c6af7;border-radius:8px;display:flex;align-items:center;gap:12px;';
+                rlEl.innerHTML = '<div style="flex:1"><b style="color:#7c6af7">Relatório PDF</b><br><small>' + d2.municipio + '/' + d2.estado + ' — restaurado após reload</small></div><a href="' + d2.relatorio_url + '" target="_blank" class="btn btn-primary" style="background:#7c6af7;border-color:#7c6af7;">Abrir</a>';
+                rlEl.appendChild(document.createElement('span')).textContent='';
+                resDiv.appendChild(rlEl);
+            }
+            if (d2.tabela_url && !document.getElementById('bm-tabela-download')) {
+                const tlEl = document.createElement('div');
+                tlEl.id = 'bm-tabela-download';
+                tlEl.style.cssText = 'margin-top:10px;padding:14px;background:var(--surface2);border:1px solid #1D9E75;border-radius:8px;display:flex;align-items:center;gap:12px;';
+                tlEl.innerHTML = '<div style="flex:1"><b style="color:#1D9E75">Tabela PDF</b><br><small>' + d2.municipio + '/' + d2.estado + ' — restaurado após reload</small></div><a href="' + d2.tabela_url + '" target="_blank" class="btn btn-primary" style="background:#1D9E75;border-color:#1D9E75;">Abrir</a>';
+                resDiv.appendChild(tlEl);
+            }
+        } catch(e) {}
     }, 1500);
 })();
+
 // ── Sincronizar Plataforma ──
 
 // --- Fonte para Fallback Prioritario ---
