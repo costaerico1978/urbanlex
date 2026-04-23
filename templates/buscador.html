@@ -1684,17 +1684,122 @@ function _nmFbCancelarEdit(){_nmFbMostrarEstado();}
 async function _nmFbRemover(){if(!confirm("Remover fonte prioritaria?"))return;const mun=(document.getElementById("nm-municipio")||{}).value||"",est=(document.getElementById("nm-estado")||{}).value||"";try{await api("DELETE","/api/municipio/fallback",{municipio:mun,estado:est});_nmFbUrlAtual=null;_nmFbMostrarEstado();}catch(e){alert("Erro: "+e.message);}}
 // --- fim Fonte Fallback ---
 async function sincronizarPlataforma() {
-    if (!confirm('Consultar a plataforma externa agora e processar municípios novos?')) return;
+    abrirModalLandly();
+}
+
+
+// ── Modal Integração Landly ──
+async function abrirModalLandly() {
+    document.getElementById('modal-landly').style.display = 'flex';
+    await landlyCarregarConfig();
+}
+function fecharModalLandly() {
+    document.getElementById('modal-landly').style.display = 'none';
+}
+async function landlyCarregarConfig() {
     try {
-        const r = await api('POST', '/api/integracao-plataforma/executar');
-        if (r.success) {
-            const d = r.data || {};
-            alert(`Consultados: ${d.municipios_consultados || 0}\nNovos: ${d.novos_detectados || 0}\nLegislações cadastradas: ${d.legislacoes_cadastradas || 0}`);
-            carregarFila();
-
-
-        }
-    } catch(e) { alert('Erro: ' + e.message); }
+        const r = await api('GET', '/api/integracao/landly/config');
+        if (!r.success) return;
+        const cfg = r.config || {};
+        if (cfg.api_url) document.getElementById('landly-url').value = cfg.api_url;
+        if (cfg.api_key_display) document.getElementById('landly-key').value = cfg.api_key_display;
+        document.getElementById('landly-toggle').checked = !!cfg.agendamento_ativo;
+        if (cfg.horario_1) document.getElementById('landly-h1').value = cfg.horario_1;
+        if (cfg.horario_2) document.getElementById('landly-h2').value = cfg.horario_2;
+        if (cfg.max_legislacoes) document.getElementById('landly-maxlegs').value = cfg.max_legislacoes;
+        landlyRenderSyncs(r.syncs || []);
+    } catch(e) {}
+}
+function landlyRenderSyncs(syncs) {
+    const el = document.getElementById('landly-syncs');
+    if (!syncs.length) {
+        el.innerHTML = '<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--muted2);font-size:11px">Nenhuma sincronização realizada ainda.</td></tr>';
+        return;
+    }
+    window._landly_syncs = syncs;
+    el.innerHTML = syncs.map((s,i) => `
+        <tr style="border-bottom:1px solid rgba(48,54,61,0.4)">
+            <td style="padding:8px 12px;font-size:11px;color:var(--text)">${s.executado_em}</td>
+            <td style="padding:8px 12px;font-size:11px">
+                ${s.status==='sucesso' ? `<span style="color:var(--accent);font-weight:700;cursor:pointer;text-decoration:underline dotted" onclick="landlyVerLista(${i},'total')">${s.total_municipios} ▸</span>` : '<span style="color:var(--muted2)">—</span>'}
+            </td>
+            <td style="padding:8px 12px;font-size:11px">
+                ${s.novos_municipios > 0 ? `<span style="color:#7c6af7;font-weight:700;cursor:pointer;text-decoration:underline dotted" onclick="landlyVerLista(${i},'novos')">${s.novos_municipios} ▸</span>` : `<span style="color:var(--muted2)">${s.novos_municipios||0}</span>`}
+            </td>
+            <td style="padding:8px 12px">
+                ${s.status==='sucesso'
+                    ? '<span style="font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;background:rgba(0,229,160,0.12);color:var(--accent);border:1px solid rgba(0,229,160,0.2)">✓ OK</span>'
+                    : `<span style="font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;background:rgba(248,81,73,0.12);color:#f85149;border:1px solid rgba(248,81,73,0.2);cursor:pointer" onclick="landlyVerErro(${i})">✕ Erro ▸</span>`}
+            </td>
+        </tr>
+        <tr id="landly-panel-${i}" style="display:none">
+            <td colspan="4" style="padding:0;border-bottom:1px solid var(--border)">
+                <div id="landly-panel-${i}-content" style="padding:12px 14px"></div>
+            </td>
+        </tr>`).join('');
+}
+function landlyVerLista(idx, type) {
+    const s = window._landly_syncs[idx];
+    const panel = document.getElementById('landly-panel-' + idx);
+    const content = document.getElementById('landly-panel-' + idx + '-content');
+    if (panel.style.display !== 'none') { panel.style.display='none'; return; }
+    document.querySelectorAll('[id^="landly-panel-"]').forEach(p => { if (!p.id.includes('content')) p.style.display='none'; });
+    const isNovos = type === 'novos';
+    const lista = isNovos ? (s.novos_snapshot||[]) : (s.municipios_snapshot||[]);
+    content.style.cssText = 'padding:12px 14px;border-left:2px solid ' + (isNovos?'#7c6af7':'var(--accent)') + ';background:' + (isNovos?'rgba(124,106,247,0.04)':'rgba(0,229,160,0.03)');
+    content.innerHTML = `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">${lista.length} ${isNovos?'novos':'totais'}</div>
+        <div style="display:flex;flex-direction:column;gap:4px;max-height:200px;overflow-y:auto">
+        ${lista.map(m => `<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;background:var(--surface3);border-radius:6px">
+            <span style="font-size:11px;color:var(--text);font-weight:500">${m.municipio||m}/${m.estado||''}</span>
+        </div>`).join('')}</div>`;
+    panel.style.display = 'table-row';
+}
+function landlyVerErro(idx) {
+    const s = window._landly_syncs[idx];
+    const panel = document.getElementById('landly-panel-' + idx);
+    const content = document.getElementById('landly-panel-' + idx + '-content');
+    if (panel.style.display !== 'none') { panel.style.display='none'; return; }
+    document.querySelectorAll('[id^="landly-panel-"]').forEach(p => { if (!p.id.includes('content')) p.style.display='none'; });
+    content.style.cssText = 'padding:12px 14px;border-left:2px solid #f85149;background:rgba(248,81,73,0.04)';
+    content.innerHTML = `<span style="color:#f85149;font-weight:700;font-size:11px">Erro</span><br>
+        <span style="color:var(--muted);font-size:10px;font-family:monospace;line-height:1.8">${s.erro||'Erro desconhecido'}</span>`;
+    panel.style.display = 'table-row';
+}
+async function landlySalvar() {
+    const d = {
+        api_url: document.getElementById('landly-url').value,
+        api_key: document.getElementById('landly-key').value,
+        agendamento_ativo: document.getElementById('landly-toggle').checked,
+        horario_1: document.getElementById('landly-h1').value,
+        horario_2: document.getElementById('landly-h2').value || null,
+        max_legislacoes: parseInt(document.getElementById('landly-maxlegs').value) || null,
+    };
+    const r = await api('POST', '/api/integracao/landly/config', d);
+    if (r.success) { const b=document.getElementById('landly-btn-salvar'); b.textContent='✓ Salvo'; setTimeout(()=>{b.textContent='💾 Salvar';},2000); }
+}
+async function landlyTestar() {
+    const btn = document.getElementById('landly-btn-testar');
+    const status = document.getElementById('landly-conn-status');
+    btn.disabled = true;
+    status.innerHTML = '<span style="font-size:10px;color:var(--muted)">⏳ Testando...</span>';
+    const r = await api('POST', '/api/integracao/landly/testar', {
+        api_url: document.getElementById('landly-url').value,
+        api_key: document.getElementById('landly-key').value,
+    });
+    status.innerHTML = r.success
+        ? '<span style="font-size:11px;padding:3px 8px;border-radius:20px;font-weight:600;background:rgba(0,229,160,0.12);color:var(--accent);border:1px solid rgba(0,229,160,0.2)">✓ Conexão OK</span>'
+        : `<span style="font-size:11px;padding:3px 8px;border-radius:20px;font-weight:600;background:rgba(248,81,73,0.12);color:#f85149;border:1px solid rgba(248,81,73,0.2)">✕ ${r.msg}</span>`;
+    btn.disabled = false;
+    setTimeout(()=>{status.innerHTML='';}, 5000);
+}
+async function landlySincronizarAgora() {
+    const btn = document.getElementById('landly-btn-sync');
+    btn.disabled = true; btn.textContent = '⏳ Sincronizando...';
+    const r = await api('POST', '/api/integracao/landly/sincronizar');
+    if (r.success) {
+        btn.textContent = '✓ Iniciado';
+        setTimeout(async () => { btn.textContent = '⚡ Sincronizar agora'; btn.disabled = false; await landlyCarregarConfig(); }, 3000);
+    } else { btn.textContent = '⚡ Sincronizar agora'; btn.disabled = false; }
 }
 
 // ── Referências Cruzadas ──
@@ -2283,7 +2388,102 @@ function baixarTabelaPDF() {
         <thead><tr>${COLS.map(c => `<th>${c.label}</th>`).join('')}</tr></thead>
         <tbody>${linhas}</tbody>
     </table>
-    </body></html>`;
+    
+<!-- Modal Landly -->
+<div id="modal-landly" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:300;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;width:100%;max-width:560px;max-height:88vh;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,0.6);display:flex;flex-direction:column">
+    <!-- Header -->
+    <div style="padding:20px 24px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <div style="width:36px;height:36px;background:linear-gradient(135deg,#00e5a0,#00b377);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🔗</div>
+      <div style="flex:1">
+        <div style="font-size:15px;font-weight:700;color:var(--text)">Sincronizar com Landly</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Integração automática de municípios via API</div>
+      </div>
+      <button onclick="fecharModalLandly()" style="width:28px;height:28px;border:1px solid var(--border);background:var(--surface2);border-radius:6px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px">✕</button>
+    </div>
+    <!-- Body -->
+    <div style="padding:20px 24px;overflow-y:auto;display:flex;flex-direction:column;gap:22px">
+      <!-- Conexão -->
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--accent);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px">Conexão<span style="flex:1;height:1px;background:linear-gradient(to right,var(--border),transparent)"></span></div>
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:5px">URL da API</label>
+          <input id="landly-url" type="text" placeholder="https://api.landly.com.br/v1" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;padding:9px 12px;outline:none">
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-end">
+          <div style="flex:1">
+            <label style="display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:5px">API Key</label>
+            <input id="landly-key" type="password" placeholder="sk_landly_••••••••" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;padding:9px 12px;outline:none">
+          </div>
+          <button id="landly-btn-testar" onclick="landlyTestar()" style="display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:12px;font-family:inherit;padding:9px 14px;cursor:pointer;white-space:nowrap">🔌 Testar conexão</button>
+        </div>
+        <div id="landly-conn-status" style="margin-top:6px;min-height:20px"></div>
+      </div>
+      <!-- Agendamento -->
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--accent);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px">Agendamento<span style="flex:1;height:1px;background:linear-gradient(to right,var(--border),transparent)"></span></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:12px">
+          <div>
+            <div style="font-size:12px;color:var(--text);font-weight:600">Sincronização automática</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:1px">Executar nos horários definidos abaixo</div>
+          </div>
+          <label style="position:relative;width:40px;height:22px;flex-shrink:0">
+            <input id="landly-toggle" type="checkbox" style="opacity:0;width:0;height:0">
+            <span onclick="this.previousElementSibling.click()" style="position:absolute;inset:0;background:var(--surface3);border:1px solid var(--border);border-radius:22px;cursor:pointer;transition:.2s" id="landly-toggle-ui"></span>
+          </label>
+        </div>
+        <div style="display:flex;gap:10px">
+          <div style="flex:1">
+            <label style="display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:5px">Horário 1</label>
+            <input id="landly-h1" type="time" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;padding:9px 12px;outline:none">
+          </div>
+          <div style="flex:1">
+            <label style="display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:5px">Horário 2 (opcional)</label>
+            <input id="landly-h2" type="time" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;padding:9px 12px;outline:none">
+          </div>
+        </div>
+      </div>
+      <!-- Configurações -->
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--accent);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px">Configurações<span style="flex:1;height:1px;background:linear-gradient(to right,var(--border),transparent)"></span></div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:5px">Máx. legislações por município</label>
+          <div style="position:relative">
+            <input id="landly-maxlegs" type="number" placeholder="Sem limite" min="1" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;padding:9px 60px 9px 12px;outline:none">
+            <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--muted2)">padrão: ∞</span>
+          </div>
+        </div>
+      </div>
+      <!-- Histórico -->
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--accent);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px">Histórico de sincronizações<span style="flex:1;height:1px;background:linear-gradient(to right,var(--border),transparent)"></span></div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:11px;color:var(--muted)">Clique nos números para ver a lista</span>
+            <span style="font-size:11px;padding:3px 8px;border-radius:20px;font-weight:600;background:rgba(0,229,160,0.12);color:var(--accent);border:1px solid rgba(0,229,160,0.2)">● Ativo</span>
+          </div>
+          <table style="width:100%;border-collapse:collapse">
+            <thead><tr>
+              <th style="font-size:10px;font-weight:700;color:var(--muted2);letter-spacing:.6px;text-transform:uppercase;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)">Data / Hora</th>
+              <th style="font-size:10px;font-weight:700;color:var(--muted2);letter-spacing:.6px;text-transform:uppercase;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)">Municípios Totais</th>
+              <th style="font-size:10px;font-weight:700;color:var(--muted2);letter-spacing:.6px;text-transform:uppercase;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)">Municípios Novos</th>
+              <th style="font-size:10px;font-weight:700;color:var(--muted2);letter-spacing:.6px;text-transform:uppercase;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)">Status</th>
+            </tr></thead>
+            <tbody id="landly-syncs"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <!-- Footer -->
+    <div style="padding:16px 24px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;background:rgba(13,17,23,0.4);flex-shrink:0">
+      <button onclick="fecharModalLandly()" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:13px;font-family:inherit;padding:11px 16px;cursor:pointer">Fechar</button>
+      <button id="landly-btn-salvar" onclick="landlySalvar()" style="background:var(--surface2);border:1px solid var(--accent);border-radius:8px;color:var(--accent);font-size:12px;font-family:inherit;padding:8px 14px;cursor:pointer">💾 Salvar</button>
+      <button id="landly-btn-sync" onclick="landlySincronizarAgora()" style="flex:1;background:linear-gradient(135deg,#00e5a0,#00b377);border:none;border-radius:8px;color:#0d1117;font-size:13px;font-weight:700;font-family:inherit;padding:11px 20px;cursor:pointer">⚡ Sincronizar agora</button>
+    </div>
+  </div>
+</div>
+
+</body></html>`;
 
     // Abrir em nova aba para imprimir como PDF
     const blob = new Blob([html], {type: 'text/html'});
