@@ -878,3 +878,31 @@ def _enviar_resumo_diario_job():
         logger.info("Módulo email_resumo_diario não disponível")
     except Exception as e:
         logger.error(f"Erro no email resumo diário: {e}")
+
+
+def registrar_jobs_landly(horario_1=None, horario_2=None, ativo=False):
+    """Registra ou remove jobs de sincronização Landly no scheduler."""
+    global _scheduler
+    if not _scheduler or not _scheduler.running:
+        return
+    # Remover jobs existentes
+    for jid in ('landly_sync_1', 'landly_sync_2'):
+        try: _scheduler.remove_job(jid)
+        except: pass
+    if not ativo or not horario_1:
+        return
+    try:
+        h1, m1 = horario_1.split(':')
+        from app import _executar_sync_landly
+        _scheduler.add_job(_executar_sync_landly, 'cron',
+            hour=int(h1), minute=int(m1),
+            id='landly_sync_1', replace_existing=True)
+        logger.info(f"Job Landly sync 1 agendado: {horario_1}")
+        if horario_2:
+            h2, m2 = horario_2.split(':')
+            _scheduler.add_job(_executar_sync_landly, 'cron',
+                hour=int(h2), minute=int(m2),
+                id='landly_sync_2', replace_existing=True)
+            logger.info(f"Job Landly sync 2 agendado: {horario_2}")
+    except Exception as e:
+        logger.error(f"Erro ao registrar jobs Landly: {e}")

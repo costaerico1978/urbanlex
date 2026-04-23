@@ -58,6 +58,12 @@ def iniciar_worker(app, get_db, buscador_jobs):
                             c4.commit(); cu4.close(); c4.close()
                         except: pass
                         c5=get_db(); cu5=c5.cursor()
+                        # Adicionar ao dossie_municipios
+                        try:
+                            c_d=get_db(); cu_d=c_d.cursor()
+                            cu_d.execute("INSERT INTO dossie_municipios (municipio, estado, origem) VALUES (%s,%s,%s) ON CONFLICT (municipio, estado) DO NOTHING",(item['municipio'],item['estado'],item.get('origem','manual')))
+                            c_d.commit(); cu_d.close(); c_d.close()
+                        except: pass
                         cu5.execute("UPDATE fila_buscas SET status='concluido',concluido_em=NOW() WHERE id=%s",(item['id'],))
                         c5.commit(); cu5.close(); c5.close()
                 except Exception as eb:

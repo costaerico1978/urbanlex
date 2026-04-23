@@ -5375,6 +5375,11 @@ def api_integracao_landly_config():
                  d.get('max_legislacoes') or None))
         conn.commit()
         cur.close(); conn.close()
+        # Atualizar agendamento no scheduler
+        try:
+            from modulos.scheduler_integrado import registrar_jobs_landly
+            registrar_jobs_landly(d.get('horario_1'), d.get('horario_2'), d.get('agendamento_ativo',False))
+        except: pass
         return jsonify({'success': True})
     else:
         cur.execute("""SELECT api_url, agendamento_ativo, horario_1, horario_2,
