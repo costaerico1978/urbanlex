@@ -1634,6 +1634,8 @@ async function confirmarBuscaNovoMun() {
 (function restaurarBotoesDownload() {
     setTimeout(function() {
         // Verificar se ha job ativo — se sim, nao restaurar botoes antigos
+        fetch('/api/fila/listar').then(r0=>r0.json()).then(d0=>{
+            if (d0.fila && d0.fila.some(i => i.status === 'rodando' || i.status === 'aguardando')) return;
         fetch('/api/buscador/job-atual?cursor=0').then(r=>r.json()).then(d=>{
             if (d.ativo) return;
             // Buscar ultimo job concluido do servidor
