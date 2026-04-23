@@ -5234,6 +5234,254 @@ def api_buscador_ultimo_concluido():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+
+# ── Dossiê Municipais ─────────────────────────────────────────────────────────
+
+@app.route('/api/dossie/municipios')
+@login_required
+def api_dossie_municipios():
+    """Lista todos os municípios do dossiê."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT dm.id, dm.municipio, dm.estado, dm.origem, dm.criado_em,
+                   bh.concluido_em as ultima_busca, bh.sucesso,
+                   bh.zip_path, bh.relatorio_path, bh.tabela_path, bh.job_id,
+                   (SELECT COUNT(*) FROM buscas_historico bh2
+                    WHERE bh2.municipio=dm.municipio AND bh2.estado=dm.estado
+                    AND bh2.sucesso=true) as total_buscas,
+                   (SELECT status FROM fila_buscas fb
+                    WHERE LOWER(fb.municipio)=LOWER(dm.municipio)
+                    AND LOWER(fb.estado)=LOWER(dm.estado)
+                    AND fb.status IN ('rodando','aguardando')
+                    ORDER BY fb.id DESC LIMIT 1) as fila_status
+            FROM dossie_municipios dm
+            LEFT JOIN buscas_historico bh ON LOWER(bh.municipio)=LOWER(dm.municipio)
+                AND LOWER(bh.estado)=LOWER(dm.estado)
+                AND bh.concluido_em IS NOT NULL AND bh.sucesso=true
+                AND bh.concluido_em = (
+                    SELECT MAX(concluido_em) FROM buscas_historico
+                    WHERE municipio=dm.municipio AND estado=dm.estado AND sucesso=true
+                )
+            ORDER BY dm.municipio ASC
+        """)
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        result = []
+        for r in rows:
+            leg_status = 'none'
+            if r['fila_status'] in ('rodando','aguardando'):
+                leg_status = 'pending'
+            elif r['sucesso']:
+                leg_status = 'ok'
+            result.append({
+                'id': r['id'],
+                'municipio': r['municipio'],
+                'estado': r['estado'],
+                'origem': r['origem'],
+                'ultima_busca': r['ultima_busca'].strftime('%d/%m/%Y') if r['ultima_busca'] else None,
+                'total_buscas': r['total_buscas'],
+                'zip_url': r['zip_path'],
+                'relatorio_url': r['relatorio_path'],
+                'tabela_url': r['tabela_path'],
+                'job_id': r['job_id'],
+                'leg_status': leg_status,
+            })
+        return jsonify({'success': True, 'municipios': result})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/dossie/municipio/<municipio>/<estado>')
+@login_required
+def api_dossie_municipio_detalhe(municipio, estado):
+    """Retorna detalhe completo de um município incluindo logs."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT bh.job_id, bh.concluido_em, bh.sucesso,
+                   bh.zip_path, bh.relatorio_path, bh.tabela_path, bh.log_texto
+            FROM buscas_historico bh
+            WHERE LOWER(bh.municipio)=LOWER(%s) AND LOWER(bh.estado)=LOWER(%s)
+            AND bh.sucesso=true
+            ORDER BY bh.concluido_em DESC LIMIT 1
+        """, (municipio, estado))
+        bh = cur.fetchone()
+        logs = []
+        if bh and bh['job_id']:
+            cur.execute("""
+                SELECT nivel, msg FROM buscas_logs
+                WHERE job_id=%s ORDER BY cursor ASC
+            """, (bh['job_id'],))
+            logs = [dict(r) for r in cur.fetchall()]
+        cur.close(); conn.close()
+        return jsonify({
+            'success': True,
+            'job_id': bh['job_id'] if bh else None,
+            'ultima_busca': bh['concluido_em'].strftime('%d/%m/%Y %H:%M') if bh and bh['concluido_em'] else None,
+            'zip_url': bh['zip_path'] if bh else None,
+            'relatorio_url': bh['relatorio_path'] if bh else None,
+            'tabela_url': bh['tabela_path'] if bh else None,
+            'logs': logs,
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+# ── Integração Landly ──────────────────────────────────────────────────────────
+
+@app.route('/api/integracao/landly/config', methods=['GET','POST'])
+@login_required
+def api_integracao_landly_config():
+    """Salvar ou buscar configuração da integração Landly."""
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    if request.method == 'POST':
+        d = request.json or {}
+        cur.execute("SELECT id FROM integracao_landly LIMIT 1")
+        exists = cur.fetchone()
+        api_key = d.get('api_key','')
+        if api_key and not api_key.startswith('••'):
+            from cryptography.fernet import Fernet
+            _fk = os.environ.get('SECRET_KEY','urbanlex_secret_key_32chars_here').encode()[:32].ljust(32,b'0')
+            import base64
+            _fkey = base64.urlsafe_b64encode(_fk)
+            api_key_enc = Fernet(_fkey).encrypt(api_key.encode()).decode()
+        else:
+            api_key_enc = None
+        if exists:
+            if api_key_enc:
+                cur.execute("""UPDATE integracao_landly SET api_url=%s, api_key_enc=%s,
+                    agendamento_ativo=%s, horario_1=%s, horario_2=%s,
+                    max_legislacoes=%s, atualizado_em=NOW() WHERE id=%s""",
+                    (d.get('api_url'), api_key_enc, d.get('agendamento_ativo',False),
+                     d.get('horario_1'), d.get('horario_2') or None,
+                     d.get('max_legislacoes') or None, exists['id']))
+            else:
+                cur.execute("""UPDATE integracao_landly SET api_url=%s,
+                    agendamento_ativo=%s, horario_1=%s, horario_2=%s,
+                    max_legislacoes=%s, atualizado_em=NOW() WHERE id=%s""",
+                    (d.get('api_url'), d.get('agendamento_ativo',False),
+                     d.get('horario_1'), d.get('horario_2') or None,
+                     d.get('max_legislacoes') or None, exists['id']))
+        else:
+            cur.execute("""INSERT INTO integracao_landly
+                (api_url, api_key_enc, agendamento_ativo, horario_1, horario_2, max_legislacoes)
+                VALUES (%s,%s,%s,%s,%s,%s)""",
+                (d.get('api_url'), api_key_enc, d.get('agendamento_ativo',False),
+                 d.get('horario_1'), d.get('horario_2') or None,
+                 d.get('max_legislacoes') or None))
+        conn.commit()
+        cur.close(); conn.close()
+        return jsonify({'success': True})
+    else:
+        cur.execute("""SELECT api_url, agendamento_ativo, horario_1, horario_2,
+            max_legislacoes,
+            CASE WHEN api_key_enc IS NOT NULL THEN '••••••••••••' ELSE NULL END as api_key_display
+            FROM integracao_landly LIMIT 1""")
+        r = cur.fetchone()
+        cur2 = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur2.execute("""SELECT executado_em, total_municipios, novos_municipios, status, erro
+            FROM integracao_landly_sync ORDER BY executado_em DESC LIMIT 10""")
+        syncs = []
+        for s in cur2.fetchall():
+            syncs.append({
+                'executado_em': s['executado_em'].strftime('%d/%m %H:%M'),
+                'total_municipios': s['total_municipios'],
+                'novos_municipios': s['novos_municipios'],
+                'status': s['status'],
+                'erro': s['erro'],
+            })
+        cur.close(); cur2.close(); conn.close()
+        return jsonify({'success': True, 'config': dict(r) if r else {}, 'syncs': syncs})
+
+
+@app.route('/api/integracao/landly/testar', methods=['POST'])
+@login_required
+def api_integracao_landly_testar():
+    """Testa conexão com a API Landly."""
+    d = request.json or {}
+    url = d.get('api_url','').rstrip('/') + '/ping'
+    key = d.get('api_key','')
+    try:
+        import requests as _req
+        r = _req.get(url, headers={'X-API-Key': key}, timeout=10)
+        if r.status_code == 200:
+            return jsonify({'success': True, 'msg': 'Conexão OK'})
+        return jsonify({'success': False, 'msg': f'HTTP {r.status_code}'})
+    except Exception as e:
+        return jsonify({'success': False, 'msg': str(e)})
+
+
+@app.route('/api/integracao/landly/sincronizar', methods=['POST'])
+@login_required
+def api_integracao_landly_sincronizar():
+    """Executa sincronização manual com Landly."""
+    import threading
+    def _run():
+        _executar_sync_landly()
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({'success': True, 'msg': 'Sincronização iniciada'})
+
+
+def _executar_sync_landly():
+    """Executa a sincronização com a API Landly."""
+    import requests as _req
+    from cryptography.fernet import Fernet
+    import base64
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT api_url, api_key_enc, max_legislacoes FROM integracao_landly LIMIT 1")
+        cfg = cur.fetchone()
+        if not cfg or not cfg['api_url'] or not cfg['api_key_enc']:
+            cur.close(); conn.close()
+            return
+        _fk = os.environ.get('SECRET_KEY','urbanlex_secret_key_32chars_here').encode()[:32].ljust(32,b'0')
+        _fkey = base64.urlsafe_b64encode(_fk)
+        api_key = Fernet(_fkey).decrypt(cfg['api_key_enc'].encode()).decode()
+        url = cfg['api_url'].rstrip('/') + '/properties'
+        headers = {'X-API-Key': api_key}
+        props = []
+        page = 1
+        while True:
+            r = _req.get(url, headers=headers, params={'page': page, 'limit': 500}, timeout=30)
+            data = r.json()
+            batch = data.get('properties', [])
+            props.extend(batch)
+            if len(batch) < 500 or page >= data.get('pages', 1):
+                break
+            page += 1
+        municipios_landly = list({(p['municipio'], p['estado']) for p in props if p.get('municipio') and p.get('estado')})
+        cur.execute("SELECT municipio, estado FROM dossie_municipios")
+        existentes = {(r['municipio'], r['estado']) for r in cur.fetchall()}
+        novos = [(m, e) for m, e in municipios_landly if (m, e) not in existentes]
+        for mun, est in novos:
+            cur.execute("INSERT INTO dossie_municipios (municipio, estado, origem) VALUES (%s,%s,'integracao') ON CONFLICT DO NOTHING", (mun, est))
+            cur.execute("INSERT INTO fila_buscas (municipio, estado, status, max_legislacoes) VALUES (%s,%s,'aguardando',%s)", (mun, est, cfg['max_legislacoes']))
+        import json
+        cur.execute("""INSERT INTO integracao_landly_sync
+            (total_municipios, novos_municipios, status, municipios_snapshot, novos_snapshot)
+            VALUES (%s,%s,'sucesso',%s,%s)""",
+            (len(municipios_landly), len(novos),
+             json.dumps([{'municipio':m,'estado':e} for m,e in municipios_landly]),
+             json.dumps([{'municipio':m,'estado':e} for m,e in novos])))
+        conn.commit()
+        cur.close(); conn.close()
+    except Exception as ex:
+        try:
+            conn2 = get_db(); cur2 = conn2.cursor()
+            cur2.execute("INSERT INTO integracao_landly_sync (status, erro) VALUES ('erro',%s)", (str(ex),))
+            conn2.commit(); cur2.close(); conn2.close()
+        except: pass
+
+@app.route('/dossie-municipais')
+@login_required
+def dossie_municipais():
+    return render_template('dossie_municipais.html', active_page='dossie-municipais')
+
 @app.route('/api/fila/pausar', methods=['POST'])
 @login_required
 def api_fila_pausar():
