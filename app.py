@@ -5207,6 +5207,33 @@ def api_buscador_job_atual():
     except Exception as e:
         return jsonify({'ativo': False, 'error': str(e)})
 
+
+@app.route('/api/buscador/ultimo-concluido')
+@login_required
+def api_buscador_ultimo_concluido():
+    """Retorna o ultimo job concluido com URLs dos arquivos."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""SELECT job_id, municipio, estado, zip_path, relatorio_path, tabela_path
+                       FROM buscas_historico
+                       WHERE concluido_em IS NOT NULL AND sucesso=true
+                       ORDER BY concluido_em DESC LIMIT 1""")
+        r = cur.fetchone()
+        cur.close(); conn.close()
+        if not r: return jsonify({'success': False})
+        return jsonify({
+            'success': True,
+            'job_id': r['job_id'],
+            'municipio': r['municipio'],
+            'estado': r['estado'],
+            'zip_url': r['zip_path'],
+            'relatorio_url': r['relatorio_path'],
+            'tabela_url': r['tabela_path']
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/fila/pausar', methods=['POST'])
 @login_required
 def api_fila_pausar():
