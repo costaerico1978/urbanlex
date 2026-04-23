@@ -1261,6 +1261,7 @@ async function _nmIniciarFila() {
     const enviados = _nmFila.filter(i => i.servidor).length;
     _nmFila = [];
     fecharModalNovoMun();
+        fetch('/api/fila/despausar', {method:'POST'}).catch(()=>{});
     if (enviados > 0) {
         const _btnCL = document.getElementById('btn-cancelar-limpar');
         if (_btnCL) _btnCL.style.display = 'inline-flex';
