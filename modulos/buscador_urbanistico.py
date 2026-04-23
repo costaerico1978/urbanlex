@@ -642,7 +642,9 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
             _regulamentado_por_enc = []
             _revoga_parcialmente_enc = []
             _revogado_parcialmente_por_enc = []
-        # Emitir evento final com todos os relacionamentos (apenas se encontrada)
+        # Emitir evento final com todos os relacionamentos
+        if not enc:
+            _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=_pergunta_origem, status='nao_encontrada')
         if enc:
             _tabela_evento(logs, municipio, estado,
             enc.get('tipo', tipo), enc.get('numero', numero), enc.get('ano', ano),
