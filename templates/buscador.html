@@ -1274,7 +1274,7 @@ async function _nmIniciarFila() {
             const _jid = localStorage.getItem('mun_job_id');
             if (_jid || _tentativas > 15) {
                 clearInterval(_pollRapido);
-                if (!window._nmFilaPolling) window._nmFilaPolling = setInterval(_nmAtualizarProgressoFila, 5000);
+                if (!window._nmFilaPolling) window._nmFilaPolling = setInterval(_nmAtualizarProgressoFila, 1000);
             }
         }, 1500);
     }
@@ -1296,7 +1296,7 @@ async function _nmIniciarFilaAgora() {
         await fetch('/api/fila/despausar', {method:'POST'}).catch(()=>{});
         const btn = document.getElementById('btn-iniciar-fila');
         if (btn) btn.style.display = 'none';
-        if (!window._nmFilaPolling) window._nmFilaPolling = setInterval(_nmAtualizarProgressoFila, 5000);
+        if (!window._nmFilaPolling) window._nmFilaPolling = setInterval(_nmAtualizarProgressoFila, 1000);
         _nmAtualizarProgressoFila();
     } catch(e) { alert('Erro: ' + e.message); }
 }
@@ -1614,7 +1614,7 @@ async function confirmarBuscaNovoMun() {
         const btn = document.getElementById('btn-cancelar-limpar');
         if (btn) btn.style.display = 'inline-flex';
         // Mostrar fila no painel
-        if (!window._nmFilaPolling) window._nmFilaPolling = setInterval(_nmAtualizarProgressoFila, 5000);
+        if (!window._nmFilaPolling) window._nmFilaPolling = setInterval(_nmAtualizarProgressoFila, 1000);
         // Reconectar direto com job_id do servidor
         if (!window._nmReconectando) {
             window._nmReconectando = true;
