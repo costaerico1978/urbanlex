@@ -4,7 +4,7 @@ import threading, time, uuid, psycopg2, psycopg2.extras
 
 def iniciar_worker(app, get_db, buscador_jobs):
     def worker():
-        time.sleep(8)
+        time.sleep(30)  # Aguardar Gunicorn estar totalmente pronto
         while True:
             try:
                 conn = get_db()

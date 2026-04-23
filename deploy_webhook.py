@@ -38,6 +38,8 @@ if echo "$ATIVOS" | grep -q '"ativos": true'; then
         fi
     done
 fi
+pkill -9 -f chromium 2>/dev/null || true
+sleep 2
 systemctl restart urbanlex
 echo "$(date): Deploy executado" >> /var/log/urbanlex-deploy.log
 '''])
