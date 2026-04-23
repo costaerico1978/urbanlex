@@ -1347,17 +1347,18 @@ async function _nmAtualizarProgressoFila() {
             }).join('') + '</div>';
         // Se job rodando, monitorar via polling normal
         if (rodando && rodando.job_id) {
-            const _jobAtual = localStorage.getItem('mun_job_id');
+            const _jobAtual = window._jobExibido || null;
             if (!_jobAtual || _jobAtual !== rodando.job_id) {
                 if (!window._nmReconectando) {
                     window._nmReconectando = true;
+                    window._jobExibido = rodando.job_id;
                     localStorage.setItem('mun_job_id', rodando.job_id);
                     localStorage.setItem('mun_campos', JSON.stringify({mun: rodando.municipio, est: rodando.estado}));
                     // Timeout de seguranca: resetar flag apos 60s
                     setTimeout(() => { window._nmReconectando = false; }, 60000);
                     reconectarMunJob(rodando.job_id, rodando.municipio, rodando.estado).finally(() => { window._nmReconectando = false; });
                 }
-            } else if (_jobAtual && _jobAtual !== rodando.job_id) { // Novo job — limpar sempre que job mudar
+            } else if (_jobAtual !== rodando.job_id) { // Novo job — limpar sempre que job mudar
                 // Novo job — limpar tabela, log e botoes do anterior
                 localStorage.removeItem('mun_zip_data');
                 localStorage.removeItem('mun_log_cache');
