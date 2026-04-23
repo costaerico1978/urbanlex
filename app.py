@@ -5248,9 +5248,18 @@ def api_dossie_municipios():
             SELECT dm.id, dm.municipio, dm.estado, dm.origem, dm.criado_em,
                    bh.concluido_em as ultima_busca, bh.sucesso,
                    bh.zip_path, bh.relatorio_path, bh.tabela_path, bh.job_id,
-                   (SELECT COUNT(*) FROM buscas_historico bh2
-                    WHERE bh2.municipio=dm.municipio AND bh2.estado=dm.estado
-                    AND bh2.sucesso=true) as total_buscas,
+                   COALESCE(
+                       (SELECT COUNT(*) FROM buscas_logs bl
+                        WHERE bl.job_id=bh.job_id AND bl.nivel='tabela'
+                        AND bl.msg LIKE '%encontrada%'),
+                       (SELECT CAST(NULLIF(regexp_replace(
+                           substring(bh2.log_texto FROM '\\((\\d+) legisla'), '[^0-9]', '', 'g'
+                       ), '') AS INTEGER)
+                        FROM buscas_historico bh2
+                        WHERE bh2.municipio=dm.municipio AND bh2.estado=dm.estado
+                        AND bh2.sucesso=true ORDER BY bh2.concluido_em DESC LIMIT 1),
+                       0
+                   ) as total_legislacoes,
                    (SELECT status FROM fila_buscas fb
                     WHERE LOWER(fb.municipio)=LOWER(dm.municipio)
                     AND LOWER(fb.estado)=LOWER(dm.estado)
@@ -5281,7 +5290,7 @@ def api_dossie_municipios():
                 'estado': r['estado'],
                 'origem': r['origem'],
                 'ultima_busca': r['ultima_busca'].strftime('%d/%m/%Y') if r['ultima_busca'] else None,
-                'total_buscas': r['total_buscas'],
+                'total_legislacoes': r['total_legislacoes'] or 0,
                 'zip_url': r['zip_path'],
                 'relatorio_url': r['relatorio_path'],
                 'tabela_url': r['tabela_path'],

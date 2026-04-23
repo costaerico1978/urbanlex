@@ -151,7 +151,7 @@ function dossieRenderList(data) {
     <div class="dossie-row" onclick='dossieOpenDrawer(${JSON.stringify(m)})'>
       <div><div class="dr-name">${m.municipio}</div><div class="dr-state">${m.estado}</div></div>
       <div class="dr-date">${m.ultima_busca || '<span style="color:var(--muted2)">—</span>'}</div>
-      <div class="dr-legs">${m.total_buscas > 0 ? m.total_buscas + ' busca' + (m.total_buscas > 1 ? 's' : '') : '<span style="color:var(--muted2)">—</span>'}</div>
+      <div class="dr-legs">${m.total_legislacoes > 0 ? m.total_legislacoes + ' lei' + (m.total_legislacoes > 1 ? 's' : '') : '<span style="color:var(--muted2)">—</span>'}</div>
       <div>${obMap[m.origem] || obMap.manual}</div>
       <div>${sbMap[m.leg_status] || sbMap.none}</div>
     </div>`).join('');
