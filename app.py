@@ -5422,7 +5422,8 @@ def api_integracao_landly_testar():
     key = d.get('api_key','')
     try:
         import requests as _req
-        r = _req.get(url, headers={'X-API-Key': key}, timeout=10)
+        _headers = {'X-API-Key': key} if key and not key.startswith('••') else {}
+        r = _req.get(url, headers=_headers, timeout=10)
         if r.status_code == 200:
             return jsonify({'success': True, 'msg': 'Conexão OK'})
         return jsonify({'success': False, 'msg': f'HTTP {r.status_code}'})
@@ -5458,7 +5459,7 @@ def _executar_sync_landly():
         _fkey = base64.urlsafe_b64encode(_fk)
         api_key = Fernet(_fkey).decrypt(cfg['api_key_enc'].encode()).decode()
         url = cfg['api_url'].rstrip('/') + '/properties'
-        headers = {'X-API-Key': api_key}
+        headers = {'X-API-Key': api_key} if api_key else {}
         props = []
         page = 1
         while True:
