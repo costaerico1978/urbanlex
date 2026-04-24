@@ -157,7 +157,7 @@ function dossieRenderList(data) {
       <div style="font-size:11px;color:var(--muted)">${m.max_legislacoes ? m.max_legislacoes : '<span style="color:var(--accent)">∞</span>'}</div>
       <div>${obMap[m.origem] || obMap.manual}</div>
       <div>${sbMap[m.leg_status] || sbMap.none}</div>
-      <div onclick="event.stopPropagation();dossieConfirmarExcluir(m)" style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;font-size:12px;transition:all .15s"
+      <div onclick="event.stopPropagation();dossieConfirmarExcluir(${JSON.stringify(m).replace(/"/g,'&quot;')})" style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;font-size:12px;transition:all .15s"
         onmouseover="this.style.borderColor='#f85149';this.style.color='#f85149'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">✕</div>
     </div>`).join('');
 }
@@ -240,6 +240,7 @@ function dossieSearch(val) {
 }
 
 async function dossieConfirmarExcluir(m) {
+    if (typeof m === "string") { try { m = JSON.parse(m); } catch(e) { return; } }
     const temBusca = m.leg_status === 'ok';
     const naFila = m.leg_status === 'pending';
     let msg = '';
