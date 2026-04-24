@@ -31,6 +31,7 @@ def _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta="", stat
 
 def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallback_url=None, max_legislacoes=None):
     resultado = {"encontradas": [], "nao_encontrada": False}
+    _falhas_municipio = 0  # Contador de legislacoes nao encontradas em nenhum fallback
     analisadas = set()
     # Resetar contador global de tokens
     try:
@@ -312,6 +313,10 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
         enc = _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, modo=leg.get("_modo_verificacao","geral"), fallback_url=fallback_url, _nivel=leg.get("_nivel",1))
         if not enc:
             _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=_pergunta_origem, status="nao_encontrada")
+            _falhas_municipio += 1
+            if _falhas_municipio >= 5:
+                logs.append({"nivel": "aviso", "msg": f"⚠️ 5 legislações não encontradas em nenhum fallback — encerrando busca de {municipio}/{estado}"})
+                break
             continue
         texto_enc = ""
         _altera_enc = []

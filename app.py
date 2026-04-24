@@ -5245,7 +5245,7 @@ def api_dossie_municipios():
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("""
-            SELECT dm.id, dm.municipio, dm.estado, dm.origem, dm.criado_em,
+            SELECT dm.id, dm.municipio, dm.estado, dm.origem, dm.criado_em, dm.max_legislacoes,
                    bh.concluido_em as ultima_busca, bh.sucesso,
                    bh.zip_path, bh.relatorio_path, bh.tabela_path, bh.job_id,
                    COALESCE(
@@ -5291,6 +5291,7 @@ def api_dossie_municipios():
                 'origem': r['origem'],
                 'ultima_busca': r['ultima_busca'].strftime('%d/%m/%Y') if r['ultima_busca'] else None,
                 'total_legislacoes': r['total_legislacoes'] or 0,
+                'max_legislacoes': r['max_legislacoes'],  # None = sem limite
                 'zip_url': r['zip_path'],
                 'relatorio_url': r['relatorio_path'],
                 'tabela_url': r['tabela_path'],
