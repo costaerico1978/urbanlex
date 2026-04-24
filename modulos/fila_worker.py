@@ -46,6 +46,7 @@ def iniciar_worker(app, get_db, buscador_jobs):
                             cu3.execute("SELECT url FROM municipio_fallback WHERE LOWER(municipio)=LOWER(%s) AND LOWER(estado)=LOWER(%s)",(item['municipio'],item['estado']))
                             row=cu3.fetchone(); cu3.close(); c3.close()
                             if row: fb=row['url']
+                            if item.get('fallback_url_override'): fb=item['fallback_url_override']
                         except: pass
                         r=buscar_legislacoes_urbanisticas(item['municipio'],item['estado'],buscador_jobs[job_id]['logs'],llm,fallback_url=fb,max_legislacoes=item.get('max_legislacoes'))
                         buscador_jobs[job_id]['result']={'encontradas':r.get('encontradas',[]),'zip_url':r.get('zip_url'),'zip_nome':r.get('zip_nome'),'relatorio_url':r.get('relatorio_url'),'relatorio_nome':r.get('relatorio_nome'),'tabela_url':r.get('tabela_url'),'tabela_nome':r.get('tabela_nome'),'custo_usd':r.get('custo_usd'),'nao_encontrada':r.get('nao_encontrada',False),'legislacoes_json':r.get('legislacoes_json',[])}

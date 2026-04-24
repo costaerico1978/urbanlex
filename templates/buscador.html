@@ -1248,7 +1248,7 @@ function dispararBuscaNovoMunicipio() {
         if (!d.success) return;
         _nmFila = d.fila.filter(i => i.status === 'aguardando' || i.status === 'rodando').map(i => ({
             id: i.id, mun: i.municipio, est: i.estado,
-            maxLegs: i.max_legislacoes, status: i.status, servidor: true
+            maxLegs: i.max_legislacoes, fallbackUrl: i.fallback_url_override || null, status: i.status, servidor: true
         }));
         _nmRenderFila();
     }).catch(()=>{});
@@ -1274,7 +1274,7 @@ async function _nmAdicionarFila() {
         const r = await fetch('/api/fila/adicionar', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({municipio:mun, estado:est, max_legislacoes:maxLegs?parseInt(maxLegs):null})});
         const d = await r.json();
         if (d.success) {
-            _nmFila.push({ id: d.id, mun, est, maxLegs: maxLegs ? parseInt(maxLegs) : null, status: 'aguardando', servidor: true });
+            _nmFila.push({ id: d.id, mun, est, maxLegs: maxLegs ? parseInt(maxLegs) : null, fallbackUrl: null, status: 'aguardando', servidor: true });
         }
     } catch(e) {}
     document.getElementById('nm-municipio').value = '';
@@ -1298,14 +1298,51 @@ function _nmRenderFila() {
         const cfg = statusCfg[item.status] || statusCfg.aguardando;
         const icone = item.status === 'concluido' ? '✓' : item.status === 'rodando' ? '▶' : item.status === 'erro' ? '✕' : (idx+1);
         const riscado = item.status === 'concluido' ? 'text-decoration:line-through;opacity:.5;' : '';
+        const temCustom = item.fallbackUrl || (item.maxLegs != null);
+        const badge = temCustom ? `<span style="font-size:9px;padding:1px 5px;border-radius:8px;background:rgba(0,229,160,0.12);color:var(--accent);border:1px solid rgba(0,229,160,0.25);margin-right:2px;" title="${item.fallbackUrl||''}${item.maxLegs?(' · '+item.maxLegs+' legs'):''}">⚙</span>` : '';
+        const editBtn = item.status === 'aguardando' ? `<button onclick="_nmEditarFila(${idx})" style="background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:3px;line-height:1;" title="Configurar">⚙</button>` : '';
         const remBtn = item.status === 'aguardando' ? `<button onclick="_nmRemoverFila(${idx})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:0 2px;">✕</button>` : '';
-        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg);border:1px solid ${item.status==='rodando'?'var(--accent)':'var(--border)'};border-radius:6px;">
-            <span style="color:${cfg.color};font-size:11px;min-width:16px;text-align:center;">${icone}</span>
-            <span style="flex:1;font-size:12px;font-weight:600;${riscado}">${item.mun}/${item.est}</span>
-            <span style="font-size:10px;color:${cfg.color};">${cfg.label}</span>
-            ${remBtn}
+        const borderColor = item._editando ? 'var(--accent)' : (item.status==='rodando' ? 'var(--accent)' : 'var(--border)');
+        const fbOpts = ['','leismunicipais','buscafacil','google'];
+        const fbLabels = {'':'Padrão (cascata global)','leismunicipais':'LeisMunicipais (1º)','buscafacil':'BuscaFácil (1º)','google':'Google/DDG (1º)'};
+        const fbOptions = fbOpts.map(v => `<option value="${v}"${(item.fallbackUrl||'')==v?' selected':''}>${fbLabels[v]}</option>`).join('');
+        const editPanel = item._editando ? `<div style="padding:10px 10px 10px;background:rgba(0,0,0,0.25);border-top:1px solid var(--border);">
+            <div style="display:grid;grid-template-columns:1fr 90px;gap:8px;margin-bottom:8px;">
+                <div><label style="display:block;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Fallback prioritário</label>
+                <select id="nm-edit-fb-${idx}" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:11px;">${fbOptions}</select></div>
+                <div><label style="display:block;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Máx. legs</label>
+                <input type="number" id="nm-edit-ml-${idx}" value="${item.maxLegs!=null?item.maxLegs:''}" placeholder="—" min="1" max="999" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:11px;" /></div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:6px;">
+                <button onclick="_nmFecharEdicao(${idx})" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;">Cancelar</button>
+                <button onclick="_nmSalvarEdicao(${idx})" style="background:var(--accent);border:none;color:#0d1117;font-size:11px;font-weight:600;padding:3px 12px;border-radius:4px;cursor:pointer;">Salvar</button>
+            </div>
+        </div>` : '';
+        return `<div style="background:var(--bg);border:1px solid ${borderColor};border-radius:6px;overflow:hidden;">
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;">
+                <span style="color:${cfg.color};font-size:11px;min-width:16px;text-align:center;">${icone}</span>
+                <span style="flex:1;font-size:12px;font-weight:600;${riscado}">${item.mun}/${item.est}</span>
+                ${badge}
+                <span style="font-size:10px;color:${cfg.color};">${cfg.label}</span>
+                ${editBtn}${remBtn}
+            </div>${editPanel}
         </div>`;
     }).join('');
+}
+function _nmEditarFila(idx) { _nmFila[idx]._editando = true; _nmRenderFila(); }
+function _nmFecharEdicao(idx) { _nmFila[idx]._editando = false; _nmRenderFila(); }
+async function _nmSalvarEdicao(idx) {
+    const item = _nmFila[idx];
+    if (!item || !item.id) return;
+    const fbEl = document.getElementById('nm-edit-fb-' + idx);
+    const mlEl = document.getElementById('nm-edit-ml-' + idx);
+    const fbVal = fbEl ? fbEl.value : '';
+    const mlVal = mlEl && mlEl.value ? parseInt(mlEl.value) : null;
+    try {
+        const r = await fetch('/api/fila/editar/' + item.id, {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({fallback_url_override: fbVal||null, max_legislacoes: mlVal})});
+        const d = await r.json();
+        if (d.success) { item.fallbackUrl = fbVal||null; item.maxLegs = mlVal; item._editando = false; _nmRenderFila(); }
+    } catch(e) {}
 }
 
 async function _nmRemoverFila(idx) {

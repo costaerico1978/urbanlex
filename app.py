@@ -4833,6 +4833,11 @@ def inicializar():
         print("Tabela municipio_fallback verificada/criada")
     except Exception as e:
         print(f"Aviso municipio_fallback: {e}")
+    try:
+        conn2 = get_db(); cur2 = conn2.cursor()
+        cur2.execute("ALTER TABLE fila_buscas ADD COLUMN IF NOT EXISTS fallback_url_override TEXT")
+        conn2.commit(); cur2.close(); conn2.close()
+    except: pass
     if SCHEDULER_OK:
         try: iniciar_scheduler(); print("Scheduler iniciado")
         except Exception as e: print(f"Scheduler: {e}")
@@ -5580,7 +5585,7 @@ def api_fila_adicionar():
 def api_fila_listar():
     try:
         conn=get_db(); cur=conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT id,municipio,estado,max_legislacoes,status,job_id,criado_em,iniciado_em,concluido_em,erro FROM fila_buscas ORDER BY ordem ASC,criado_em ASC")
+        cur.execute("SELECT id,municipio,estado,max_legislacoes,fallback_url_override,status,job_id,criado_em,iniciado_em,concluido_em,erro FROM fila_buscas ORDER BY ordem ASC,criado_em ASC")
         rows=cur.fetchall(); cur.close(); conn.close()
         result=[]
         for r in rows:
@@ -5598,6 +5603,23 @@ def api_fila_remover(fila_id):
     try:
         conn=get_db(); cur=conn.cursor()
         cur.execute("DELETE FROM fila_buscas WHERE id=%s AND status='aguardando'",(fila_id,))
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({'success':True})
+    except Exception as e:
+        return jsonify({'success':False,'error':str(e)}),500
+
+@app.route('/api/fila/editar/<int:fila_id>', methods=['PATCH'])
+@login_required
+def api_fila_editar(fila_id):
+    data = request.json or {}
+    fallback_url = data.get('fallback_url_override') or None
+    max_legs = data.get('max_legislacoes')
+    if max_legs is not None:
+        try: max_legs = int(max_legs)
+        except: max_legs = None
+    try:
+        conn=get_db(); cur=conn.cursor()
+        cur.execute("UPDATE fila_buscas SET fallback_url_override=%s, max_legislacoes=%s WHERE id=%s AND status='aguardando'",(fallback_url, max_legs, fila_id))
         conn.commit(); cur.close(); conn.close()
         return jsonify({'success':True})
     except Exception as e:
