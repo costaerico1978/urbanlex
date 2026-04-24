@@ -141,7 +141,10 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
           </div>
           <button id="landly-btn-testar" onclick="landlyTestar()" style="display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:12px;font-family:inherit;padding:9px 14px;cursor:pointer;white-space:nowrap">🔌 Testar conexão</button>
         </div>
-        <div id="landly-conn-status" style="margin-top:6px;min-height:20px"></div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+          <div id="landly-conn-status" style="flex:1;min-height:20px"></div>
+          <button onclick="landlySalvarConexao()" style="background:var(--surface2);border:1px solid var(--accent);border-radius:8px;color:var(--accent);font-size:11px;font-family:inherit;padding:6px 12px;cursor:pointer;white-space:nowrap">💾 Salvar conexão</button>
+        </div>
       </div>
       <!-- Agendamento -->
       <div>
@@ -1799,6 +1802,19 @@ function landlyVerErro(idx) {
         <span style="color:var(--muted);font-size:10px;font-family:monospace;line-height:1.8">${s.erro||'Erro desconhecido'}</span>`;
     panel.style.display = 'table-row';
 }
+async function landlySalvarConexao() {
+    const d = {
+        api_url: document.getElementById('landly-url').value,
+        api_key: document.getElementById('landly-key').value,
+    };
+    const r = await api('POST', '/api/integracao/landly/config', d);
+    if (r.success) {
+        const s = document.getElementById('landly-conn-status');
+        s.innerHTML = '<span style="font-size:11px;padding:3px 8px;border-radius:20px;font-weight:600;background:rgba(0,229,160,0.12);color:var(--accent);border:1px solid rgba(0,229,160,0.2)">✓ Conexão salva</span>';
+        setTimeout(() => { s.innerHTML = ''; }, 3000);
+    }
+}
+
 async function landlySalvar() {
     const d = {
         api_url: document.getElementById('landly-url').value,
