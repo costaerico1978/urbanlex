@@ -2575,6 +2575,14 @@ async function reconectarMunJob(jobIdDireto, munDireto, estDireto) {
     // Se tem job_id direto, pular job-ativo e ir direto ao poll
     if (jobIdDireto) {
         if (typeof BUSCA_PAGINA !== 'undefined' && BUSCA_PAGINA === 'buscador-historico') return;
+        // Limpar tabela e dados anteriores
+        if (!window._jobExibido || window._jobExibido !== jobIdDireto) {
+            window._tabelaLegsData = {};
+            const _tblClr = document.getElementById('tabela-legs-auto');
+            if (_tblClr) _tblClr.textContent = 'Aguardando identificacao das legislacoes...';
+            ['bm-zip-download','bm-relatorio-download','bm-tabela-download'].forEach(id => { const el=document.getElementById(id); if(el) el.remove(); });
+        }
+        window._jobExibido = jobIdDireto;
         let logEl = document.getElementById('log-municipio');
         if (!logEl) {
             logEl = document.createElement('div');
