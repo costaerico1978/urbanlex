@@ -5418,7 +5418,7 @@ def api_integracao_landly_config():
 def api_integracao_landly_testar():
     """Testa conexão com a API Landly."""
     d = request.json or {}
-    url = d.get('api_url','').rstrip('/') + '/ping'
+    url = d.get('api_url','').rstrip('/')
     key = d.get('api_key','')
     try:
         import requests as _req
@@ -5452,12 +5452,15 @@ def _executar_sync_landly():
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("SELECT api_url, api_key_enc, max_legislacoes FROM integracao_landly LIMIT 1")
         cfg = cur.fetchone()
-        if not cfg or not cfg['api_url'] or not cfg['api_key_enc']:
+        if not cfg or not cfg['api_url']:
             cur.close(); conn.close()
             return
-        _fk = os.environ.get('SECRET_KEY','urbanlex_secret_key_32chars_here').encode()[:32].ljust(32,b'0')
-        _fkey = base64.urlsafe_b64encode(_fk)
-        api_key = Fernet(_fkey).decrypt(cfg['api_key_enc'].encode()).decode()
+        api_key = None
+        if cfg['api_key_enc']:
+            _fk = os.environ.get('SECRET_KEY','urbanlex_secret_key_32chars_here').encode()[:32].ljust(32,b'0')
+            _fkey = base64.urlsafe_b64encode(_fk)
+            try: api_key = Fernet(_fkey).decrypt(cfg['api_key_enc'].encode()).decode()
+            except: pass
         url = cfg['api_url'].rstrip('/') + '/properties'
         headers = {'X-API-Key': api_key} if api_key else {}
         props = []
