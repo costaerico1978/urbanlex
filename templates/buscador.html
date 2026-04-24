@@ -1429,15 +1429,6 @@ async function _nmAtualizarProgressoFila() {
         if (rodando && rodando.job_id) {
             const _jobAtual = window._jobExibido || null;
             if (!_jobAtual || _jobAtual !== rodando.job_id) {
-                if (!window._nmReconectando) {
-                    window._nmReconectando = true;
-                    window._jobExibido = rodando.job_id;
-
-                    // Timeout de seguranca: resetar flag apos 60s
-                    setTimeout(() => { window._nmReconectando = false; }, 60000);
-                    reconectarMunJob(rodando.job_id, rodando.municipio, rodando.estado).finally(() => { window._nmReconectando = false; });
-                }
-            } else if (_jobAtual !== rodando.job_id) { // Novo job — limpar sempre que job mudar
                 // Novo job — limpar tabela, log e botoes do anterior
                 ['bm-zip-download','bm-relatorio-download','bm-tabela-download'].forEach(id => { const el = document.getElementById(id); if(el) el.remove(); });
                 window._tabelaLegsData = {};
@@ -1445,7 +1436,12 @@ async function _nmAtualizarProgressoFila() {
                 if (_tblEl) _tblEl.textContent = 'Aguardando identificacao das legislacoes...';
                 const _logEl = document.getElementById('log-municipio');
                 if (_logEl) _logEl.innerHTML = '';
-                reconectarMunJob();
+                if (!window._nmReconectando) {
+                    window._nmReconectando = true;
+                    window._jobExibido = rodando.job_id;
+                    setTimeout(() => { window._nmReconectando = false; }, 60000);
+                    reconectarMunJob(rodando.job_id, rodando.municipio, rodando.estado).finally(() => { window._nmReconectando = false; });
+                }
             }
         }
         // Mostrar/ocultar botao Iniciar Busca
