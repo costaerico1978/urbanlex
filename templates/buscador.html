@@ -778,8 +778,7 @@ async function executarBuscaManual() {
         window._buscadorCancelado = false;
         try { const _vi = await api("GET","/api/versao"); window._buscador_commit_inicio = _vi.commit||"?"; } catch(e) { window._buscador_commit_inicio = "?"; }
         // Salvar estado no localStorage e atualizar URL
-        localStorage.setItem('buscador_job_id', jobId);
-        localStorage.setItem('buscador_campos', JSON.stringify(body));
+
         history.pushState({jobId}, '', '?job=' + jobId);
         logLine('🔗', 'Job iniciado — acompanhe o progresso em tempo real', 'var(--accent)');
         logSpinner('Aguardando primeiros resultados...');
@@ -864,7 +863,7 @@ async function executarBuscaManual() {
 
         const _bmLoad = document.getElementById('bm-loading'); if (_bmLoad) _bmLoad.style.display = 'none';
         // Manter buscador_job_id por 5min para reconectarJob poder restaurar log se usuário voltar
-        setTimeout(() => { localStorage.removeItem('buscador_job_id'); localStorage.removeItem('buscador_campos'); localStorage.removeItem('bm_log_cache'); }, 300000);
+
         history.replaceState({}, '', '/buscador');
         document.getElementById('bm-resultados').style.display = 'block';
 
@@ -1026,7 +1025,7 @@ function renderizarResultadoBusca(r, duracao) {
 
     // Salvar ZIP e relatório para restaurar após reload
     if (r.zip_url) {
-        try { localStorage.setItem('mun_zip_data', JSON.stringify({zip_url: r.zip_url, zip_nome: r.zip_nome || 'legislacoes.zip', relatorio_url: r.relatorio_url, relatorio_nome: r.relatorio_nome, tabela_url: r.tabela_url, tabela_nome: r.tabela_nome})); } catch(e) {}
+
     }
     // Botão de download do Relatório PDF se disponível
     if (r.relatorio_url) {
@@ -1086,7 +1085,7 @@ function cancelarENovasBusca() {
     // Limpar TODO o estado persistido — inclusive log e ZIP
     ['buscador_job_id','buscador_campos','bm_log_cache',
      'mun_job_id','mun_campos','mun_log_cache','mun_log_cache_done','mun_zip_data',
-     'mun_tabela_legs','mun_tabela_job_id'].forEach(k => localStorage.removeItem(k));
+
     const _bmLoad = document.getElementById('bm-loading'); if (_bmLoad) _bmLoad.style.display = 'none';
     const logEl = document.getElementById('bm-log-lines');
     if (logEl) logEl.innerHTML = '';
@@ -1125,8 +1124,6 @@ function limparFormManual() {
         window._buscadorJobId = null;
     }
     window._buscadorCancelado = true;
-    localStorage.removeItem('buscador_job_id');
-    localStorage.removeItem('buscador_campos');
     history.replaceState({}, '', '/buscador');
 }
 
@@ -1188,19 +1185,13 @@ async function cadastrarSelecionados() {
 
 // ── Busca Novo Município ──
 function pararBuscaAuto() {
-    const jobId = localStorage.getItem('mun_job_id');
-    if (jobId) {
-        fetch('/api/buscador/cancelar', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({job_id: jobId})}).catch(()=>{});
-        localStorage.removeItem('mun_job_id');
-        localStorage.removeItem('mun_campos');
-        localStorage.removeItem('mun_log_cache');
-        localStorage.removeItem('mun_log_cache_done');
-        localStorage.removeItem('mun_zip_data');
-    localStorage.removeItem('mun_tabela_legs');
+    if (window._jobExibido) {
+        fetch('/api/buscador/cancelar', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({job_id: window._jobExibido})}).catch(()=>{});
+        window._jobExibido = null;
+    }
     window._tabelaLegsData = {};
     const _tblReset = document.getElementById('tabela-legs-auto');
     if (_tblReset) _tblReset.textContent = 'Aguardando identificacao das legislacoes...';
-    }
     const _bpa = document.getElementById('btn-parar-auto');
     if (_bpa) _bpa.style.display = 'none';
     const logEl = document.getElementById('log-municipio');
@@ -1219,11 +1210,10 @@ function pararBuscaAuto() {
     dispararBuscaNovoMunicipio();
 }
 function cancelarELimpar() {
-    const _jobAtivo = localStorage.getItem('mun_job_id');
-    if (_jobAtivo) {
+    if (window._jobExibido) {
         window._buscadorCancelado = true;
-        fetch('/api/buscador/cancelar', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({job_id: _jobAtivo})}).catch(()=>{});
-        localStorage.removeItem('mun_job_id');
+        fetch('/api/buscador/cancelar', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({job_id: window._jobExibido})}).catch(()=>{});
+        window._jobExibido = null;
     }
     // Pausar fila e cancelar item rodando
     fetch('/api/fila/pausar', {method:'POST'}).catch(()=>{});
@@ -1236,10 +1226,6 @@ function cancelarELimpar() {
     if (_ldMun) _ldMun.style.display = 'none';
     const _logEl = document.getElementById('log-municipio');
     if (_logEl) _logEl.innerHTML = '';
-    localStorage.removeItem('mun_log_cache');
-    localStorage.removeItem('mun_log_cache_done');
-    localStorage.removeItem('mun_tabela_legs');
-    localStorage.removeItem('mun_zip_data');
     ['bm-zip-download','bm-relatorio-download','bm-tabela-download','nm-fila-progresso'].forEach(id => { const el = document.getElementById(id); if(el) el.remove(); });
     const _oldTbD = document.getElementById('auto-token-bar'); if(_oldTbD) _oldTbD.style.display='none';
     window._tabelaLegsData = {};
@@ -1250,7 +1236,7 @@ function cancelarELimpar() {
 function _atualizarBtnCancelar() {
     const btn = document.getElementById('btn-cancelar-limpar');
     if (!btn) return;
-    const ativo = localStorage.getItem('mun_job_id') || (typeof _nmFila !== 'undefined' && _nmFila.some(i => i.status === 'aguardando' || i.status === 'rodando'));
+    const ativo = window._jobExibido || (typeof _nmFila !== 'undefined' && _nmFila.some(i => i.status === 'aguardando' || i.status === 'rodando'));
     btn.style.display = ativo ? 'inline-flex' : 'none';
 }
 function dispararBuscaNovoMunicipio() {
@@ -1364,7 +1350,7 @@ async function _nmIniciarFila() {
         const _pollRapido = setInterval(async () => {
             _tentativas++;
             await _nmAtualizarProgressoFila();
-            const _jid = localStorage.getItem('mun_job_id');
+            const _jid = window._jobExibido;
             if (_jid || _tentativas > 15) {
                 clearInterval(_pollRapido);
                 if (!window._nmFilaPolling) window._nmFilaPolling = setInterval(_nmAtualizarProgressoFila, 1000);
@@ -1450,25 +1436,19 @@ async function _nmAtualizarProgressoFila() {
                 if (!window._nmReconectando) {
                     window._nmReconectando = true;
                     window._jobExibido = rodando.job_id;
-                    localStorage.setItem('mun_job_id', rodando.job_id);
-                    localStorage.setItem('mun_campos', JSON.stringify({mun: rodando.municipio, est: rodando.estado}));
+
                     // Timeout de seguranca: resetar flag apos 60s
                     setTimeout(() => { window._nmReconectando = false; }, 60000);
                     reconectarMunJob(rodando.job_id, rodando.municipio, rodando.estado).finally(() => { window._nmReconectando = false; });
                 }
             } else if (_jobAtual !== rodando.job_id) { // Novo job — limpar sempre que job mudar
                 // Novo job — limpar tabela, log e botoes do anterior
-                localStorage.removeItem('mun_zip_data');
-                localStorage.removeItem('mun_log_cache');
-                localStorage.removeItem('mun_log_cache_done');
-                localStorage.removeItem('mun_tabela_legs');
                 ['bm-zip-download','bm-relatorio-download','bm-tabela-download'].forEach(id => { const el = document.getElementById(id); if(el) el.remove(); });
                 window._tabelaLegsData = {};
                 const _tblEl = document.getElementById('tabela-legs-auto');
                 if (_tblEl) _tblEl.textContent = 'Aguardando identificacao das legislacoes...';
                 const _logEl = document.getElementById('log-municipio');
                 if (_logEl) _logEl.innerHTML = '';
-                localStorage.setItem('mun_job_id', rodando.job_id);
                 reconectarMunJob();
             }
         }
@@ -1562,8 +1542,6 @@ async function confirmarBuscaNovoMun() {
         logEl.style = "margin-top:16px;background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;max-height:400px;overflow-y:auto;";
         document.getElementById("panel-auto").appendChild(logEl);
     }
-    localStorage.removeItem('mun_log_cache');
-    localStorage.removeItem('mun_zip_data');
     ['bm-zip-download','bm-relatorio-download','bm-tabela-download'].forEach(id => { const el = document.getElementById(id); if(el) el.remove(); });
     const _oldTb2 = document.getElementById('auto-token-bar'); if(_oldTb2) _oldTb2.style.display='none';
     logEl.innerHTML = '<div style="color:var(--accent);margin-bottom:8px;">🔍 Buscando legislações urbanísticas de ' + mun + "/" + est + '...</div>';
@@ -1613,14 +1591,12 @@ async function confirmarBuscaNovoMun() {
         fecharModalNovoMun();
         try { const _v = await api('GET','/api/versao'); window._mun_commit_inicio = _v.commit||'?'; } catch(e) { window._mun_commit_inicio = '?'; }
         const jobId = r.job_id;
-        localStorage.setItem("mun_job_id", jobId);
+        window._jobExibido = jobId;
     _atualizarBtnCancelar();
         // Resetar tabela ao iniciar nova busca
-        localStorage.removeItem('mun_tabela_legs');
         window._tabelaLegsData = {};
         const _tblRst = document.getElementById('tabela-legs-auto');
         if (_tblRst) _tblRst.textContent = 'Aguardando identificacao das legislacoes...';
-        localStorage.setItem("mun_campos", JSON.stringify({mun, est}));
         let cursor = 0;
         while (true) {
             await new Promise(ok => setTimeout(ok, 1500));
@@ -1637,11 +1613,7 @@ async function confirmarBuscaNovoMun() {
                         d.textContent = '[' + _tsBRT + '] ' + (l.msg || '');
                         logEl.appendChild(d);
                         logEl.scrollTop = logEl.scrollHeight;
-                        try {
-                            const _lc = JSON.parse(localStorage.getItem('mun_log_cache') || '[]');
-                            _lc.push({msg: l.msg, nivel: l.nivel});
-                            localStorage.setItem('mun_log_cache', JSON.stringify(_lc));
-                        } catch(e) {}
+
                     });
                 }
                 cursor = poll.cursor || cursor;
@@ -1667,12 +1639,7 @@ async function confirmarBuscaNovoMun() {
                         setTimeout(() => { _ldMun.style.display = 'none'; }, 4000);
                     }
                     if (poll.hist_id) { btnLog._histId = poll.hist_id; window._munHistId = poll.hist_id; const _btnAuto = document.getElementById('btn-baixar-log-auto'); if(_btnAuto) _btnAuto.style.display='inline-block'; const _bPdf=document.getElementById('btn-baixar-tabela-pdf'); if(_bPdf) _bPdf.style.display='inline-block'; }
-                    // Manter log no cache após conclusão (só limpa em nova busca)
-                    try {
-                        const _lc = JSON.parse(localStorage.getItem('mun_log_cache') || '[]');
-                        localStorage.setItem('mun_log_cache_done', 'true');
-                        localStorage.setItem('mun_log_cache', JSON.stringify(_lc));
-                    } catch(e) {}
+
                     const _bp = document.getElementById('btn-parar-auto');
                     if (_bp) _bp.style.display = 'none';
                     _atualizarBtnCancelar();
@@ -1683,7 +1650,7 @@ async function confirmarBuscaNovoMun() {
                         window._nmFilaResolve = null;
                         setTimeout(_res, 500);
                     }
-                    if (poll.result) { try { const _r=poll.result; if(_r.zip_url) try{localStorage.setItem('mun_zip_data',JSON.stringify({zip_url:_r.zip_url,zip_nome:_r.zip_nome||'legislacoes.zip',relatorio_url:_r.relatorio_url,relatorio_nome:_r.relatorio_nome,tabela_url:_r.tabela_url,tabela_nome:_r.tabela_nome}));}catch(e){} const _ra=document.getElementById('panel-auto'); if(_ra&&_r.zip_url&&!document.getElementById('bm-zip-download')){const _z=document.createElement('div');_z.id='bm-zip-download';_z.style.cssText='margin-top:16px;padding:14px;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;display:flex;align-items:center;gap:12px;';_z.innerHTML='<div style="flex:1"><b style="color:var(--accent)">Pacote ZIP</b><br><small>'+(_r.zip_nome||'')+'</small></div><a href="'+_r.zip_url+'" download class="btn btn-primary">Baixar ZIP</a>';_ra.appendChild(_z);} if(_ra&&_r.relatorio_url&&!document.getElementById('bm-relatorio-download')){const _rl=document.createElement('div');_rl.id='bm-relatorio-download';_rl.style.cssText='margin-top:10px;padding:14px;background:var(--surface2);border:1px solid #7c6af7;border-radius:8px;display:flex;align-items:center;gap:12px;';_rl.innerHTML='<div style="flex:1"><b style="color:#7c6af7">Relatorio PDF</b><br><small>'+(_r.relatorio_nome||'')+'</small></div><a href="'+_r.relatorio_url+'" target="_blank" class="btn btn-primary" style="background:#7c6af7;border-color:#7c6af7;">Abrir</a>';_ra.appendChild(_rl);} if(_ra&&_r.tabela_url&&!document.getElementById('bm-tabela-download')){const _tl=document.createElement('div');_tl.id='bm-tabela-download';_tl.style.cssText='margin-top:10px;padding:14px;background:var(--surface2);border:1px solid #1D9E75;border-radius:8px;display:flex;align-items:center;gap:12px;';_tl.innerHTML='<div style="flex:1"><b style="color:#1D9E75">Tabela PDF</b><br><small>'+(_r.tabela_nome||'')+'</small></div><a href="'+_r.tabela_url+'" target="_blank" class="btn btn-primary" style="background:#1D9E75;border-color:#1D9E75;">Abrir</a>';_ra.appendChild(_tl);} } catch(e) {} }
+                    if (poll.result) _exibirBotoesDownload(poll.result);
                     break;
                 }
                 // Mostrar spinner enquanto processa
@@ -1698,8 +1665,7 @@ async function confirmarBuscaNovoMun() {
                 }
             } catch(e) {}
         }
-        localStorage.removeItem("mun_job_id");
-        localStorage.removeItem("mun_campos");
+        window._jobExibido = null;
     } catch(e) { alert("Erro: " + e.message); }
     finally { btn.disabled = false; btn.textContent = "🔎 Buscar"; }
 }
@@ -1727,41 +1693,21 @@ async function confirmarBuscaNovoMun() {
 (function restaurarBotoesDownload() {
     setTimeout(async function() {
         try {
+            // Verificar se fila está ativa — se sim, não restaurar
             const r0 = await fetch('/api/fila/listar');
             const d0 = await r0.json();
             if (d0.fila && d0.fila.some(i => i.status === 'rodando' || i.status === 'aguardando')) return;
+            // Verificar job ativo
             const r = await fetch('/api/buscador/job-atual?cursor=0');
             const d = await r.json();
             if (d.ativo) return;
+            // Buscar ultimo job concluido
             const r2 = await fetch('/api/buscador/ultimo-concluido');
             const d2 = await r2.json();
             if (!d2.success) return;
-            // Nao restaurar se ja ha job exibido diferente
+            // Nao restaurar se ja exibindo job diferente
             if (window._jobExibido && d2.job_id && window._jobExibido !== d2.job_id) return;
-            const resDiv = document.getElementById('panel-auto');
-            if (!resDiv) return;
-            if (d2.zip_url && !document.getElementById('bm-zip-download')) {
-                const zEl = document.createElement('div');
-                zEl.id = 'bm-zip-download';
-                zEl.style.cssText = 'margin-top:16px;padding:14px;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;display:flex;align-items:center;gap:12px;';
-                zEl.innerHTML = '<div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--accent)">📦 Pacote Completo de Legislações</div><div style="font-size:11px;color:var(--muted);margin-top:2px">' + d2.municipio + '/' + d2.estado + ' — restaurado após reload</div></div><a href="' + d2.zip_url + '" download class="btn btn-primary" style="white-space:nowrap;font-size:13px;padding:8px 18px;">⬇️ Baixar ZIP</a>';
-                resDiv.appendChild(zEl);
-            }
-            if (d2.relatorio_url && !document.getElementById('bm-relatorio-download')) {
-                const rlEl = document.createElement('div');
-                rlEl.id = 'bm-relatorio-download';
-                rlEl.style.cssText = 'margin-top:10px;padding:14px;background:var(--surface2);border:1px solid #7c6af7;border-radius:8px;display:flex;align-items:center;gap:12px;';
-                rlEl.innerHTML = '<div style="flex:1"><b style="color:#7c6af7">Relatório PDF</b><br><small>' + d2.municipio + '/' + d2.estado + ' — restaurado após reload</small></div><a href="' + d2.relatorio_url + '" target="_blank" class="btn btn-primary" style="background:#7c6af7;border-color:#7c6af7;">Abrir</a>';
-                rlEl.appendChild(document.createElement('span')).textContent='';
-                resDiv.appendChild(rlEl);
-            }
-            if (d2.tabela_url && !document.getElementById('bm-tabela-download')) {
-                const tlEl = document.createElement('div');
-                tlEl.id = 'bm-tabela-download';
-                tlEl.style.cssText = 'margin-top:10px;padding:14px;background:var(--surface2);border:1px solid #1D9E75;border-radius:8px;display:flex;align-items:center;gap:12px;';
-                tlEl.innerHTML = '<div style="flex:1"><b style="color:#1D9E75">Tabela PDF</b><br><small>' + d2.municipio + '/' + d2.estado + ' — restaurado após reload</small></div><a href="' + d2.tabela_url + '" target="_blank" class="btn btn-primary" style="background:#1D9E75;border-color:#1D9E75;">Abrir</a>';
-                resDiv.appendChild(tlEl);
-            }
+            _exibirBotoesDownload(d2);
         } catch(e) {}
     }, 1500);
 })();
@@ -2289,17 +2235,7 @@ carregarStatusPlataforma();
 
 // ===== TABELA DE LEGISLACOES =====
 let _tabelaLegsData = {};
-// Restaurar tabela do localStorage se busca concluida
-(function() {
-    try {
-        const _done = localStorage.getItem('mun_log_cache_done');
-        if (_done === 'true') {
-            const _saved = localStorage.getItem('mun_tabela_legs');
-            if (_saved) _tabelaLegsData = JSON.parse(_saved);
-        }
-    } catch(e) {}
-})();
-setTimeout(function(){ _renderTabelaLegs(); }, 300);
+// Tabela restaurada via server-side — sem localStorage
 
 function _atualizarTabelaLegs(dados) {
     if (dados.msg && typeof dados.msg === 'string') { try { dados = JSON.parse(dados.msg); } catch(e) {} }
@@ -2336,7 +2272,7 @@ function _atualizarTabelaLegs(dados) {
         dados.citado_em = dados.citado_em && dados.citado_em.length ? dados.citado_em : (ex.citado_em||[]);
     }
     _tabelaLegsData[k]=dados;
-    try{localStorage.setItem("mun_tabela_legs",JSON.stringify(_tabelaLegsData)); localStorage.setItem("mun_tabela_job_id", localStorage.getItem("mun_job_id")||'');}catch(e){}
+
     _renderTabelaLegs();
 }
 
@@ -2397,7 +2333,7 @@ function baixarLogAuto() {
     if (!txt) { alert('Log nao disponivel ainda.'); return; }
     const nd = new Date();
     let mun = 'municipio', est = 'XX';
-    try { const _c = JSON.parse(localStorage.getItem('mun_campos')||'{}'); mun = (_c.mun||'municipio').replace(/ /g,'_'); est = (_c.est||'XX'); } catch(e) {}
+    // mun/est ja definidos pelo job ativo
     const _dla = document.createElement('a');
     _dla.href = URL.createObjectURL(new Blob([txt], {type:'text/plain'}));
     _dla.download = 'Log_busca_automatica_' + est + '_' + mun + '_' + nd.getDate().toString().padStart(2,'0') + '_' + (nd.getMonth()+1).toString().padStart(2,'0') + '_' + nd.getFullYear() + '_' + nd.getHours() + 'h' + nd.getMinutes() + '.txt';
@@ -2413,9 +2349,9 @@ function baixarTabelaPDF() {
 
     // Montar HTML do PDF
     const mun = (document.getElementById('mun-input') && document.getElementById('mun-input').value) ||
-                (localStorage.getItem('mun_campos') ? JSON.parse(localStorage.getItem('mun_campos')).mun : '') || '';
+                (window._munAtual || '');
     const est = (document.getElementById('est-input') && document.getElementById('est-input').value) ||
-                (localStorage.getItem('mun_campos') ? JSON.parse(localStorage.getItem('mun_campos')).est : '') || '';
+                (window._estAtual || '');
     const agora = new Date().toLocaleString('pt-BR', {timeZone:'America/Sao_Paulo'});
 
     const COLS = [
@@ -2503,8 +2439,8 @@ carregarFila();
 // Restaurar log do cache ao recarregar (manual ou automático concluído)
 (function() {
     // Tentar restaurar log da busca automática concluída
-    const munDone = localStorage.getItem('mun_log_cache_done');
-    const munCache = JSON.parse(localStorage.getItem('mun_log_cache') || '[]');
+    const munDone = false; // server-side
+    const munCache = [];
     if (munDone === 'true' && munCache.length) {
         // Criar/encontrar elemento de log
         let logEl = document.getElementById('log-municipio');
@@ -2540,7 +2476,7 @@ carregarFila();
         return;
     }
     // Restaurar log manual
-    const cache = JSON.parse(localStorage.getItem('bm_log_cache') || '[]');
+    const cache = [];
     if (!cache.length) return;
     const logBox = document.getElementById('bm-log');
     const logLines = document.getElementById('bm-log-lines');
@@ -2556,12 +2492,10 @@ carregarFila();
 // Reconectar ao voltar para a aba
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-        const _jid = localStorage.getItem('mun_job_id');
-        if (_jid && !window._nmReconectando) {
+        if (!window._nmReconectando) {
             window._nmReconectando = true;
             reconectarMunJob().finally(() => { window._nmReconectando = false; });
         } else {
-            // Verificar fila mesmo sem job_id
             _nmAtualizarProgressoFila();
         }
     }
@@ -2569,237 +2503,172 @@ document.addEventListener('visibilitychange', () => {
 
 async function reconectarMunJob(jobIdDireto, munDireto, estDireto) {
     await new Promise(ok => setTimeout(ok, 300));
-    // Se recebeu job_id direto, setar no localStorage antes de continuar
-    if (jobIdDireto) {
-        localStorage.setItem('mun_job_id', jobIdDireto);
-        if (munDireto) localStorage.setItem('mun_campos', JSON.stringify({mun: munDireto, est: estDireto||''}));
-    }
-    let jobId = localStorage.getItem('mun_job_id');
-    // Se tem job_id direto, pular job-ativo e ir direto ao poll
-    if (jobIdDireto) {
-        if (typeof BUSCA_PAGINA !== 'undefined' && BUSCA_PAGINA === 'buscador-historico') return;
-        // Limpar tabela e dados anteriores
-        if (!window._jobExibido || window._jobExibido !== jobIdDireto) {
-            window._tabelaLegsData = {};
-            const _tblClr = document.getElementById('tabela-legs-auto');
-            if (_tblClr) _tblClr.textContent = 'Aguardando identificacao das legislacoes...';
-            ['bm-zip-download','bm-relatorio-download','bm-tabela-download'].forEach(id => { const el=document.getElementById(id); if(el) el.remove(); });
-        }
-        window._jobExibido = jobIdDireto;
-        let logEl = document.getElementById('log-municipio');
-        if (!logEl) {
-            logEl = document.createElement('div');
-            logEl.id = 'log-municipio';
-            logEl.style = 'margin-top:16px;background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;max-height:400px;overflow-y:auto;';
-            const _pa = document.getElementById('panel-auto');
-            if (_pa) _pa.appendChild(logEl);
-        }
-        mudarTab('auto');
-        let _cursor = 0;
-        while (true) {
-            await new Promise(ok => setTimeout(ok, 1500));
-            try {
-                const poll = await api('GET', `/api/buscador/job/${jobIdDireto}?cursor=${_cursor}`);
-                if (!poll || poll.error === 'Job não encontrado') break;
-                if (poll.logs && poll.logs.length) {
-                    poll.logs.forEach(l => {
-                        if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
-                        if (l.nivel === 'token') return;
-                        const c = l.nivel==='erro'?'#ff6b6b':l.nivel==='aviso'?'#ffb347':l.nivel==='ok'?'var(--accent)':l.nivel==='relacao'?'#4fc3f7':'var(--muted)';
-                        const d = document.createElement('div'); d.style.color=c;
-                        const ts = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'America/Sao_Paulo'});
-                        d.textContent = '['+ts+'] '+(l.msg||'');
-                        logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight;
-                    });
-                }
-                if (poll.hist_id) { window._munHistId=poll.hist_id; const _ba=document.getElementById('btn-baixar-log-auto'); if(_ba) _ba.style.display='inline-block'; }
-                _cursor = poll.cursor || _cursor;
-                localStorage.setItem('mun_log_cache_done', poll.done ? 'true' : '');
-                if (poll.done) { const _ldM=document.getElementById('loading-mun'); if(_ldM){_ldM.innerHTML='<div style="font-size:13px;font-weight:600;color:var(--accent);">✅ Busca concluída!</div>'; setTimeout(()=>{_ldM.style.display='none';},4000);} break; }
-            } catch(e) { break; }
-        }
-        return;
-    }
-    let mun = '', est = '';
-    try {
-        const ativo = await api('GET', '/api/buscador/job-ativo');
-        if (ativo && ativo.ativo) {
+    if (typeof BUSCA_PAGINA !== 'undefined' && BUSCA_PAGINA === 'buscador-historico') return;
+
+    // Buscar job ativo do servidor — sem localStorage
+    let jobId = jobIdDireto;
+    let mun = munDireto || '';
+    let est = estDireto || '';
+
+    if (!jobId) {
+        try {
+            const ativo = await api('GET', '/api/buscador/job-atual?cursor=0');
+            if (!ativo || !ativo.ativo) {
+                _nmAtualizarProgressoFila();
+                return;
+            }
             jobId = ativo.job_id;
             mun = ativo.municipio || '';
             est = ativo.estado || '';
-            localStorage.setItem('mun_job_id', jobId);
-            if (ativo.hist_id) { window._munHistId = ativo.hist_id; const _ba = document.getElementById('btn-baixar-log-auto'); if(_ba) _ba.style.display='inline-block'; const _bPdf2=document.getElementById('btn-baixar-tabela-pdf'); if(_bPdf2) _bPdf2.style.display='inline-block'; }
-        } else if (jobId) {
-            // Fila server-side: usar job_id do localStorage diretamente
-            const campos = JSON.parse(localStorage.getItem('mun_campos') || '{}');
-            mun = campos.mun || '';
-            est = campos.est || '';
-        } else if (!jobId) {
-            return;
-        } else {
-            const campos = JSON.parse(localStorage.getItem('mun_campos') || '{}');
-            mun = campos.mun || '';
-            est = campos.est || '';
-        }
-    } catch(e) {
-        if (!jobId) return;
-        const campos = JSON.parse(localStorage.getItem('mun_campos') || '{}');
-        mun = campos.mun || '';
-        est = campos.est || '';
+        } catch(e) { return; }
     }
+
+    // Limpar se job mudou
+    if (!window._jobExibido || window._jobExibido !== jobId) {
+        window._tabelaLegsData = {};
+        const _tblClr = document.getElementById('tabela-legs-auto');
+        if (_tblClr) _tblClr.textContent = 'Aguardando identificacao das legislacoes...';
+        ['bm-zip-download','bm-relatorio-download','bm-tabela-download'].forEach(id => {
+            const el = document.getElementById(id); if (el) el.remove();
+        });
+        window._jobExibido = jobId;
+    }
+
+    // Garantir painel de log
+    mudarTab('auto');
+    let logEl = document.getElementById('log-municipio');
+    if (!logEl) {
+        logEl = document.createElement('div');
+        logEl.id = 'log-municipio';
+        logEl.style.cssText = 'margin-top:16px;background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;max-height:400px;overflow-y:auto;';
+        const _pa = document.getElementById('panel-auto');
+        if (_pa) _pa.appendChild(logEl);
+    }
+
+    // Carregar logs do servidor
+    let cursor = 0;
     try {
         const check = await api('GET', `/api/buscador/job/${jobId}?cursor=0`);
-        if (!check || check.error === 'Job não encontrado') {
-            localStorage.removeItem('mun_job_id');
-            localStorage.removeItem('mun_campos');
-            return;
+        if (!check || check.error) return;
+
+        if (check.hist_id) {
+            window._munHistId = check.hist_id;
+            const _ba = document.getElementById('btn-baixar-log-auto');
+            if (_ba) _ba.style.display = 'inline-block';
         }
-        // Só manipular DOM se não estiver na página de histórico
-        if (typeof BUSCA_PAGINA !== 'undefined' && BUSCA_PAGINA === 'buscador-historico') return;
-        // Recriar painel de log
-        let logEl = document.getElementById('log-municipio');
-        if (!logEl) {
-            logEl = document.createElement('div');
-            logEl.id = 'log-municipio';
-            logEl.style = 'margin-top:16px;background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;max-height:400px;overflow-y:auto;';
-            document.getElementById('panel-auto').appendChild(logEl);
-        }
-        mudarTab('auto');
-        const _oldTb = document.getElementById('auto-token-bar'); if(_oldTb) _oldTb.style.display='none';
-        // Se job ja concluiu, nao mostrar spinner de reconexao
-        if (check.done) {
-            localStorage.removeItem('mun_job_id');
-            localStorage.removeItem('mun_log_cache');
-            if (check.result) {
-                document.getElementById('bm-resultados').style.display = 'block';
-                renderizarResultadoBusca(check.result, '0');
-            }
-            return;
-        }
-        logEl.innerHTML = '<div style="color:var(--accent);margin-bottom:8px;">🔄 Reconectando busca de ' + mun + '/' + est + '...</div>';
-        // btn-baixar-log-mun removido — usar btn-baixar-log-auto no topo
-        let btnLogMun = document.getElementById('btn-baixar-log-mun');
-        if (!btnLogMun) {
-            btnLogMun = document.createElement('span');
-            btnLogMun.id = 'btn-baixar-log-mun';
-            btnLogMun._histId = null;
-            logEl.insertAdjacentElement('beforebegin', btnLogMun);
-        }
-        // Restaurar cache do localStorage
-        const _cachedLogs = JSON.parse(localStorage.getItem('mun_log_cache') || '[]');
-        _cachedLogs.forEach(l => {
-            const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : l.nivel === 'anexo' ? '#ff9800' : 'var(--muted)';
+
+        // Renderizar logs existentes
+        const _srvLogs = check.logs || [];
+        _srvLogs.forEach(l => {
+            if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
+            if (l.nivel === 'token') return;
+            const cor = l.nivel==='erro'?'#ff6b6b':l.nivel==='aviso'?'#ffb347':l.nivel==='ok'?'var(--accent)':l.nivel==='relacao'?'#4fc3f7':'var(--muted)';
             const d = document.createElement('div');
-            d.style.color = c;
-            d.textContent = l.msg;
+            d.style.color = cor;
+            d.textContent = l.msg || '';
             logEl.appendChild(d);
         });
-        // Mostrar botão interromper (será escondido se job já concluiu)
-        const _bpR = document.getElementById('btn-parar-auto');
-        if (_bpR) _bpR.style.display = 'inline-block';
+        logEl.scrollTop = logEl.scrollHeight;
+        cursor = _srvLogs.length;
+
         if (check.done) {
-            const _df = document.createElement('div');
-            _df.style.color = 'var(--accent)';
-            _df.style.marginTop = '8px';
-            _df.textContent = '✅ Busca concluída (log restaurado)';
-            logEl.appendChild(_df);
-            logEl.scrollTop = logEl.scrollHeight;
-            const _bpD = document.getElementById('btn-parar-auto');
-            if (_bpD) _bpD.style.display = 'none';
-            localStorage.removeItem('mun_job_id');
-            localStorage.setItem('mun_log_cache_done', 'true');
-            // Salvar logs completos do servidor no cache
-            try {
-                const _allLogs = check.logs || [];
-                if (_allLogs.length > 0) localStorage.setItem('mun_log_cache', JSON.stringify(_allLogs));
-            } catch(e) {}
-            // Não remover mun_log_cache — persiste até nova busca
-            // Exibir resultados e botoes ZIP/PDF se disponivel
-            if (check.result) {
-                const _r = check.result;
-                if (_r.zip_url) try { localStorage.setItem('mun_zip_data', JSON.stringify({zip_url:_r.zip_url,zip_nome:_r.zip_nome||'legislacoes.zip',relatorio_url:_r.relatorio_url,relatorio_nome:_r.relatorio_nome,tabela_url:_r.tabela_url,tabela_nome:_r.tabela_nome})); } catch(e) {}
-                const _ra = document.getElementById('panel-auto');
-                if (_ra && _r.zip_url && !document.getElementById('bm-zip-download')) { const _z=document.createElement('div');_z.id='bm-zip-download';_z.style.cssText='margin-top:16px;padding:14px;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;display:flex;align-items:center;gap:12px;';_z.innerHTML='<div style="flex:1"><b style="color:var(--accent)">Pacote ZIP</b><br><small>'+(_r.zip_nome||'')+'</small></div><a href="'+_r.zip_url+'" download class="btn btn-primary">Baixar ZIP</a>';_ra.appendChild(_z); }
-                if (_ra && _r.relatorio_url && !document.getElementById('bm-relatorio-download')) { const _rl=document.createElement('div');_rl.id='bm-relatorio-download';_rl.style.cssText='margin-top:10px;padding:14px;background:var(--surface2);border:1px solid #7c6af7;border-radius:8px;display:flex;align-items:center;gap:12px;';_rl.innerHTML='<div style="flex:1"><b style="color:#7c6af7">Relatorio PDF</b><br><small>'+(_r.relatorio_nome||'')+'</small></div><a href="'+_r.relatorio_url+'" target="_blank" class="btn btn-primary" style="background:#7c6af7;border-color:#7c6af7;">Abrir</a>';_ra.appendChild(_rl); }
-                if (_ra && _r.tabela_url && !document.getElementById('bm-tabela-download')) { const _tl=document.createElement('div');_tl.id='bm-tabela-download';_tl.style.cssText='margin-top:10px;padding:14px;background:var(--surface2);border:1px solid #1D9E75;border-radius:8px;display:flex;align-items:center;gap:12px;';_tl.innerHTML='<div style="flex:1"><b style="color:#1D9E75">Tabela PDF</b><br><small>'+(_r.tabela_nome||'')+'</small></div><a href="'+_r.tabela_url+'" target="_blank" class="btn btn-primary" style="background:#1D9E75;border-color:#1D9E75;">Abrir</a>';_ra.appendChild(_tl); }
-            }
+            // Job ja concluido — mostrar resultado
+            const _ldM = document.getElementById('loading-mun');
+            if (_ldM) _ldM.style.display = 'none';
+            if (check.result) _exibirBotoesDownload(check.result);
             return;
         }
-        // Restaurar hist_id para botao de download
-        if (check.hist_id) { window._munHistId = check.hist_id; const _btnAuto = document.getElementById('btn-baixar-log-auto'); if(_btnAuto) _btnAuto.style.display='inline-block'; const _bPdf=document.getElementById('btn-baixar-tabela-pdf'); if(_bPdf) _bPdf.style.display='inline-block'; }
-        // Restaurar tabela com eventos tabela do servidor
-        const _srvLogs = check.logs || [];
-        _srvLogs.filter(l => l.nivel === 'tabela').forEach(l => _atualizarTabelaLegs(l));
-        // Complementar log com entradas do servidor além do cache
-        if (_srvLogs.length > _cachedLogs.length) {
-            _srvLogs.slice(_cachedLogs.length).forEach(l => {
-                if (l.nivel === 'tabela') return;
-                const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : l.nivel === 'anexo' ? '#ff9800' : 'var(--muted)';
-                const d = document.createElement('div');
-                d.style.color = c;
-                const _tsBRT2 = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'America/Sao_Paulo'});
-                d.textContent = '[' + _tsBRT2 + '] ' + (l.msg || '');
-                logEl.appendChild(d);
-            });
-        }
-        let cursor = _srvLogs.length;
-        // Recriar bloco de loading igual ao confirmarBuscaNovoMun
-        let loadingMun = document.getElementById('loading-mun');
-        if (!loadingMun) {
-            loadingMun = document.createElement('div');
-            loadingMun.id = 'loading-mun';
-            loadingMun.style = 'text-align:center;padding:20px;color:var(--muted);';
-            loadingMun.innerHTML = '<div class="spinner-busca"></div><div style="font-size:13px;font-weight:600;margin-top:12px;">Pesquisando e analisando fontes com IA...</div><div style="font-size:11px;margin-top:4px;color:var(--muted2);">Acompanhe o progresso no log acima ↑</div><div style="margin-top:12px;"><button class="btn btn-ghost btn-sm" style="color:#e74c3c;border-color:rgba(231,76,60,.3);" onclick="pararBuscaAuto()">✕ Cancelar e iniciar nova busca</button></div>';
-            logEl.insertAdjacentElement('afterend', loadingMun);
-        } else {
-            loadingMun.style.display = 'block';
-        }
-        // Retomar polling
-        while (true) {
-            await new Promise(ok => setTimeout(ok, 1500));
-            try {
-                const poll = await api('GET', `/api/buscador/job/${jobId}?cursor=${cursor}`);
-                if (poll.logs && poll.logs.length) {
-                    logRemoveSpinner();
-                    poll.logs.forEach(l => {
-                        if (l.nivel === 'token') { const tb=document.getElementById('auto-token-bar'); if(tb){ tb.style.display='flex'; tb.innerHTML='<span>Tokens: <b style="color:#00e5a0">'+(l.input||0).toLocaleString('pt-BR')+'</b> entrada / <b style="color:#00e5a0">'+(l.output||0).toLocaleString('pt-BR')+'</b> saída</span><span>Custo: <b style="color:#ffd06b">US$'+(l.custo||0).toFixed(4)+'</b></span>'; } return; }
-                        if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
-                        const c = l.nivel === 'erro' ? '#ff6b6b' : l.nivel === 'aviso' ? '#ffb347' : l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'relacao' ? '#4fc3f7' : l.nivel === 'anexo' ? '#ff9800' : 'var(--muted)';
-                        const d = document.createElement('div');
-                        d.style.color = c;
-                        const _tsBRT3 = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'America/Sao_Paulo'});
-                        d.textContent = '[' + _tsBRT3 + '] ' + (l.msg || '');
-                        logEl.appendChild(d);
-                        logEl.scrollTop = logEl.scrollHeight;
-                    });
-                }
-                if (poll.hist_id) { window._munHistId = poll.hist_id; const _btnA2 = document.getElementById('btn-baixar-log-auto'); if(_btnA2) _btnA2.style.display='inline-block'; const _bPdf3=document.getElementById('btn-baixar-tabela-pdf'); if(_bPdf3) _bPdf3.style.display='inline-block'; }
-                cursor = poll.cursor || cursor;
-                if (poll.done) break;
-            } catch(e) {}
-        }
-        localStorage.removeItem('mun_job_id');
-        localStorage.removeItem('mun_campos');
-    } catch(e) {}
+    } catch(e) { return; }
+
+    // Mostrar loading
+    let loadingMun = document.getElementById('loading-mun');
+    if (!loadingMun) {
+        loadingMun = document.createElement('div');
+        loadingMun.id = 'loading-mun';
+        loadingMun.style.cssText = 'text-align:center;padding:20px;color:var(--muted);';
+        loadingMun.innerHTML = '<div class="spinner-busca"></div><div style="font-size:13px;font-weight:600;margin-top:12px;">Pesquisando e analisando fontes com IA...</div><div style="font-size:11px;margin-top:4px;color:var(--muted2);">Acompanhe o progresso no log acima</div>';
+        logEl.insertAdjacentElement('afterend', loadingMun);
+    } else {
+        loadingMun.style.display = 'block';
+    }
+
+    // Polling
+    while (true) {
+        await new Promise(ok => setTimeout(ok, 1500));
+        try {
+            const poll = await api('GET', `/api/buscador/job/${jobId}?cursor=${cursor}`);
+            if (!poll || poll.error === 'Job não encontrado') break;
+            if (poll.logs && poll.logs.length) {
+                poll.logs.forEach(l => {
+                    if (l.nivel === 'token') {
+                        const tb = document.getElementById('auto-token-bar');
+                        if (tb) { tb.style.display='flex'; tb.innerHTML='<span>Tokens: <b style="color:#00e5a0">'+(l.input||0).toLocaleString('pt-BR')+'</b> entrada / <b style="color:#00e5a0">'+(l.output||0).toLocaleString('pt-BR')+'</b> saída</span><span>Custo: <b style="color:#ffd06b">US$'+(l.custo||0).toFixed(4)+'</b></span>'; }
+                        return;
+                    }
+                    if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
+                    const cor = l.nivel==='erro'?'#ff6b6b':l.nivel==='aviso'?'#ffb347':l.nivel==='ok'?'var(--accent)':l.nivel==='relacao'?'#4fc3f7':'var(--muted)';
+                    const d = document.createElement('div');
+                    d.style.color = cor;
+                    const ts = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'America/Sao_Paulo'});
+                    d.textContent = '['+ts+'] '+(l.msg||'');
+                    logEl.appendChild(d);
+                    logEl.scrollTop = logEl.scrollHeight;
+                });
+            }
+            if (poll.hist_id) {
+                window._munHistId = poll.hist_id;
+                const _ba = document.getElementById('btn-baixar-log-auto');
+                if (_ba) _ba.style.display = 'inline-block';
+            }
+            cursor = poll.cursor || cursor;
+            if (poll.done) {
+                if (loadingMun) { loadingMun.innerHTML = '<div style="font-size:13px;font-weight:600;color:var(--accent);">✅ Busca concluída!</div>'; setTimeout(()=>{loadingMun.style.display='none';},4000); }
+                if (poll.result) _exibirBotoesDownload(poll.result);
+                break;
+            }
+        } catch(e) { await new Promise(ok => setTimeout(ok, 3000)); }
+    }
 }
+
+function _exibirBotoesDownload(r) {
+    const _ra = document.getElementById('panel-auto');
+    if (!_ra) return;
+    if (r.zip_url && !document.getElementById('bm-zip-download')) {
+        const _z = document.createElement('div');
+        _z.id = 'bm-zip-download';
+        _z.style.cssText = 'margin-top:16px;padding:14px;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;display:flex;align-items:center;gap:12px;';
+        _z.innerHTML = '<div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--accent)">📦 Pacote Completo de Legislações</div><div style="font-size:11px;color:var(--muted);margin-top:2px">'+(r.zip_nome||'')+'</div></div><a href="'+r.zip_url+'" download class="btn btn-primary" style="white-space:nowrap;font-size:13px;padding:8px 18px;">⬇️ Baixar ZIP</a>';
+        _ra.appendChild(_z);
+    }
+    if (r.relatorio_url && !document.getElementById('bm-relatorio-download')) {
+        const _rl = document.createElement('div');
+        _rl.id = 'bm-relatorio-download';
+        _rl.style.cssText = 'margin-top:10px;padding:14px;background:var(--surface2);border:1px solid #7c6af7;border-radius:8px;display:flex;align-items:center;gap:12px;';
+        _rl.innerHTML = '<div style="flex:1"><b style="color:#7c6af7">📄 Relatório PDF</b><br><small>'+(r.relatorio_nome||'')+'</small></div><a href="'+r.relatorio_url+'" target="_blank" class="btn btn-primary" style="background:#7c6af7;border-color:#7c6af7;">Abrir</a>';
+        _ra.appendChild(_rl);
+    }
+    if (r.tabela_url && !document.getElementById('bm-tabela-download')) {
+        const _tl = document.createElement('div');
+        _tl.id = 'bm-tabela-download';
+        _tl.style.cssText = 'margin-top:10px;padding:14px;background:var(--surface2);border:1px solid #1D9E75;border-radius:8px;display:flex;align-items:center;gap:12px;';
+        _tl.innerHTML = '<div style="flex:1"><b style="color:#1D9E75">📊 Tabela PDF</b><br><small>'+(r.tabela_nome||'')+'</small></div><a href="'+r.tabela_url+'" target="_blank" class="btn btn-primary" style="background:#1D9E75;border-color:#1D9E75;">Abrir</a>';
+        _ra.appendChild(_tl);
+    }
+}
+
 
 
 
 // Reconectar job ativo ao carregar a página
 (async function reconectarJob() {
     await new Promise(ok => setTimeout(ok, 300));
-    let jobId = new URLSearchParams(window.location.search).get('job') || localStorage.getItem('buscador_job_id');
+    let jobId = new URLSearchParams(window.location.search).get('job');
     // Ignorar se pertence à busca automática
-    if (jobId && jobId === localStorage.getItem('mun_job_id')) {
-        history.replaceState({}, '', window.location.pathname);
-        jobId = null;
-    }
+    if (!jobId) return;
     if (!jobId) return;
     try {
         const check = await api('GET', `/api/buscador/job/${jobId}?cursor=0`);
         if (!check || check.error === 'Job não encontrado') {
-            localStorage.removeItem('buscador_job_id');
-            localStorage.removeItem('buscador_campos');
             history.replaceState({}, '', window.location.pathname);
             return;
         }
@@ -2810,7 +2679,7 @@ async function reconectarMunJob(jobIdDireto, munDireto, estDireto) {
         }
         if (BUSCA_PAGINA === 'buscador-historico') return;
         // Restaurar campos
-        const camposSalvos = localStorage.getItem('buscador_campos');
+        const camposSalvos = null;
         if (camposSalvos) {
             try {
                 const campos = JSON.parse(camposSalvos);
@@ -2839,8 +2708,6 @@ async function reconectarMunJob(jobIdDireto, munDireto, estDireto) {
             const _bmLoad = document.getElementById('bm-loading'); if (_bmLoad) _bmLoad.style.display = 'none';
             document.getElementById('bm-resultados').style.display = 'block';
             if (check.result) renderizarResultadoBusca(check.result, '0');
-            localStorage.removeItem('buscador_job_id');
-            localStorage.removeItem('buscador_campos');
             if (typeof carregarHistorico === 'function') carregarHistorico();
             return;
         }
@@ -2871,8 +2738,6 @@ async function reconectarMunJob(jobIdDireto, munDireto, estDireto) {
         logRemoveSpinner();
         const _bmLoad = document.getElementById('bm-loading'); if (_bmLoad) _bmLoad.style.display = 'none';
         document.getElementById('bm-resultados').style.display = 'block';
-        localStorage.removeItem('buscador_job_id');
-        localStorage.removeItem('buscador_campos');
     } catch(e) {}
 })();
 
