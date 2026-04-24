@@ -5461,18 +5461,15 @@ def _executar_sync_landly():
             _fkey = base64.urlsafe_b64encode(_fk)
             try: api_key = Fernet(_fkey).decrypt(cfg['api_key_enc'].encode()).decode()
             except: pass
-        url = cfg['api_url'].rstrip('/') + '/properties'
+        url = cfg['api_url'].rstrip('/')
         headers = {'X-API-Key': api_key} if api_key else {}
-        props = []
-        page = 1
-        while True:
-            r = _req.get(url, headers=headers, params={'page': page, 'limit': 500}, timeout=30)
-            data = r.json()
-            batch = data.get('properties', [])
-            props.extend(batch)
-            if len(batch) < 500 or page >= data.get('pages', 1):
-                break
-            page += 1
+        r = _req.get(url, headers=headers, timeout=30)
+        data = r.json()
+        # Suporta lista direta ou objeto com campo 'properties'
+        if isinstance(data, list):
+            props = data
+        else:
+            props = data.get('properties', data.get('municipios', []))
         municipios_landly = list({(p['municipio'], p['estado']) for p in props if p.get('municipio') and p.get('estado')})
         cur.execute("SELECT municipio, estado FROM dossie_municipios")
         existentes = {(r['municipio'], r['estado']) for r in cur.fetchall()}
