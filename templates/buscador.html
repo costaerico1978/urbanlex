@@ -1736,6 +1736,8 @@ async function confirmarBuscaNovoMun() {
             const r2 = await fetch('/api/buscador/ultimo-concluido');
             const d2 = await r2.json();
             if (!d2.success) return;
+            // Nao restaurar se ja ha job exibido diferente
+            if (window._jobExibido && d2.job_id && window._jobExibido !== d2.job_id) return;
             const resDiv = document.getElementById('panel-auto');
             if (!resDiv) return;
             if (d2.zip_url && !document.getElementById('bm-zip-download')) {
