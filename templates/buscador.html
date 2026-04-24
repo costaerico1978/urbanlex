@@ -1188,7 +1188,7 @@ function pararBuscaAuto() {
         fetch('/api/buscador/cancelar', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({job_id: window._jobExibido})}).catch(()=>{});
         window._jobExibido = null;
     }
-    window._tabelaLegsData = {};
+    _tabelaLegsData = {};
     const _tblReset = document.getElementById('tabela-legs-auto');
     if (_tblReset) _tblReset.textContent = 'Aguardando identificacao das legislacoes...';
     const _bpa = document.getElementById('btn-parar-auto');
@@ -1227,7 +1227,7 @@ function cancelarELimpar() {
     if (_logEl) _logEl.innerHTML = '';
     ['bm-zip-download','bm-relatorio-download','bm-tabela-download','nm-fila-progresso'].forEach(id => { const el = document.getElementById(id); if(el) el.remove(); });
     const _oldTbD = document.getElementById('auto-token-bar'); if(_oldTbD) _oldTbD.style.display='none';
-    window._tabelaLegsData = {};
+    _tabelaLegsData = {};
     const _tblEl = document.getElementById('tabela-legs-auto');
     if (_tblEl) _tblEl.textContent = 'Aguardando identificacao das legislacoes...';
     _atualizarBtnCancelar();
@@ -1434,7 +1434,7 @@ async function _nmAtualizarProgressoFila() {
             if (!_jobAtual || _jobAtual !== rodando.job_id) {
                 // Novo job — limpar tabela, log e botoes do anterior
                 ['bm-zip-download','bm-relatorio-download','bm-tabela-download'].forEach(id => { const el = document.getElementById(id); if(el) el.remove(); });
-                window._tabelaLegsData = {};
+                _tabelaLegsData = {};
                 const _tblEl = document.getElementById('tabela-legs-auto');
                 if (_tblEl) _tblEl.textContent = 'Aguardando identificacao das legislacoes...';
                 const _logEl = document.getElementById('log-municipio');
@@ -1589,7 +1589,7 @@ async function confirmarBuscaNovoMun() {
         window._jobExibido = jobId;
     _atualizarBtnCancelar();
         // Resetar tabela e botoes ao iniciar nova busca
-        window._tabelaLegsData = {};
+        _tabelaLegsData = {};
         const _tblRst = document.getElementById('tabela-legs-auto');
         if (_tblRst) _tblRst.textContent = 'Aguardando identificacao das legislacoes...';
         ['bm-zip-download','bm-relatorio-download','bm-tabela-download'].forEach(id => { const el=document.getElementById(id); if(el) el.remove(); });
@@ -2534,7 +2534,7 @@ async function reconectarMunJob(jobIdDireto, munDireto, estDireto) {
 
     // Limpar se job mudou
     if (!window._jobExibido || window._jobExibido !== jobId) {
-        window._tabelaLegsData = {};
+        _tabelaLegsData = {};
         const _tblClr = document.getElementById('tabela-legs-auto');
         if (_tblClr) _tblClr.textContent = 'Aguardando identificacao das legislacoes...';
         ['bm-zip-download','bm-relatorio-download','bm-tabela-download'].forEach(id => {
