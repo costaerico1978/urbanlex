@@ -5497,6 +5497,47 @@ def _executar_sync_landly():
 def dossie_municipais():
     return render_template('dossie_municipais.html', active_page='dossie-municipais')
 
+
+@app.route('/api/dossie/municipio/<municipio>/<estado>', methods=['DELETE'])
+@login_required
+def api_dossie_municipio_deletar(municipio, estado):
+    """Apaga todos os dados de um município do dossiê."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        # Buscar arquivos para deletar fisicamente
+        cur.execute("""SELECT zip_path, relatorio_path, tabela_path, pdf_path, job_id
+            FROM buscas_historico
+            WHERE LOWER(municipio)=LOWER(%s) AND LOWER(estado)=LOWER(%s)""",
+            (municipio, estado))
+        rows = cur.fetchall()
+        # Deletar arquivos físicos
+        import glob
+        for r in rows:
+            for fpath in [r['zip_path'], r['relatorio_path'], r['tabela_path'], r['pdf_path']]:
+                if fpath:
+                    full = os.path.join('/var/www/urbanlex', fpath.lstrip('/'))
+                    try:
+                        if os.path.exists(full): os.remove(full)
+                    except: pass
+            # Deletar logs do banco
+            if r['job_id']:
+                cur.execute("DELETE FROM buscas_logs WHERE job_id=%s", (r['job_id'],))
+        # Deletar histórico
+        cur.execute("DELETE FROM buscas_historico WHERE LOWER(municipio)=LOWER(%s) AND LOWER(estado)=LOWER(%s)",
+            (municipio, estado))
+        # Deletar da fila
+        cur.execute("DELETE FROM fila_buscas WHERE LOWER(municipio)=LOWER(%s) AND LOWER(estado)=LOWER(%s)",
+            (municipio, estado))
+        # Deletar do dossiê
+        cur.execute("DELETE FROM dossie_municipios WHERE LOWER(municipio)=LOWER(%s) AND LOWER(estado)=LOWER(%s)",
+            (municipio, estado))
+        conn.commit()
+        cur.close(); conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/fila/pausar', methods=['POST'])
 @login_required
 def api_fila_pausar():

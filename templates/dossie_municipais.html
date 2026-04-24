@@ -23,7 +23,7 @@
 
 <!-- List -->
 <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
-  <div style="display:grid;grid-template-columns:1fr 110px 100px 80px 130px 100px;
+  <div style="display:grid;grid-template-columns:1fr 110px 100px 80px 130px 100px 36px;
     padding:10px 20px;border-bottom:1px solid var(--border);background:var(--surface2)">
     <span style="font-size:10px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.8px">Município</span>
     <span style="font-size:10px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.8px">Última busca</span>
@@ -31,6 +31,7 @@
     <span style="font-size:10px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.8px">Limite</span>
     <span style="font-size:10px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.8px">Origem</span>
     <span style="font-size:10px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.8px">Status</span>
+    <span></span>
   </div>
   <div id="dossie-list"><div style="padding:40px;text-align:center;color:var(--muted)">Carregando...</div></div>
 </div>
@@ -80,7 +81,7 @@
 </div>
 
 <style>
-.dossie-row { display:grid;grid-template-columns:1fr 110px 100px 80px 130px 100px;
+.dossie-row { display:grid;grid-template-columns:1fr 110px 100px 80px 130px 100px 36px;
   padding:13px 20px;border-bottom:1px solid rgba(48,54,61,0.4);
   cursor:pointer;transition:background 0.1s;align-items:center; }
 .dossie-row:last-child { border-bottom:none; }
@@ -156,6 +157,8 @@ function dossieRenderList(data) {
       <div style="font-size:11px;color:var(--muted)">${m.max_legislacoes ? m.max_legislacoes : '<span style="color:var(--accent)">∞</span>'}</div>
       <div>${obMap[m.origem] || obMap.manual}</div>
       <div>${sbMap[m.leg_status] || sbMap.none}</div>
+      <div onclick="event.stopPropagation();dossieConfirmarExcluir(m)" style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;font-size:12px;transition:all .15s"
+        onmouseover="this.style.borderColor='#f85149';this.style.color='#f85149'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">✕</div>
     </div>`).join('');
 }
 
@@ -234,6 +237,30 @@ function dossieSearch(val) {
     </div>`).join('');
   ac.innerHTML = acItems;
   ac.style.display = filtered.length ? 'block' : 'none';
+}
+
+async function dossieConfirmarExcluir(m) {
+    const temBusca = m.leg_status === 'ok';
+    const naFila = m.leg_status === 'pending';
+    let msg = '';
+    if (temBusca) {
+        msg = `Deseja apagar todos os dados de ${m.municipio}/${m.estado}?\n\nIsso removerá o histórico, logs, ZIP, relatório e tabela.`;
+    } else if (naFila) {
+        msg = `Deseja remover ${m.municipio}/${m.estado} da fila e do dossiê?`;
+    } else {
+        msg = `Deseja remover ${m.municipio}/${m.estado} do dossiê?`;
+    }
+    if (!confirm(msg)) return;
+    try {
+        const r = await api('DELETE', `/api/dossie/municipio/${encodeURIComponent(m.municipio)}/${m.estado}`);
+        if (r.success) {
+            _dossieData = _dossieData.filter(x => !(x.municipio === m.municipio && x.estado === m.estado));
+            dossieRenderStats(_dossieData);
+            dossieRenderList(_dossieData);
+        } else {
+            alert('Erro ao remover: ' + (r.error || 'desconhecido'));
+        }
+    } catch(e) { alert('Erro: ' + e.message); }
 }
 
 function dossieCloseAC() { document.getElementById('dossie-ac').style.display = 'none'; }
