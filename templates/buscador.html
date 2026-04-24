@@ -1589,10 +1589,11 @@ async function confirmarBuscaNovoMun() {
         const jobId = r.job_id;
         window._jobExibido = jobId;
     _atualizarBtnCancelar();
-        // Resetar tabela ao iniciar nova busca
+        // Resetar tabela e botoes ao iniciar nova busca
         window._tabelaLegsData = {};
         const _tblRst = document.getElementById('tabela-legs-auto');
         if (_tblRst) _tblRst.textContent = 'Aguardando identificacao das legislacoes...';
+        ['bm-zip-download','bm-relatorio-download','bm-tabela-download'].forEach(id => { const el=document.getElementById(id); if(el) el.remove(); });
         let cursor = 0;
         while (true) {
             await new Promise(ok => setTimeout(ok, 1500));
