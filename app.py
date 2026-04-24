@@ -5423,7 +5423,8 @@ def api_integracao_landly_testar():
     try:
         import requests as _req
         _headers = {'X-API-Key': key} if key and not key.startswith('••') else {}
-        r = _req.get(url, headers=_headers, timeout=10)
+        r = _req.get(url, headers=_headers, timeout=10, stream=True)
+        r.close()
         if r.status_code == 200:
             return jsonify({'success': True, 'msg': 'Conexão OK'})
         return jsonify({'success': False, 'msg': f'HTTP {r.status_code}'})
