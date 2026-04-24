@@ -5398,7 +5398,7 @@ def api_integracao_landly_config():
             FROM integracao_landly LIMIT 1""")
         r = cur.fetchone()
         cur2 = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur2.execute("""SELECT executado_em, total_municipios, novos_municipios, status, erro
+        cur2.execute("""SELECT executado_em, total_municipios, novos_municipios, status, erro, municipios_snapshot, novos_snapshot
             FROM integracao_landly_sync ORDER BY executado_em DESC LIMIT 10""")
         syncs = []
         for s in cur2.fetchall():
@@ -5408,6 +5408,8 @@ def api_integracao_landly_config():
                 'novos_municipios': s['novos_municipios'],
                 'status': s['status'],
                 'erro': s['erro'],
+                'municipios_snapshot': s['municipios_snapshot'] or [],
+                'novos_snapshot': s['novos_snapshot'] or [],
             })
         cur.close(); cur2.close(); conn.close()
         return jsonify({'success': True, 'config': dict(r) if r else {}, 'syncs': syncs})
