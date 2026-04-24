@@ -1082,10 +1082,6 @@ function cancelarENovasBusca() {
         fetch('/api/buscador/cancelar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({job_id: window._buscadorJobId})}).catch(()=>{});
         window._buscadorJobId = null;
     }
-    // Limpar TODO o estado persistido — inclusive log e ZIP
-    ['buscador_job_id','buscador_campos','bm_log_cache',
-     'mun_job_id','mun_campos','mun_log_cache','mun_log_cache_done','mun_zip_data',
-
     const _bmLoad = document.getElementById('bm-loading'); if (_bmLoad) _bmLoad.style.display = 'none';
     const logEl = document.getElementById('bm-log-lines');
     if (logEl) logEl.innerHTML = '';
