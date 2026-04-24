@@ -1381,7 +1381,7 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
                         except Exception:
                             pass
                     if not _altera:
-                        if leg.get("_nivel", 1) == 0:
+                        if _nivel == 0:
                             logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros mas e nivel 0 — mantendo"})
                         else:
                             logs.append({"nivel": "aviso", "msg": "  IA: legislacao nao define parametros e nao altera outras — descartando"})

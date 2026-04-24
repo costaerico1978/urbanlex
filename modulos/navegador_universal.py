@@ -3722,27 +3722,6 @@ def navegar_como_humano(
             # 7. Desistiu?
             _skip_exec = False
             if tipo_acao == 'desistir':
-                # Antes de desistir, verificar se há ícone clicável na tabela (IA pode não ver o ícone)
-                pensamento_lower = pensamento.lower()
-                legislacao_vista = any(kw in pensamento_lower for kw in ['encontrad', 'listada', 'resultado', 'registro', 'identificad'])
-                
-                if legislacao_vista:
-                    logs.append({'nivel': 'info', 'msg': f'{label}: 🔄 IA desistiu mas viu legislação — tentando clicar ícone automaticamente...'})
-                    try:
-                        auto_result = _clicar_por_texto(pagina_ativa, 'icone coluna Arquivo linha 1', logs, label)
-                        if 'Download:' in auto_result or 'Nova aba:' in auto_result or 'Navegou:' in auto_result:
-                            exec_resultado = auto_result
-                            _skip_exec = True
-                            historico.append({'passo': passo, 'acao': 'auto_click_icone', 'resultado': auto_result[:100]})
-                        else:
-                            logs.append({'nivel': 'aviso', 'msg': f'{label}: ❌ Auto-clique falhou: {auto_result[:60]}'})
-                            historico.append({'passo': passo, 'acao': 'desistir', 'resultado': pensamento[:100]})
-                            break
-                    except Exception as e_auto:
-                        logs.append({'nivel': 'aviso', 'msg': f'{label}: ❌ Auto-clique erro: {str(e_auto)[:40]}'})
-                        historico.append({'passo': passo, 'acao': 'desistir', 'resultado': pensamento[:100]})
-                        break
-                else:
                     _captcha_kws = ['captcha', 'recaptcha', 'motocicleta', 'selecionar imagens', 'selecione imagens', 'verificar que voce', 'desafio visual', 'selecione todas', 'nao sou um robo', 'prove que e humano']
                     _captcha_detectado = any(kw in pensamento.lower() for kw in _captcha_kws)
                     _2captcha_key = os.environ.get('TWOCAPTCHA_API_KEY', '')
