@@ -5587,6 +5587,13 @@ def api_landly_municipios():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/hora-servidor')
+def api_hora_servidor():
+    from datetime import datetime, timezone, timedelta
+    utc_now = datetime.now(timezone.utc)
+    brasilia = utc_now - timedelta(hours=3)
+    return jsonify({'hora': brasilia.strftime('%H:%M'), 'data': brasilia.strftime('%d/%m/%Y')})
+
 @app.route('/api/fila/reordenar', methods=['POST'])
 @login_required
 def api_fila_reordenar():

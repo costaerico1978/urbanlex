@@ -169,6 +169,9 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
             <input id="landly-h2" type="time" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;padding:9px 12px;outline:none">
           </div>
         </div>
+        <div id="landly-hora-servidor" style="font-size:10px;color:var(--muted2);margin-top:6px">
+          🕐 Carregando hora do servidor...
+        </div>
       </div>
       <!-- Configurações -->
       <div>
@@ -2196,9 +2199,22 @@ async function sincronizarPlataforma() {
 async function abrirModalLandly() {
     document.getElementById('modal-landly').style.display = 'flex';
     await landlyCarregarConfig();
+    _landlyAtualizarHora();
+    if (window._landlyHoraInterval) clearInterval(window._landlyHoraInterval);
+    window._landlyHoraInterval = setInterval(_landlyAtualizarHora, 30000);
+}
+
+async function _landlyAtualizarHora() {
+    try {
+        const r = await fetch('/api/hora-servidor');
+        const d = await r.json();
+        const el = document.getElementById('landly-hora-servidor');
+        if (el) el.innerHTML = '🕐 Agora no servidor: <b style="color:var(--text)">' + d.hora + '</b> (Brasília, ' + d.data + ')';
+    } catch(e) {}
 }
 function fecharModalLandly() {
     document.getElementById('modal-landly').style.display = 'none';
+    if (window._landlyHoraInterval) { clearInterval(window._landlyHoraInterval); window._landlyHoraInterval = null; }
 }
 async function landlyCarregarConfig() {
     try {
@@ -2208,8 +2224,13 @@ async function landlyCarregarConfig() {
         if (cfg.api_url) document.getElementById('landly-url').value = cfg.api_url;
         if (cfg.api_key_display) document.getElementById('landly-key').value = cfg.api_key_display;
         document.getElementById('landly-toggle').checked = !!cfg.agendamento_ativo;
-        if (cfg.horario_1) document.getElementById('landly-h1').value = cfg.horario_1;
-        if (cfg.horario_2) document.getElementById('landly-h2').value = cfg.horario_2;
+        function _utcToBr(h) {
+            if (!h) return '';
+            const [hh, mm] = h.split(':').map(Number);
+            return (((hh - 3) + 24) % 24).toString().padStart(2,'0') + ':' + mm.toString().padStart(2,'0');
+        }
+        if (cfg.horario_1) document.getElementById('landly-h1').value = _utcToBr(cfg.horario_1);
+        if (cfg.horario_2) document.getElementById('landly-h2').value = _utcToBr(cfg.horario_2);
         if (cfg.max_legislacoes) document.getElementById('landly-maxlegs').value = cfg.max_legislacoes;
         landlyRenderSyncs(r.syncs || []);
     } catch(e) {}
@@ -2283,12 +2304,18 @@ async function landlySalvarConexao() {
 }
 
 async function landlySalvar() {
+    function _brToUtc(h) {
+        if (!h) return null;
+        const [hh, mm] = h.split(':').map(Number);
+        const utcH = ((hh + 3) % 24).toString().padStart(2,'0');
+        return utcH + ':' + mm.toString().padStart(2,'0');
+    }
     const d = {
         api_url: document.getElementById('landly-url').value,
         api_key: document.getElementById('landly-key').value,
         agendamento_ativo: document.getElementById('landly-toggle').checked,
-        horario_1: document.getElementById('landly-h1').value,
-        horario_2: document.getElementById('landly-h2').value || null,
+        horario_1: _brToUtc(document.getElementById('landly-h1').value),
+        horario_2: _brToUtc(document.getElementById('landly-h2').value) || null,
         max_legislacoes: parseInt(document.getElementById('landly-maxlegs').value) || null,
     };
     const r = await api('POST', '/api/integracao/landly/config', d);
