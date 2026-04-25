@@ -5484,7 +5484,6 @@ def _executar_sync_landly():
         novos = [(m, e) for m, e in municipios_landly if (m, e) not in existentes]
         for mun, est in novos:
             cur.execute("INSERT INTO dossie_municipios (municipio, estado, origem) VALUES (%s,%s,'integracao') ON CONFLICT DO NOTHING", (mun, est))
-            cur.execute("INSERT INTO fila_buscas (municipio, estado, status, max_legislacoes, origem) VALUES (%s,%s,'aguardando',%s,'integracao')", (mun, est, cfg['max_legislacoes']))
         import json
         cur.execute("""INSERT INTO integracao_landly_sync
             (total_municipios, novos_municipios, status, municipios_snapshot, novos_snapshot)
@@ -5544,6 +5543,46 @@ def api_dossie_municipio_deletar(municipio, estado):
         conn.commit()
         cur.close(); conn.close()
         return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/integracao/landly/municipios')
+@login_required
+def api_landly_municipios():
+    """Retorna municipios do dossie com origem integracao para o accordion."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT dm.municipio, dm.estado,
+                   bh.concluido_em as ultima_busca,
+                   (SELECT status FROM fila_buscas fb
+                    WHERE LOWER(fb.municipio)=LOWER(dm.municipio)
+                    AND LOWER(fb.estado)=LOWER(dm.estado)
+                    AND fb.status IN ('rodando','aguardando')
+                    ORDER BY fb.id DESC LIMIT 1) as fila_status
+            FROM dossie_municipios dm
+            LEFT JOIN buscas_historico bh ON LOWER(bh.municipio)=LOWER(dm.municipio)
+                AND LOWER(bh.estado)=LOWER(dm.estado) AND bh.sucesso=true
+                AND bh.concluido_em=(SELECT MAX(concluido_em) FROM buscas_historico
+                    WHERE municipio=dm.municipio AND estado=dm.estado AND sucesso=true)
+            WHERE dm.origem='integracao'
+            ORDER BY dm.municipio ASC
+        """)
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        result = []
+        for r in rows:
+            status = 'none'
+            if r['fila_status'] in ('rodando','aguardando'): status = 'pending'
+            elif r['ultima_busca']: status = 'ok'
+            result.append({
+                'municipio': r['municipio'],
+                'estado': r['estado'],
+                'status': status,
+                'ultima_busca': r['ultima_busca'].strftime('%d/%m/%Y') if r['ultima_busca'] else None,
+            })
+        return jsonify({'success': True, 'municipios': result})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 

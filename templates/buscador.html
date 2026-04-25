@@ -571,6 +571,26 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
             </div>
             <div id="nm-fila-lista" style="max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:0;border:1px solid var(--border);border-radius:0 0 6px 6px;"></div>
         </div>
+        <!-- Accordion Landly -->
+        <div id="nm-landly-accordion" style="display:none;margin-bottom:12px;border:1px solid rgba(124,106,247,0.3);border-radius:10px;overflow:hidden;">
+            <div onclick="_nmToggleAccordion()" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(124,106,247,0.06);cursor:pointer;user-select:none;">
+                <span style="font-size:15px">🔗</span>
+                <div style="flex:1">
+                    <div style="font-size:12px;font-weight:700;color:#9d8fff">Municípios via Integração Landly</div>
+                    <div style="font-size:10px;color:var(--muted2);margin-top:1px">Clique para expandir e adicionar à fila</div>
+                </div>
+                <span id="nm-acc-count" style="font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;background:rgba(124,106,247,0.15);color:#9d8fff;border:1px solid rgba(124,106,247,0.3)">0</span>
+                <button onclick="event.stopPropagation();_nmLandlyAddTodos()" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(124,106,247,0.12);border:1px solid rgba(124,106,247,0.3);color:#9d8fff;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap;">+ Adicionar todos</button>
+                <span id="nm-acc-chevron" style="color:var(--muted2);font-size:12px;transition:transform .2s;transform:rotate(90deg)">▶</span>
+            </div>
+            <div id="nm-acc-body" style="border-top:1px solid rgba(124,106,247,0.2);">
+                <div style="padding:8px 10px;border-bottom:1px solid rgba(48,54,61,0.5);">
+                    <input id="nm-acc-search" oninput="_nmLandlyFiltrar(this.value)" placeholder="🔍 Filtrar municípios..." style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;font-family:inherit;padding:6px 10px;outline:none;">
+                </div>
+                <div id="nm-acc-list" style="max-height:180px;overflow-y:auto;"></div>
+            </div>
+        </div>
+
         <div style="display:flex;gap:8px;margin-top:4px;">
             <button class="btn btn-secondary btn-sm" id="btn-nm-add-fila" onclick="_nmAdicionarFila()" style="white-space:nowrap;">+ Fila</button>
             <div style="flex:1"></div>
@@ -1256,6 +1276,7 @@ function dispararBuscaNovoMunicipio() {
     document.getElementById('nm-municipio').value = '';
     document.getElementById('nm-estado').value = '';
     // Carregar itens aguardando do servidor
+    _nmCarregarLandly();
     fetch('/api/fila/listar').then(r=>r.json()).then(d=>{
         if (!d.success) return;
         _nmFila = d.fila.filter(i => i.status === 'aguardando' || i.status === 'rodando').map(i => ({
@@ -1292,6 +1313,119 @@ async function _nmAdicionarFila() {
     document.getElementById('nm-municipio').value = '';
     document.getElementById('nm-estado').value = '';
     _nmRenderFila();
+}
+
+
+// ── Accordion Landly ──
+let _nmLandlyMuns = [];
+let _nmLandlyCfg = {}; // {key: {fallback, maxLegs}}
+let _nmLandlyAdded = {}; // {key: true}
+let _nmAccOpen = true;
+let _nmLandlyFiltroVal = '';
+
+async function _nmCarregarLandly() {
+    try {
+        const r = await api('GET', '/api/integracao/landly/municipios');
+        if (!r.success || !r.municipios.length) return;
+        _nmLandlyMuns = r.municipios;
+        document.getElementById('nm-landly-accordion').style.display = 'block';
+        document.getElementById('nm-acc-count').textContent = r.municipios.length;
+        _nmLandlyRender();
+    } catch(e) {}
+}
+
+function _nmToggleAccordion() {
+    _nmAccOpen = !_nmAccOpen;
+    document.getElementById('nm-acc-body').style.display = _nmAccOpen ? 'block' : 'none';
+    document.getElementById('nm-acc-chevron').style.transform = _nmAccOpen ? 'rotate(90deg)' : 'rotate(0deg)';
+}
+
+function _nmLandlyFiltrar(val) {
+    _nmLandlyFiltroVal = val;
+    _nmLandlyRender();
+}
+
+function _nmLandlyRender() {
+    const el = document.getElementById('nm-acc-list');
+    if (!el) return;
+    const filtered = _nmLandlyMuns.filter(m =>
+        (m.municipio + '/' + m.estado).toLowerCase().includes(_nmLandlyFiltroVal.toLowerCase())
+    );
+    el.innerHTML = filtered.map(m => {
+        const key = m.municipio + '/' + m.estado;
+        const isAdded = _nmLandlyAdded[key];
+        const cfg = _nmLandlyCfg[key] || {};
+        const cfgOpen = cfg._open;
+        const statusColor = m.status === 'ok' ? 'var(--accent)' : m.status === 'pending' ? '#f0a000' : 'var(--muted2)';
+        const statusText = m.status === 'ok' ? '✓ ' + m.ultima_busca : m.status === 'pending' ? '⏳ Em fila' : '';
+        return `<div style="border-bottom:1px solid rgba(48,54,61,0.4)">
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;">
+                <span style="flex:1;font-size:12px;font-weight:500;color:var(--text)">${m.municipio}<span style="font-size:10px;color:var(--muted2)">/${m.estado}</span></span>
+                ${statusText ? `<span style="font-size:10px;color:${statusColor}">${statusText}</span>` : ''}
+                <span onclick="_nmLandlyToggleCfg('${key}')" style="color:var(--muted2);font-size:10px;cursor:pointer;transition:transform .2s;display:inline-block;transform:${cfgOpen?'rotate(90deg)':'rotate(0deg)'}">▶</span>
+                <button onclick="_nmLandlyAdicionar('${key}')" style="font-size:10px;padding:3px 9px;border-radius:6px;font-weight:600;background:${isAdded?'rgba(0,229,160,0.1)':'rgba(124,106,247,0.12)'};border:1px solid ${isAdded?'rgba(0,229,160,0.3)':'rgba(124,106,247,0.3)'};color:${isAdded?'var(--accent)':'#9d8fff'};cursor:pointer;font-family:inherit;white-space:nowrap;">
+                    ${isAdded ? '✓ Adicionado' : '+ Adicionar'}
+                </button>
+            </div>
+            ${cfgOpen ? `<div style="padding:8px 12px 10px;background:rgba(0,0,0,0.2);border-top:1px solid rgba(48,54,61,0.4)">
+                <div style="display:grid;grid-template-columns:1fr 80px;gap:8px;margin-bottom:6px">
+                    <div>
+                        <label style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;display:block">Fallback prioritário (URL)</label>
+                        <input type="url" value="${cfg.fallback||''}" placeholder="https://camara.municipio.gov.br/..."
+                            oninput="_nmLandlyCfgSet('${key}','fallback',this.value)"
+                            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px;font-family:inherit;padding:4px 7px;outline:none">
+                    </div>
+                    <div>
+                        <label style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;display:block">Máx. legs</label>
+                        <input type="number" value="${cfg.maxLegs||''}" placeholder="∞" min="1"
+                            oninput="_nmLandlyCfgSet('${key}','maxLegs',this.value)"
+                            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px;font-family:inherit;padding:4px 7px;outline:none">
+                        <div style="font-size:9px;color:var(--muted2);margin-top:2px">Padrão: sem limite</div>
+                    </div>
+                </div>
+            </div>` : ''}
+        </div>`;
+    }).join('');
+}
+
+function _nmLandlyToggleCfg(key) {
+    if (!_nmLandlyCfg[key]) _nmLandlyCfg[key] = {};
+    _nmLandlyCfg[key]._open = !_nmLandlyCfg[key]._open;
+    _nmLandlyRender();
+}
+
+function _nmLandlyCfgSet(key, field, val) {
+    if (!_nmLandlyCfg[key]) _nmLandlyCfg[key] = {};
+    _nmLandlyCfg[key][field] = val;
+}
+
+async function _nmLandlyAdicionar(key) {
+    const m = _nmLandlyMuns.find(x => x.municipio + '/' + x.estado === key);
+    if (!m) return;
+    const cfg = _nmLandlyCfg[key] || {};
+    const maxLegs = cfg.maxLegs ? parseInt(cfg.maxLegs) : null;
+    try {
+        const r = await api('POST', '/api/buscador/municipio', {
+            municipio: m.municipio, estado: m.estado,
+            fallback_url: cfg.fallback || null,
+            max_legislacoes: maxLegs,
+        });
+        if (r.success) {
+            _nmLandlyAdded[key] = true;
+            _nmFila.push({ id: r.id, mun: m.municipio, est: m.estado,
+                maxLegs, fallbackUrl: cfg.fallback||null,
+                status: 'aguardando', servidor: true, origem: 'integracao' });
+            _nmRenderFila();
+            _nmLandlyRender();
+        }
+    } catch(e) {}
+}
+
+async function _nmLandlyAddTodos() {
+    const naoAdicionados = _nmLandlyMuns.filter(m => !_nmLandlyAdded[m.municipio+'/'+m.estado]);
+    for (const m of naoAdicionados) {
+        await _nmLandlyAdicionar(m.municipio + '/' + m.estado);
+    }
 }
 
 function _nmMover(idx, dir) {
