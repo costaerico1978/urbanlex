@@ -1408,7 +1408,7 @@ function _nmLandlyRender() {
                 <div onclick="event.stopPropagation();_nmLandlyToggleSel('${key}')" style="width:15px;height:15px;border:1.5px solid ${isSel?'#f85149':'var(--border)'};border-radius:3px;background:${isSel?'#f85149':'var(--surface2)'};display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0">${isSel?'<span style="color:white;font-size:9px;font-weight:700">✓</span>':''}</div>
                 <span style="flex:1;font-size:12px;font-weight:500;color:var(--text)">${m.municipio}<span style="font-size:10px;color:var(--muted2)">/${m.estado}</span></span>
                 ${statusText ? `<span style="font-size:10px;color:${statusColor}">${statusText}</span>` : ''}
-                <span onclick="_nmLandlyToggleCfg('${key}')" style="color:var(--muted2);font-size:10px;cursor:pointer;transition:transform .2s;display:inline-block;transform:${cfgOpen?'rotate(90deg)':'rotate(0deg)'}">▶</span>
+                <span onclick="_nmLandlyToggleCfg('${key}')" style="color:var(--muted2);font-size:11px;cursor:pointer;background:none;border:1px solid var(--border);border-radius:3px;padding:2px 5px;transition:all .15s" title="Configurar">⚙</span>
                 <button onclick="_nmLandlyAdicionar('${key}')" style="font-size:10px;padding:3px 9px;border-radius:6px;font-weight:600;background:${isAdded?'rgba(0,229,160,0.1)':'rgba(124,106,247,0.12)'};border:1px solid ${isAdded?'rgba(0,229,160,0.3)':'rgba(124,106,247,0.3)'};color:${isAdded?'var(--accent)':'#9d8fff'};cursor:pointer;font-family:inherit;white-space:nowrap;">
                     ${isAdded ? '✓ Adicionado' : '+ Adicionar'}
                 </button>
