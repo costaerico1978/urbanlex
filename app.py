@@ -5403,7 +5403,7 @@ def api_integracao_landly_config():
             FROM integracao_landly LIMIT 1""")
         r = cur.fetchone()
         cur2 = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur2.execute("""SELECT executado_em, total_municipios, novos_municipios, status, erro, municipios_snapshot, novos_snapshot
+        cur2.execute("""SELECT executado_em, total_municipios, novos_municipios, status, erro, municipios_snapshot, novos_snapshot, log_linhas
             FROM integracao_landly_sync ORDER BY executado_em DESC LIMIT 10""")
         syncs = []
         for s in cur2.fetchall():
@@ -5415,6 +5415,7 @@ def api_integracao_landly_config():
                 'erro': s['erro'],
                 'municipios_snapshot': s['municipios_snapshot'] or [],
                 'novos_snapshot': s['novos_snapshot'] or [],
+                'log_linhas': s['log_linhas'] or [],
             })
         cur.close(); cur2.close(); conn.close()
         return jsonify({'success': True, 'config': dict(r) if r else {}, 'syncs': syncs})
@@ -5455,6 +5456,11 @@ def _executar_sync_landly():
     import requests as _req
     from cryptography.fernet import Fernet
     import base64
+    from datetime import datetime, timezone, timedelta
+    _logs = []
+    def _log(nivel, msg):
+        br = datetime.now(timezone.utc) - timedelta(hours=3)
+        _logs.append({'ts': br.strftime('%H:%M:%S'), 'nivel': nivel, 'msg': msg})
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -5470,6 +5476,8 @@ def _executar_sync_landly():
             try: api_key = Fernet(_fkey).decrypt(cfg['api_key_enc'].encode()).decode()
             except: pass
         url = cfg['api_url'].rstrip('/')
+        _log('info', f'Iniciando sincronização com Landly...')
+        _log('info', f'Conectando à API: {url}')
         headers = {'X-API-Key': api_key} if api_key else {}
         r = _req.get(url, headers=headers, timeout=30)
         data = r.json()
@@ -5479,24 +5487,31 @@ def _executar_sync_landly():
         else:
             props = data.get('properties', data.get('municipios', []))
         municipios_landly = list({(p['municipio'], p['estado']) for p in props if p.get('municipio') and p.get('estado')})
+        _log('ok', f'✓ {len(props)} propriedades recebidas da API')
+        _log('info', f'Verificando municípios existentes no dossiê...')
         cur.execute("SELECT municipio, estado FROM dossie_municipios")
         existentes = {(r['municipio'], r['estado']) for r in cur.fetchall()}
         novos = [(m, e) for m, e in municipios_landly if (m, e) not in existentes]
+        _log('ok', f'{len(novos)} municípios novos detectados')
         for mun, est in novos:
+            _log('info', f'Adicionando ao dossiê: {mun}/{est}')
             cur.execute("INSERT INTO dossie_municipios (municipio, estado, origem) VALUES (%s,%s,'integracao') ON CONFLICT DO NOTHING", (mun, est))
         import json
+        _log('ok', f'✓ Sincronização concluída — {len(municipios_landly)} totais, {len(novos)} novos')
         cur.execute("""INSERT INTO integracao_landly_sync
-            (total_municipios, novos_municipios, status, municipios_snapshot, novos_snapshot)
-            VALUES (%s,%s,'sucesso',%s,%s)""",
+            (total_municipios, novos_municipios, status, municipios_snapshot, novos_snapshot, log_linhas)
+            VALUES (%s,%s,'sucesso',%s,%s,%s)""",
             (len(municipios_landly), len(novos),
              json.dumps([{'municipio':m,'estado':e} for m,e in municipios_landly]),
-             json.dumps([{'municipio':m,'estado':e} for m,e in novos])))
+             json.dumps([{'municipio':m,'estado':e} for m,e in novos]),
+             json.dumps(_logs)))
         conn.commit()
         cur.close(); conn.close()
     except Exception as ex:
+        _log('erro', f'Erro: {str(ex)[:200]}')
         try:
             conn2 = get_db(); cur2 = conn2.cursor()
-            cur2.execute("INSERT INTO integracao_landly_sync (status, erro) VALUES ('erro',%s)", (str(ex),))
+            cur2.execute("INSERT INTO integracao_landly_sync (status, erro, log_linhas) VALUES ('erro',%s,%s)", (str(ex), json.dumps(_logs)))
             conn2.commit(); cur2.close(); conn2.close()
         except: pass
 
@@ -5584,6 +5599,25 @@ def api_landly_municipios():
                 'max_legislacoes': r['max_legislacoes'],
             })
         return jsonify({'success': True, 'municipios': result})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/integracao/landly/ultimo-log')
+@login_required
+def api_landly_ultimo_log():
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT status, erro, log_linhas, executado_em FROM integracao_landly_sync ORDER BY executado_em DESC LIMIT 1")
+        r = cur.fetchone()
+        cur.close(); conn.close()
+        if not r: return jsonify({'success': True, 'logs': [], 'status': 'idle'})
+        return jsonify({
+            'success': True,
+            'status': r['status'],
+            'logs': r['log_linhas'] or [],
+            'executado_em': r['executado_em'].strftime('%d/%m %H:%M') if r['executado_em'] else None,
+        })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 

@@ -184,6 +184,20 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
           </div>
         </div>
       </div>
+      <!-- Log em tempo real -->
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--accent);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px">Log da sincronização<span style="flex:1;height:1px;background:linear-gradient(to right,var(--border),transparent)"></span></div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+            <span id="landly-log-status-text" style="font-size:11px;color:var(--muted)">Nenhuma sincronização realizada</span>
+            <span id="landly-log-status-pill" style="font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;background:rgba(139,148,158,0.1);color:var(--muted);border:1px solid rgba(139,148,158,0.2)">● Aguardando</span>
+          </div>
+          <div id="landly-log-body" style="padding:10px 14px;font-size:11px;line-height:1.8;max-height:130px;overflow-y:auto;font-family:monospace;color:var(--muted2)">
+            Nenhum log disponível.
+          </div>
+        </div>
+      </div>
+
       <!-- Histórico -->
       <div>
         <div style="font-size:10px;font-weight:700;color:var(--accent);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px">Histórico de sincronizações<span style="flex:1;height:1px;background:linear-gradient(to right,var(--border),transparent)"></span></div>
@@ -2199,9 +2213,35 @@ async function sincronizarPlataforma() {
 async function abrirModalLandly() {
     document.getElementById('modal-landly').style.display = 'flex';
     await landlyCarregarConfig();
+    await _landlyCarregarLog();
     _landlyAtualizarHora();
     if (window._landlyHoraInterval) clearInterval(window._landlyHoraInterval);
     window._landlyHoraInterval = setInterval(_landlyAtualizarHora, 30000);
+}
+
+async function _landlyCarregarLog() {
+    try {
+        const lr = await api('GET', '/api/integracao/landly/ultimo-log');
+        if (!lr.success) return;
+        const pill = document.getElementById('landly-log-status-pill');
+        const txt = document.getElementById('landly-log-status-text');
+        const logBody = document.getElementById('landly-log-body');
+        if (lr.logs && lr.logs.length && logBody) {
+            logBody.innerHTML = lr.logs.map(l => {
+                const cor = l.nivel==='ok'?'var(--accent)':l.nivel==='erro'?'#f85149':l.nivel==='warn'?'#f0a000':'var(--muted)';
+                return `<div style="color:${cor}"><span style="color:var(--muted2)">[${l.ts||''}]</span> ${l.msg}</div>`;
+            }).join('');
+            logBody.scrollTop = logBody.scrollHeight;
+        }
+        if (pill && txt && lr.executado_em) {
+            const ok = lr.status === 'sucesso';
+            pill.style.background = ok ? 'rgba(0,229,160,0.12)' : 'rgba(248,81,73,0.12)';
+            pill.style.color = ok ? 'var(--accent)' : '#f85149';
+            pill.style.borderColor = ok ? 'rgba(0,229,160,0.2)' : 'rgba(248,81,73,0.2)';
+            pill.textContent = ok ? '✓ Concluída' : '✕ Erro';
+            txt.textContent = 'Última sync: ' + lr.executado_em;
+        }
+    } catch(e) {}
 }
 
 async function _landlyAtualizarHora() {
@@ -2254,7 +2294,7 @@ function landlyRenderSyncs(syncs) {
             <td style="padding:8px 12px">
                 ${s.status==='sucesso'
                     ? '<span style="font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;background:rgba(0,229,160,0.12);color:var(--accent);border:1px solid rgba(0,229,160,0.2)">✓ OK</span>'
-                    : `<span style="font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;background:rgba(248,81,73,0.12);color:#f85149;border:1px solid rgba(248,81,73,0.2);cursor:pointer" onclick="landlyVerErro(${i})">✕ Erro ▸</span>`}
+                    : `<span style="font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;background:rgba(248,81,73,0.12);color:#f85149;border:1px solid rgba(248,81,73,0.2);cursor:pointer" onclick="landlyVerErro(${i},event)">✕ Erro ▸</span>`}
             </td>
         </tr>
         <tr id="landly-panel-${i}" style="display:none">
@@ -2286,8 +2326,13 @@ function landlyVerErro(idx) {
     if (panel.style.display !== 'none') { panel.style.display='none'; return; }
     document.querySelectorAll('[id^="landly-panel-"]').forEach(p => { if (!p.id.includes('content')) p.style.display='none'; });
     content.style.cssText = 'padding:12px 14px;border-left:2px solid #f85149;background:rgba(248,81,73,0.04)';
-    content.innerHTML = `<span style="color:#f85149;font-weight:700;font-size:11px">Erro</span><br>
-        <span style="color:var(--muted);font-size:10px;font-family:monospace;line-height:1.8">${s.erro||'Erro desconhecido'}</span>`;
+    const logHtml = (s.log_linhas||[]).length
+        ? (s.log_linhas||[]).map(l => {
+            const cor = l.nivel==='ok'?'var(--accent)':l.nivel==='erro'?'#f85149':l.nivel==='warn'?'#f0a000':'var(--muted)';
+            return `<div style="color:${cor}"><span style="color:var(--muted2)">[${l.ts||''}]</span> ${l.msg}</div>`;
+          }).join('')
+        : `<span style="color:#f85149;font-weight:700;font-size:11px">Erro</span><br><span style="color:var(--muted);font-size:10px;font-family:monospace;line-height:1.8">${s.erro||'Erro desconhecido'}</span>`;
+    content.innerHTML = `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Log de erro</div>${logHtml}`;
     panel.style.display = 'table-row';
 }
 async function landlySalvarConexao() {
@@ -2339,10 +2384,39 @@ async function landlyTestar() {
 async function landlySincronizarAgora() {
     const btn = document.getElementById('landly-btn-sync');
     btn.disabled = true; btn.textContent = '⏳ Sincronizando...';
+    const pill = document.getElementById('landly-log-status-pill');
+    const txt = document.getElementById('landly-log-status-text');
+    const logBody = document.getElementById('landly-log-body');
+    if (pill) { pill.style.background='rgba(240,160,0,0.12)'; pill.style.color='#f0a000'; pill.style.borderColor='rgba(240,160,0,0.25)'; pill.textContent='⏳ Sincronizando...'; }
+    if (txt) txt.textContent = 'Sync em andamento...';
+    if (logBody) logBody.innerHTML = '';
     const r = await api('POST', '/api/integracao/landly/sincronizar');
     if (r.success) {
         btn.textContent = '✓ Iniciado';
-        setTimeout(async () => { btn.textContent = '⚡ Sincronizar agora'; btn.disabled = false; await landlyCarregarConfig(); }, 3000);
+        // Polling do log
+        let tentativas = 0;
+        const _poll = setInterval(async () => {
+            tentativas++;
+            try {
+                const lr = await api('GET', '/api/integracao/landly/ultimo-log');
+                if (lr.success && lr.logs && lr.logs.length) {
+                    if (logBody) {
+                        logBody.innerHTML = lr.logs.map(l => {
+                            const cor = l.nivel==='ok'?'var(--accent)':l.nivel==='erro'?'#f85149':l.nivel==='warn'?'#f0a000':'var(--muted)';
+                            return `<div style="color:${cor}"><span style="color:var(--muted2)">[${l.ts||''}]</span> ${l.msg}</div>`;
+                        }).join('');
+                        logBody.scrollTop = logBody.scrollHeight;
+                    }
+                    if (lr.status === 'sucesso' || lr.status === 'erro' || tentativas > 30) {
+                        clearInterval(_poll);
+                        if (pill) { pill.style.background=lr.status==='sucesso'?'rgba(0,229,160,0.12)':'rgba(248,81,73,0.12)'; pill.style.color=lr.status==='sucesso'?'var(--accent)':'#f85149'; pill.style.borderColor=lr.status==='sucesso'?'rgba(0,229,160,0.2)':'rgba(248,81,73,0.2)'; pill.textContent=lr.status==='sucesso'?'✓ Concluída':'✕ Erro'; }
+                        if (txt) txt.textContent = 'Última sync: ' + (lr.executado_em||'agora');
+                        btn.textContent = '⚡ Sincronizar agora'; btn.disabled = false;
+                        await landlyCarregarConfig();
+                    }
+                }
+            } catch(e) {}
+        }, 2000);
     } else { btn.textContent = '⚡ Sincronizar agora'; btn.disabled = false; }
 }
 
