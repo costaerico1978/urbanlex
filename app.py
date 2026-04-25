@@ -5520,6 +5520,9 @@ def _executar_sync_landly():
             cur.execute("INSERT INTO dossie_municipios (municipio, estado, origem) VALUES (%s,%s,'integracao') ON CONFLICT DO NOTHING", (mun, est))
         import json
         _log('ok', f'✓ Sincronização concluída — {len(municipios_landly)} totais, {len(novos)} novos')
+        try:
+            with open('/tmp/landly_sync_done', 'w') as _f: _f.write(str(__import__('time').time()))
+        except: pass
         cur.execute("""INSERT INTO integracao_landly_sync
             (total_municipios, novos_municipios, status, municipios_snapshot, novos_snapshot, log_linhas)
             VALUES (%s,%s,'sucesso',%s,%s,%s)""",
@@ -5643,6 +5646,33 @@ def api_landly_ultimo_log():
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/integracao/landly/eventos')
+@login_required
+def api_landly_eventos():
+    """SSE endpoint para notificar browser quando sync Landly terminar."""
+    import time
+    def _stream():
+        last = None
+        yield 'data: connected\n\n'
+        for _ in range(300):  # max 10min
+            try:
+                flag = '/tmp/landly_sync_done'
+                if os.path.exists(flag):
+                    ts = os.path.getmtime(flag)
+                    if last is None:
+                        last = ts
+                    elif ts != last:
+                        last = ts
+                        yield f'data: sync_done\n\n'
+                else:
+                    last = None
+            except: pass
+            time.sleep(2)
+        yield 'data: timeout\n\n'
+    return Response(stream_with_context(_stream()),
+                   mimetype='text/event-stream',
+                   headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
 @app.route('/api/hora-servidor')
 def api_hora_servidor():

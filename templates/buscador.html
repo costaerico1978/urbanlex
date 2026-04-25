@@ -2219,6 +2219,16 @@ async function abrirModalLandly() {
     document.getElementById('modal-landly').style.display = 'flex';
     await landlyCarregarConfig();
     await _landlyCarregarLog();
+    // SSE para detectar syncs do cron
+    if (window._landlySSE) { window._landlySSE.close(); window._landlySSE = null; }
+    window._landlySSE = new EventSource('/api/integracao/landly/eventos');
+    window._landlySSE.onmessage = async (e) => {
+        if (e.data === 'sync_done') {
+            await landlyCarregarConfig();
+            await _landlyCarregarLog();
+        }
+    };
+    window._landlySSE.onerror = () => { window._landlySSE.close(); window._landlySSE = null; };
     _landlyAtualizarHora();
     if (window._landlyHoraInterval) clearInterval(window._landlyHoraInterval);
     window._landlyHoraInterval = setInterval(_landlyAtualizarHora, 30000);
@@ -2285,6 +2295,7 @@ async function _landlyAtualizarHora() {
 function fecharModalLandly() {
     document.getElementById('modal-landly').style.display = 'none';
     if (window._landlyHoraInterval) { clearInterval(window._landlyHoraInterval); window._landlyHoraInterval = null; }
+    if (window._landlySSE) { window._landlySSE.close(); window._landlySSE = null; }
 }
 async function landlyCarregarConfig() {
     try {
