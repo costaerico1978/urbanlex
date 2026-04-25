@@ -792,9 +792,9 @@ def iniciar_scheduler():
                            id='email_resumo_diario', replace_existing=True)
         # Registrar jobs Landly se configurado
         try:
-            from app import get_db
-            import psycopg2.extras
-            _lconn = get_db(); _lcur = _lconn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            import psycopg2, psycopg2.extras as _pex
+            _lconn = psycopg2.connect('postgresql://urbanlex:urbanlex123@localhost:5432/urbanlex')
+            _lcur = _lconn.cursor(cursor_factory=_pex.RealDictCursor)
             _lcur.execute('SELECT agendamento_ativo, horario_1, horario_2 FROM integracao_landly LIMIT 1')
             _lcfg = _lcur.fetchone(); _lcur.close(); _lconn.close()
             if _lcfg and _lcfg['agendamento_ativo']:
