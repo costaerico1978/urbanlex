@@ -250,8 +250,6 @@ function dossieSearch(val) {
   ac.style.display = filtered.length ? 'block' : 'none';
 }
 
-let _dossieSel = {}; // {municipio/estado: true}
-let _dossieData = []; // cache da lista atual
 
 function dossieToggleSel(mun, est) {
     const key = mun + '/' + est;
