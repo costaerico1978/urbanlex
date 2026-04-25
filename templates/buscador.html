@@ -2453,6 +2453,7 @@ async function landlySincronizarAgora() {
                         if (txt) txt.textContent = 'Última sync: ' + (lr.executado_em||'agora');
                         btn.textContent = '⚡ Sincronizar agora'; btn.disabled = false;
                         await landlyCarregarConfig();
+                        await _landlyCarregarLog();
                     }
                 }
             } catch(e) {}
