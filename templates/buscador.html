@@ -1632,6 +1632,13 @@ async function _nmRemoverSelecionados() {
         _nmFila.splice(i, 1);
     }
     _nmRenderFila();
+    // Resetar toolbar
+    const btnDel = document.getElementById('nm-btn-del');
+    const cbAll = document.getElementById('nm-cb-all');
+    const lblAll = document.getElementById('nm-lbl-all');
+    if (btnDel) btnDel.style.display = 'none';
+    if (cbAll) { cbAll.style.background='var(--surface2)'; cbAll.style.borderColor='var(--border)'; cbAll.innerHTML=''; }
+    if (lblAll) lblAll.textContent = 'Selecionar todos';
 }
 
 function _nmRenderFila() {
