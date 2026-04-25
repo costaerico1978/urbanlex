@@ -1259,7 +1259,7 @@ function dispararBuscaNovoMunicipio() {
         if (!d.success) return;
         _nmFila = d.fila.filter(i => i.status === 'aguardando' || i.status === 'rodando').map(i => ({
             id: i.id, mun: i.municipio, est: i.estado,
-            maxLegs: i.max_legislacoes, fallbackUrl: i.fallback_url_override || null, status: i.status, servidor: true
+            maxLegs: i.max_legislacoes, fallbackUrl: i.fallback_url_override || null, status: i.status, servidor: true, origem: i.origem || 'manual'
         }));
         _nmRenderFila();
     }).catch(()=>{});
@@ -1404,6 +1404,9 @@ function _nmRenderFila() {
         const riscado = item.status === 'concluido' ? 'text-decoration:line-through;opacity:.5;' : '';
         const temCustom = item.fallbackUrl || (item.maxLegs != null);
         const badge = ''; // removido — info mostrada no editPanel
+        const origemTag = item.origem === 'integracao'
+            ? '<span style="font-size:9px;padding:1px 6px;border-radius:20px;font-weight:600;background:rgba(124,106,247,0.12);color:#7c6af7;border:1px solid rgba(124,106,247,0.25);margin-right:4px">Landly</span>'
+            : '<span style="font-size:9px;padding:1px 6px;border-radius:20px;font-weight:600;background:rgba(139,148,158,0.1);color:var(--muted);border:1px solid rgba(139,148,158,0.2);margin-right:4px">Manual</span>';
         const editBtn = item.status === 'aguardando' ? `<button onclick="_nmEditarFila(${idx})" style="background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:3px;line-height:1;" title="Configurar">⚙</button>` : '';
         const remBtn = item.status === 'aguardando' ? `<button onclick="_nmRemoverFila(${idx})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:0 2px;">✕</button>` : '';
         const borderColor = item._editando ? 'var(--accent)' : (item.status==='rodando' ? 'var(--accent)' : 'var(--border)');
@@ -1429,7 +1432,7 @@ function _nmRenderFila() {
                </label>`
             : `<div style="width:15px;height:15px;flex-shrink:0"></div>`;
         return `<div style="background:var(--bg);border:1px solid ${borderColor};border-radius:6px;overflow:hidden;">
-            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;" onclick="${item.status==='aguardando'?`_nmToggleCheck(${idx})`:''}">
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;" onclick="${item.status==='aguardando' ? '_nmToggleCheck(' + idx + ')' : ''}">
                 ${cbHtml}
                 <span style="flex:1;font-size:12px;font-weight:600;${riscado}">${item.mun}/${item.est}</span>
                 ${origemTag}
