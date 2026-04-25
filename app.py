@@ -5407,7 +5407,7 @@ def api_integracao_landly_config():
         syncs = []
         for s in cur2.fetchall():
             syncs.append({
-                'executado_em': s['executado_em'].strftime('%d/%m %H:%M'),
+                'executado_em': (s['executado_em'] - __import__('datetime').timedelta(hours=3)).strftime('%d/%m %H:%M'),
                 'total_municipios': s['total_municipios'],
                 'novos_municipios': s['novos_municipios'],
                 'status': s['status'],
@@ -5638,7 +5638,7 @@ def api_landly_ultimo_log():
             'success': True,
             'status': r['status'],
             'logs': r['log_linhas'] or [],
-            'executado_em': r['executado_em'].strftime('%d/%m %H:%M') if r['executado_em'] else None,
+            'executado_em': (r['executado_em'] - __import__('datetime').timedelta(hours=3)).strftime('%d/%m %H:%M') if r['executado_em'] else None,
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
