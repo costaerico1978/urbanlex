@@ -154,10 +154,15 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
             <div style="font-size:12px;color:var(--text);font-weight:600">Sincronização automática</div>
             <div style="font-size:10px;color:var(--muted);margin-top:1px">Executar nos horários definidos abaixo</div>
           </div>
-          <label style="position:relative;width:40px;height:22px;flex-shrink:0">
-            <input id="landly-toggle" type="checkbox" style="opacity:0;width:0;height:0" onchange="_landlyToggleUI()">
-            <span onclick="this.previousElementSibling.click()" style="position:absolute;inset:0;background:var(--surface3);border:1px solid var(--border);border-radius:22px;cursor:pointer;transition:.2s" id="landly-toggle-ui"><span id="landly-toggle-dot" style="position:absolute;width:16px;height:16px;border-radius:50%;background:var(--muted2);left:2px;top:2px;transition:.2s"></span></span>
-          </label>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            <span id="landly-lbl-off" style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);transition:color .2s">OFF</span>
+            <label style="position:relative;width:44px;height:24px;cursor:pointer" onclick="_landlyToggleUI()">
+              <input id="landly-toggle" type="checkbox" style="display:none">
+              <div id="landly-toggle-track" style="position:absolute;inset:0;background:var(--surface3);border:1px solid var(--border);border-radius:24px;transition:all .25s"></div>
+              <div id="landly-toggle-dot" style="position:absolute;width:18px;height:18px;border-radius:50%;background:var(--muted2);top:2px;left:2px;transition:all .25s"></div>
+            </label>
+            <span id="landly-lbl-on" style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted2);transition:color .2s">ON</span>
+          </div>
         </div>
         <div style="display:flex;gap:10px">
           <div style="flex:1">
@@ -2246,19 +2251,26 @@ async function _landlyCarregarLog() {
 
 function _landlyToggleUI() {
     const cb = document.getElementById('landly-toggle');
-    const ui = document.getElementById('landly-toggle-ui');
+    cb.checked = !cb.checked;
+    const track = document.getElementById('landly-toggle-track');
     const dot = document.getElementById('landly-toggle-dot');
-    if (!ui || !dot) return;
+    const lblOff = document.getElementById('landly-lbl-off');
+    const lblOn = document.getElementById('landly-lbl-on');
+    if (!track || !dot) return;
     if (cb.checked) {
-        ui.style.background = 'rgba(0,229,160,0.2)';
-        ui.style.borderColor = 'var(--accent)';
+        track.style.background = 'rgba(0,229,160,0.2)';
+        track.style.borderColor = 'var(--accent)';
         dot.style.background = 'var(--accent)';
         dot.style.left = '22px';
+        if (lblOff) { lblOff.style.color = 'var(--muted2)'; }
+        if (lblOn)  { lblOn.style.color = 'var(--accent)'; }
     } else {
-        ui.style.background = 'var(--surface3)';
-        ui.style.borderColor = 'var(--border)';
+        track.style.background = 'var(--surface3)';
+        track.style.borderColor = 'var(--border)';
         dot.style.background = 'var(--muted2)';
         dot.style.left = '2px';
+        if (lblOff) { lblOff.style.color = 'var(--muted)'; }
+        if (lblOn)  { lblOn.style.color = 'var(--muted2)'; }
     }
 }
 
@@ -2281,8 +2293,17 @@ async function landlyCarregarConfig() {
         const cfg = r.config || {};
         if (cfg.api_url) document.getElementById('landly-url').value = cfg.api_url;
         if (cfg.api_key_display) document.getElementById('landly-key').value = cfg.api_key_display;
-        document.getElementById('landly-toggle').checked = !!cfg.agendamento_ativo;
-        _landlyToggleUI();
+        const _togAtivo = !!cfg.agendamento_ativo;
+        document.getElementById('landly-toggle').checked = _togAtivo;
+        // Aplicar visual sem dar toggle
+        const _track = document.getElementById('landly-toggle-track');
+        const _dot = document.getElementById('landly-toggle-dot');
+        const _lblOff = document.getElementById('landly-lbl-off');
+        const _lblOn = document.getElementById('landly-lbl-on');
+        if (_track) { _track.style.background = _togAtivo ? 'rgba(0,229,160,0.2)' : 'var(--surface3)'; _track.style.borderColor = _togAtivo ? 'var(--accent)' : 'var(--border)'; }
+        if (_dot) { _dot.style.background = _togAtivo ? 'var(--accent)' : 'var(--muted2)'; _dot.style.left = _togAtivo ? '22px' : '2px'; }
+        if (_lblOff) _lblOff.style.color = _togAtivo ? 'var(--muted2)' : 'var(--muted)';
+        if (_lblOn) _lblOn.style.color = _togAtivo ? 'var(--accent)' : 'var(--muted2)';
         function _utcToBr(h) {
             if (!h) return '';
             const [hh, mm] = h.split(':').map(Number);
