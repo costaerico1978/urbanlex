@@ -207,12 +207,21 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
       <div>
         <div style="font-size:10px;font-weight:700;color:var(--accent);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px">Histórico de sincronizações<span style="flex:1;height:1px;background:linear-gradient(to right,var(--border),transparent)"></span></div>
         <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <!-- Toolbar -->
+          <div style="display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--surface2);border-bottom:1px solid var(--border)">
+            <div onclick="_landlySyncToggleAll()" style="display:flex;align-items:center;gap:7px;cursor:pointer">
+              <div id="ls-cb-all" style="width:15px;height:15px;border:1.5px solid var(--border);border-radius:3px;background:var(--surface2);display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0"></div>
+              <span id="ls-lbl-all" style="font-size:11px;color:var(--muted)">Selecionar todos</span>
+            </div>
+            <button id="ls-btn-del" onclick="_landlySyncDeletar()" style="display:none;align-items:center;gap:5px;margin-left:auto;background:rgba(248,81,73,0.12);border:1px solid rgba(248,81,73,0.3);border-radius:6px;color:#f85149;font-size:11px;font-family:inherit;padding:4px 10px;cursor:pointer;font-weight:600">🗑 Apagar <span id="ls-count">0</span> selecionado(s)</button>
+          </div>
           <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
             <span style="font-size:11px;color:var(--muted)">Clique nos números para ver a lista</span>
             <span style="font-size:11px;padding:3px 8px;border-radius:20px;font-weight:600;background:rgba(0,229,160,0.12);color:var(--accent);border:1px solid rgba(0,229,160,0.2)">● Ativo</span>
           </div>
           <table style="width:100%;border-collapse:collapse">
             <thead><tr>
+              <th style="width:32px;padding:8px 12px;border-bottom:1px solid var(--border)"></th>
               <th style="font-size:10px;font-weight:700;color:var(--muted2);letter-spacing:.6px;text-transform:uppercase;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)">Data / Hora</th>
               <th style="font-size:10px;font-weight:700;color:var(--muted2);letter-spacing:.6px;text-transform:uppercase;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)">Municípios Totais</th>
               <th style="font-size:10px;font-weight:700;color:var(--muted2);letter-spacing:.6px;text-transform:uppercase;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)">Municípios Novos</th>
@@ -2331,6 +2340,65 @@ async function landlyCarregarConfig() {
         landlyRenderSyncs(r.syncs || []);
     } catch(e) {}
 }
+let _landlySyncSel = {};
+
+function _landlySyncToggleItem(i) {
+    _landlySyncSel[i] = !_landlySyncSel[i];
+    const cb = document.getElementById('ls-cb-' + i);
+    const row = document.getElementById('ls-row-' + i);
+    if (cb) {
+        cb.style.background = _landlySyncSel[i] ? '#f85149' : 'var(--surface2)';
+        cb.style.borderColor = _landlySyncSel[i] ? '#f85149' : 'var(--border)';
+        cb.innerHTML = _landlySyncSel[i] ? '<span style="color:white;font-size:9px;font-weight:700">✓</span>' : '';
+    }
+    if (row) row.style.background = _landlySyncSel[i] ? 'rgba(248,81,73,0.05)' : '';
+    _landlySyncAtualizarToolbar();
+}
+
+function _landlySyncToggleAll() {
+    const total = window._landly_syncs ? window._landly_syncs.length : 0;
+    const sel = Object.values(_landlySyncSel).filter(Boolean).length;
+    const marcar = sel < total;
+    for (let i = 0; i < total; i++) {
+        _landlySyncSel[i] = marcar;
+        const cb = document.getElementById('ls-cb-' + i);
+        const row = document.getElementById('ls-row-' + i);
+        if (cb) {
+            cb.style.background = marcar ? '#f85149' : 'var(--surface2)';
+            cb.style.borderColor = marcar ? '#f85149' : 'var(--border)';
+            cb.innerHTML = marcar ? '<span style="color:white;font-size:9px;font-weight:700">✓</span>' : '';
+        }
+        if (row) row.style.background = marcar ? 'rgba(248,81,73,0.05)' : '';
+    }
+    _landlySyncAtualizarToolbar();
+}
+
+function _landlySyncAtualizarToolbar() {
+    const total = window._landly_syncs ? window._landly_syncs.length : 0;
+    const sel = Object.values(_landlySyncSel).filter(Boolean).length;
+    const btn = document.getElementById('ls-btn-del');
+    const cbAll = document.getElementById('ls-cb-all');
+    const lbl = document.getElementById('ls-lbl-all');
+    const count = document.getElementById('ls-count');
+    if (btn) { count.textContent = sel; btn.style.display = sel > 0 ? 'flex' : 'none'; }
+    if (cbAll) {
+        cbAll.style.background = sel === total && total > 0 ? '#f85149' : 'var(--surface2)';
+        cbAll.style.borderColor = sel === total && total > 0 ? '#f85149' : 'var(--border)';
+        cbAll.innerHTML = sel === total && total > 0 ? '<span style="color:white;font-size:9px;font-weight:700">✓</span>' : '';
+    }
+    if (lbl) lbl.textContent = sel === total && total > 0 ? 'Desmarcar todos' : 'Selecionar todos';
+}
+
+async function _landlySyncDeletar() {
+    const ids = Object.keys(_landlySyncSel).filter(i => _landlySyncSel[i]).map(i => window._landly_syncs[i]?.id).filter(Boolean);
+    if (!ids.length) return;
+    for (const id of ids) {
+        try { await api('DELETE', '/api/integracao/landly/sync/' + id); } catch(e) {}
+    }
+    _landlySyncSel = {};
+    await landlyCarregarConfig();
+}
+
 function landlyRenderSyncs(syncs) {
     const el = document.getElementById('landly-syncs');
     if (!syncs.length) {
@@ -2339,7 +2407,10 @@ function landlyRenderSyncs(syncs) {
     }
     window._landly_syncs = syncs;
     el.innerHTML = syncs.map((s,i) => `
-        <tr style="border-bottom:1px solid rgba(48,54,61,0.4)">
+        <tr id="ls-row-${i}" style="border-bottom:1px solid rgba(48,54,61,0.4)">
+            <td style="padding:8px 12px 8px 14px">
+              <div id="ls-cb-${i}" onclick="_landlySyncToggleItem(${i})" style="width:15px;height:15px;border:1.5px solid var(--border);border-radius:3px;background:var(--surface2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s"></div>
+            </td>
             <td style="padding:8px 12px;font-size:11px;color:var(--text)">${s.executado_em}</td>
             <td style="padding:8px 12px;font-size:11px">
                 ${s.status==='sucesso' ? `<span style="color:var(--accent);font-weight:700;cursor:pointer;text-decoration:underline dotted" onclick="landlyVerLista(${i},'total')">${s.total_municipios} ▸</span>` : '<span style="color:var(--muted2)">—</span>'}

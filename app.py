@@ -5402,7 +5402,7 @@ def api_integracao_landly_config():
             FROM integracao_landly LIMIT 1""")
         r = cur.fetchone()
         cur2 = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur2.execute("""SELECT executado_em, total_municipios, novos_municipios, status, erro, municipios_snapshot, novos_snapshot, log_linhas
+        cur2.execute("""SELECT id, executado_em, total_municipios, novos_municipios, status, erro, municipios_snapshot, novos_snapshot, log_linhas
             FROM integracao_landly_sync ORDER BY executado_em DESC LIMIT 10""")
         syncs = []
         for s in cur2.fetchall():
@@ -5415,6 +5415,7 @@ def api_integracao_landly_config():
                 'municipios_snapshot': s['municipios_snapshot'] or [],
                 'novos_snapshot': s['novos_snapshot'] or [],
                 'log_linhas': s['log_linhas'] or [],
+                'id': s['id'],
             })
         cur.close(); cur2.close(); conn.close()
         return jsonify({'success': True, 'config': dict(r) if r else {}, 'syncs': syncs})
@@ -5582,6 +5583,17 @@ def api_dossie_municipio_deletar(municipio, estado):
             (municipio, estado))
         conn.commit()
         cur.close(); conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/integracao/landly/sync/<int:sync_id>', methods=['DELETE'])
+@login_required
+def api_landly_sync_deletar(sync_id):
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("DELETE FROM integracao_landly_sync WHERE id=%s", (sync_id,))
+        conn.commit(); cur.close(); conn.close()
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
