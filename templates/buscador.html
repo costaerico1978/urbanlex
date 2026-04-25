@@ -1299,7 +1299,7 @@ function _nmRenderFila() {
         const icone = item.status === 'concluido' ? '✓' : item.status === 'rodando' ? '▶' : item.status === 'erro' ? '✕' : (idx+1);
         const riscado = item.status === 'concluido' ? 'text-decoration:line-through;opacity:.5;' : '';
         const temCustom = item.fallbackUrl || (item.maxLegs != null);
-        const badge = temCustom ? `<span style="font-size:9px;padding:1px 5px;border-radius:8px;background:rgba(0,229,160,0.12);color:var(--accent);border:1px solid rgba(0,229,160,0.25);margin-right:2px;" title="${item.fallbackUrl||''}${item.maxLegs?(' · '+item.maxLegs+' legs'):''}">⚙</span>` : '';
+        const badge = ''; // removido — info mostrada no editPanel
         const editBtn = item.status === 'aguardando' ? `<button onclick="_nmEditarFila(${idx})" style="background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:3px;line-height:1;" title="Configurar">⚙</button>` : '';
         const remBtn = item.status === 'aguardando' ? `<button onclick="_nmRemoverFila(${idx})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:0 2px;">✕</button>` : '';
         const borderColor = item._editando ? 'var(--accent)' : (item.status==='rodando' ? 'var(--accent)' : 'var(--border)');
