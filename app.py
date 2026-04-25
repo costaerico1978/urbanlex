@@ -5547,6 +5547,19 @@ def api_dossie_municipio_deletar(municipio, estado):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/fila/reordenar', methods=['POST'])
+@login_required
+def api_fila_reordenar():
+    try:
+        ids = request.json.get('ids', [])
+        conn = get_db(); cur = conn.cursor()
+        for ordem, item_id in enumerate(ids):
+            cur.execute("UPDATE fila_buscas SET ordem=%s WHERE id=%s AND status='aguardando'", (ordem, item_id))
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/fila/item/<int:item_id>', methods=['DELETE'])
 @login_required
 def api_fila_item_deletar(item_id):

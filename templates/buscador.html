@@ -1410,13 +1410,11 @@ function _nmRenderFila() {
         const editBtn = item.status === 'aguardando' ? `<button onclick="_nmEditarFila(${idx})" style="background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:10px;padding:2px 6px;border-radius:3px;line-height:1;" title="Configurar">⚙</button>` : '';
         const remBtn = item.status === 'aguardando' ? `<button onclick="_nmRemoverFila(${idx})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:0 2px;">✕</button>` : '';
         const borderColor = item._editando ? 'var(--accent)' : (item.status==='rodando' ? 'var(--accent)' : 'var(--border)');
-        const fbOpts = ['','leismunicipais','buscafacil','google'];
-        const fbLabels = {'':'Padrão (cascata global)','leismunicipais':'LeisMunicipais (1º)','buscafacil':'BuscaFácil (1º)','google':'Google/DDG (1º)'};
-        const fbOptions = fbOpts.map(v => `<option value="${v}"${(item.fallbackUrl||'')==v?' selected':''}>${fbLabels[v]}</option>`).join('');
+
         const editPanel = item._editando ? `<div style="padding:10px 10px 10px;background:rgba(0,0,0,0.25);border-top:1px solid var(--border);">
             <div style="display:grid;grid-template-columns:1fr 90px;gap:8px;margin-bottom:8px;">
                 <div><label style="display:block;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Fallback prioritário</label>
-                <select id="nm-edit-fb-${idx}" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:11px;">${fbOptions}</select></div>
+                <input type="url" id="nm-edit-fb-${idx}" value="${item.fallbackUrl||''}" placeholder="https://..." style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:11px;" /></div>
                 <div><label style="display:block;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Máx. legs</label>
                 <input type="number" id="nm-edit-ml-${idx}" value="${item.maxLegs!=null?item.maxLegs:''}" placeholder="—" min="1" max="999" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:11px;" /></div>
             </div>
@@ -1431,8 +1429,10 @@ function _nmRenderFila() {
                 <div id="nm-cb-box-${idx}" style="width:15px;height:15px;border:1.5px solid var(--border);border-radius:3px;background:var(--surface2);display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0"></div>
                </label>`
             : `<div style="width:15px;height:15px;flex-shrink:0"></div>`;
-        return `<div style="background:var(--bg);border:1px solid ${borderColor};border-radius:6px;overflow:hidden;">
-            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;" onclick="${item.status==='aguardando' ? '_nmToggleCheck(' + idx + ')' : ''}">
+        const dragHandle = item.status === 'aguardando' ? `<span class="nm-drag-handle" data-idx="${idx}" style="cursor:grab;color:var(--muted2);font-size:14px;padding:0 2px;user-select:none;" title="Arrastar para reordenar">⠿</span>` : `<span style="width:16px;display:inline-block"></span>`;
+        return `<div class="nm-fila-item" data-idx="${idx}" data-id="${item.id||''}" style="background:var(--bg);border:1px solid ${borderColor};border-radius:6px;overflow:hidden;">
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;">
+                ${dragHandle}
                 ${cbHtml}
                 <span style="flex:1;font-size:12px;font-weight:600;${riscado}">${item.mun}/${item.est}</span>
                 ${origemTag}
@@ -1442,7 +1442,95 @@ function _nmRenderFila() {
             </div>${editPanel}
         </div>`;
     }).join('');
+    setTimeout(_nmIniciarDrag, 0);
 }
+
+// ── Drag and Drop da Fila ──
+function _nmIniciarDrag() {
+    const lista = document.getElementById('nm-fila-lista');
+    if (!lista) return;
+    let dragIdx = null;
+    let dragEl = null;
+
+    lista.querySelectorAll('.nm-drag-handle').forEach(handle => {
+        handle.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            dragIdx = parseInt(this.dataset.idx);
+            dragEl = this.closest('.nm-fila-item');
+            if (!dragEl) return;
+            dragEl.style.opacity = '0.5';
+            dragEl.style.cursor = 'grabbing';
+        });
+        handle.addEventListener('touchstart', function(e) {
+            dragIdx = parseInt(this.dataset.idx);
+            dragEl = this.closest('.nm-fila-item');
+            if (dragEl) dragEl.style.opacity = '0.5';
+        }, {passive: true});
+    });
+
+    function getItemAt(y) {
+        const items = [...lista.querySelectorAll('.nm-fila-item')];
+        for (let i = 0; i < items.length; i++) {
+            const rect = items[i].getBoundingClientRect();
+            if (y < rect.top + rect.height / 2) return i;
+        }
+        return items.length;
+    }
+
+    document.addEventListener('mousemove', function(e) {
+        if (dragIdx === null || !dragEl) return;
+        const targetIdx = getItemAt(e.clientY);
+        if (targetIdx !== dragIdx && targetIdx !== dragIdx + 1) {
+            const realTarget = targetIdx > dragIdx ? targetIdx - 1 : targetIdx;
+            if (realTarget !== dragIdx) {
+                // Mover no array
+                const item = _nmFila.splice(dragIdx, 1)[0];
+                const newIdx = targetIdx > dragIdx ? targetIdx - 1 : targetIdx;
+                _nmFila.splice(newIdx, 0, item);
+                dragIdx = newIdx;
+                _nmRenderFila();
+                setTimeout(() => _nmIniciarDrag(), 0);
+                dragEl = lista.querySelectorAll('.nm-fila-item')[dragIdx];
+                if (dragEl) dragEl.style.opacity = '0.5';
+            }
+        }
+    });
+
+    document.addEventListener('touchmove', function(e) {
+        if (dragIdx === null) return;
+        const touch = e.touches[0];
+        const targetIdx = getItemAt(touch.clientY);
+        if (targetIdx !== dragIdx && targetIdx !== dragIdx + 1) {
+            const item = _nmFila.splice(dragIdx, 1)[0];
+            const newIdx = targetIdx > dragIdx ? targetIdx - 1 : targetIdx;
+            _nmFila.splice(newIdx, 0, item);
+            dragIdx = newIdx;
+            _nmRenderFila();
+            setTimeout(() => _nmIniciarDrag(), 0);
+        }
+    }, {passive: true});
+
+    function endDrag() {
+        if (dragIdx === null) return;
+        if (dragEl) { dragEl.style.opacity = ''; dragEl.style.cursor = ''; }
+        dragEl = null;
+        dragIdx = null;
+        // Salvar nova ordem no servidor
+        _nmSalvarOrdem();
+    }
+
+    document.addEventListener('mouseup', endDrag);
+    document.addEventListener('touchend', endDrag);
+}
+
+async function _nmSalvarOrdem() {
+    const ids = _nmFila.filter(i => i.id && i.status === 'aguardando').map(i => i.id);
+    if (!ids.length) return;
+    try {
+        await api('POST', '/api/fila/reordenar', { ids });
+    } catch(e) {}
+}
+
 function _nmEditarFila(idx) { _nmFila[idx]._editando = true; _nmRenderFila(); }
 function _nmFecharEdicao(idx) { _nmFila[idx]._editando = false; _nmRenderFila(); }
 async function _nmSalvarEdicao(idx) {
