@@ -793,7 +793,7 @@ def iniciar_scheduler():
         # Registrar jobs Landly se configurado
         try:
             import psycopg2, psycopg2.extras as _pex
-            _lconn = psycopg2.connect('postgresql://urbanlex:urbanlex123@localhost:5432/urbanlex')
+            _lconn = psycopg2.connect('postgresql://urbanlex:urbanlex123@127.0.0.1:5432/urbanlex')
             _lcur = _lconn.cursor(cursor_factory=_pex.RealDictCursor)
             _lcur.execute('SELECT agendamento_ativo, horario_1, horario_2 FROM integracao_landly LIMIT 1')
             _lcfg = _lcur.fetchone(); _lcur.close(); _lconn.close()
