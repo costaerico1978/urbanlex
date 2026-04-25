@@ -1451,10 +1451,11 @@ async function _nmLandlyAdicionar(key) {
     const cfg = _nmLandlyCfg[key] || {};
     const maxLegs = cfg.maxLegs ? parseInt(cfg.maxLegs) : null;
     try {
-        const r = await api('POST', '/api/buscador/municipio', {
+        const r = await api('POST', '/api/fila/adicionar', {
             municipio: m.municipio, estado: m.estado,
             fallback_url: cfg.fallback || null,
             max_legislacoes: maxLegs,
+            origem: 'integracao',
         });
         if (r.success) {
             _nmLandlyAdded[key] = true;
