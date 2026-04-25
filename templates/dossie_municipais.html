@@ -314,6 +314,13 @@ async function dossieExcluirSelecionados() {
         try { await fetch('/api/dossie/municipio/' + encodeURIComponent(mun) + '/' + est, {method:'DELETE'}); } catch(e) {}
     }
     _dossieSel = {};
+    // Resetar toolbar
+    const btnDel = document.getElementById('dossie-btn-del');
+    const cbAll = document.getElementById('dossie-cb-all');
+    const lbl = document.getElementById('dossie-lbl-all');
+    if (btnDel) btnDel.style.display = 'none';
+    if (cbAll) { cbAll.style.background='var(--surface2)'; cbAll.style.borderColor='var(--muted)'; cbAll.innerHTML=''; }
+    if (lbl) lbl.textContent = 'Selecionar todos';
     dossieCarregar();
 }
 
