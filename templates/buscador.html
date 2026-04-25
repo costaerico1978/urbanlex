@@ -2396,6 +2396,13 @@ async function _landlySyncDeletar() {
         try { await api('DELETE', '/api/integracao/landly/sync/' + id); } catch(e) {}
     }
     _landlySyncSel = {};
+    // Resetar toolbar
+    const btn = document.getElementById('ls-btn-del');
+    const cbAll = document.getElementById('ls-cb-all');
+    const lbl = document.getElementById('ls-lbl-all');
+    if (btn) btn.style.display = 'none';
+    if (cbAll) { cbAll.style.background='var(--surface2)'; cbAll.style.borderColor='var(--muted)'; cbAll.innerHTML=''; }
+    if (lbl) lbl.textContent = 'Selecionar todos';
     await landlyCarregarConfig();
 }
 
