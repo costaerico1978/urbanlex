@@ -5639,6 +5639,7 @@ def api_landly_ultimo_log():
             'status': r['status'],
             'logs': r['log_linhas'] or [],
             'executado_em': (r['executado_em'] - __import__('datetime').timedelta(hours=3)).strftime('%d/%m %H:%M') if r['executado_em'] else None,
+            '_ts': r['executado_em'].isoformat() if r['executado_em'] else None,
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})

@@ -2430,6 +2430,7 @@ async function landlySincronizarAgora() {
     if (pill) { pill.style.background='rgba(240,160,0,0.12)'; pill.style.color='#f0a000'; pill.style.borderColor='rgba(240,160,0,0.25)'; pill.textContent='⏳ Sincronizando...'; }
     if (txt) txt.textContent = 'Sync em andamento...';
     if (logBody) logBody.innerHTML = '';
+    const _syncTs = new Date().toISOString();
     const r = await api('POST', '/api/integracao/landly/sincronizar');
     if (r.success) {
         btn.textContent = '✓ Iniciado';
@@ -2439,7 +2440,7 @@ async function landlySincronizarAgora() {
             tentativas++;
             try {
                 const lr = await api('GET', '/api/integracao/landly/ultimo-log');
-                if (lr.success && lr.logs && lr.logs.length) {
+                if (lr.success && lr.logs && lr.logs.length && lr._ts > _syncTs) {
                     if (logBody) {
                         logBody.innerHTML = lr.logs.map(l => {
                             const cor = l.nivel==='ok'?'var(--accent)':l.nivel==='erro'?'#f85149':l.nivel==='warn'?'#f0a000':'var(--muted)';
