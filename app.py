@@ -5390,11 +5390,10 @@ def api_integracao_landly_config():
                  d.get('max_legislacoes') or None))
         conn.commit()
         cur.close(); conn.close()
-        # Atualizar agendamento no scheduler
+        # Atualizar cron job
         try:
-            from modulos.scheduler_integrado import registrar_jobs_landly
-            registrar_jobs_landly(d.get('horario_1'), d.get('horario_2'), d.get('agendamento_ativo',False))
-        except: pass
+            _atualizar_cron_landly(d.get('horario_1'), d.get('horario_2'), d.get('agendamento_ativo', False))
+        except Exception as _ce: print(f'Cron update error: {_ce}')
         return jsonify({'success': True})
     else:
         cur.execute("""SELECT api_url, agendamento_ativo, horario_1, horario_2,
@@ -5450,6 +5449,29 @@ def api_integracao_landly_sincronizar():
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({'success': True, 'msg': 'Sincronização iniciada'})
 
+
+def _atualizar_cron_landly(horario_1, horario_2, ativo):
+    """Atualiza cron jobs para sync Landly."""
+    import subprocess, re
+    script = '/var/www/urbanlex/sync_landly.py'
+    log = '/var/log/urbanlex-landly-sync.log'
+    # Ler crontab atual
+    result = subprocess.run(['crontab', '-l'], capture_output=True, text=True)
+    cron = result.stdout if result.returncode == 0 else ''
+    # Remover linhas anteriores do landly
+    cron = '\n'.join(l for l in cron.splitlines() if 'sync_landly.py' not in l)
+    if ativo and horario_1:
+        h, m = horario_1.split(':')
+        cron += f'\n{m} {h} * * * /usr/bin/python3 {script} >> {log} 2>&1'
+        if horario_2:
+            h2, m2 = horario_2.split(':')
+            cron += f'\n{m2} {h2} * * * /usr/bin/python3 {script} >> {log} 2>&1'
+    cron = cron.strip() + '\n'
+    proc = subprocess.run(['crontab', '-'], input=cron, capture_output=True, text=True)
+    if proc.returncode == 0:
+        print(f'Cron Landly atualizado: ativo={ativo} h1={horario_1} h2={horario_2}')
+    else:
+        print(f'Cron erro: {proc.stderr}')
 
 def _executar_sync_landly():
     """Executa a sincronização com a API Landly."""
