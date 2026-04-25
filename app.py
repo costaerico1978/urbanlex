@@ -5554,7 +5554,7 @@ def api_landly_municipios():
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("""
-            SELECT dm.municipio, dm.estado,
+            SELECT dm.municipio, dm.estado, dm.max_legislacoes,
                    bh.concluido_em as ultima_busca,
                    (SELECT status FROM fila_buscas fb
                     WHERE LOWER(fb.municipio)=LOWER(dm.municipio)
@@ -5581,6 +5581,7 @@ def api_landly_municipios():
                 'estado': r['estado'],
                 'status': status,
                 'ultima_busca': r['ultima_busca'].strftime('%d/%m/%Y') if r['ultima_busca'] else None,
+                'max_legislacoes': r['max_legislacoes'],
             })
         return jsonify({'success': True, 'municipios': result})
     except Exception as e:

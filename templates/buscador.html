@@ -1368,7 +1368,10 @@ function _nmLandlyRender() {
         const cfg = _nmLandlyCfg[key] || {};
         const cfgOpen = cfg._open;
         const statusColor = m.status === 'ok' ? 'var(--accent)' : m.status === 'pending' ? '#f0a000' : 'var(--muted2)';
-        const statusText = m.status === 'ok' ? '✓ ' + m.ultima_busca : m.status === 'pending' ? '⏳ Em fila' : '';
+        const maxLegsLabel = m.max_legislacoes ? m.max_legislacoes + ' leg' + (m.max_legislacoes > 1 ? 's' : '') : '∞';
+        const statusText = m.status === 'ok'
+            ? '✓ ' + m.ultima_busca + ' · ' + maxLegsLabel
+            : m.status === 'pending' ? '⏳ Em fila' : '';
         return `<div style="border-bottom:1px solid rgba(48,54,61,0.4)">
             <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;">
                 <div onclick="event.stopPropagation();_nmLandlyToggleSel('${key}')" style="width:15px;height:15px;border:1.5px solid ${isSel?'#f85149':'var(--border)'};border-radius:3px;background:${isSel?'#f85149':'var(--surface2)'};display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0">${isSel?'<span style="color:white;font-size:9px;font-weight:700">✓</span>':''}</div>
