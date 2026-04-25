@@ -5547,6 +5547,17 @@ def api_dossie_municipio_deletar(municipio, estado):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/fila/item/<int:item_id>', methods=['DELETE'])
+@login_required
+def api_fila_item_deletar(item_id):
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("DELETE FROM fila_buscas WHERE id=%s AND status='aguardando'", (item_id,))
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/fila/pausar', methods=['POST'])
 @login_required
 def api_fila_pausar():

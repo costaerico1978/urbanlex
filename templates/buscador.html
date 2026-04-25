@@ -557,7 +557,18 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
         <!-- FILA VISUAL -->
         <div id="nm-fila-container" style="display:none;margin-bottom:12px;">
             <div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Fila de buscas</div>
-            <div id="nm-fila-lista" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;"></div>
+            <!-- Toolbar selecionar/lixeira -->
+            <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px 6px 0 0;border-bottom:none;">
+                <div onclick="_nmToggleAll()" style="display:flex;align-items:center;gap:7px;cursor:pointer;">
+                    <input type="checkbox" id="nm-cb-all" style="display:none">
+                    <div id="nm-cb-all-box" style="width:15px;height:15px;border:1.5px solid var(--border);border-radius:3px;background:var(--surface2);display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0"></div>
+                    <span id="nm-lbl-all" style="font-size:11px;color:var(--muted)">Selecionar todos</span>
+                </div>
+                <button id="nm-btn-del" onclick="_nmRemoverSelecionados()" style="display:none;align-items:center;gap:6px;margin-left:auto;background:rgba(248,81,73,0.12);border:1px solid rgba(248,81,73,0.3);border-radius:7px;color:#f85149;font-size:11px;font-family:inherit;padding:4px 10px;cursor:pointer;font-weight:600;">
+                    🗑 Remover <span id="nm-count-sel">0</span> selecionado(s)
+                </button>
+            </div>
+            <div id="nm-fila-lista" style="max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:0;border:1px solid var(--border);border-radius:0 0 6px 6px;"></div>
         </div>
         <div style="display:flex;gap:8px;margin-top:4px;">
             <button class="btn btn-secondary btn-sm" id="btn-nm-add-fila" onclick="_nmAdicionarFila()" style="white-space:nowrap;">+ Fila</button>
@@ -1282,6 +1293,99 @@ async function _nmAdicionarFila() {
     _nmRenderFila();
 }
 
+function _nmToggleCheck(idx) {
+    const cb = document.getElementById('nm-cb-' + idx);
+    const box = document.getElementById('nm-cb-box-' + idx);
+    if (!cb) return;
+    cb.checked = !cb.checked;
+    if (cb.checked) {
+        box.style.background = '#f85149';
+        box.style.borderColor = '#f85149';
+        box.innerHTML = '<span style="color:white;font-size:9px;font-weight:700">✓</span>';
+    } else {
+        box.style.background = 'var(--surface2)';
+        box.style.borderColor = 'var(--border)';
+        box.innerHTML = '';
+    }
+    _nmAtualizarToolbar();
+}
+
+function _nmAtualizarToolbar() {
+    const selecionados = _nmFila.filter((item, i) => {
+        if (item.status !== 'aguardando') return false;
+        const cb = document.getElementById('nm-cb-' + i);
+        return cb && cb.checked;
+    });
+    const btnDel = document.getElementById('nm-btn-del');
+    const countEl = document.getElementById('nm-count-sel');
+    const cbAll = document.getElementById('nm-cb-all');
+    const lblAll = document.getElementById('nm-lbl-all');
+    if (btnDel) {
+        countEl.textContent = selecionados.length;
+        btnDel.style.display = selecionados.length > 0 ? 'flex' : 'none';
+    }
+    const totalAg = _nmFila.filter(i => i.status === 'aguardando').length;
+    if (cbAll) {
+        cbAll.checked = selecionados.length === totalAg && totalAg > 0;
+        const boxAll = document.getElementById('nm-cb-all-box');
+        if (boxAll) {
+            if (cbAll.checked) {
+                boxAll.style.background = '#f85149';
+                boxAll.style.borderColor = '#f85149';
+                boxAll.innerHTML = '<span style="color:white;font-size:9px;font-weight:700">✓</span>';
+            } else {
+                boxAll.style.background = 'var(--surface2)';
+                boxAll.style.borderColor = 'var(--border)';
+                boxAll.innerHTML = '';
+            }
+        }
+    }
+    if (lblAll) lblAll.textContent = selecionados.length === totalAg && totalAg > 0 ? 'Desmarcar todos' : 'Selecionar todos';
+}
+
+function _nmToggleAll() {
+    const totalAg = _nmFila.filter(i => i.status === 'aguardando').length;
+    const selecionados = _nmFila.filter((item, i) => {
+        if (item.status !== 'aguardando') return false;
+        const cb = document.getElementById('nm-cb-' + i);
+        return cb && cb.checked;
+    }).length;
+    const marcar = selecionados < totalAg;
+    _nmFila.forEach((item, i) => {
+        if (item.status !== 'aguardando') return;
+        const cb = document.getElementById('nm-cb-' + i);
+        const box = document.getElementById('nm-cb-box-' + i);
+        if (!cb) return;
+        cb.checked = marcar;
+        if (marcar) {
+            box.style.background = '#f85149'; box.style.borderColor = '#f85149';
+            box.innerHTML = '<span style="color:white;font-size:9px;font-weight:700">✓</span>';
+        } else {
+            box.style.background = 'var(--surface2)'; box.style.borderColor = 'var(--border)';
+            box.innerHTML = '';
+        }
+    });
+    _nmAtualizarToolbar();
+}
+
+async function _nmRemoverSelecionados() {
+    const indices = [];
+    _nmFila.forEach((item, i) => {
+        if (item.status !== 'aguardando') return;
+        const cb = document.getElementById('nm-cb-' + i);
+        if (cb && cb.checked) indices.push(i);
+    });
+    if (!indices.length) return;
+    for (const i of indices.reverse()) {
+        const item = _nmFila[i];
+        if (item.servidor && item.id) {
+            try { await api('DELETE', '/api/fila/item/' + item.id); } catch(e) {}
+        }
+        _nmFila.splice(i, 1);
+    }
+    _nmRenderFila();
+}
+
 function _nmRenderFila() {
     const lista = document.getElementById('nm-fila-lista');
     const container = document.getElementById('nm-fila-container');
@@ -1318,14 +1422,20 @@ function _nmRenderFila() {
                 <button onclick="_nmSalvarEdicao(${idx})" style="background:var(--accent);border:none;color:#0d1117;font-size:11px;font-weight:600;padding:3px 12px;border-radius:4px;cursor:pointer;">Salvar</button>
             </div>
         </div>` : '';
+        const cbHtml = item.status === 'aguardando'
+            ? `<label style="display:flex;align-items:center;cursor:pointer" onclick="event.stopPropagation();_nmToggleCheck(${idx})">
+                <input type="checkbox" id="nm-cb-${idx}" style="display:none">
+                <div id="nm-cb-box-${idx}" style="width:15px;height:15px;border:1.5px solid var(--border);border-radius:3px;background:var(--surface2);display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0"></div>
+               </label>`
+            : `<div style="width:15px;height:15px;flex-shrink:0"></div>`;
         return `<div style="background:var(--bg);border:1px solid ${borderColor};border-radius:6px;overflow:hidden;">
-            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;">
-                <span style="color:${cfg.color};font-size:11px;min-width:16px;text-align:center;">${icone}</span>
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;" onclick="${item.status==='aguardando'?`_nmToggleCheck(${idx})`:''}">
+                ${cbHtml}
                 <span style="flex:1;font-size:12px;font-weight:600;${riscado}">${item.mun}/${item.est}</span>
                 ${origemTag}
                 ${badge}
                 <span style="font-size:10px;color:${cfg.color};">${cfg.label}</span>
-                ${editBtn}${remBtn}
+                ${editBtn}
             </div>${editPanel}
         </div>`;
     }).join('');
