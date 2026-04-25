@@ -163,13 +163,15 @@ function dossieRenderList(data) {
   _dossieSel = {};
   document.getElementById('dossie-list').innerHTML = data.map(m => `
     <div class="dossie-row" onclick='dossieOpenDrawer(${JSON.stringify(m)})'>
-      <div><div class="dr-name">${m.municipio}</div><div class="dr-state">${m.estado}</div></div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div onclick="event.stopPropagation();dossieToggleSel('${m.municipio}','${m.estado}')" id="dossie-cb-${m.municipio}-${m.estado}" style="width:16px;height:16px;border:1.5px solid var(--muted);border-radius:3px;background:var(--surface2);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .15s"></div>
+        <div><div class="dr-name">${m.municipio}</div><div class="dr-state">${m.estado}</div></div>
+      </div>
       <div class="dr-date">${m.ultima_busca || '<span style="color:var(--muted2)">—</span>'}</div>
       <div class="dr-legs">${m.total_legislacoes > 0 ? m.total_legislacoes + ' lei' + (m.total_legislacoes > 1 ? 's' : '') : '<span style="color:var(--muted2)">—</span>'}</div>
       <div style="font-size:11px;color:var(--muted)">${m.max_legislacoes ? m.max_legislacoes : '<span style="color:var(--accent)">∞</span>'}</div>
       <div>${obMap[m.origem] || obMap.manual}</div>
       <div>${sbMap[m.leg_status] || sbMap.none}</div>
-      <div onclick="event.stopPropagation();dossieToggleSel('${m.municipio}','${m.estado}')" id="dossie-cb-${m.municipio}-${m.estado}" style="width:18px;height:18px;border:1.5px solid var(--muted);border-radius:4px;background:var(--surface2);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .15s"></div>
     </div>`).join('');
 }
 
