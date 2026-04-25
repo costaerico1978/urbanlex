@@ -5484,7 +5484,7 @@ def _executar_sync_landly():
         novos = [(m, e) for m, e in municipios_landly if (m, e) not in existentes]
         for mun, est in novos:
             cur.execute("INSERT INTO dossie_municipios (municipio, estado, origem) VALUES (%s,%s,'integracao') ON CONFLICT DO NOTHING", (mun, est))
-            cur.execute("INSERT INTO fila_buscas (municipio, estado, status, max_legislacoes) VALUES (%s,%s,'aguardando',%s)", (mun, est, cfg['max_legislacoes']))
+            cur.execute("INSERT INTO fila_buscas (municipio, estado, status, max_legislacoes, origem) VALUES (%s,%s,'aguardando',%s,'integracao')", (mun, est, cfg['max_legislacoes']))
         import json
         cur.execute("""INSERT INTO integracao_landly_sync
             (total_municipios, novos_municipios, status, municipios_snapshot, novos_snapshot)
@@ -5585,7 +5585,7 @@ def api_fila_adicionar():
 def api_fila_listar():
     try:
         conn=get_db(); cur=conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT id,municipio,estado,max_legislacoes,fallback_url_override,status,job_id,criado_em,iniciado_em,concluido_em,erro FROM fila_buscas ORDER BY ordem ASC,criado_em ASC")
+        cur.execute("SELECT id,municipio,estado,max_legislacoes,fallback_url_override,status,job_id,criado_em,iniciado_em,concluido_em,erro,origem FROM fila_buscas ORDER BY ordem ASC,criado_em ASC")
         rows=cur.fetchall(); cur.close(); conn.close()
         result=[]
         for r in rows:
