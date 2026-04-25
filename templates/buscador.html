@@ -155,8 +155,8 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
             <div style="font-size:10px;color:var(--muted);margin-top:1px">Executar nos horários definidos abaixo</div>
           </div>
           <label style="position:relative;width:40px;height:22px;flex-shrink:0">
-            <input id="landly-toggle" type="checkbox" style="opacity:0;width:0;height:0">
-            <span onclick="this.previousElementSibling.click()" style="position:absolute;inset:0;background:var(--surface3);border:1px solid var(--border);border-radius:22px;cursor:pointer;transition:.2s" id="landly-toggle-ui"></span>
+            <input id="landly-toggle" type="checkbox" style="opacity:0;width:0;height:0" onchange="_landlyToggleUI()">
+            <span onclick="this.previousElementSibling.click()" style="position:absolute;inset:0;background:var(--surface3);border:1px solid var(--border);border-radius:22px;cursor:pointer;transition:.2s" id="landly-toggle-ui"><span id="landly-toggle-dot" style="position:absolute;width:16px;height:16px;border-radius:50%;background:var(--muted2);left:2px;top:2px;transition:.2s"></span></span>
           </label>
         </div>
         <div style="display:flex;gap:10px">
@@ -2244,6 +2244,24 @@ async function _landlyCarregarLog() {
     } catch(e) {}
 }
 
+function _landlyToggleUI() {
+    const cb = document.getElementById('landly-toggle');
+    const ui = document.getElementById('landly-toggle-ui');
+    const dot = document.getElementById('landly-toggle-dot');
+    if (!ui || !dot) return;
+    if (cb.checked) {
+        ui.style.background = 'rgba(0,229,160,0.2)';
+        ui.style.borderColor = 'var(--accent)';
+        dot.style.background = 'var(--accent)';
+        dot.style.left = '22px';
+    } else {
+        ui.style.background = 'var(--surface3)';
+        ui.style.borderColor = 'var(--border)';
+        dot.style.background = 'var(--muted2)';
+        dot.style.left = '2px';
+    }
+}
+
 async function _landlyAtualizarHora() {
     try {
         const r = await fetch('/api/hora-servidor');
@@ -2264,6 +2282,7 @@ async function landlyCarregarConfig() {
         if (cfg.api_url) document.getElementById('landly-url').value = cfg.api_url;
         if (cfg.api_key_display) document.getElementById('landly-key').value = cfg.api_key_display;
         document.getElementById('landly-toggle').checked = !!cfg.agendamento_ativo;
+        _landlyToggleUI();
         function _utcToBr(h) {
             if (!h) return '';
             const [hh, mm] = h.split(':').map(Number);

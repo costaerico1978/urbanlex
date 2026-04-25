@@ -790,6 +790,16 @@ def iniciar_scheduler():
         h_email = (int(h) + 2) % 24
         _scheduler.add_job(_enviar_resumo_diario_job, 'cron', hour=h_email, minute=0,
                            id='email_resumo_diario', replace_existing=True)
+        # Registrar jobs Landly se configurado
+        try:
+            from app import get_db
+            import psycopg2.extras
+            _lconn = get_db(); _lcur = _lconn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            _lcur.execute('SELECT agendamento_ativo, horario_1, horario_2 FROM integracao_landly LIMIT 1')
+            _lcfg = _lcur.fetchone(); _lcur.close(); _lconn.close()
+            if _lcfg and _lcfg['agendamento_ativo']:
+                registrar_jobs_landly(_lcfg['horario_1'], _lcfg['horario_2'], True)
+        except: pass
         _scheduler.start()
         _scheduler_status = 'ativo'
         logger.info(f"Scheduler iniciado: integração às {h_int}:{m}, monitoramento às {horario}")
