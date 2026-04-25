@@ -2440,7 +2440,7 @@ async function landlySincronizarAgora() {
             tentativas++;
             try {
                 const lr = await api('GET', '/api/integracao/landly/ultimo-log');
-                if (lr.success && lr.logs && lr.logs.length && lr._ts > _syncTs) {
+                if (lr.success && lr.logs && lr.logs.length) {
                     if (logBody) {
                         logBody.innerHTML = lr.logs.map(l => {
                             const cor = l.nivel==='ok'?'var(--accent)':l.nivel==='erro'?'#f85149':l.nivel==='warn'?'#f0a000':'var(--muted)';
