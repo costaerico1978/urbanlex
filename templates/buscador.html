@@ -587,6 +587,16 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
                 <div style="padding:8px 10px;border-bottom:1px solid rgba(48,54,61,0.5);">
                     <input id="nm-acc-search" oninput="_nmLandlyFiltrar(this.value)" placeholder="🔍 Filtrar municípios..." style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;font-family:inherit;padding:6px 10px;outline:none;">
                 </div>
+                <!-- Toolbar accordion -->
+                <div id="nm-acc-toolbar" style="display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--surface2);border-bottom:1px solid rgba(48,54,61,0.4);">
+                    <div onclick="_nmLandlyToggleAll()" style="display:flex;align-items:center;gap:7px;cursor:pointer;">
+                        <div id="nm-acc-cb-all" style="width:15px;height:15px;border:1.5px solid var(--border);border-radius:3px;background:var(--surface2);display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0"></div>
+                        <span id="nm-acc-lbl-all" style="font-size:11px;color:var(--muted)">Selecionar todos</span>
+                    </div>
+                    <button id="nm-acc-btn-del" onclick="_nmLandlyRemoverSelecionados()" style="display:none;align-items:center;gap:5px;margin-left:auto;background:rgba(248,81,73,0.12);border:1px solid rgba(248,81,73,0.3);border-radius:6px;color:#f85149;font-size:11px;font-family:inherit;padding:4px 10px;cursor:pointer;font-weight:600;">
+                        🗑 Remover <span id="nm-acc-count-sel">0</span> selecionado(s)
+                    </button>
+                </div>
                 <div id="nm-acc-list" style="max-height:180px;overflow-y:auto;"></div>
             </div>
         </div>
@@ -1354,12 +1364,14 @@ function _nmLandlyRender() {
     el.innerHTML = filtered.map(m => {
         const key = m.municipio + '/' + m.estado;
         const isAdded = _nmLandlyAdded[key];
+        const isSel = _nmLandlySel[key];
         const cfg = _nmLandlyCfg[key] || {};
         const cfgOpen = cfg._open;
         const statusColor = m.status === 'ok' ? 'var(--accent)' : m.status === 'pending' ? '#f0a000' : 'var(--muted2)';
         const statusText = m.status === 'ok' ? '✓ ' + m.ultima_busca : m.status === 'pending' ? '⏳ Em fila' : '';
         return `<div style="border-bottom:1px solid rgba(48,54,61,0.4)">
             <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;">
+                <div onclick="event.stopPropagation();_nmLandlyToggleSel('${key}')" style="width:15px;height:15px;border:1.5px solid ${isSel?'#f85149':'var(--border)'};border-radius:3px;background:${isSel?'#f85149':'var(--surface2)'};display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0">${isSel?'<span style="color:white;font-size:9px;font-weight:700">✓</span>':''}</div>
                 <span style="flex:1;font-size:12px;font-weight:500;color:var(--text)">${m.municipio}<span style="font-size:10px;color:var(--muted2)">/${m.estado}</span></span>
                 ${statusText ? `<span style="font-size:10px;color:${statusColor}">${statusText}</span>` : ''}
                 <span onclick="_nmLandlyToggleCfg('${key}')" style="color:var(--muted2);font-size:10px;cursor:pointer;transition:transform .2s;display:inline-block;transform:${cfgOpen?'rotate(90deg)':'rotate(0deg)'}">▶</span>
@@ -1426,6 +1438,63 @@ async function _nmLandlyAddTodos() {
     for (const m of naoAdicionados) {
         await _nmLandlyAdicionar(m.municipio + '/' + m.estado);
     }
+}
+
+let _nmLandlySel = {}; // {key: true}
+
+function _nmLandlyAtualizarToolbar() {
+    const sel = Object.keys(_nmLandlySel).filter(k => _nmLandlySel[k]).length;
+    const total = _nmLandlyMuns.length;
+    const btnDel = document.getElementById('nm-acc-btn-del');
+    const cbAll = document.getElementById('nm-acc-cb-all');
+    const lblAll = document.getElementById('nm-acc-lbl-all');
+    const countEl = document.getElementById('nm-acc-count-sel');
+    if (btnDel) {
+        countEl.textContent = sel;
+        btnDel.style.display = sel > 0 ? 'flex' : 'none';
+    }
+    if (cbAll) {
+        if (sel === total && total > 0) {
+            cbAll.style.background = '#f85149'; cbAll.style.borderColor = '#f85149';
+            cbAll.innerHTML = '<span style="color:white;font-size:9px;font-weight:700">✓</span>';
+        } else {
+            cbAll.style.background = 'var(--surface2)'; cbAll.style.borderColor = 'var(--border)';
+            cbAll.innerHTML = '';
+        }
+    }
+    if (lblAll) lblAll.textContent = sel === total && total > 0 ? 'Desmarcar todos' : 'Selecionar todos';
+}
+
+function _nmLandlyToggleSel(key) {
+    _nmLandlySel[key] = !_nmLandlySel[key];
+    _nmLandlyRender();
+    _nmLandlyAtualizarToolbar();
+}
+
+function _nmLandlyToggleAll() {
+    const total = _nmLandlyMuns.length;
+    const sel = Object.keys(_nmLandlySel).filter(k => _nmLandlySel[k]).length;
+    const marcar = sel < total;
+    _nmLandlyMuns.forEach(m => { _nmLandlySel[m.municipio+'/'+m.estado] = marcar; });
+    _nmLandlyRender();
+    _nmLandlyAtualizarToolbar();
+}
+
+async function _nmLandlyRemoverSelecionados() {
+    const keys = Object.keys(_nmLandlySel).filter(k => _nmLandlySel[k]);
+    if (!keys.length) return;
+    for (const key of keys) {
+        const [mun, est] = key.split('/');
+        try {
+            await api('DELETE', `/api/dossie/municipio/${encodeURIComponent(mun)}/${est}`);
+        } catch(e) {}
+    }
+    _nmLandlyMuns = _nmLandlyMuns.filter(m => !_nmLandlySel[m.municipio+'/'+m.estado]);
+    keys.forEach(k => { delete _nmLandlySel[k]; delete _nmLandlyAdded[k]; });
+    document.getElementById('nm-acc-count').textContent = _nmLandlyMuns.length;
+    if (!_nmLandlyMuns.length) document.getElementById('nm-landly-accordion').style.display = 'none';
+    _nmLandlyRender();
+    _nmLandlyAtualizarToolbar();
 }
 
 function _nmMover(idx, dir) {
