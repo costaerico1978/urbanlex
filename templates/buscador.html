@@ -210,7 +210,7 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
           <!-- Toolbar -->
           <div style="display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--surface2);border-bottom:1px solid var(--border)">
             <div onclick="_landlySyncToggleAll()" style="display:flex;align-items:center;gap:7px;cursor:pointer">
-              <div id="ls-cb-all" style="width:15px;height:15px;border:1.5px solid var(--border);border-radius:3px;background:var(--surface2);display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0"></div>
+              <div id="ls-cb-all" style="width:15px;height:15px;border:1.5px solid var(--muted);border-radius:3px;background:var(--surface2);display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0"></div>
               <span id="ls-lbl-all" style="font-size:11px;color:var(--muted)">Selecionar todos</span>
             </div>
             <button id="ls-btn-del" onclick="_landlySyncDeletar()" style="display:none;align-items:center;gap:5px;margin-left:auto;background:rgba(248,81,73,0.12);border:1px solid rgba(248,81,73,0.3);border-radius:6px;color:#f85149;font-size:11px;font-family:inherit;padding:4px 10px;cursor:pointer;font-weight:600">🗑 Apagar <span id="ls-count">0</span> selecionado(s)</button>
@@ -2409,7 +2409,7 @@ function landlyRenderSyncs(syncs) {
     el.innerHTML = syncs.map((s,i) => `
         <tr id="ls-row-${i}" style="border-bottom:1px solid rgba(48,54,61,0.4)">
             <td style="padding:8px 12px 8px 14px">
-              <div id="ls-cb-${i}" onclick="_landlySyncToggleItem(${i})" style="width:15px;height:15px;border:1.5px solid var(--border);border-radius:3px;background:var(--surface2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s"></div>
+              <div id="ls-cb-${i}" onclick="_landlySyncToggleItem(${i})" style="width:15px;height:15px;border:1.5px solid var(--muted);border-radius:3px;background:var(--surface2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s"></div>
             </td>
             <td style="padding:8px 12px;font-size:11px;color:var(--text)">${s.executado_em}</td>
             <td style="padding:8px 12px;font-size:11px">
