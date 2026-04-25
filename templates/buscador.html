@@ -2452,6 +2452,7 @@ async function landlySincronizarAgora() {
                         if (pill) { pill.style.background=lr.status==='sucesso'?'rgba(0,229,160,0.12)':'rgba(248,81,73,0.12)'; pill.style.color=lr.status==='sucesso'?'var(--accent)':'#f85149'; pill.style.borderColor=lr.status==='sucesso'?'rgba(0,229,160,0.2)':'rgba(248,81,73,0.2)'; pill.textContent=lr.status==='sucesso'?'✓ Concluída':'✕ Erro'; }
                         if (txt) txt.textContent = 'Última sync: ' + (lr.executado_em||'agora');
                         btn.textContent = '⚡ Sincronizar agora'; btn.disabled = false;
+                        await new Promise(r => setTimeout(r, 1500));
                         await landlyCarregarConfig();
                         await _landlyCarregarLog();
                     }
