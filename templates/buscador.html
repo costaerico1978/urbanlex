@@ -556,7 +556,8 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
         </div>
         <!-- FILA VISUAL -->
         <div id="nm-fila-container" style="display:none;margin-bottom:12px;">
-            <div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Fila de buscas</div>
+            <div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Fila de buscas</div>
+            <div style="font-size:10px;color:var(--muted2);margin-bottom:6px;">Arraste ⠿ ou use ▲▼ para alterar a ordem</div>
             <!-- Toolbar selecionar/lixeira -->
             <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px 6px 0 0;border-bottom:none;">
                 <div onclick="_nmToggleAll()" style="display:flex;align-items:center;gap:7px;cursor:pointer;">
@@ -1293,6 +1294,15 @@ async function _nmAdicionarFila() {
     _nmRenderFila();
 }
 
+function _nmMover(idx, dir) {
+    const j = idx + dir;
+    if (j < 0 || j >= _nmFila.length) return;
+    if (_nmFila[j].status !== 'aguardando') return;
+    const tmp = _nmFila[idx]; _nmFila[idx] = _nmFila[j]; _nmFila[j] = tmp;
+    _nmRenderFila();
+    _nmSalvarOrdem();
+}
+
 function _nmToggleCheck(idx) {
     const cb = document.getElementById('nm-cb-' + idx);
     const box = document.getElementById('nm-cb-box-' + idx);
@@ -1423,6 +1433,17 @@ function _nmRenderFila() {
                 <button onclick="_nmSalvarEdicao(${idx})" style="background:var(--accent);border:none;color:#0d1117;font-size:11px;font-weight:600;padding:3px 12px;border-radius:4px;cursor:pointer;">Salvar</button>
             </div>
         </div>` : '';
+        const idxAg = _nmFila.filter((x,j) => j < idx && x.status === 'aguardando').length;
+        const totalAg = _nmFila.filter(x => x.status === 'aguardando').length;
+        const arrowUp = item.status === 'aguardando'
+            ? `<button onclick="event.stopPropagation();_nmMover(${idx},-1)" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:10px;padding:0 2px;line-height:1.2;" ${idx===0||_nmFila[idx-1]?.status!=='aguardando'?'disabled':''}>▲</button>`
+            : '';
+        const arrowDown = item.status === 'aguardando'
+            ? `<button onclick="event.stopPropagation();_nmMover(${idx},1)" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:10px;padding:0 2px;line-height:1.2;" ${idx>=_nmFila.length-1||_nmFila[idx+1]?.status!=='aguardando'?'disabled':''}>▼</button>`
+            : '';
+        const arrowBtns = item.status === 'aguardando'
+            ? `<div style="display:flex;flex-direction:column;gap:1px;flex-shrink:0">${arrowUp}${arrowDown}</div>`
+            : '<div style="width:16px"></div>';
         const cbHtml = item.status === 'aguardando'
             ? `<label style="display:flex;align-items:center;cursor:pointer" onclick="event.stopPropagation();_nmToggleCheck(${idx})">
                 <input type="checkbox" id="nm-cb-${idx}" style="display:none">
@@ -1430,8 +1451,9 @@ function _nmRenderFila() {
                </label>`
             : `<div style="width:15px;height:15px;flex-shrink:0"></div>`;
         const dragHandle = item.status === 'aguardando' ? `<span class="nm-drag-handle" data-idx="${idx}" style="cursor:grab;color:var(--muted2);font-size:14px;padding:0 2px;user-select:none;" title="Arrastar para reordenar">⠿</span>` : `<span style="width:16px;display:inline-block"></span>`;
-        return `<div class="nm-fila-item" data-idx="${idx}" data-id="${item.id||''}" style="background:var(--bg);border:1px solid ${borderColor};border-radius:6px;overflow:hidden;">
+        return `<div class="nm-fila-item" data-idx="${idx}" data-id="${item.id||''}" style="background:var(--bg);border:1px solid ${borderColor};border-radius:6px;">
             <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;">
+                ${arrowBtns}
                 ${dragHandle}
                 ${cbHtml}
                 <span style="flex:1;font-size:12px;font-weight:600;${riscado}">${item.mun}/${item.est}</span>
