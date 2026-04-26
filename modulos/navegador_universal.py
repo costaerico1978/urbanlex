@@ -183,7 +183,8 @@ de clicar no botao de download.
     - Link "Download da Edição nº 200" -> texto_elemento: "Download da Edição nº 200"
     - Se o elemento nao tem texto (icone puro), descreva: "icone coluna Arquivo linha 1"
 
-15. IMAGENS CLICAVEIS: Se a pagina parecer "vazia" ou sem lista de leis, mas tiver uma imagem ou icone proeminente (ex: martelo, livro, escudo, bandeira), TENTE CLICAR nessa imagem — ela pode ser um link para o sistema legislativo. Use acao "clicar" com o texto alternativo da imagem ou descricao visual dela.
+15. CLICAR POR COORDENADA: Se precisar clicar em uma imagem, icone ou elemento sem texto visivel (ex: imagem de martelo, logo, banner clicavel), use acao "clicar_coordenada" com os campos "x" e "y" indicando a posicao aproximada do centro do elemento no screenshot (resolucao 1280x800). Exemplo: imagem no centro da pagina seria x=640, y=400.
+15b. IMAGENS CLICAVEIS: Se a pagina parecer "vazia" ou sem lista de leis, mas tiver uma imagem ou icone proeminente (ex: martelo, livro, escudo, bandeira), TENTE CLICAR nessa imagem — ela pode ser um link para o sistema legislativo. Use acao "clicar" com o texto alternativo da imagem ou descricao visual dela.
 17. DIARIO OFICIAL: Se chegar em uma pagina de busca de Diario Oficial com campos como "Texto", "Ano", "Data Inicial", "Data Final":
    (a) Use o campo "Texto" para digitar o tipo e numero da lei (ex: "Lei Complementar 41").
    (b) Para campos de ANO ou DATA: analise primeiro o tipo de controle visivel:
@@ -208,8 +209,10 @@ JSON:
     "o_que_vejo": "...",
     "decisao": "o que vou fazer e por que",
     "acao": {{{{
-        "tipo": "clicar|digitar|preencher_formulario|scroll|concluido|desistir",
+        "tipo": "clicar|clicar_coordenada|digitar|preencher_formulario|scroll|concluido|desistir",
         "texto_elemento": "texto exato do botao/link (so para clicar)",
+        "x": 0,
+        "y": 0,
         "label_campo": "label do campo (so para digitar)",
         "texto": "texto a digitar (so para digitar)",
         "direcao": "baixo|cima (so para scroll)",
@@ -4009,6 +4012,22 @@ def navegar_como_humano(
                         logs.append({'nivel': 'aviso', 'msg': f'{label}: ⚠️ Loop detectado — {tipo_acao} repetido 3x sem mudança.'})
                         historico.append({'passo': passo, 'acao': 'loop', 'resultado': 'Mesma ação repetida'})
                         break
+
+            # 8a. Acao clicar_coordenada — clica por posicao x,y no screenshot
+            if tipo_acao == 'clicar_coordenada' and not _skip_exec:
+                _cx = acao.get('x', 0)
+                _cy = acao.get('y', 0)
+                if _cx and _cy:
+                    try:
+                        pagina_ativa.mouse.click(int(_cx), int(_cy))
+                        pagina_ativa.wait_for_timeout(1500)
+                        _url_apos = pagina_ativa.url
+                        logs.append({'nivel': 'info', 'msg': f'{label}: 🖱️ Clicou por coordenada ({_cx},{_cy}) — URL: {_url_apos[:80]}'})
+                        historico.append({'passo': passo, 'acao': f'clicar_coordenada({_cx},{_cy})', 'resultado': f'URL: {_url_apos[:80]}'})
+                        resultado['url'] = _url_apos
+                    except Exception as _e_coord:
+                        logs.append({'nivel': 'aviso', 'msg': f'{label}: ⚠️ Erro clicar_coordenada: {str(_e_coord)[:60]}'})
+                    continue
 
             # 8b. Acao navegar — vai direto para href sem depender de clique visual
             if tipo_acao == 'navegar' and not _skip_exec:
