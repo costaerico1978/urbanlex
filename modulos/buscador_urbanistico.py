@@ -1513,16 +1513,20 @@ def _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, an
                 r2 = requests.get(url, headers=headers, timeout=15)
                 if r2.status_code != 200:
                     continue
-                texto = _bs(r2.text, "html.parser").get_text()
-
-                # Verificar se é a legislação correta
-                texto_lower = texto.lower()
-                numero_ok = numero in texto_lower or numero in texto
-                tipo_presente = tipo.lower() in texto_lower
-                municipio_ok = municipio.lower() in texto_lower
-
-                ano_ok = ano in texto_lower or ano in texto
-                if numero_ok and tipo_presente and municipio_ok and ano_ok:
+                texto = _bs(r2.text, "html.parser").get_text()[:3000]
+                # Validar com Gemini se é a legislação correta
+                if chamar_llm:
+                    _prompt_val = f"Analise o texto e responda apenas SIM ou NAO: este texto contém a {tipo} nº {numero}/{ano} do município de {municipio}/{estado}?\n\nTEXTO:\n{texto[:2000]}\n\nResponda apenas: SIM ou NAO"
+                    try:
+                        _resp_val = chamar_llm(_prompt_val, [], "validar_fallback1")
+                        _eh_correto = "SIM" in (_resp_val or "").upper()
+                    except:
+                        _eh_correto = False
+                else:
+                    texto_lower = texto.lower()
+                    _eh_correto = (numero in texto_lower and tipo.lower() in texto_lower
+                                   and municipio.lower() in texto_lower and ano in texto_lower)
+                if _eh_correto:
                     logs.append({"nivel": "ok", "msg": f"  [Fallback1] Legislação encontrada: {url[:80]}"})
 
                     # Tentar baixar PDF se houver link
