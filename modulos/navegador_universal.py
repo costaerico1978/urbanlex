@@ -131,8 +131,8 @@ def _montar_prompt(legislacao: dict, historico: list, passo: int, url_atual: str
             "    (b) Se encontrar um buscador de legislacoes, preencha com o tipo de ato, numero e ano.\n"
             "    (c) Se encontrar a legislacao, clique nela e retorne a URL.\n"
             "    (d) Se o site tiver Cloudflare ou CAPTCHA, tente contornar.\n"
-            "    (e) Se apos 15 passos nao encontrar, use acao desistir.\n"
-            "    Voce tem ate 15 passos para encontrar a legislacao."
+            "    (e) Se encontrar uma pagina sem resultado mas com outros links promissores visiveis, anote mentalmente esses caminhos alternativos e tente cada um antes de desistir.\n"
+            "    (f) Se apos 25 passos nao encontrar, use acao desistir.\n"
         )
 
     return f"""Voce esta navegando uma pagina web para encontrar a legislacao: {tipo} no {numero}/{ano} — {municipio}.
