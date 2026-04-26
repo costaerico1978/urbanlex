@@ -183,7 +183,7 @@ de clicar no botao de download.
     - Link "Download da Edição nº 200" -> texto_elemento: "Download da Edição nº 200"
     - Se o elemento nao tem texto (icone puro), descreva: "icone coluna Arquivo linha 1"
 
-15. CLICAR POR COORDENADA: Se precisar clicar em uma imagem, icone ou elemento sem texto visivel (ex: imagem de martelo, logo, banner clicavel), use acao "clicar_coordenada" com os campos "x" e "y" indicando a posicao aproximada do centro do elemento no screenshot (resolucao 1280x800). Exemplo: imagem no centro da pagina seria x=640, y=400.
+15. CLICAR POR COORDENADA: Para imagens, icones, banners ou qualquer elemento sem texto visivel, use SEMPRE "clicar_coordenada" ANTES de tentar "clicar". Estime a posicao x,y do centro do elemento no screenshot (resolucao 1280x800). NAO tente "clicar" com texto descritivo em elementos graficos — va direto para "clicar_coordenada". Exemplo: imagem de martelo no centro da pagina seria x=640, y=350.
 15b. IMAGENS CLICAVEIS: Se a pagina parecer "vazia" ou sem lista de leis, mas tiver uma imagem ou icone proeminente (ex: martelo, livro, escudo, bandeira), TENTE CLICAR nessa imagem — ela pode ser um link para o sistema legislativo. Use acao "clicar" com o texto alternativo da imagem ou descricao visual dela.
 17. DIARIO OFICIAL: Se chegar em uma pagina de busca de Diario Oficial com campos como "Texto", "Ano", "Data Inicial", "Data Final":
    (a) Use o campo "Texto" para digitar o tipo e numero da lei (ex: "Lei Complementar 41").
