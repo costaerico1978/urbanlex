@@ -286,7 +286,8 @@ def _clicar_por_texto(page, texto_elemento: str, logs: list, label: str) -> str:
         try:
             _selectors = ['button.menu', '.hamburger', '.menu-toggle', 'button[class*="menu"]',
                          'button[class*="nav"]', 'button[class*="burger"]', '.navbar-toggle',
-                         '[data-toggle="collapse"]', 'button svg', 'header button']
+                         '[data-toggle="collapse"]', 'button svg', 'header button',
+                         '.menu-box', '.mobile-menu', '.nav-outer button', '.menu-outer button']
             for _sel in _selectors:
                 try:
                     _mb = page.locator(_sel).first
@@ -295,6 +296,12 @@ def _clicar_por_texto(page, texto_elemento: str, logs: list, label: str) -> str:
                         page.wait_for_timeout(1000)
                         return f'Clicou menu hamburguer via {_sel}'
                 except: continue
+            # Último recurso: JS click no canto superior direito
+            try:
+                page.evaluate("document.querySelector('.menu-box, .mobile-menu, [data-toggle=\"collapse\"]')?.click()")
+                page.wait_for_timeout(1000)
+                return 'Clicou menu hamburguer via JS'
+            except: pass
         except: pass
     
     el = None
