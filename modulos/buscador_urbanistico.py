@@ -1572,8 +1572,18 @@ def _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, an
 
     try:
         url_g = f"https://www.google.com/search?q={urllib.parse.quote_plus(query_portal)}&num=10&hl=pt-BR"
-        r = requests.get(url_g, headers=headers, timeout=15)
-        soup = _bs(r.text, "html.parser")
+        # Usar FlareSolverr para contornar bloqueio do Google
+        try:
+            _fs_resp2 = requests.post('http://localhost:8191/v1',
+                json={"cmd":"request.get","url":url_g,"maxTimeout":30000}, timeout=35)
+            _fs_data2 = _fs_resp2.json()
+            _html_g2 = _fs_data2.get('solution',{}).get('response','')
+        except Exception:
+            _html_g2 = ''
+        if not _html_g2:
+            r = requests.get(url_g, headers=headers, timeout=15)
+            _html_g2 = r.text
+        soup = _bs(_html_g2, "html.parser")
 
         dominios_candidatos = []
         for a in soup.find_all("a", href=True):
