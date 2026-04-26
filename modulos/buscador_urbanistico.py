@@ -1651,8 +1651,7 @@ def _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, an
                     _page.wait_for_timeout(2000)
                     resultado_nav = navegar_como_humano(
                         _page, None, legislacao_fb2, chamar_llm, logs,
-                        label=f'[Fallback2] {dominio}', max_passos=25,
-                        dominio_restrito=dominio
+                        label=f'[Fallback2] {dominio}', max_passos=25
                     )
                     _browser.close()
                 if resultado_nav and resultado_nav.get('encontrada') and resultado_nav.get('url',''):
