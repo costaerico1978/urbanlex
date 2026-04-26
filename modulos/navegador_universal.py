@@ -203,6 +203,24 @@ de clicar no botao de download.
    (e) Se o resultado for um PDF, use acao "concluido" com a URL do PDF.
 16. MENU HAMBURGUER (icone ≡ ou tres barras): Se a pagina tiver um icone de menu hamburguer (tres linhas horizontais), clique nele para expandir o menu de navegacao. Use acao "clicar" com texto_elemento "≡" ou "menu" ou tente clicar pelo atributo aria-label ou title do botao. Apos clicar, tire screenshot para ver as opcoes que aparecerem.
 14. PAGINA CARREGANDO (leismunicipais.com.br): Se a pagina mostrar mensagem "Por favor, aguarde", spinner de carregamento, ou "A norma requisitada esta sendo carregada" — NAO faca scroll, NAO clique em nada. Use acao "screenshot" para aguardar o carregamento completar. Somente desista se aparecer CAPTCHA.
+18. PORTAIS DE CAMARAS MUNICIPAIS — como navegar ate a secao de legislacao:
+    Siga esta ordem de prioridade ao chegar em um portal de camara municipal:
+    (a) MENU HORIZONTAL SUPERIOR: procure link chamado "Legislacao", "Leis" ou "Atividade Parlamentar" (este ultimo pode ter submenu com legislacao). E o padrao mais comum.
+    (b) MENU LATERAL ESQUERDO (portais Interlegis / dominio leg.br): procure secao "LEIS" com itens como "Leis Municipais", "Legislacao Municipal" ou "Leis Complementares". Clique no item mais especifico.
+    (c) GRADE DE ICONES/SERVICOS: se a pagina tiver icones de servicos abaixo do banner, procure icone com label "Legislacao". Clique nele.
+    (d) RODAPE "ACESSO RAPIDO": como ultimo recurso, role ate o rodape e procure link "LEGISLACAO" ou "Leis Municipais".
+    Termos que confirmam destino certo: "Legislacao", "Leis Municipais", "Legislacao Municipal", "Leis Complementares", "Atos Normativos", "Atividade Parlamentar".
+    Apos chegar na secao de legislacao, use busca por tipo de ato + numero (regra 11).
+
+19. CAMINHOS PROIBIDOS — NUNCA faca nenhum destes:
+    (a) NUNCA use campo de busca geral do site ("Buscar no Site", "Pesquise aqui", "Procurar no site") — esses retornam qualquer conteudo do portal, nao so legislacao.
+    (b) NUNCA navegue para LexML (lexml.gov.br) nem clique em link "Pesquisar no LexML" — e sistema federal, nao contem legislacao municipal completa.
+    (c) NUNCA clique em "Acesso a Informacao", "e-SIC" ou "Ouvidoria" — sao canais de atendimento ao cidadao, nao repositorios de leis.
+    (d) NUNCA repita uma URL que ja aparece no historico de passos — se tentou e nao encontrou, tome caminho diferente.
+    (e) NUNCA repita busca com exatamente o mesmo termo apos receber 0 resultados — tente variacao ou desista.
+    (f) NUNCA clique em: "Transparencia", "Portal da Transparencia", "Licitacoes", "Contratos", "Sessoes", "Sessoes Plenarias", "Vereadores", "Facebook", "YouTube", "Instagram" — nenhum desses leva a legislacao.
+    (g) Em portais CESPRO ou SAPL: use filtros por tipo de ato e ano, NUNCA campo de busca geral.
+
 CRITICO: Responda SOMENTE com o objeto JSON abaixo. Nenhum texto antes, nenhum texto depois, nenhum markdown, nenhuma explicacao. Se a pagina estiver carregando ou em transicao, ainda assim responda com JSON — use decisao "screenshot" para aguardar.
 JSON:
 {{{{
