@@ -3611,17 +3611,50 @@ def navegar_como_humano(
             except Exception:
                 pass
 
-            # 2. Extrair links de imagens do HTML para incluir no prompt
+            # 2. Extrair links de imagens e ocultos do HTML para incluir no prompt
             _img_links_txt = ''
             try:
-                _html_atual = page.content()
+                _html_atual = pagina_ativa.content()
                 import re as _re_img
-                _img_links = _re_img.findall(r"""<a[^>]+href=["']([^"']+)["'][^>]*>\s*<img[^>]+(?:alt=["']([^"']*)["'])?[^>]*>\s*</a>""", _html_atual, _re_img.IGNORECASE)
-                if _img_links:
-                    _img_links_txt = "\n\nLINKS DE IMAGENS ENCONTRADOS NO HTML (imagens clicaveis que podem nao ser visiveis como texto):\n"
-                    for _href, _alt in _img_links[:10]:
-                        _img_links_txt += "  - href=\"" + _href + "\" alt=\"" + _alt + "\"\n"
-            except: pass
+                from urllib.parse import urljoin as _urljoin
+
+                # Links com imagem (sem texto visivel — ex: martelo, icones)
+                _img_links = []
+                for _m in _re_img.finditer(r"""<a[^>]+href=(["\'])([^"\']+)\1[^>]*>(.*?)</a>""", _html_atual, _re_img.IGNORECASE | _re_img.DOTALL):
+                    _href_raw, _inner = _m.group(2), _m.group(3)
+                    _texto_visivel = _re_img.sub(r'<[^>]+>', '', _inner).strip()
+                    _alt_match = _re_img.search(r"""alt=(["\'])([^"\']+)\1""", _inner, _re_img.IGNORECASE)
+                    _alt = _alt_match.group(2).strip() if _alt_match else ''
+                    _title_match = _re_img.search(r"""title=(["\'])([^"\']+)\1""", _inner, _re_img.IGNORECASE)
+                    _title = _title_match.group(2).strip() if _title_match else ''
+                    _has_img = bool(_re_img.search(r'<img', _inner, _re_img.IGNORECASE))
+                    if _has_img and len(_texto_visivel) < 3:
+                        _href_abs = _urljoin(pagina_ativa.url, _href_raw)
+                        _desc = _alt or _title or _href_raw.split('/')[-1]
+                        _img_links.append((_href_abs, _desc))
+
+                # Links em elementos ocultos (display:none, visibility:hidden, collapse)
+                _hidden_links = []
+                for _m in _re_img.finditer(r"""(?:display\s*:\s*none|visibility\s*:\s*hidden)[^>]*>.*?<a[^>]+href=(["\'])([^"\']+)\1[^>]*>(.*?)</a>""", _html_atual, _re_img.IGNORECASE | _re_img.DOTALL):
+                    _href_raw2 = _m.group(2)
+                    _texto2 = _re_img.sub(r"""<[^>]+>""", "", _m.group(3)).strip()
+                    if _texto2 and len(_texto2) > 1:
+                        _href_abs2 = _urljoin(pagina_ativa.url, _href_raw2)
+                        _hidden_links.append((_href_abs2, _texto2))
+
+                if _img_links or _hidden_links:
+                    _img_links_txt = "\n\n⚠️ ELEMENTOS NAO VISIVEIS NO SCREENSHOT MAS PRESENTES NO HTML:\n"
+                    if _img_links:
+                        _img_links_txt += "LINKS COM IMAGEM (icones, botoes graficos sem texto):\n"
+                        for _href, _desc in _img_links[:10]:
+                            _img_links_txt += f'  - href="{_href}" descricao="{_desc}"\n'
+                    if _hidden_links:
+                        _img_links_txt += "LINKS EM ELEMENTOS OCULTOS/COLAPSADOS:\n"
+                        for _href, _texto in _hidden_links[:10]:
+                            _img_links_txt += f'  - href="{_href}" texto="{_texto}"\n'
+                    _img_links_txt += "INSTRUCAO: Se algum destes links for relevante, use acao 'clicar' com texto_elemento igual ao href completo (ex: https://bananal.cespro.com.br/).\n"
+            except Exception:
+                pass
             # 2. Prompt
             prompt = _montar_prompt(legislacao, historico, passo, url_atual)
             if _img_links_txt:
@@ -3882,6 +3915,19 @@ def navegar_como_humano(
                         historico.append({'passo': passo, 'acao': 'loop', 'resultado': 'Mesma ação repetida'})
                         break
 
+            # 8b. Acao navegar — vai direto para href sem depender de clique visual
+            if tipo_acao == 'navegar' and not _skip_exec:
+                _nav_href = acao.get('href', '') or acao.get('texto_elemento', '') or acao.get('url', '')
+                if _nav_href and _nav_href.startswith('http'):
+                    try:
+                        pagina_ativa.goto(_nav_href, wait_until='domcontentloaded', timeout=20000)
+                        pagina_ativa.wait_for_timeout(1500)
+                        logs.append({'nivel': 'info', 'msg': f'{label}: 🔗 Navegou diretamente para: {_nav_href[:100]}'})
+                        historico.append({'passo': passo, 'acao': f'navegar', 'resultado': f'Navegou: {_nav_href[:80]}'})
+                        resultado['url'] = pagina_ativa.url
+                    except Exception as _e_nav:
+                        logs.append({'nivel': 'aviso', 'msg': f'{label}: ⚠️ Falha ao navegar para {_nav_href[:80]}: {str(_e_nav)[:60]}'})
+                    continue
             # 9. Executar
             if not _skip_exec:
                 exec_resultado = _executar_acao(pagina_ativa, acao, logs, label) or 'sem resultado'
