@@ -3611,8 +3611,21 @@ def navegar_como_humano(
             except Exception:
                 pass
 
+            # 2. Extrair links de imagens do HTML para incluir no prompt
+            _img_links_txt = ''
+            try:
+                _html_atual = page.content()
+                import re as _re_img
+                _img_links = _re_img.findall(r"""<a[^>]+href=["']([^"']+)["'][^>]*>\s*<img[^>]+(?:alt=["']([^"']*)["'])?[^>]*>\s*</a>""", _html_atual, _re_img.IGNORECASE)
+                if _img_links:
+                    _img_links_txt = "\n\nLINKS DE IMAGENS ENCONTRADOS NO HTML (imagens clicaveis que podem nao ser visiveis como texto):\n"
+                    for _href, _alt in _img_links[:10]:
+                        _img_links_txt += "  - href=\"" + _href + "\" alt=\"" + _alt + "\"\n"
+            except: pass
             # 2. Prompt
             prompt = _montar_prompt(legislacao, historico, passo, url_atual)
+            if _img_links_txt:
+                prompt = prompt + _img_links_txt
 
             # 3. Gemini
             resp = _chamar_gemini_visao(prompt, screenshot_b64, logs, f'{label} passo {passo}')
