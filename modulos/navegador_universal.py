@@ -385,6 +385,23 @@ def _clicar_por_texto(page, texto_elemento: str, logs: list, label: str) -> str:
                 pass
     
     if not el:
+        # Tentar match com links de imagens do contexto global (_img_links_txt)
+        try:
+            import re as _re_img2
+            _ctx_txt = getattr(page, '_img_links_ctx', '')
+            if _ctx_txt:
+                _hrefs_ctx = _re_img2.findall(r'href="([^"]+)"', _ctx_txt)
+                _descs_ctx = _re_img2.findall(r'\(([^)]+)\)', _ctx_txt)
+                for _hi, _href_c in enumerate(_hrefs_ctx):
+                    _desc_c = _descs_ctx[_hi] if _hi < len(_descs_ctx) else ''
+                    if (texto.lower() in _desc_c.lower() or 
+                        texto.lower() in _href_c.lower() or
+                        any(w in _href_c.lower() for w in texto.lower().split() if len(w) > 3)):
+                        logs.append({'nivel': 'info', 'msg': f'{label}: 🔗 Match de imagem — navegando para {_href_c[:60]}'})
+                        page.goto(_href_c, timeout=20000, wait_until='domcontentloaded')
+                        page.wait_for_timeout(2000)
+                        return f'Navegou via link de imagem: {_href_c[:60]}'
+        except Exception: pass
         logs.append({'nivel': 'info', 'msg': f'{label}: ⚠️ "{texto[:30]}" não encontrado'})
         try:
             page.remove_listener('download', _on_download)
@@ -3705,6 +3722,8 @@ def navegar_como_humano(
             prompt = _montar_prompt(legislacao, historico, passo, url_atual)
             if _img_links_txt:
                 prompt = prompt + _img_links_txt
+                try: pagina_ativa._img_links_ctx = _img_links_txt
+                except: pass
 
             # 3. Gemini
             resp = _chamar_gemini_visao(prompt, screenshot_b64, logs, f'{label} passo {passo}')
