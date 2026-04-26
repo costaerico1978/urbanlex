@@ -4019,10 +4019,23 @@ def navegar_como_humano(
                 _cy = acao.get('y', 0)
                 if _cx and _cy:
                     try:
+                        _download_coord = None
+                        def _on_dl_coord(d): nonlocal _download_coord; _download_coord = d
+                        pagina_ativa.on('download', _on_dl_coord)
                         pagina_ativa.mouse.click(int(_cx), int(_cy))
-                        pagina_ativa.wait_for_timeout(1500)
+                        pagina_ativa.wait_for_timeout(2000)
+                        pagina_ativa.remove_listener('download', _on_dl_coord)
                         _url_apos = pagina_ativa.url
-                        logs.append({'nivel': 'info', 'msg': f'{label}: 🖱️ Clicou por coordenada ({_cx},{_cy}) — URL: {_url_apos[:80]}'})
+                        if _download_coord:
+                            _pdf_path = f'/tmp/cespro_{passo}.pdf'
+                            _download_coord.save_as(_pdf_path)
+                            logs.append({'nivel': 'ok', 'msg': f'{label}: 📥 Download capturado: {_download_coord.suggested_filename}'})
+                            resultado['pdf_path'] = _pdf_path
+                            resultado['pdf_filename'] = _download_coord.suggested_filename
+                            resultado['encontrada'] = True
+                            resultado['url'] = _url_apos
+                        else:
+                            logs.append({'nivel': 'info', 'msg': f'{label}: 🖱️ Clicou por coordenada ({_cx},{_cy}) — URL: {_url_apos[:80]}'})
                         historico.append({'passo': passo, 'acao': f'clicar_coordenada({_cx},{_cy})', 'resultado': f'URL: {_url_apos[:80]}'})
                         resultado['url'] = _url_apos
                     except Exception as _e_coord:
