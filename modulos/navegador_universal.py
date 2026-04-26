@@ -184,6 +184,22 @@ de clicar no botao de download.
     - Se o elemento nao tem texto (icone puro), descreva: "icone coluna Arquivo linha 1"
 
 15. IMAGENS CLICAVEIS: Se a pagina parecer "vazia" ou sem lista de leis, mas tiver uma imagem ou icone proeminente (ex: martelo, livro, escudo, bandeira), TENTE CLICAR nessa imagem — ela pode ser um link para o sistema legislativo. Use acao "clicar" com o texto alternativo da imagem ou descricao visual dela.
+17. DIARIO OFICIAL: Se chegar em uma pagina de busca de Diario Oficial com campos como "Texto", "Ano", "Data Inicial", "Data Final":
+   (a) Use o campo "Texto" para digitar o tipo e numero da lei (ex: "Lei Complementar 41").
+   (b) Para campos de ANO ou DATA: analise primeiro o tipo de controle visivel:
+       - Se for um campo de texto simples: digite diretamente (ex: "2023").
+       - Se for um dropdown/select: use preencher_formulario com o valor correto.
+       - Se for um calendario navegavel (com setas << >> para mes/ano): clique nas setas para navegar ate o ano/mes correto, depois clique no dia.
+       - Se for um date picker com multiplos campos (dia/mes/ano separados): preencha cada campo individualmente.
+       - Se nao conseguir interagir com o campo de data: tente digitar diretamente no campo e pressionar Tab.
+   (c) Clique em "Buscar" ou "Pesquisar".
+   (d) Nos resultados, procure edicoes que mencionem o tipo e numero da lei. Clique na edicao para abrir o PDF.
+   (e) Se o resultado for um PDF, use acao "concluido" com a URL do PDF.
+   (a) Use o campo "Texto" para digitar o tipo e numero da lei (ex: "Lei Complementar 41").
+   (b) Use o campo "Ano" para digitar o ano (ex: "2023"). NAO tente interagir com o calendario — use o campo de texto do ano diretamente.
+   (c) Clique em "Buscar" ou "Pesquisar".
+   (d) Nos resultados, procure edicoes que mencione o tipo e numero da lei. Clique na edicao para abrir o PDF ou visualizar o conteudo.
+   (e) Se o resultado for um PDF, use acao "concluido" com a URL do PDF.
 16. MENU HAMBURGUER (icone ≡ ou tres barras): Se a pagina tiver um icone de menu hamburguer (tres linhas horizontais), clique nele para expandir o menu de navegacao. Use acao "clicar" com texto_elemento "≡" ou "menu" ou tente clicar pelo atributo aria-label ou title do botao. Apos clicar, tire screenshot para ver as opcoes que aparecerem.
 14. PAGINA CARREGANDO (leismunicipais.com.br): Se a pagina mostrar mensagem "Por favor, aguarde", spinner de carregamento, ou "A norma requisitada esta sendo carregada" — NAO faca scroll, NAO clique em nada. Use acao "screenshot" para aguardar o carregamento completar. Somente desista se aparecer CAPTCHA.
 CRITICO: Responda SOMENTE com o objeto JSON abaixo. Nenhum texto antes, nenhum texto depois, nenhum markdown, nenhuma explicacao. Se a pagina estiver carregando ou em transicao, ainda assim responda com JSON — use decisao "screenshot" para aguardar.
