@@ -1655,25 +1655,33 @@ def _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, an
                         dominio_restrito=dominio
                     )
                     _browser.close()
-                if resultado_nav and resultado_nav.get('encontrada'):
-                    logs.append({'nivel': 'ok', 'msg': f'  [Fallback2] Encontrada via Gemini Vision: {dominio}'})
-                    # Salvar URL legislativa no cache
-                    try:
-                        from app import get_db as _gdb3
-                        _sc = _gdb3(); _scu = _sc.cursor()
-                        _url_leg = resultado_nav.get('url','')
-                        _scu.execute("""INSERT INTO municipio_sites_referencia (municipio_nome, estado, url_legislacao, fallback2_funciona, fallback2_verificado_em)
-                            VALUES (%s,%s,%s,TRUE,NOW())
-                            ON CONFLICT (municipio_nome, estado) DO UPDATE SET
-                            url_legislacao=EXCLUDED.url_legislacao, fallback2_funciona=TRUE, fallback2_verificado_em=NOW()""",
-                            (municipio, estado, _url_leg))
-                        _sc.commit(); _scu.close(); _sc.close()
-                        logs.append({'nivel': 'info', 'msg': f'  [Fallback2] URL salva no cache: {_url_leg[:60]}'})
-                    except Exception as _se: pass
-                    return {'tipo': tipo, 'numero': numero, 'ano': ano,
-                            'link': resultado_nav.get('url',''),
-                            'pdf_url': resultado_nav.get('pdf_url',''),
-                            'html': resultado_nav.get('html','')}
+                if resultado_nav and resultado_nav.get('encontrada') and resultado_nav.get('url',''):
+                    _url_found = resultado_nav.get('url','')
+                    # Verificar se a URL encontrada tem conteúdo real (não loop/timeout)
+                    _tem_html = bool(resultado_nav.get('html',''))
+                    _tem_pdf = bool(resultado_nav.get('pdf_url',''))
+                    if not _tem_html and not _tem_pdf:
+                        logs.append({'nivel': 'aviso', 'msg': f'  [Fallback2] Encontrada sem conteúdo — ignorando'})
+                    else:
+                        logs.append({'nivel': 'ok', 'msg': f'  [Fallback2] Encontrada via Gemini Vision: {_url_found[:80]}'})
+                        # Salvar no cache apenas URLs relevantes (não portais genéricos)
+                        _IGNORAR_CACHE = ['lexml.gov.br', 'jusbrasil.com', 'google.com', 'planalto.gov.br']
+                        if not any(ig in _url_found for ig in _IGNORAR_CACHE):
+                            try:
+                                from app import get_db as _gdb3
+                                _sc = _gdb3(); _scu = _sc.cursor()
+                                _scu.execute("""INSERT INTO municipio_sites_referencia (municipio_nome, estado, url_legislacao, fallback2_funciona, fallback2_verificado_em)
+                                    VALUES (%s,%s,%s,TRUE,NOW())
+                                    ON CONFLICT (municipio_nome, estado) DO UPDATE SET
+                                    url_legislacao=EXCLUDED.url_legislacao, fallback2_funciona=TRUE, fallback2_verificado_em=NOW()""",
+                                    (municipio, estado, _url_found))
+                                _sc.commit(); _scu.close(); _sc.close()
+                                logs.append({'nivel': 'info', 'msg': f'  [Fallback2] URL salva no cache: {_url_found[:60]}'})
+                            except: pass
+                        return {'tipo': tipo, 'numero': numero, 'ano': ano,
+                                'link': _url_found,
+                                'pdf_url': resultado_nav.get('pdf_url',''),
+                                'html': resultado_nav.get('html','')}
             except Exception as e2:
                 logs.append({'nivel': 'aviso', 'msg': f'  [Fallback2] Erro em {dominio}: {str(e2)[:80]}'})
 
