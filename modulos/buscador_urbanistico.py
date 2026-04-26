@@ -1631,8 +1631,18 @@ def _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, an
 
             passos = 0
             try:
-                r2 = requests.get(url_g2, headers=headers, timeout=15)
-                soup2 = _bs(r2.text, "html.parser")
+                try:
+                    _fs3 = requests.post('http://localhost:8191/v1',
+                        json={"cmd":"request.get","url":url_g2,"maxTimeout":30000}, timeout=35)
+                    _html_g3 = _fs3.json().get('solution',{}).get('response','')
+                except Exception:
+                    _html_g3 = ''
+                if not _html_g3:
+                    try:
+                        _html_g3 = requests.get(url_g2, headers=headers, timeout=15).text
+                    except:
+                        _html_g3 = ''
+                soup2 = _bs(_html_g3, "html.parser")
 
                 links_lei = []
                 for a in soup2.find_all("a", href=True):
