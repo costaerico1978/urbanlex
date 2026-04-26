@@ -1622,69 +1622,34 @@ def _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, an
 
         logs.append({"nivel": "info", "msg": f"  [Fallback2] Portais candidatos: {', '.join(dominios_top)}"})
 
-        # Para cada domínio candidato, buscar a lei específica
+        # Para cada domínio candidato, navegar com Playwright + Gemini Vision
+        from modulos.navegador_universal import navegar_como_humano
+        from playwright.sync_api import sync_playwright
+        legislacao_fb2 = {'tipo': tipo, 'numero': numero, 'ano': ano, 'municipio': municipio, 'estado': estado}
         for dominio in dominios_top:
-            logs.append({"nivel": "info", "msg": f"  [Fallback2] Buscando no domínio: {dominio}"})
-
-            query_lei = f'"{tipo} {numero}" {ano} site:{dominio}'
-            url_g2 = f"https://www.google.com/search?q={urllib.parse.quote_plus(query_lei)}&num=5&hl=pt-BR"
-
-            passos = 0
+            logs.append({'nivel': 'info', 'msg': f'  [Fallback2] Navegando com Gemini Vision em: {dominio}'})
+            url_portal = f'https://{dominio}'
             try:
-                try:
-                    _fs3 = requests.post('http://localhost:8191/v1',
-                        json={"cmd":"request.get","url":url_g2,"maxTimeout":30000}, timeout=35)
-                    _html_g3 = _fs3.json().get('solution',{}).get('response','')
-                except Exception:
-                    _html_g3 = ''
-                if not _html_g3:
-                    try:
-                        _html_g3 = requests.get(url_g2, headers=headers, timeout=15).text
-                    except:
-                        _html_g3 = ''
-                soup2 = _bs(_html_g3, "html.parser")
-
-                links_lei = []
-                for a in soup2.find_all("a", href=True):
-                    href = a["href"]
-                    if dominio in href and href.startswith("http"):
-                        links_lei.append(href)
-                links_lei = list(dict.fromkeys(links_lei))[:5]
-
-                for url_lei in links_lei:
-                    if url_lei.lower() in analisadas:
-                        continue
-                    analisadas.add(url_lei.lower())
-                    passos += 1
-                    if passos > 10:
-                        logs.append({"nivel": "aviso", "msg": f"  [Fallback2] Limite de 10 passos atingido em {dominio}"})
-                        break
-
-                    logs.append({"nivel": "info", "msg": f"  [Fallback2] Verificando (passo {passos}): {url_lei[:80]}"})
-                    try:
-                        r3 = requests.get(url_lei, headers=headers, timeout=15)
-                        if r3.status_code != 200:
-                            continue
-                        texto = _bs(r3.text, "html.parser").get_text()
-                        if numero in texto and tipo.lower() in texto.lower():
-                            logs.append({"nivel": "ok", "msg": f"  [Fallback2] Legislação encontrada: {url_lei[:80]}"})
-                            # Tentar PDF
-                            pdf_url = None
-                            soup3 = _bs(r3.text, "html.parser")
-                            for a in soup3.find_all("a", href=True):
-                                href = a["href"]
-                                if href.lower().endswith(".pdf"):
-                                    pdf_url = href if href.startswith("http") else urllib.parse.urljoin(url_lei, href)
-                                    break
-                            resultado = {"tipo": tipo, "numero": numero, "ano": ano, "link": url_lei}
-                            if pdf_url:
-                                resultado["pdf_url"] = pdf_url
-                            return resultado
-                    except Exception as e3:
-                        logs.append({"nivel": "aviso", "msg": f"  [Fallback2] Erro passo {passos}: {str(e3)[:60]}"})
-
+                with sync_playwright() as _pw:
+                    _browser = _pw.chromium.launch(headless=True, args=['--no-sandbox','--disable-dev-shm-usage'])
+                    _ctx = _browser.new_context(viewport={'width':1280,'height':800},
+                        user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36')
+                    _page = _ctx.new_page()
+                    _page.goto(url_portal, timeout=30000, wait_until='domcontentloaded')
+                    _page.wait_for_timeout(2000)
+                    resultado_nav = navegar_como_humano(
+                        _page, None, legislacao_fb2, chamar_llm, logs,
+                        label=f'[Fallback2] {dominio}', max_passos=15
+                    )
+                    _browser.close()
+                if resultado_nav and resultado_nav.get('encontrada'):
+                    logs.append({'nivel': 'ok', 'msg': f'  [Fallback2] Encontrada via Gemini Vision: {dominio}'})
+                    return {'tipo': tipo, 'numero': numero, 'ano': ano,
+                            'link': resultado_nav.get('url',''),
+                            'pdf_url': resultado_nav.get('pdf_url',''),
+                            'html': resultado_nav.get('html','')}
             except Exception as e2:
-                logs.append({"nivel": "aviso", "msg": f"  [Fallback2] Erro ao buscar em {dominio}: {str(e2)[:60]}"})
+                logs.append({'nivel': 'aviso', 'msg': f'  [Fallback2] Erro em {dominio}: {str(e2)[:80]}'})
 
     except Exception as e:
         logs.append({"nivel": "aviso", "msg": f"  [Fallback2] Erro geral: {str(e)[:80]}"})
