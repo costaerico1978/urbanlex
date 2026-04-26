@@ -1518,10 +1518,14 @@ def _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, an
                 if chamar_llm:
                     _prompt_val = f"Analise o texto e responda apenas SIM ou NAO: este texto contém a {tipo} nº {numero}/{ano} do município de {municipio}/{estado}?\n\nTEXTO:\n{texto[:2000]}\n\nResponda apenas: SIM ou NAO"
                     try:
-                        _resp_val = chamar_llm(_prompt_val, [], "validar_fallback1")
+                        _resp_val = chamar_llm(_prompt_val, logs, "validar_fallback1")
                         _eh_correto = "SIM" in (_resp_val or "").upper()
                     except:
                         _eh_correto = False
+                    if _resp_val is None or not _eh_correto:
+                        _tl = texto.lower()
+                        _eh_correto = (numero in _tl and tipo.lower() in _tl
+                                      and municipio.lower() in _tl and ano in _tl)
                 else:
                     texto_lower = texto.lower()
                     _eh_correto = (numero in texto_lower and tipo.lower() in texto_lower
