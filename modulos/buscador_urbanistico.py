@@ -1458,9 +1458,19 @@ def _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, an
 
     try:
         url_g = f"https://www.google.com/search?q={urllib.parse.quote_plus(query_str)}&num=10&hl=pt-BR"
-        r = requests.get(url_g, headers=headers, timeout=15)
-
+        # Usar FlareSolverr para contornar bloqueio do Google
+        try:
+            _fs_resp = requests.post('http://localhost:8191/v1',
+                json={"cmd":"request.get","url":url_g,"maxTimeout":30000}, timeout=35)
+            _fs_data = _fs_resp.json()
+            _html_google = _fs_data.get('solution',{}).get('response','')
+        except Exception:
+            _html_google = ''
+        if not _html_google:
+            r = requests.get(url_g, headers=headers, timeout=15)
+            _html_google = r.text
         # Extrair resultados com snippet (título + URL + descrição)
+        soup = _bs(_html_google, "html.parser")
         soup = _bs(r.text, "html.parser")
         resultados = []
         for div in soup.select("div.g, div[data-sokoban-container]"):
