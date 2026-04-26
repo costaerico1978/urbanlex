@@ -246,6 +246,28 @@ def _clicar_por_texto(page, texto_elemento: str, logs: list, label: str) -> str:
     except Exception:
         pass
     
+    # Suporte a clicar por href quando texto é uma URL
+    if texto.startswith('http'):
+        try:
+            _href_el = page.locator(f'a[href="{texto}"]').first
+            if _href_el and _href_el.count() > 0:
+                _href_el.scroll_into_view_if_needed()
+                _href_el.click(timeout=5000)
+                page.wait_for_timeout(1500)
+                return f'Clicou por href: {texto[:60]}'
+        except Exception as _he:
+            pass
+        # Tentar href parcial (começo da URL)
+        try:
+            _href_el2 = page.locator(f'a[href^="{texto[:40]}"]').first
+            if _href_el2 and _href_el2.count() > 0:
+                _href_el2.scroll_into_view_if_needed()
+                _href_el2.click(timeout=5000)
+                page.wait_for_timeout(1500)
+                return f'Clicou por href parcial: {texto[:60]}'
+        except Exception:
+            pass
+
     # Tentar multiplas estrategias
     estrategias = [
         ('exact', lambda p: p.get_by_text(texto, exact=True).first),
@@ -257,7 +279,23 @@ def _clicar_por_texto(page, texto_elemento: str, logs: list, label: str) -> str:
         ('title', lambda p: p.locator(f'[title*="{texto}" i]').first),
         ('alt', lambda p: p.locator(f'[alt*="{texto}" i]').first),
         ('aria', lambda p: p.locator(f'[aria-label*="{texto}" i]').first),
+        ('table-last-col-link', lambda p: p.locator('table tr:last-child td:last-child a').first),
     ]
+    # Estrategia especial para menu hamburguer
+    if any(x in texto.lower() for x in ['≡', '☰', 'hamburguer', 'hamburger', 'menu']):
+        try:
+            _selectors = ['button.menu', '.hamburger', '.menu-toggle', 'button[class*="menu"]',
+                         'button[class*="nav"]', 'button[class*="burger"]', '.navbar-toggle',
+                         '[data-toggle="collapse"]', 'button svg', 'header button']
+            for _sel in _selectors:
+                try:
+                    _mb = page.locator(_sel).first
+                    if _mb and _mb.count() > 0 and _mb.is_visible():
+                        _mb.click(timeout=3000)
+                        page.wait_for_timeout(1000)
+                        return f'Clicou menu hamburguer via {_sel}'
+                except: continue
+        except: pass
     
     el = None
     estrategia_usada = ''
