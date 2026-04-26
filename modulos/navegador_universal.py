@@ -3957,6 +3957,20 @@ def navegar_como_humano(
                                             logs.append({'nivel': 'aviso', 'msg': f'{label}: [2C] Sem solucao para spinner LM'})
                             except Exception as e_lm:
                                 logs.append({'nivel': 'aviso', 'msg': f'{label}: [2C] Erro spinner LM: {str(e_lm)[:60]}'})
+                        # Antes de encerrar por loop, tentar hrefs de imagens não visitados
+                        if _img_links_txt:
+                            import re as _re_loop
+                            _hrefs_img = _re_loop.findall(r'href="([^"]+)"', _img_links_txt)
+                            for _href_img in _hrefs_img:
+                                if _href_img not in str(historico) and _href_img.startswith("http"):
+                                    try:
+                                        logs.append({"nivel": "info", "msg": f"{label}: 🔗 Navegando direto para link de imagem: {_href_img[:60]}"})
+                                        pagina_ativa.goto(_href_img, timeout=20000, wait_until="domcontentloaded")
+                                        pagina_ativa.wait_for_timeout(2000)
+                                        url_atual = pagina_ativa.url
+                                        _acao_repetida.clear()
+                                        break
+                                    except: pass
                         logs.append({'nivel': 'aviso', 'msg': f'{label}: ⚠️ Loop detectado — {tipo_acao} repetido 3x sem mudança.'})
                         historico.append({'passo': passo, 'acao': 'loop', 'resultado': 'Mesma ação repetida'})
                         break
