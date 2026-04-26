@@ -1659,7 +1659,8 @@ def _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, an
                     # Verificar se a URL encontrada tem conteúdo real (não loop/timeout)
                     _tem_html = bool(resultado_nav.get('html',''))
                     _tem_pdf = bool(resultado_nav.get('pdf_url',''))
-                    if not _tem_html and not _tem_pdf:
+                    _tem_pdf_path = bool(resultado_nav.get('pdf_path',''))
+                    if not _tem_html and not _tem_pdf and not _tem_pdf_path:
                         logs.append({'nivel': 'aviso', 'msg': f'  [Fallback2] Encontrada sem conteúdo — ignorando'})
                     else:
                         logs.append({'nivel': 'ok', 'msg': f'  [Fallback2] Encontrada via Gemini Vision: {_url_found[:80]}'})
@@ -1680,6 +1681,7 @@ def _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, an
                         return {'tipo': tipo, 'numero': numero, 'ano': ano,
                                 'link': _url_found,
                                 'pdf_url': resultado_nav.get('pdf_url',''),
+                                'pdf_path': resultado_nav.get('pdf_path',''),
                                 'html': resultado_nav.get('html','')}
             except Exception as e2:
                 logs.append({'nivel': 'aviso', 'msg': f'  [Fallback2] Erro em {dominio}: {str(e2)[:80]}'})
