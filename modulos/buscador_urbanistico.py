@@ -1622,6 +1622,18 @@ def _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, an
 
         logs.append({"nivel": "info", "msg": f"  [Fallback2] Portais candidatos: {', '.join(dominios_top)}"})
 
+        # Consultar cache de URL legislativa salva anteriormente
+        try:
+            from app import get_db as _gdb2
+            _cc = _gdb2(); _ccu = _cc.cursor()
+            _ccu.execute("SELECT url_legislacao FROM municipio_sites_referencia WHERE LOWER(municipio_nome)=LOWER(%s) AND LOWER(estado)=LOWER(%s) AND url_legislacao IS NOT NULL AND fallback2_funciona=TRUE LIMIT 1", (municipio, estado))
+            _cache_row = _ccu.fetchone()
+            _ccu.close(); _cc.close()
+            if _cache_row and _cache_row[0]:
+                logs.append({'nivel': 'info', 'msg': f'  [Fallback2] URL cached: {_cache_row[0]}'})
+                dominios_top = [_cache_row[0].replace('https://','').replace('http://','').split('/')[0]] + dominios_top
+        except: pass
+
         # Para cada domínio candidato, navegar com Playwright + Gemini Vision
         from modulos.navegador_universal import navegar_como_humano
         from playwright.sync_api import sync_playwright
@@ -1644,6 +1656,19 @@ def _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, an
                     _browser.close()
                 if resultado_nav and resultado_nav.get('encontrada'):
                     logs.append({'nivel': 'ok', 'msg': f'  [Fallback2] Encontrada via Gemini Vision: {dominio}'})
+                    # Salvar URL legislativa no cache
+                    try:
+                        from app import get_db as _gdb3
+                        _sc = _gdb3(); _scu = _sc.cursor()
+                        _url_leg = resultado_nav.get('url','')
+                        _scu.execute("""INSERT INTO municipio_sites_referencia (municipio_nome, estado, url_legislacao, fallback2_funciona, fallback2_verificado_em)
+                            VALUES (%s,%s,%s,TRUE,NOW())
+                            ON CONFLICT (municipio_nome, estado) DO UPDATE SET
+                            url_legislacao=EXCLUDED.url_legislacao, fallback2_funciona=TRUE, fallback2_verificado_em=NOW()""",
+                            (municipio, estado, _url_leg))
+                        _sc.commit(); _scu.close(); _sc.close()
+                        logs.append({'nivel': 'info', 'msg': f'  [Fallback2] URL salva no cache: {_url_leg[:60]}'})
+                    except Exception as _se: pass
                     return {'tipo': tipo, 'numero': numero, 'ano': ano,
                             'link': resultado_nav.get('url',''),
                             'pdf_url': resultado_nav.get('pdf_url',''),
