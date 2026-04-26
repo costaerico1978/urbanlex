@@ -1467,24 +1467,23 @@ def _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, an
         except Exception:
             _html_google = ''
         if not _html_google:
-            r = requests.get(url_g, headers=headers, timeout=15)
-            _html_google = r.text
+            try:
+                r = requests.get(url_g, headers=headers, timeout=15)
+                _html_google = r.text
+            except Exception:
+                _html_google = ''
         # Extrair resultados com snippet (título + URL + descrição)
-        soup = _bs(_html_google, "html.parser")
-        soup = _bs(r.text, "html.parser")
+        import re as _re2
+        # Extrair links via regex (mais robusto que BeautifulSoup para HTML moderno do Google)
+        _links_raw = _re2.findall(r'href="(https?://(?!www\.google)[^"&]{20,})"', _html_google)
         resultados = []
-        for div in soup.select("div.g, div[data-sokoban-container]"):
-            a_tag = div.find("a", href=True)
-            if not a_tag:
-                continue
-            url = a_tag["href"]
-            if not url.startswith("http"):
-                continue
-            if any(ig in url for ig in IGNORAR):
-                continue
-            titulo = div.get_text(" ", strip=True)[:200]
-            resultados.append({"url": url, "snippet": titulo})
-        resultados = resultados[:5]
+        _vistos = set()
+        for url in _links_raw:
+            if any(ig in url for ig in IGNORAR): continue
+            if url in _vistos: continue
+            _vistos.add(url)
+            resultados.append({"url": url, "snippet": url})
+            if len(resultados) >= 10: break
 
         if not resultados:
             logs.append({"nivel": "aviso", "msg": "  [Fallback1] Google não retornou resultados úteis"})
@@ -1500,7 +1499,9 @@ def _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, an
 
             # Avaliação rápida do snippet — vale a pena visitar?
             snippet_lower = snippet.lower()
-            tipo_ok = any(t in snippet_lower for t in [tipo.lower(), numero, ano, municipio.lower()])
+            # Se snippet é a própria URL, não filtrar por conteúdo
+            _snippet_is_url = snippet.startswith('http')
+            tipo_ok = _snippet_is_url or any(t in snippet_lower for t in [tipo.lower(), numero, ano, municipio.lower()])
             if not tipo_ok:
                 logs.append({"nivel": "info", "msg": f"  [Fallback1] Resultado {i+1} ignorado pelo snippet: {snippet[:80]}"})
                 continue
