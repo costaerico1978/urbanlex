@@ -1664,19 +1664,21 @@ def _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, an
                         logs.append({'nivel': 'aviso', 'msg': f'  [Fallback2] Encontrada sem conteúdo — ignorando'})
                     else:
                         logs.append({'nivel': 'ok', 'msg': f'  [Fallback2] Encontrada via Gemini Vision: {_url_found[:80]}'})
-                        # Salvar no cache apenas URLs relevantes (não portais genéricos)
-                        _IGNORAR_CACHE = ['lexml.gov.br', 'jusbrasil.com', 'google.com', 'planalto.gov.br']
+                        # Salvar domínio como fallback prioritário do município
+                        _IGNORAR_CACHE = ['lexml.gov.br', 'jusbrasil.com', 'google.com', 'planalto.gov.br', 'facebook.com', 'youtube.com']
                         if not any(ig in _url_found for ig in _IGNORAR_CACHE):
                             try:
+                                import urllib.parse as _upl2
+                                _dominio_enc = _upl2.urlparse(_url_found)
+                                _url_base = f"{_dominio_enc.scheme}://{_dominio_enc.netloc}/"
                                 from app import get_db as _gdb3
                                 _sc = _gdb3(); _scu = _sc.cursor()
-                                _scu.execute("""INSERT INTO municipio_sites_referencia (municipio_nome, estado, url_legislacao, fallback2_funciona, fallback2_verificado_em)
-                                    VALUES (%s,%s,%s,TRUE,NOW())
-                                    ON CONFLICT (municipio_nome, estado) DO UPDATE SET
-                                    url_legislacao=EXCLUDED.url_legislacao, fallback2_funciona=TRUE, fallback2_verificado_em=NOW()""",
-                                    (municipio, estado, _url_found))
+                                _scu.execute("""INSERT INTO municipio_fallback (municipio, estado, url, atualizado_em)
+                                    VALUES (%s,%s,%s,NOW())
+                                    ON CONFLICT (municipio, estado) DO UPDATE SET url=%s, atualizado_em=NOW()""",
+                                    (municipio, estado, _url_base, _url_base))
                                 _sc.commit(); _scu.close(); _sc.close()
-                                logs.append({'nivel': 'info', 'msg': f'  [Fallback2] URL salva no cache: {_url_found[:60]}'})
+                                logs.append({'nivel': 'info', 'msg': f'  [Fallback2] Fallback prioritário salvo: {_url_base}'})
                             except: pass
                         return {'tipo': tipo, 'numero': numero, 'ano': ano,
                                 'link': _url_found,
