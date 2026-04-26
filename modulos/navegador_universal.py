@@ -183,6 +183,7 @@ de clicar no botao de download.
     - Link "Download da Edição nº 200" -> texto_elemento: "Download da Edição nº 200"
     - Se o elemento nao tem texto (icone puro), descreva: "icone coluna Arquivo linha 1"
 
+15. IMAGENS CLICAVEIS: Se a pagina parecer "vazia" ou sem lista de leis, mas tiver uma imagem ou icone proeminente (ex: martelo, livro, escudo, bandeira), TENTE CLICAR nessa imagem — ela pode ser um link para o sistema legislativo. Use acao "clicar" com o texto alternativo da imagem ou descricao visual dela.
 14. PAGINA CARREGANDO (leismunicipais.com.br): Se a pagina mostrar mensagem "Por favor, aguarde", spinner de carregamento, ou "A norma requisitada esta sendo carregada" — NAO faca scroll, NAO clique em nada. Use acao "screenshot" para aguardar o carregamento completar. Somente desista se aparecer CAPTCHA.
 CRITICO: Responda SOMENTE com o objeto JSON abaixo. Nenhum texto antes, nenhum texto depois, nenhum markdown, nenhuma explicacao. Se a pagina estiver carregando ou em transicao, ainda assim responda com JSON — use decisao "screenshot" para aguardar.
 JSON:
