@@ -258,9 +258,15 @@ def _chamar_llm(prompt: str, logs: list, label: str = 'LLM', max_retries: int = 
             except Exception as e:
                 err = str(e)[:120]
                 is_rate_limit = '429' in err or 'quota' in err.lower() or 'rate' in err.lower()
+                is_overload = '503' in err or 'overload' in err.lower() or 'unavailable' in err.lower() or 'high demand' in err.lower()
                 logs.append({'nivel': 'aviso', 'msg': f'{label}: Gemini falhou: {err}'})
-                if not is_rate_limit:
+                if not is_rate_limit and not is_overload:
                     break  # Erro não recuperável, pula pro GROQ
+                if is_overload and tentativa < max_retries:
+                    import time as _t503
+                    _w = (tentativa + 1) * 15  # 15s, 30s
+                    logs.append({'nivel': 'info', 'msg': f'{label}: Gemini sobrecarregado (503) — aguardando {_w}s antes de retry #{tentativa+1}...'})
+                    _t503.sleep(_w)
 
         # Tentar GROQ
         if GROQ_API_KEY:
