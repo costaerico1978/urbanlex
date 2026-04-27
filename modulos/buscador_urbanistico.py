@@ -1618,8 +1618,13 @@ def _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, an
                 _browser.close()
             if _res_nav and _res_nav.get("encontrada") and _res_nav.get("url"):
                 _url_enc = _res_nav["url"]
-                logs.append({"nivel": "ok", "msg": f"  [Fallback1] Encontrada: {_url_enc[:80]}"})
-                return {"tipo": tipo, "numero": numero, "ano": ano, "link": _url_enc, "pdf_path": _res_nav.get("pdf_path", ""), "html": _res_nav.get("html", ""), "_fonte": "fallback1"}
+                _html_enc = _res_nav.get("html", "")
+                _pdf_enc = _res_nav.get("pdf_path", "")
+                if not _html_enc and not _pdf_enc:
+                    logs.append({"nivel": "aviso", "msg": f"  [Fallback1] URL {_i+1} marcada como encontrada mas sem conteudo — ignorando"})
+                else:
+                    logs.append({"nivel": "ok", "msg": f"  [Fallback1] Encontrada: {_url_enc[:80]}"})
+                    return {"tipo": tipo, "numero": numero, "ano": ano, "link": _url_enc, "pdf_path": _pdf_enc, "html": _html_enc, "_fonte": "fallback1"}
             else:
                 logs.append({"nivel": "info", "msg": f"  [Fallback1] URL {_i+1} nao encontrou em 8 passos"})
         except Exception as _en:
