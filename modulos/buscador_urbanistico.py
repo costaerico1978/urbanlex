@@ -32,6 +32,9 @@ def _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta="", stat
 def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallback_url=None, max_legislacoes=None):
     resultado = {"encontradas": [], "nao_encontrada": False}
     _falhas_municipio = 0  # Contador de legislacoes nao encontradas em nenhum fallback
+    _lm_nao_catalogado = False  # Municipio confirmado ausente no LeisMunicipais
+    _lm_ja_verificado = False   # Verificacao de catalogo ja realizada para este municipio
+    _fonte_funcionou = None      # Fonte que encontrou a 1a lei: lm/fallback1/fallback2
     analisadas = set()
     # Resetar contador global de tokens
     try:
@@ -307,10 +310,45 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
             logs.append({"nivel":"info","msg":f"  [FILA] {tipo} {numero}/{ano} nivel={_nivel_leg} limite={_limite_nivel}"})
             _tabela_evento(logs,municipio,estado,tipo,numero,ano,pergunta=leg.get("_pergunta_label",""),status="referenciada",link="")
             continue
-        logs.append({"nivel": "info", "msg": f"Buscando {tipo} n {numero}/{ano} ({descricao}) no LeisMunicipais..."})
         _pergunta_origem = leg.get("_pergunta_label", "")
         _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=_pergunta_origem, status="analisando")
-        enc = _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, modo=leg.get("_modo_verificacao","geral"), fallback_url=fallback_url, _nivel=leg.get("_nivel",1))
+        enc = None
+        if _fonte_funcionou and _fonte_funcionou != "lm":
+            # Ja sabemos qual fonte funciona — ir direto sem tentar LM
+            logs.append({"nivel": "info", "msg": f"  [{_fonte_funcionou.upper()}] Fonte conhecida para {municipio} — buscando {tipo} {numero}/{ano} diretamente..."})
+            if _fonte_funcionou == "fallback1":
+                enc = _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
+                if enc: enc["_fonte"] = "fallback1"
+            elif _fonte_funcionou == "fallback2":
+                enc = _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
+                if enc: enc["_fonte"] = "fallback2"
+        elif _lm_nao_catalogado:
+            # Municipio nao catalogado no LM — tentar fallbacks diretamente
+            logs.append({"nivel": "info", "msg": f"  {municipio} nao catalogado no LM — tentando fallbacks para {tipo} {numero}/{ano}..."})
+            enc = _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
+            if enc:
+                enc["_fonte"] = "fallback1"
+                if not _fonte_funcionou: _fonte_funcionou = "fallback1"
+            if not enc:
+                enc = _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
+                if enc:
+                    enc["_fonte"] = "fallback2"
+                    if not _fonte_funcionou: _fonte_funcionou = "fallback2"
+        else:
+            logs.append({"nivel": "info", "msg": f"Buscando {tipo} n {numero}/{ano} ({descricao}) no LeisMunicipais..."})
+            enc = _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, modo=leg.get("_modo_verificacao","geral"), fallback_url=fallback_url, _nivel=leg.get("_nivel",1))
+            if enc:
+                if not _fonte_funcionou:
+                    _fonte_funcionou = enc.get("_fonte", "lm")
+            else:
+                if not _lm_ja_verificado:
+                    _lm_ja_verificado = True
+                    _catalogado = _verificar_catalogado_lm(municipio, estado, logs, chamar_llm)
+                    if not _catalogado:
+                        _lm_nao_catalogado = True
+                        logs.append({"nivel": "aviso", "msg": f"  {municipio}/{estado} NAO catalogado no LeisMunicipais — proximas leis usarao fallbacks diretamente"})
+        if enc and not _fonte_funcionou:
+            _fonte_funcionou = enc.get("_fonte", "lm") if isinstance(enc, dict) else "lm"
         if not enc:
             _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=_pergunta_origem, status="nao_encontrada")
             _falhas_municipio += 1
@@ -1310,6 +1348,38 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
         logs.append({"nivel": "aviso", "msg": f"  Erro busca palavra-chave LM: {str(e)[:80]}"})
     return None
 
+def _verificar_catalogado_lm(municipio, estado, logs, chamar_llm):
+    """Verifica se municipio esta catalogado no LeisMunicipais via FlareSolverr direto (sem Playwright)."""
+    import unicodedata, re as _re2
+    def _slug(s):
+        s = unicodedata.normalize('NFD', s.lower())
+        s = ''.join(ch for ch in s if unicodedata.category(ch) != 'Mn')
+        return _re2.sub(r'[^a-z0-9]+', '-', s).strip('-')
+    try:
+        import requests as _req2, os as _os2
+        _session = _os2.environ.get('FLARESOLVERR_SESSION', '')
+        _url = f"https://leismunicipais.com.br/prefeitura/{estado.lower()}/{_slug(municipio)}"
+        _payload = {'cmd': 'request.get', 'url': _url, 'maxTimeout': 20000}
+        if _session:
+            _payload['session'] = _session
+        logs.append({'nivel': 'info', 'msg': f'  [VERIF-LM] Checando catalogo: {_url}'})
+        _r = _req2.post('http://localhost:8191/v1', json=_payload, timeout=25)
+        if _r.status_code == 200:
+            _sol = _r.json().get('solution', {})
+            _html = _sol.get('response', '')
+            _status = _sol.get('status', 200)
+            # Catalogado = pagina retornou conteudo valido (nao 404, tem conteudo relevante)
+            _catalogado = (_status == 200
+                and len(_html) > 3000
+                and 'leismunicipais' in _html.lower()
+                and 'page not found' not in _html.lower()
+                and 'nao encontrada' not in _html[:500].lower())
+            logs.append({'nivel': 'info', 'msg': f'  [VERIF-LM] {municipio}/{estado}: {"CATALOGADO" if _catalogado else "NAO catalogado"} (html={len(_html)} status={_status})'})
+            return _catalogado
+    except Exception as _ev:
+        logs.append({'nivel': 'aviso', 'msg': f'  [VERIF-LM] Erro: {str(_ev)[:60]} — assumindo catalogado'})
+    return True  # conservador: em caso de erro assume catalogado
+
 def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, modo="geral", fallback_url=None, _nivel=1):
     _fb_url_local = fallback_url
     try:
@@ -1411,7 +1481,7 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
                 except Exception as _ewp:
                     logs.append({'nivel': 'aviso', 'msg': f'  PDF wkhtmltopdf falhou: {str(_ewp)[:60]}'})
             _anexos = fs_result.get("anexos_lm") or []
-            return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc, "pdf_path": _pdf, "html": html_lei if "html_lei" in dir() else "", "anexos_lm": _anexos, "_leis_referenciadas": _leis_ref if "_leis_ref" in dir() else [], "ementa": _ementa_verif if "_ementa_verif" in dir() else (_ementa_lei if "_ementa_lei" in dir() else "")}
+            return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc, "pdf_path": _pdf, "html": html_lei if "html_lei" in dir() else "", "anexos_lm": _anexos, "_leis_referenciadas": _leis_ref if "_leis_ref" in dir() else [], "ementa": _ementa_verif if "_ementa_verif" in dir() else (_ementa_lei if "_ementa_lei" in dir() else ""), "_fonte": "lm"}
         logs.append({"nivel": "aviso", "msg": f"  {tipo} {numero}/{ano} nao encontrada no LeisMunicipais — tentando 1º fallback..."})
         if _fb_url_local:
             logs.append({"nivel": "info", "msg": f"  [FallbackP] Tentando fonte prioritaria: {_fb_url_local[:80]}"})
@@ -1427,9 +1497,13 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
                 logs.append({"nivel": "aviso", "msg": f"  [FallbackP] Erro: {str(_efp)[:60]}"})
         enc = _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
         if enc:
+            enc["_fonte"] = "fallback1"
             return enc
         logs.append({"nivel": "aviso", "msg": f"  1º fallback falhou — tentando 2º fallback (portal câmara/prefeitura)..."})
-        return _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
+        _r2 = _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
+        if _r2:
+            _r2["_fonte"] = "fallback2"
+        return _r2
     except Exception as e:
         logs.append({"nivel": "aviso", "msg": f"  Erro LeisMunicipais: {str(e)[:80]}"})
     return None
