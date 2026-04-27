@@ -1509,7 +1509,7 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
     return None
 
 def _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas):
-    """Fallback1: Google query formal, Gemini rankeia snippets, navega top 3 URLs com max 8 passos cada."""
+    """Fallback1: Google query formal, Gemini rankeia snippets, navega top 3 URLs com Playwright max 8 passos."""
     import urllib.parse as _upl, re as _re, requests as _req
     from bs4 import BeautifulSoup as _bs
     IGNORAR = [
@@ -1600,17 +1600,22 @@ def _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, an
         return None
     _urls_aprovadas = _urls_aprovadas[:3]
     logs.append({"nivel": "info", "msg": f"  [Fallback1] {len(_urls_aprovadas)} URL(s) para navegar"})
-    try:
-        from modulos.navegador_universal import navegar_como_humano as _nav_humano
-    except Exception as _ei:
-        logs.append({"nivel": "aviso", "msg": f"  [Fallback1] Erro importando navegar_como_humano: {str(_ei)[:60]}"})
-        return None
+    from modulos.navegador_universal import navegar_como_humano as _nav_humano
+    from playwright.sync_api import sync_playwright as _swp
     _leg_dict = {"tipo": tipo, "numero": numero, "ano": ano, "municipio": municipio, "estado": estado, "data_publicacao": "", "assunto": ""}
     for _i, _url in enumerate(_urls_aprovadas):
         logs.append({"nivel": "info", "msg": f"  [Fallback1] Navegando {_i+1}/{len(_urls_aprovadas)}: {_url[:80]}"})
         analisadas.add(_url.lower())
         try:
-            _res_nav = _nav_humano(url_inicial=_url, legislacao=_leg_dict, logs=logs, chamar_llm=chamar_llm, label=f"FB1-{_i+1}", max_passos=8)
+            with _swp() as _pw:
+                _browser = _pw.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+                _ctx = _browser.new_context(viewport={"width": 1280, "height": 800},
+                    user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36")
+                _page = _ctx.new_page()
+                _page.goto(_url, timeout=30000, wait_until="domcontentloaded")
+                _page.wait_for_timeout(2000)
+                _res_nav = _nav_humano(_page, None, _leg_dict, chamar_llm, logs, label=f"FB1-{_i+1}", max_passos=8)
+                _browser.close()
             if _res_nav and _res_nav.get("encontrada") and _res_nav.get("url"):
                 _url_enc = _res_nav["url"]
                 logs.append({"nivel": "ok", "msg": f"  [Fallback1] Encontrada: {_url_enc[:80]}"})
