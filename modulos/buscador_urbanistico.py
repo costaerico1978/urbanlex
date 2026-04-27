@@ -113,30 +113,50 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                 _legs = _json.loads(resp_c).get("legislacoes", [])
                 logs.append({"nivel": "ok", "msg": f"IA identificou {len(_legs)} legislacao(oes)"})
         except Exception as e:
-            logs.append({"nivel": "aviso", "msg": f"Gemini falhou: {str(e)[:100]} — usando DDG"})
+            logs.append({"nivel": "aviso", "msg": f"Gemini falhou: {str(e)[:100]} — usando Google CSE"})
             try:
-                from modulos.buscador_legislacoes import _pesquisar_web
-                resultados_ddg = _pesquisar_web(pergunta, logs, "DDG", max_results=5)
-                conteudo_ddg = ""
+                import requests as _req_cse, os as _os_cse
+                _cse_key = _os_cse.environ.get("GOOGLE_CSE_KEY", "")
+                _cse_cx = _os_cse.environ.get("GOOGLE_CSE_CX", "")
+                _resultados_cse = []
+                if _cse_key and _cse_cx:
+                    _cse_url = f"https://www.googleapis.com/customsearch/v1?key={_cse_key}&cx={_cse_cx}&q={_req_cse.utils.quote(pergunta)}&num=5&lr=lang_pt"
+                    _cse_resp = _req_cse.get(_cse_url, timeout=10)
+                    if _cse_resp.status_code == 200:
+                        _cse_data = _cse_resp.json()
+                        for _item in _cse_data.get("items", []):
+                            _resultados_cse.append({
+                                "title": _item.get("title", ""),
+                                "url": _item.get("link", ""),
+                                "body": _item.get("snippet", "")
+                            })
+                        logs.append({"nivel": "ok", "msg": f"Google CSE: {len(_resultados_cse)} resultado(s) encontrados"})
+                    else:
+                        logs.append({"nivel": "aviso", "msg": f"Google CSE erro: {_cse_resp.status_code}"})
+                if not _resultados_cse:
+                    from modulos.buscador_legislacoes import _pesquisar_web
+                    _resultados_cse = _pesquisar_web(pergunta, logs, "DDG", max_results=5) or []
+                    logs.append({"nivel": "info", "msg": f"Fallback DDG: {len(_resultados_cse)} resultado(s)"})
+                conteudo_cse = ""
                 _mun_norm = municipio.lower().replace(" ","")
-                for res in (resultados_ddg or []):
+                for res in _resultados_cse:
                     _title = res.get("title","")
                     _url = res.get("url","").lower()
                     _check = (_title + " " + _url).lower().replace("-"," ").replace("_"," ")
                     if _mun_norm not in _check.replace(" ","") and municipio.lower() not in _check:
-                        logs.append({"nivel": "info", "msg": f"  [DDG] Ignorando resultado de outro municipio: {_title[:50]}"})
+                        logs.append({"nivel": "info", "msg": f"  [CSE] Ignorando resultado de outro municipio: {_title[:50]}"})
                         continue
-                    conteudo_ddg += f"{_title}\n{res.get('body','')}\n\n"
-                if conteudo_ddg:
-                    prompt_ddg = (
+                    conteudo_cse += f"{_title}\n{res.get('body','')}\n\n"
+                if conteudo_cse:
+                    prompt_cse = (
                         f"Identifique legislacoes de {municipio}/{estado} nos resultados.\n"
-                        f"Nao invente numeros.\n\nRESULTADOS:\n{conteudo_ddg[:3000]}\n\n"
+                        f"Nao invente numeros.\n\nRESULTADOS:\n{conteudo_cse[:3000]}\n\n"
                         "Responda APENAS com JSON: {\"legislacoes\": [{\"tipo\": \"\", \"numero\": \"\", \"ano\": \"\", \"descricao\": \"\"}]}"
                     )
-                    resp_ddg = chamar_llm(prompt_ddg, logs, "IA DDG")
-                    if resp_ddg:
+                    resp_cse = chamar_llm(prompt_cse, logs, "IA CSE")
+                    if resp_cse:
                         import re as _re2
-                        resp_c2 = _re2.sub(r"^```json\s*|\s*```$", "", (resp_ddg or "").strip())
+                        resp_c2 = _re2.sub(r"^```json\s*|\s*```$", "", (resp_cse or "").strip())
                         _legs = _json.loads(resp_c2).get("legislacoes", [])
             except Exception as e2:
                 logs.append({"nivel": "aviso", "msg": f"DDG falhou: {str(e2)[:60]}"})
