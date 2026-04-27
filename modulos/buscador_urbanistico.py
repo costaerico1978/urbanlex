@@ -1509,130 +1509,118 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
     return None
 
 def _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas):
-    """1º Fallback: busca via Google com query formal, avalia snippets, tenta até 5 resultados."""
-    import urllib.parse, re as _re
+    """Fallback1: Google query formal, Gemini rankeia snippets, navega top 3 URLs com max 8 passos cada."""
+    import urllib.parse as _upl, re as _re, requests as _req
     from bs4 import BeautifulSoup as _bs
-
-    # Montar query formal dependendo do tipo
-    _tipo_lower = tipo.lower()
-    _eh_decreto = 'decreto' in _tipo_lower
-    _tipo_label = tipo  # ex: "Decreto", "Lei Complementar", "Lei"
-
-    if _eh_decreto:
-        query_str = f'"{_tipo_label} Nº {numero}" prefeitura {municipio} {estado} {ano}'
-    else:
-        query_str = f'"{_tipo_label} Nº {numero}" {municipio} {estado} {ano}'
-
-    logs.append({"nivel": "info", "msg": f"  [Fallback1] Query: {query_str}"})
-
-    headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"}
-    IGNORAR = ["leismunicipais.com.br", "legisweb.com.br", "jusbrasil.com",
-               "facebook.com", "twitter.com", "instagram.com", "youtube.com",
-               "wikipedia.org", "tiktok.com", "google.com", "bing.com"]
-
+    IGNORAR = [
+        "leismunicipais.com.br", "legisweb.com.br", "jusbrasil.com",
+        "facebook.com", "twitter.com", "instagram.com", "youtube.com",
+        "wikipedia.org", "tiktok.com", "google.com", "bing.com",
+        "escavador.com", "direitocom.com", "qconcursos.com",
+        "portaldatransparencia.gov.br", "lexml.gov.br"
+    ]
+    query_str = f"Consulta Legislacao Prefeitura {municipio} {estado}"
+    logs.append({"nivel": "info", "msg": f"  [Fallback1] Query Google: {query_str}"})
+    _html_google = ""
     try:
-        url_g = f"https://www.google.com/search?q={urllib.parse.quote_plus(query_str)}&num=10&hl=pt-BR"
-        # Usar FlareSolverr para contornar bloqueio do Google
+        url_g = f"https://www.google.com/search?q={_upl.quote_plus(query_str)}&num=10&hl=pt-BR"
+        _fs_resp = _req.post("http://localhost:8191/v1",
+            json={"cmd": "request.get", "url": url_g, "maxTimeout": 30000}, timeout=35)
+        _html_google = _fs_resp.json().get("solution", {}).get("response", "")
+    except Exception as _eg:
+        logs.append({"nivel": "aviso", "msg": f"  [Fallback1] FlareSolverr Google falhou: {str(_eg)[:60]}"})
+    if not _html_google:
+        logs.append({"nivel": "aviso", "msg": "  [Fallback1] Sem resultado do Google"})
+        return None
+    _soup_g = _bs(_html_google, "html.parser")
+    _resultados_raw = []
+    _vistos = set()
+    for _div in _soup_g.find_all("div"):
+        _a = _div.find("a", href=True)
+        if not _a: continue
+        _url = _a["href"]
+        if not _url.startswith("http"): continue
+        if any(ig in _url for ig in IGNORAR): continue
+        if _url in _vistos: continue
+        _vistos.add(_url)
+        _titulo_el = _div.find("h3")
+        _titulo = _titulo_el.get_text(strip=True)[:150] if _titulo_el else _url
+        _snippet = _div.get_text(" ", strip=True)[:300]
+        _resultados_raw.append({"url": _url, "titulo": _titulo, "snippet": _snippet})
+        if len(_resultados_raw) >= 5: break
+    if not _resultados_raw:
+        _links = _re.findall(r'href="(https?://(?!www\.google)[^"&]{20,})"', _html_google)
+        for _url in _links:
+            if any(ig in _url for ig in IGNORAR): continue
+            if _url in _vistos: continue
+            _vistos.add(_url)
+            _resultados_raw.append({"url": _url, "titulo": _url, "snippet": ""})
+            if len(_resultados_raw) >= 5: break
+    if not _resultados_raw:
+        logs.append({"nivel": "aviso", "msg": "  [Fallback1] Nenhum resultado extraido do Google"})
+        return None
+    logs.append({"nivel": "info", "msg": f"  [Fallback1] {len(_resultados_raw)} resultados extraidos"})
+    _linhas = []
+    for i, r in enumerate(_resultados_raw):
+        _linhas.append(f"{i+1}. TITULO: {r['titulo']}\n   URL: {r['url']}\n   SNIPPET: {r['snippet']}")
+    _lista_para_gemini = "\n".join(_linhas)
+    _prompt_rank = (
+        f"Voce esta buscando a {tipo} {numero}/{ano} do municipio de {municipio}/{estado}.\n"
+        f"Abaixo estao resultados do Google para 'Consulta Legislacao Prefeitura {municipio} {estado}'.\n"
+        "Avalie cada resultado e decida:\n"
+        "- TENTAR: site de camara municipal, prefeitura, portal de legislacao do municipio correto\n"
+        "- IGNORAR: redes sociais, outros municipios, concursos, noticias, sites genericos\n\n"
+        f"RESULTADOS:\n{_lista_para_gemini}\n\n"
+        "Responda APENAS com JSON:\n"
+        "{\"ranking\": [{\"indice\": 1, \"decisao\": \"TENTAR\"|\"IGNORAR\", \"motivo\": \"...\"}]}"
+    )
+    _urls_aprovadas = []
+    try:
+        _resp_rank = chamar_llm(_prompt_rank, logs, "fallback1_rank_snippets")
+        if _resp_rank:
+            import json as _json2, re as _re3
+            _resp_clean = _re3.sub(r"^```json\s*|\s*```$", "", (_resp_rank or "").strip())
+            _dados_rank = _json2.loads(_resp_clean)
+            for item in _dados_rank.get("ranking", []):
+                _idx = item.get("indice", 0) - 1
+                _decisao = item.get("decisao", "IGNORAR")
+                _motivo = item.get("motivo", "")
+                if 0 <= _idx < len(_resultados_raw):
+                    _url_item = _resultados_raw[_idx]["url"]
+                    if _decisao == "TENTAR" and _url_item.lower() not in analisadas:
+                        _urls_aprovadas.append(_url_item)
+                        logs.append({"nivel": "info", "msg": f"  [Fallback1] TENTAR: {_url_item[:70]} — {_motivo[:60]}"})
+                    else:
+                        logs.append({"nivel": "info", "msg": f"  [Fallback1] IGNORAR: {_url_item[:70]} — {_motivo[:60]}"})
+    except Exception as _er:
+        logs.append({"nivel": "aviso", "msg": f"  [Fallback1] Ranking falhou: {str(_er)[:60]} — usando todos"})
+        _urls_aprovadas = [r["url"] for r in _resultados_raw if r["url"].lower() not in analisadas]
+    if not _urls_aprovadas:
+        logs.append({"nivel": "aviso", "msg": "  [Fallback1] Nenhuma URL aprovada pelo Gemini"})
+        return None
+    _urls_aprovadas = _urls_aprovadas[:3]
+    logs.append({"nivel": "info", "msg": f"  [Fallback1] {len(_urls_aprovadas)} URL(s) para navegar"})
+    try:
+        from modulos.navegador_universal import navegar_como_humano as _nav_humano
+    except Exception as _ei:
+        logs.append({"nivel": "aviso", "msg": f"  [Fallback1] Erro importando navegar_como_humano: {str(_ei)[:60]}"})
+        return None
+    _leg_dict = {"tipo": tipo, "numero": numero, "ano": ano, "municipio": municipio, "estado": estado, "data_publicacao": "", "assunto": ""}
+    for _i, _url in enumerate(_urls_aprovadas):
+        logs.append({"nivel": "info", "msg": f"  [Fallback1] Navegando {_i+1}/{len(_urls_aprovadas)}: {_url[:80]}"})
+        analisadas.add(_url.lower())
         try:
-            _fs_resp = requests.post('http://localhost:8191/v1',
-                json={"cmd":"request.get","url":url_g,"maxTimeout":30000}, timeout=35)
-            _fs_data = _fs_resp.json()
-            _html_google = _fs_data.get('solution',{}).get('response','')
-        except Exception:
-            _html_google = ''
-        if not _html_google:
-            try:
-                r = requests.get(url_g, headers=headers, timeout=15)
-                _html_google = r.text
-            except Exception:
-                _html_google = ''
-        # Extrair resultados com snippet (título + URL + descrição)
-        import re as _re2
-        # Extrair links via regex (mais robusto que BeautifulSoup para HTML moderno do Google)
-        _links_raw = _re2.findall(r'href="(https?://(?!www\.google)[^"&]{20,})"', _html_google)
-        resultados = []
-        _vistos = set()
-        for url in _links_raw:
-            if any(ig in url for ig in IGNORAR): continue
-            if url in _vistos: continue
-            _vistos.add(url)
-            resultados.append({"url": url, "snippet": url})
-            if len(resultados) >= 10: break
-
-        if not resultados:
-            logs.append({"nivel": "aviso", "msg": "  [Fallback1] Google não retornou resultados úteis"})
-            return None
-
-        # Avaliar snippets antes de visitar
-        for i, res in enumerate(resultados):
-            url = res["url"]
-            snippet = res["snippet"]
-
-            if url.lower() in analisadas:
-                continue
-
-            # Avaliação rápida do snippet — vale a pena visitar?
-            snippet_lower = snippet.lower()
-            # Se snippet é a própria URL, não filtrar por conteúdo
-            _snippet_is_url = snippet.startswith('http')
-            tipo_ok = _snippet_is_url or any(t in snippet_lower for t in [tipo.lower(), numero, ano, municipio.lower()])
-            if not tipo_ok:
-                logs.append({"nivel": "info", "msg": f"  [Fallback1] Resultado {i+1} ignorado pelo snippet: {snippet[:80]}"})
-                continue
-
-            analisadas.add(url.lower())
-            logs.append({"nivel": "info", "msg": f"  [Fallback1] Tentando resultado {i+1}: {url[:80]}"})
-
-            try:
-                r2 = requests.get(url, headers=headers, timeout=15)
-                if r2.status_code != 200:
-                    continue
-                texto = _bs(r2.text, "html.parser").get_text()[:3000]
-                # Validar com Gemini se é a legislação correta
-                if chamar_llm:
-                    _prompt_val = f"Analise o texto e responda apenas SIM ou NAO: este texto contém a {tipo} nº {numero}/{ano} do município de {municipio}/{estado}?\n\nTEXTO:\n{texto[:2000]}\n\nResponda apenas: SIM ou NAO"
-                    try:
-                        _resp_val = chamar_llm(_prompt_val, logs, "validar_fallback1")
-                        _eh_correto = "SIM" in (_resp_val or "").upper()
-                    except:
-                        _eh_correto = False
-                    if _resp_val is None or not _eh_correto:
-                        _tl = texto.lower()
-                        _eh_correto = (numero in _tl and tipo.lower() in _tl
-                                      and municipio.lower() in _tl and ano in _tl)
-                else:
-                    texto_lower = texto.lower()
-                    _eh_correto = (numero in texto_lower and tipo.lower() in texto_lower
-                                   and municipio.lower() in texto_lower and ano in texto_lower)
-                if _eh_correto:
-                    logs.append({"nivel": "ok", "msg": f"  [Fallback1] Legislação encontrada: {url[:80]}"})
-
-                    # Tentar baixar PDF se houver link
-                    pdf_url = None
-                    soup2 = _bs(r2.text, "html.parser")
-                    for a in soup2.find_all("a", href=True):
-                        href = a["href"]
-                        if href.lower().endswith(".pdf"):
-                            pdf_url = href if href.startswith("http") else urllib.parse.urljoin(url, href)
-                            break
-
-                    resultado = {"tipo": tipo, "numero": numero, "ano": ano, "link": url}
-                    if pdf_url:
-                        resultado["pdf_url"] = pdf_url
-                        logs.append({"nivel": "info", "msg": f"  [Fallback1] PDF encontrado: {pdf_url[:80]}"})
-                    return resultado
-                else:
-                    logs.append({"nivel": "info", "msg": f"  [Fallback1] Resultado {i+1} não contém a legislação esperada"})
-
-            except Exception as e2:
-                logs.append({"nivel": "aviso", "msg": f"  [Fallback1] Erro ao acessar resultado {i+1}: {str(e2)[:60]}"})
-
-    except Exception as e:
-        logs.append({"nivel": "aviso", "msg": f"  [Fallback1] Erro na busca Google: {str(e)[:80]}"})
-
-    logs.append({"nivel": "aviso", "msg": f"  [Fallback1] {tipo} {numero}/{ano} não encontrada nos 5 primeiros resultados"})
+            _res_nav = _nav_humano(url_inicial=_url, legislacao=_leg_dict, logs=logs, chamar_llm=chamar_llm, label=f"FB1-{_i+1}", max_passos=8)
+            if _res_nav and _res_nav.get("encontrada") and _res_nav.get("url"):
+                _url_enc = _res_nav["url"]
+                logs.append({"nivel": "ok", "msg": f"  [Fallback1] Encontrada: {_url_enc[:80]}"})
+                return {"tipo": tipo, "numero": numero, "ano": ano, "link": _url_enc, "pdf_path": _res_nav.get("pdf_path", ""), "html": _res_nav.get("html", ""), "_fonte": "fallback1"}
+            else:
+                logs.append({"nivel": "info", "msg": f"  [Fallback1] URL {_i+1} nao encontrou em 8 passos"})
+        except Exception as _en:
+            logs.append({"nivel": "aviso", "msg": f"  [Fallback1] Erro navegando URL {_i+1}: {str(_en)[:80]}"})
+    logs.append({"nivel": "aviso", "msg": f"  [Fallback1] {tipo} {numero}/{ano} nao encontrada nas URLs aprovadas"})
     return None
-
 
 def _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas):
     """2º Fallback: encontra portal legislativo da câmara/prefeitura e busca a lei lá."""
