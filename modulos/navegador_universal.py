@@ -4361,7 +4361,31 @@ def navegar_como_humano(
                         })
                         continue  # Continuar navegação na nova página
                     except Exception:
-                        # Navegação falhou — href pode ser bloqueado — sair do loop com URL capturada
+                        # Navegação falhou — href pode ser bloqueado (ex: Dropbox, Drive)
+                        # 1. Capturar HTML da pagina atual (pode ter o conteudo da lei)
+                        try:
+                            _html_atual_blk = pagina_ativa.content()
+                            if _html_atual_blk and len(_html_atual_blk) > 500:
+                                resultado['html'] = _html_atual_blk
+                                logs.append({'nivel': 'info', 'msg': f'{label}: 📄 HTML da pagina capturado antes do href bloqueado ({len(_html_atual_blk)} chars)'})
+                        except Exception:
+                            pass
+                        # 2. Tentar baixar o PDF externo via requests
+                        try:
+                            import requests as _req_ext
+                            _r_ext = _req_ext.get(href_url, timeout=20, stream=True, headers={'User-Agent': 'Mozilla/5.0'})
+                            if _r_ext.status_code == 200 and 'pdf' in _r_ext.headers.get('content-type','').lower():
+                                import tempfile as _tf_ext, os as _os_ext
+                                _slug_ext = _ref.sub(r'[^a-zA-Z0-9_]', '_', f"{legislacao.get('municipio','')[:20]}_{legislacao.get('tipo','')[:10]}_{legislacao.get('numero','')}")[:60]
+                                _pdf_ext = f'/var/www/urbanlex/static/downloads/{_slug_ext}_ext.pdf'
+                                with open(_pdf_ext, 'wb') as _f_ext:
+                                    for _chunk in _r_ext.iter_content(8192):
+                                        _f_ext.write(_chunk)
+                                if _os_ext.path.exists(_pdf_ext) and _os_ext.path.getsize(_pdf_ext) > 1000:
+                                    resultado['pdf_path'] = _pdf_ext
+                                    logs.append({'nivel': 'ok', 'msg': f'{label}: ✅ PDF externo baixado: {_os_ext.path.basename(_pdf_ext)} ({_os_ext.path.getsize(_pdf_ext)//1024}KB)'})
+                        except Exception as _e_ext:
+                            logs.append({'nivel': 'info', 'msg': f'{label}: PDF externo nao baixado: {str(_e_ext)[:60]}'})
                         logs.append({'nivel': 'info', 'msg': f'{label}: ⚠️ Navegação para href bloqueada — encerrando com URL capturada'})
                         resultado['encontrada'] = True
                         resultado['confirmacao'] = 'URL capturada antes do browser fechar'
