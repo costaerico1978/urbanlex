@@ -184,6 +184,8 @@ de clicar no botao de download.
     - Se o elemento nao tem texto (icone puro), descreva: "icone coluna Arquivo linha 1"
 
 15. CLICAR POR COORDENADA: Para imagens, icones, banners ou qualquer elemento sem texto visivel, use SEMPRE "clicar_coordenada" ANTES de tentar "clicar". Estime a posicao x,y do centro do elemento no screenshot (resolucao 1280x800). NAO tente "clicar" com texto descritivo em elementos graficos — va direto para "clicar_coordenada". Exemplo: imagem de martelo no centro da pagina seria x=640, y=350.
+20. RADIO BUTTONS E CHECKBOXES: Nunca use acao "clicar" com texto_elemento para selecionar radio buttons ou checkboxes. Use SEMPRE "clicar_coordenada" com as coordenadas visuais do circulo/quadrado na screenshot. Se a pagina tem lista de tipos de ato como radio buttons (ex: "Decretos Municipais", "Leis Ordinarias"), use clicar_coordenada no circulo ao lado do label desejado, nao no texto.
+
 15b. IMAGENS CLICAVEIS: Se a pagina parecer "vazia" ou sem lista de leis, mas tiver uma imagem ou icone proeminente (ex: martelo, livro, escudo, bandeira), TENTE CLICAR nessa imagem — ela pode ser um link para o sistema legislativo. Use acao "clicar" com o texto alternativo da imagem ou descricao visual dela.
 17. DIARIO OFICIAL: Se chegar em uma pagina de busca de Diario Oficial com campos como "Texto", "Ano", "Data Inicial", "Data Final":
    (a) Use o campo "Texto" para digitar o tipo e numero da lei (ex: "Lei Complementar 41").
@@ -3755,12 +3757,62 @@ def navegar_como_humano(
                     _img_links_txt += "INSTRUCAO: Se algum destes links for relevante, use acao 'clicar' com texto_elemento igual ao href completo (ex: https://bananal.cespro.com.br/).\n"
             except Exception:
                 pass
+            # 2b. Extrair elementos de formulario do HTML
+            _form_txt = ""
+            try:
+                import re as _ref
+                _html_f = pagina_ativa.content()
+                _fitems = []
+                _dq = '"'
+                _sq = "'"
+                _pat_input = r"<input[^>]+>"
+                _pat_type = r"type=[" + _dq + _sq + r"](\w+)[" + _dq + _sq + r"]"
+                _pat_name = r"name=[" + _dq + _sq + r"]([^" + _dq + _sq + r"]+)[" + _dq + _sq + r"]"
+                _pat_value = r"value=[" + _dq + _sq + r"]([^" + _dq + _sq + r"]+)[" + _dq + _sq + r"]"
+                _pat_id = r"id=[" + _dq + _sq + r"]([^" + _dq + _sq + r"]+)[" + _dq + _sq + r"]"
+                for _m in _ref.finditer(_pat_input, _html_f, _ref.IGNORECASE):
+                    _tag = _m.group(0)
+                    _tpm = _ref.search(_pat_type, _tag, _ref.IGNORECASE)
+                    if not _tpm or _tpm.group(1).lower() not in ("radio", "checkbox"):
+                        continue
+                    _nm = _ref.search(_pat_name, _tag, _ref.IGNORECASE)
+                    _vm = _ref.search(_pat_value, _tag, _ref.IGNORECASE)
+                    _im = _ref.search(_pat_id, _tag, _ref.IGNORECASE)
+                    _tp = _tpm.group(1)
+                    _nv = _nm.group(1) if _nm else ""
+                    _vv = _vm.group(1) if _vm else ""
+                    _iv = _im.group(1) if _im else ""
+                    _lv = ""
+                    if _iv:
+                        _pat_label = r"<label[^>]+for=[" + _dq + _sq + r"]" + _ref.escape(_iv) + r"[" + _dq + _sq + r"][^>]*>(.*?)</label>"
+                        _lmatch = _ref.search(_pat_label, _html_f, _ref.IGNORECASE | _ref.DOTALL)
+                        if _lmatch:
+                            _lv = _ref.sub(r"<[^>]+>", "", _lmatch.group(1)).strip()
+                    if not _lv:
+                        _lv = _vv
+                    _ck = "checked" in _tag.lower()
+                    _fitems.append("  " + _tp.upper() + " label=" + _dq + _lv + _dq + " value=" + _dq + _vv + _dq + " name=" + _dq + _nv + _dq + " checked=" + str(_ck))
+                _pat_select = r"<select[^>]*name=[" + _dq + _sq + r"]([^" + _dq + _sq + r"]+)[" + _dq + _sq + r"][^>]*>(.*?)</select>"
+                _pat_option = r"<option[^>]*value=[" + _dq + _sq + r"]([^" + _dq + _sq + r"]*)[" + _dq + _sq + r"][^>]*>(.*?)</option>"
+                for _ms in _ref.finditer(_pat_select, _html_f, _ref.IGNORECASE | _ref.DOTALL):
+                    _sn = _ms.group(1)
+                    _ops = _ref.findall(_pat_option, _ms.group(2), _ref.IGNORECASE | _ref.DOTALL)
+                    _otxt = ", ".join([_dq + _ref.sub(r"<[^>]+>", "", _o[1]).strip() + _dq for _o in _ops[:8]])
+                    _fitems.append("  SELECT name=" + _dq + _sn + _dq + " opcoes=[" + _otxt + "]")
+                if _fitems:
+                    _form_txt = "\n\n📋 ELEMENTOS DE FORMULARIO NO HTML (radio/checkbox/select):\n"
+                    _form_txt += "\n".join(_fitems[:20])
+                    _form_txt += "\nINSTRUCAO: Para radio/checkbox use clicar_coordenada nas coordenadas visuais — nunca clicar por texto.\n"
+            except Exception:
+                pass
             # 2. Prompt
             prompt = _montar_prompt(legislacao, historico, passo, url_atual)
             if _img_links_txt:
                 prompt = prompt + _img_links_txt
                 try: pagina_ativa._img_links_ctx = _img_links_txt
                 except: pass
+            if _form_txt:
+                prompt = prompt + _form_txt
 
             # 3. Gemini
             resp = _chamar_gemini_visao(prompt, screenshot_b64, logs, f'{label} passo {passo}')

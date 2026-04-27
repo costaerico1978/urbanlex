@@ -318,21 +318,26 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
             logs.append({"nivel": "info", "msg": f"  [{_fonte_funcionou.upper()}] Fonte conhecida para {municipio} — buscando {tipo} {numero}/{ano} diretamente..."})
             if _fonte_funcionou == "fallback1":
                 enc = _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
-                if enc: enc["_fonte"] = "fallback1"
-            elif _fonte_funcionou == "fallback2":
-                enc = _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
-                if enc: enc["_fonte"] = "fallback2"
-        elif _lm_nao_catalogado:
-            # Municipio nao catalogado no LM — tentar fallbacks diretamente
-            logs.append({"nivel": "info", "msg": f"  {municipio} nao catalogado no LM — tentando fallbacks para {tipo} {numero}/{ano}..."})
-            enc = _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
             if enc:
-                enc["_fonte"] = "fallback1"
-                if not _fonte_funcionou: _fonte_funcionou = "fallback1"
-            if not enc:
-                enc = _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
-                if enc:
-                    enc["_fonte"] = "fallback2"
+                # Verificar sentinel de municipio nao catalogado
+                if isinstance(enc, dict) and enc.get("_lm_indisponivel"):
+                    _lm_nao_catalogado = True
+                    _lm_ja_verificado = True
+                    logs.append({"nivel": "aviso", "msg": f"  [FLAG] {municipio}/{estado} marcado como NAO catalogado no LM"})
+                    if enc.get("_nao_encontrada"):
+                        enc = None
+                    else:
+                        if not _fonte_funcionou:
+                            _fonte_funcionou = enc.get("_fonte", "fallback1")
+                elif not _fonte_funcionou:
+                    _fonte_funcionou = enc.get("_fonte", "lm")
+            else:
+                if not _lm_ja_verificado:
+                    _lm_ja_verificado = True
+                    _catalogado = _verificar_catalogado_lm(municipio, estado, logs, chamar_llm)
+                    if not _catalogado:
+                        _lm_nao_catalogado = True
+                        logs.append({"nivel": "aviso", "msg": f"  {municipio}/{estado} NAO catalogado no LeisMunicipais — proximas leis usarao fallbacks diretamente"})
                     if not _fonte_funcionou: _fonte_funcionou = "fallback2"
         else:
             logs.append({"nivel": "info", "msg": f"Buscando {tipo} n {numero}/{ano} ({descricao}) no LeisMunicipais..."})
@@ -1482,6 +1487,28 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
                     logs.append({'nivel': 'aviso', 'msg': f'  PDF wkhtmltopdf falhou: {str(_ewp)[:60]}'})
             _anexos = fs_result.get("anexos_lm") or []
             return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc, "pdf_path": _pdf, "html": html_lei if "html_lei" in dir() else "", "anexos_lm": _anexos, "_leis_referenciadas": _leis_ref if "_leis_ref" in dir() else [], "ementa": _ementa_verif if "_ementa_verif" in dir() else (_ementa_lei if "_ementa_lei" in dir() else ""), "_fonte": "lm"}
+        # Verificar se LM indicou municipio nao catalogado
+        _lm_indisponivel = any(
+            "nao estao disponiveis" in str(lg.get("msg","")).lower() or
+            "nao esta disponivel" in str(lg.get("msg","")).lower() or
+            "nao disponivel" in str(lg.get("msg","")).lower() or
+            "not available" in str(lg.get("msg","")).lower()
+            for lg in logs[-10:]
+        )
+        if _lm_indisponivel:
+            logs.append({"nivel": "aviso", "msg": f"  [LM] Municipio {municipio}/{estado} confirmado NAO catalogado — pulando LM para proximas leis"})
+            # Retornar sentinel para o loop principal setar _lm_nao_catalogado
+            enc_fb1 = _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
+            if enc_fb1:
+                enc_fb1["_lm_indisponivel"] = True
+                return enc_fb1
+            enc_fb2 = _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
+            if enc_fb2:
+                enc_fb2["_lm_indisponivel"] = True
+            else:
+                # Retornar dict vazio com sentinel para o loop setar o flag mesmo sem encontrar
+                return {"_lm_indisponivel": True, "_nao_encontrada": True}
+            return enc_fb2
         logs.append({"nivel": "aviso", "msg": f"  {tipo} {numero}/{ano} nao encontrada no LeisMunicipais — tentando 1º fallback..."})
         if _fb_url_local:
             logs.append({"nivel": "info", "msg": f"  [FallbackP] Tentando fonte prioritaria: {_fb_url_local[:80]}"})
