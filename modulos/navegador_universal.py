@@ -446,6 +446,18 @@ def _clicar_por_texto(page, texto_elemento: str, logs: list, label: str) -> str:
                         page.wait_for_timeout(2000)
                         return f'Navegou via link de imagem: {_href_c[:60]}'
         except Exception: pass
+        # Fallback: verificar se label esta no mapa de coordenadas do formulario
+        try:
+            _fc = getattr(page, '_form_coords_ctx', {})
+            _texto_norm = texto.lower().strip()
+            if _fc and _texto_norm in _fc:
+                _fx, _fy = _fc[_texto_norm]
+                logs.append({'nivel': 'info', 'msg': f'{label}: 🎯 Fallback form_coords: clicar_coordenada ({_fx},{_fy}) para "{texto[:30]}"'})
+                page.mouse.click(_fx, _fy)
+                page.wait_for_timeout(500)
+                return f'Clicou via form_coords ({_fx},{_fy}): "{texto[:20]}"'
+        except Exception:
+            pass
         logs.append({'nivel': 'info', 'msg': f'{label}: ⚠️ "{texto[:30]}" não encontrado'})
         try:
             page.remove_listener('download', _on_download)
@@ -3845,6 +3857,19 @@ def navegar_como_humano(
                 prompt = prompt + _img_links_txt
                 try: pagina_ativa._img_links_ctx = _img_links_txt
                 except: pass
+            # Salvar mapa label->coordenadas para fallback automatico no clicar
+            try:
+                import re as _refc
+                _form_coords = {}
+                for _fi in _fitems:
+                    _lm = _refc.search(r'label="([^"]*)"', _fi)
+                    _xm = _refc.search(r' x=(\d+)', _fi)
+                    _ym = _refc.search(r' y=(\d+)', _fi)
+                    if _lm and _xm and _ym and _lm.group(1):
+                        _form_coords[_lm.group(1).lower()] = (int(_xm.group(1)), int(_ym.group(1)))
+                pagina_ativa._form_coords_ctx = _form_coords
+            except Exception:
+                pass
             if _form_txt:
                 prompt = prompt + _form_txt
 
