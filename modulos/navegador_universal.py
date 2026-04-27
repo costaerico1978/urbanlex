@@ -458,6 +458,32 @@ def _clicar_por_texto(page, texto_elemento: str, logs: list, label: str) -> str:
                 return f'Clicou via form_coords ({_fx},{_fy}): "{texto[:20]}"'
         except Exception:
             pass
+        # Fallback 2: texto com chars especiais — navegar para link detalhe
+        try:
+            _html_fb2 = page.content()
+            import re as _re_fb2
+            _pat_fb2 = r'href=["\']([^"\']*(?:visualizar|diploma|detalhe|detail)[^"\']*)["\' ]'
+            _dlinks = _re_fb2.findall(_pat_fb2, _html_fb2, _re_fb2.IGNORECASE)
+            _tnum = _re_fb2.sub(r'[^0-9]', '', texto)
+            _best = None
+            for _dl in _dlinks:
+                if _tnum and _tnum in _dl:
+                    _best = _dl
+                    break
+            if not _best and _dlinks:
+                _best = _dlinks[0]
+            if _best:
+                if not _best.startswith('http'):
+                    from urllib.parse import urljoin as _uj2
+                    _best = _uj2(page.url, _best)
+                logs.append({'nivel': 'info', 'msg': f'{label}: Fallback link detalhe: {_best[:80]}'})
+                page.goto(_best, timeout=20000, wait_until='domcontentloaded')
+                page.wait_for_timeout(1500)
+                return f'Navegou via link detalhe: {_best[:60]}'
+        except Exception:
+            pass
+        except Exception:
+            pass
         logs.append({'nivel': 'info', 'msg': f'{label}: ⚠️ "{texto[:30]}" não encontrado'})
         try:
             page.remove_listener('download', _on_download)
