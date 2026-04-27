@@ -1501,12 +1501,17 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
             _anexos = fs_result.get("anexos_lm") or []
             return {"tipo": tipo, "numero": numero, "ano": ano, "link": url_enc, "pdf_path": _pdf, "html": html_lei if "html_lei" in dir() else "", "anexos_lm": _anexos, "_leis_referenciadas": _leis_ref if "_leis_ref" in dir() else [], "ementa": _ementa_verif if "_ementa_verif" in dir() else (_ementa_lei if "_ementa_lei" in dir() else ""), "_fonte": "lm"}
         # Verificar se LM indicou municipio nao catalogado
+        def _norm(s):
+            import unicodedata
+            return unicodedata.normalize("NFD", s.lower()).encode("ascii","ignore").decode()
         _lm_indisponivel = any(
-            "nao estao disponiveis" in str(lg.get("msg","")).lower() or
-            "nao esta disponivel" in str(lg.get("msg","")).lower() or
-            "nao disponivel" in str(lg.get("msg","")).lower() or
-            "not available" in str(lg.get("msg","")).lower()
-            for lg in logs[-10:]
+            "nao estao disponiveis" in _norm(str(lg.get("msg",""))) or
+            "nao esta disponivel" in _norm(str(lg.get("msg",""))) or
+            "nao disponivel" in _norm(str(lg.get("msg",""))) or
+            "not available" in _norm(str(lg.get("msg",""))) or
+            "nao estao disponiveis neste portal" in _norm(str(lg.get("msg",""))) or
+            "leis de" in _norm(str(lg.get("msg",""))) and "nao estao disponiveis" in _norm(str(lg.get("msg","")))
+            for lg in logs[-15:]
         )
         if _lm_indisponivel:
             logs.append({"nivel": "aviso", "msg": f"  [LM] Municipio {municipio}/{estado} confirmado NAO catalogado — pulando LM para proximas leis"})
