@@ -65,15 +65,28 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
         try:
             from google import genai as _genai_new
             from google.genai import types as _types_new
-            import os as _os2
+            import os as _os2, time as _t503
             GEMINI_KEY = _os2.environ.get("GEMINI_API_KEY", "")
             client = _genai_new.Client(api_key=GEMINI_KEY)
             google_search_tool = _types_new.Tool(google_search=_types_new.GoogleSearch())
             config = _types_new.GenerateContentConfig(tools=[google_search_tool])
             import concurrent.futures as _cf
-            with _cf.ThreadPoolExecutor() as _ex:
-                _fut = _ex.submit(client.models.generate_content, model="gemini-2.5-flash", contents=pergunta, config=config)
-                response = _fut.result(timeout=60)
+            response = None
+            for _retry in range(3):
+                try:
+                    with _cf.ThreadPoolExecutor() as _ex:
+                        _fut = _ex.submit(client.models.generate_content, model="gemini-2.5-flash", contents=pergunta, config=config)
+                        response = _fut.result(timeout=60)
+                    break
+                except Exception as _e503:
+                    _emsg = str(_e503)
+                    _is_overload = '503' in _emsg or 'overload' in _emsg.lower() or 'unavailable' in _emsg.lower() or 'high demand' in _emsg.lower()
+                    if _is_overload and _retry < 2:
+                        _wait = (_retry + 1) * 15
+                        logs.append({"nivel": "aviso", "msg": f"Gemini 503 — aguardando {_wait}s (retry {_retry+1}/2)..."})
+                        _t503.sleep(_wait)
+                    else:
+                        raise
             # Contar tokens
             if hasattr(response, 'usage_metadata') and response.usage_metadata:
                 _token_stats['input'] += getattr(response.usage_metadata, 'prompt_token_count', 0) or 0
