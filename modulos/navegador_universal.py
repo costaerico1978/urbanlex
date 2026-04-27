@@ -3774,83 +3774,191 @@ def navegar_como_humano(
                     _img_links_txt += "INSTRUCAO: Se algum destes links for relevante, use acao 'clicar' com texto_elemento igual ao href completo (ex: https://bananal.cespro.com.br/).\n"
             except Exception:
                 pass
-            # 2b. Extrair elementos de formulario do HTML com bounding_box via Playwright
+            # 2b. Extrair ESTADO REAL DA PAGINA do HTML
             _form_txt = ""
+            _fitems = []
             try:
                 import re as _ref
                 _html_f = pagina_ativa.content()
-                _fitems = []
                 _dq = '"'
                 _sq = "'"
-                _pat_input = r"<input[^>]+>"
-                _pat_type = r"type=[" + _dq + _sq + r"](\w+)[" + _dq + _sq + r"]"
-                _pat_name = r"name=[" + _dq + _sq + r"]([^" + _dq + _sq + r"]+)[" + _dq + _sq + r"]"
-                _pat_value = r"value=[" + _dq + _sq + r"]([^" + _dq + _sq + r"]+)[" + _dq + _sq + r"]"
-                _pat_id = r"\bid=[" + _dq + _sq + r"]([^" + _dq + _sq + r"]+)[" + _dq + _sq + r"]"
-                for _m in _ref.finditer(_pat_input, _html_f, _ref.IGNORECASE):
+                _estado_itens = []
+
+                # URL e titulo reais
+                _titulo_m = _ref.search(r'<title[^>]*>(.*?)</title>', _html_f, _ref.IGNORECASE | _ref.DOTALL)
+                _titulo_real = _ref.sub(r'<[^>]+>', '', _titulo_m.group(1)).strip()[:80] if _titulo_m else ''
+                _estado_itens.append('URL_ATUAL: ' + pagina_ativa.url)
+                if _titulo_real:
+                    _estado_itens.append('TITULO_PAGINA: ' + _titulo_real)
+
+                # Mensagens de erro/sucesso/aviso visiveis
+                _msg_patterns = [
+                    r'<[^>]+class=["\'][^"\']*(?:error|erro|alert|aviso|warning|success|mensagem|message)[^"\']*["\'][^>]*>(.*?)</[^>]+>',
+                    r'<[^>]+id=["\'][^"\']*(?:error|erro|alert|aviso|message|mensagem)[^"\']*["\'][^>]*>(.*?)</[^>]+>',
+                ]
+                for _mp in _msg_patterns:
+                    for _mm in _ref.finditer(_mp, _html_f, _ref.IGNORECASE | _ref.DOTALL):
+                        _mtxt = _ref.sub(r'<[^>]+>', '', _mm.group(1)).strip()
+                        if _mtxt and len(_mtxt) > 3 and len(_mtxt) < 200:
+                            _estado_itens.append('MENSAGEM_PAGINA: ' + _mtxt)
+
+                # Contagem de resultados
+                _count_patterns = [
+                    r'(\d+)\s*(?:resultado|legisla|diploma|registro|lei|ato)',
+                    r'(?:encontrado|found|total)[^\d]*(\d+)',
+                    r'(\d+)\s*(?:Diploma|Lei|Decreto|Resolucao)',
+                ]
+                for _cp in _count_patterns:
+                    _cm = _ref.search(_cp, _html_f, _ref.IGNORECASE)
+                    if _cm:
+                        _estado_itens.append('CONTAGEM_RESULTADOS: ' + _cm.group(0).strip()[:80])
+                        break
+
+                # Inputs de texto/numero preenchidos
+                _pat_input_all = r'<input[^>]+>'
+                for _m in _ref.finditer(_pat_input_all, _html_f, _ref.IGNORECASE):
                     _tag = _m.group(0)
-                    _tpm = _ref.search(_pat_type, _tag, _ref.IGNORECASE)
-                    if not _tpm or _tpm.group(1).lower() not in ("radio", "checkbox"):
-                        continue
-                    _nm = _ref.search(_pat_name, _tag, _ref.IGNORECASE)
-                    _vm = _ref.search(_pat_value, _tag, _ref.IGNORECASE)
-                    _im = _ref.search(_pat_id, _tag, _ref.IGNORECASE)
-                    _tp = _tpm.group(1)
-                    _nv = _nm.group(1) if _nm else ""
-                    _vv = _vm.group(1) if _vm else ""
-                    _iv = _im.group(1) if _im else ""
-                    _lv = ""
-                    if _iv:
-                        _pat_label = r"<label[^>]+for=[" + _dq + _sq + r"]" + _ref.escape(_iv) + r"[" + _dq + _sq + r"][^>]*>(.*?)</label>"
-                        _lmatch = _ref.search(_pat_label, _html_f, _ref.IGNORECASE | _ref.DOTALL)
-                        if _lmatch:
-                            _lv = _ref.sub(r"<[^>]+>", "", _lmatch.group(1)).strip()
-                    if not _lv:
-                        _lv = _vv
-                    _ck = "checked" in _tag.lower()
-                    # Tentar obter coordenadas reais via Playwright
-                    _coords = ""
-                    try:
-                        _sel = ""
+                    _tpm = _ref.search(r'type=["\'](\w+)["\']', _tag, _ref.IGNORECASE)
+                    _tp = _tpm.group(1).lower() if _tpm else 'text'
+
+                    if _tp in ('text', 'number', 'search', 'date'):
+                        _nm = _ref.search(r'name=["\']([^"\']+)["\']', _tag, _ref.IGNORECASE)
+                        _vm = _ref.search(r'value=["\']([^"\']*)["\']', _tag, _ref.IGNORECASE)
+                        _pm = _ref.search(r'placeholder=["\']([^"\']+)["\']', _tag, _ref.IGNORECASE)
+                        _im = _ref.search(r'\bid=["\']([^"\']+)["\']', _tag, _ref.IGNORECASE)
+                        _nv = _nm.group(1) if _nm else ''
+                        _vv = _vm.group(1) if _vm else ''
+                        _pv = _pm.group(1) if _pm else ''
+                        _iv = _im.group(1) if _im else ''
+                        _lv = ''
                         if _iv:
-                            _sel = "#" + _iv
-                        elif _nv and _vv:
-                            _sel = "input[name=" + _dq + _nv + _dq + "][value=" + _dq + _vv + _dq + "]"
-                        elif _nv:
-                            _sel = "input[name=" + _dq + _nv + _dq + "]"
-                        if _sel:
-                            _el = pagina_ativa.query_selector(_sel)
-                            if _el:
-                                _bb = _el.bounding_box()
-                                if _bb:
-                                    _cx = int(_bb["x"] + _bb["width"] / 2)
-                                    _cy = int(_bb["y"] + _bb["height"] / 2)
-                                    _coords = " x=" + str(_cx) + " y=" + str(_cy)
-                    except Exception:
-                        pass
-                    # Instrucao baseada em label e coordenadas
-                    if _lv:
-                        _acao = "use clicar com texto_elemento=" + _dq + _lv + _dq
-                    elif _coords:
-                        _acao = "use clicar_coordenada" + _coords
-                    else:
-                        _acao = "use clicar_coordenada (estime coordenadas na screenshot)"
-                    _fitems.append("  " + _tp.upper() + " label=" + _dq + _lv + _dq + " value=" + _dq + _vv + _dq + " name=" + _dq + _nv + _dq + " checked=" + str(_ck) + _coords + " -> ACAO: " + _acao)
-                _pat_select = r"<select[^>]*name=[" + _dq + _sq + r"]([^" + _dq + _sq + r"]+)[" + _dq + _sq + r"][^>]*>(.*?)</select>"
-                _pat_option = r"<option[^>]*value=[" + _dq + _sq + r"]([^" + _dq + _sq + r"]*)[" + _dq + _sq + r"][^>]*>(.*?)</option>"
+                            _lm2 = _ref.search(r'<label[^>]+for=["\']' + _ref.escape(_iv) + r'["\'][^>]*>(.*?)</label>', _html_f, _ref.IGNORECASE | _ref.DOTALL)
+                            if _lm2:
+                                _lv = _ref.sub(r'<[^>]+>', '', _lm2.group(1)).strip()
+                        _label_display = _lv or _nv or _pv or _iv
+                        if _label_display:
+                            _entry = '  INPUT tipo=' + _tp + ' label="' + _label_display + '" value="' + _vv + '"'
+                            if _pv and not _vv:
+                                _entry += ' placeholder="' + _pv + '"'
+                            _fitems.append(_entry)
+
+                    elif _tp == 'range':
+                        _nm = _ref.search(r'name=["\']([^"\']+)["\']', _tag, _ref.IGNORECASE)
+                        _vm = _ref.search(r'value=["\']([^"\']*)["\']', _tag, _ref.IGNORECASE)
+                        _min_m = _ref.search(r'\bmin=["\']([^"\']+)["\']', _tag, _ref.IGNORECASE)
+                        _max_m = _ref.search(r'\bmax=["\']([^"\']+)["\']', _tag, _ref.IGNORECASE)
+                        _im = _ref.search(r'\bid=["\']([^"\']+)["\']', _tag, _ref.IGNORECASE)
+                        _nv = _nm.group(1) if _nm else ''
+                        _vv = _vm.group(1) if _vm else ''
+                        _min_v = _min_m.group(1) if _min_m else '?'
+                        _max_v = _max_m.group(1) if _max_m else '?'
+                        _iv = _im.group(1) if _im else ''
+                        # Tentar ler min/max/value via JS (mais preciso que HTML)
+                        try:
+                            if _iv:
+                                _js_vals = pagina_ativa.evaluate(f'() => {{ const el = document.getElementById("{_iv}"); return el ? {{min: el.min, max: el.max, value: el.value}} : null }}')
+                                if _js_vals:
+                                    _min_v = str(_js_vals.get('min', _min_v))
+                                    _max_v = str(_js_vals.get('max', _max_v))
+                                    _vv = str(_js_vals.get('value', _vv))
+                        except Exception:
+                            pass
+                        _fitems.append('  SLIDER name="' + _nv + '" min=' + _min_v + ' max=' + _max_v + ' value_atual=' + _vv + ' -> ACAO: use clicar_coordenada para ajustar ou ignore se o range ja cobre o ano desejado')
+
+                    elif _tp in ('radio', 'checkbox'):
+                        _nm = _ref.search(r'name=["\']([^"\']+)["\']', _tag, _ref.IGNORECASE)
+                        _vm = _ref.search(r'value=["\']([^"\']+)["\']', _tag, _ref.IGNORECASE)
+                        _im = _ref.search(r'\bid=["\']([^"\']+)["\']', _tag, _ref.IGNORECASE)
+                        _nv = _nm.group(1) if _nm else ''
+                        _vv = _vm.group(1) if _vm else ''
+                        _iv = _im.group(1) if _im else ''
+                        _lv = ''
+                        if _iv:
+                            _lm2 = _ref.search(r'<label[^>]+for=["\']' + _ref.escape(_iv) + r'["\'][^>]*>(.*?)</label>', _html_f, _ref.IGNORECASE | _ref.DOTALL)
+                            if _lm2:
+                                _lv = _ref.sub(r'<[^>]+>', '', _lm2.group(1)).strip()
+                        if not _lv:
+                            _lv = _vv
+                        _ck = 'checked' in _tag.lower()
+                        _coords = ''
+                        try:
+                            _sel = ''
+                            if _iv:
+                                _sel = '#' + _iv
+                            elif _nv and _vv:
+                                _sel = 'input[name=' + _dq + _nv + _dq + '][value=' + _dq + _vv + _dq + ']'
+                            elif _nv:
+                                _sel = 'input[name=' + _dq + _nv + _dq + ']'
+                            if _sel:
+                                _el = pagina_ativa.query_selector(_sel)
+                                if _el:
+                                    _bb = _el.bounding_box()
+                                    if _bb:
+                                        _cx = int(_bb['x'] + _bb['width'] / 2)
+                                        _cy = int(_bb['y'] + _bb['height'] / 2)
+                                        _coords = ' x=' + str(_cx) + ' y=' + str(_cy)
+                        except Exception:
+                            pass
+                        if _lv:
+                            _acao = 'use clicar com texto_elemento=' + _dq + _lv + _dq
+                        elif _coords:
+                            _acao = 'use clicar_coordenada' + _coords
+                        else:
+                            _acao = 'use clicar_coordenada (estime coordenadas)'
+                        _fitems.append('  ' + _tp.upper() + ' label=' + _dq + _lv + _dq + ' value=' + _dq + _vv + _dq + ' name=' + _dq + _nv + _dq + ' checked=' + str(_ck) + _coords + ' -> ACAO: ' + _acao)
+
+                # Selects com opcao selecionada
+                _pat_select = r'<select[^>]*name=["\']([^"\']+)["\'][^>]*>(.*?)</select>'
+                _pat_option = r'<option[^>]*value=["\']([^"\']*)["\'][^>]*>(.*?)</option>'
                 for _ms in _ref.finditer(_pat_select, _html_f, _ref.IGNORECASE | _ref.DOTALL):
                     _sn = _ms.group(1)
                     _ops = _ref.findall(_pat_option, _ms.group(2), _ref.IGNORECASE | _ref.DOTALL)
-                    _otxt = ", ".join([_dq + _ref.sub(r"<[^>]+>", "", _o[1]).strip() + _dq for _o in _ops[:8]])
-                    _fitems.append("  SELECT name=" + _dq + _sn + _dq + " opcoes=[" + _otxt + "]")
-                if _fitems:
-                    _form_txt = "\n\n📋 ELEMENTOS DE FORMULARIO NO HTML (radio/checkbox/select):\n"
-                    _form_txt += "\n".join(_fitems[:20])
-                    _form_txt += "\nINSTRUCAO: Cada elemento acima ja indica a ACAO correta — se tem label use clicar, se so tem coordenadas use clicar_coordenada com x,y exatos.\n"
+                    _otxt = ', '.join([_dq + _ref.sub(r'<[^>]+>', '', _o[1]).strip() + _dq for _o in _ops[:8]])
+                    _sel_m = _ref.search(r'<option[^>]+selected[^>]*>(.*?)</option>', _ms.group(2), _ref.IGNORECASE | _ref.DOTALL)
+                    _sel_val = _ref.sub(r'<[^>]+>', '', _sel_m.group(1)).strip() if _sel_m else ''
+                    _entry = '  SELECT name=' + _dq + _sn + _dq + ' selecionado=' + _dq + _sel_val + _dq + ' opcoes=[' + _otxt + ']'
+                    _fitems.append(_entry)
+
+                # Botoes visiveis
+                _btn_count = 0
+                for _mb in _ref.finditer(r'<(?:button|input[^>]+type=["\'](?:submit|button)["\'])[^>]*>(.*?)</button>|<input[^>]+type=["\'](?:submit|button)["\'][^>]*>', _html_f, _ref.IGNORECASE | _ref.DOTALL):
+                    _btxt = _ref.sub(r'<[^>]+>', '', _mb.group(0)).strip()
+                    _bval = _ref.search(r'value=["\']([^"\']+)["\']', _mb.group(0), _ref.IGNORECASE)
+                    _bdis = 'disabled' in _mb.group(0).lower()
+                    _blabel = _btxt or (_bval.group(1) if _bval else '')
+                    if _blabel and len(_blabel) > 1:
+                        _entry = '  BOTAO texto=' + _dq + _blabel[:40] + _dq + (' [DESABILITADO]' if _bdis else ' -> ACAO: use clicar com texto_elemento=' + _dq + _blabel[:40] + _dq)
+                        _fitems.append(_entry)
+                        _btn_count += 1
+                        if _btn_count >= 5:
+                            break
+
+                if _fitems or _estado_itens:
+                    _form_txt = '\n\n📊 ESTADO REAL DA PAGINA (extraido do HTML — mais confiavel que a screenshot):\n'
+                    for _ei in _estado_itens:
+                        _form_txt += '  ' + _ei + '\n'
+                    if _fitems:
+                        _form_txt += 'ELEMENTOS INTERATIVOS:\n'
+                        _form_txt += '\n'.join(_fitems[:25])
+                    _form_txt += '\nINSTRUCAO: Analise este bloco ANTES de decidir qualquer acao. Os valores aqui sao os reais da pagina. Para radio/checkbox com label use clicar, com coordenadas use clicar_coordenada x,y exatos. Para sliders verifique min/max antes de assumir limitacao de periodo.\n'
+
+                # Salvar form_coords para fallback automatico
+                try:
+                    import re as _refc
+                    _form_coords = {}
+                    for _fi in _fitems:
+                        _lm = _refc.search(r'label="([^"]*)"', _fi)
+                        _xm = _refc.search(r' x=(\d+)', _fi)
+                        _ym = _refc.search(r' y=(\d+)', _fi)
+                        if _lm and _xm and _ym and _lm.group(1):
+                            _form_coords[_lm.group(1).lower()] = (int(_xm.group(1)), int(_ym.group(1)))
+                    pagina_ativa._form_coords_ctx = _form_coords
+                except Exception:
+                    pass
+
             except Exception:
                 pass
-            except Exception:
-                pass
+            # 2. Prompt
             # 2. Prompt
             prompt = _montar_prompt(legislacao, historico, passo, url_atual)
             if _img_links_txt:
