@@ -184,7 +184,8 @@ de clicar no botao de download.
     - Se o elemento nao tem texto (icone puro), descreva: "icone coluna Arquivo linha 1"
 
 15. CLICAR POR COORDENADA: Para imagens, icones, banners ou qualquer elemento sem texto visivel, use SEMPRE "clicar_coordenada" ANTES de tentar "clicar". Estime a posicao x,y do centro do elemento no screenshot (resolucao 1280x800). NAO tente "clicar" com texto descritivo em elementos graficos — va direto para "clicar_coordenada". Exemplo: imagem de martelo no centro da pagina seria x=640, y=350.
-20. RADIO BUTTONS E CHECKBOXES: Nunca use acao "clicar" com texto_elemento para selecionar radio buttons ou checkboxes. Use SEMPRE "clicar_coordenada" com as coordenadas visuais do circulo/quadrado na screenshot. Se a pagina tem lista de tipos de ato como radio buttons (ex: "Decretos Municipais", "Leis Ordinarias"), use clicar_coordenada no circulo ao lado do label desejado, nao no texto.
+20. RADIO BUTTONS E CHECKBOXES: O bloco "ELEMENTOS DE FORMULARIO NO HTML" no prompt ja indica a ACAO correta para cada elemento. Se o elemento tem label visivel, use "clicar" com esse texto exato. Se o elemento tem coordenadas x,y mas sem label, use "clicar_coordenada" com os valores x,y exatos fornecidos. NUNCA estime coordenadas para elementos que ja tem label — use "clicar" com o texto do label.
+
 
 15b. IMAGENS CLICAVEIS: Se a pagina parecer "vazia" ou sem lista de leis, mas tiver uma imagem ou icone proeminente (ex: martelo, livro, escudo, bandeira), TENTE CLICAR nessa imagem — ela pode ser um link para o sistema legislativo. Use acao "clicar" com o texto alternativo da imagem ou descricao visual dela.
 17. DIARIO OFICIAL: Se chegar em uma pagina de busca de Diario Oficial com campos como "Texto", "Ano", "Data Inicial", "Data Final":
@@ -3757,7 +3758,7 @@ def navegar_como_humano(
                     _img_links_txt += "INSTRUCAO: Se algum destes links for relevante, use acao 'clicar' com texto_elemento igual ao href completo (ex: https://bananal.cespro.com.br/).\n"
             except Exception:
                 pass
-            # 2b. Extrair elementos de formulario do HTML
+            # 2b. Extrair elementos de formulario do HTML com bounding_box via Playwright
             _form_txt = ""
             try:
                 import re as _ref
@@ -3769,7 +3770,7 @@ def navegar_como_humano(
                 _pat_type = r"type=[" + _dq + _sq + r"](\w+)[" + _dq + _sq + r"]"
                 _pat_name = r"name=[" + _dq + _sq + r"]([^" + _dq + _sq + r"]+)[" + _dq + _sq + r"]"
                 _pat_value = r"value=[" + _dq + _sq + r"]([^" + _dq + _sq + r"]+)[" + _dq + _sq + r"]"
-                _pat_id = r"id=[" + _dq + _sq + r"]([^" + _dq + _sq + r"]+)[" + _dq + _sq + r"]"
+                _pat_id = r"\bid=[" + _dq + _sq + r"]([^" + _dq + _sq + r"]+)[" + _dq + _sq + r"]"
                 for _m in _ref.finditer(_pat_input, _html_f, _ref.IGNORECASE):
                     _tag = _m.group(0)
                     _tpm = _ref.search(_pat_type, _tag, _ref.IGNORECASE)
@@ -3791,7 +3792,34 @@ def navegar_como_humano(
                     if not _lv:
                         _lv = _vv
                     _ck = "checked" in _tag.lower()
-                    _fitems.append("  " + _tp.upper() + " label=" + _dq + _lv + _dq + " value=" + _dq + _vv + _dq + " name=" + _dq + _nv + _dq + " checked=" + str(_ck))
+                    # Tentar obter coordenadas reais via Playwright
+                    _coords = ""
+                    try:
+                        _sel = ""
+                        if _iv:
+                            _sel = "#" + _iv
+                        elif _nv and _vv:
+                            _sel = "input[name=" + _dq + _nv + _dq + "][value=" + _dq + _vv + _dq + "]"
+                        elif _nv:
+                            _sel = "input[name=" + _dq + _nv + _dq + "]"
+                        if _sel:
+                            _el = pagina_ativa.query_selector(_sel)
+                            if _el:
+                                _bb = _el.bounding_box()
+                                if _bb:
+                                    _cx = int(_bb["x"] + _bb["width"] / 2)
+                                    _cy = int(_bb["y"] + _bb["height"] / 2)
+                                    _coords = " x=" + str(_cx) + " y=" + str(_cy)
+                    except Exception:
+                        pass
+                    # Instrucao baseada em label e coordenadas
+                    if _lv:
+                        _acao = "use clicar com texto_elemento=" + _dq + _lv + _dq
+                    elif _coords:
+                        _acao = "use clicar_coordenada" + _coords
+                    else:
+                        _acao = "use clicar_coordenada (estime coordenadas na screenshot)"
+                    _fitems.append("  " + _tp.upper() + " label=" + _dq + _lv + _dq + " value=" + _dq + _vv + _dq + " name=" + _dq + _nv + _dq + " checked=" + str(_ck) + _coords + " -> ACAO: " + _acao)
                 _pat_select = r"<select[^>]*name=[" + _dq + _sq + r"]([^" + _dq + _sq + r"]+)[" + _dq + _sq + r"][^>]*>(.*?)</select>"
                 _pat_option = r"<option[^>]*value=[" + _dq + _sq + r"]([^" + _dq + _sq + r"]*)[" + _dq + _sq + r"][^>]*>(.*?)</option>"
                 for _ms in _ref.finditer(_pat_select, _html_f, _ref.IGNORECASE | _ref.DOTALL):
@@ -3802,7 +3830,9 @@ def navegar_como_humano(
                 if _fitems:
                     _form_txt = "\n\n📋 ELEMENTOS DE FORMULARIO NO HTML (radio/checkbox/select):\n"
                     _form_txt += "\n".join(_fitems[:20])
-                    _form_txt += "\nINSTRUCAO: Para radio/checkbox use clicar_coordenada nas coordenadas visuais — nunca clicar por texto.\n"
+                    _form_txt += "\nINSTRUCAO: Cada elemento acima ja indica a ACAO correta — se tem label use clicar, se so tem coordenadas use clicar_coordenada com x,y exatos.\n"
+            except Exception:
+                pass
             except Exception:
                 pass
             # 2. Prompt
