@@ -449,6 +449,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                 logs.append({"nivel": "ok", "msg": f"  Limite de {max_legislacoes} legislacoes encontradas atingido — encerrando busca"})
                 break
             # Verificar via IA se esta legislacao revoga outras da lista
+            html_enc = enc.get("html", "") or ""
             # Gerar PDF a partir do HTML se nao tiver pdf_path (ex: resultado do Fallback)
             if html_enc and not enc.get("pdf_path"):
                 try:
@@ -475,7 +476,6 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                         logs.append({"nivel": "info", "msg": f"  PDF gerado via wkhtmltopdf a partir do HTML: {_os_enc.path.basename(_pdf_enc_path)}"})
                 except Exception as _e_enc:
                     logs.append({"nivel": "aviso", "msg": f"  wkhtmltopdf (HTML->PDF): {str(_e_enc)[:60]}"})
-            html_enc = enc.get("html", "") or ""
             if html_enc:
                 from bs4 import BeautifulSoup as _bsr
                 texto_enc = _bsr(html_enc, "html.parser").get_text()
