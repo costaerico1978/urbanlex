@@ -420,6 +420,26 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                 logs.append({"nivel": "ok", "msg": f"  Limite de {max_legislacoes} legislacoes encontradas atingido — encerrando busca"})
                 break
             # Verificar via IA se esta legislacao revoga outras da lista
+            # Gerar PDF a partir do HTML se nao tiver pdf_path (ex: resultado do Fallback)
+            if html_enc and not enc.get("pdf_path"):
+                try:
+                    import tempfile as _tf_enc, os as _os_enc, subprocess as _sp_enc, re as _re_enc
+                    from bs4 import BeautifulSoup as _bsr_pdf
+                    _slug_enc = _re_enc.sub(r"[^a-zA-Z0-9_]", "_", f"{estado}_{municipio}_{tipo}_{numero}_{ano}")[:60]
+                    _pdf_enc_path = f"/var/www/urbanlex/static/downloads/{_slug_enc}_gerado.pdf"
+                    _soup_enc = _bsr_pdf(html_enc, "html.parser")
+                    _cont_enc = _soup_enc.find(class_="law-container") or _soup_enc.find(class_="law-content") or _soup_enc.find(class_="ato-content") or _soup_enc.find("body") or _soup_enc
+                    _html_limpo_enc = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{{font-family:Arial,sans-serif;font-size:11pt;margin:20mm;color:#111;}}p{{margin:4px 0;text-align:justify;line-height:1.5;}}</style></head><body>{str(_cont_enc)}</body></html>"""
+                    with _tf_enc.NamedTemporaryFile(suffix=".html", mode="w", encoding="utf-8", delete=False) as _tmp_enc:
+                        _tmp_enc.write(_html_limpo_enc)
+                        _tmp_enc_path = _tmp_enc.name
+                    _r_enc = _sp_enc.run(["wkhtmltopdf","--encoding","utf-8","--quiet","--disable-javascript","--no-images","--load-error-handling","ignore", _tmp_enc_path, _pdf_enc_path], capture_output=True, text=True, timeout=30)
+                    _os_enc.unlink(_tmp_enc_path)
+                    if _os_enc.path.exists(_pdf_enc_path) and _os_enc.path.getsize(_pdf_enc_path) > 1000:
+                        enc["pdf_path"] = _pdf_enc_path
+                        logs.append({"nivel": "info", "msg": f"  PDF gerado via wkhtmltopdf a partir do HTML: {_os_enc.path.basename(_pdf_enc_path)}"})
+                except Exception as _e_enc:
+                    logs.append({"nivel": "aviso", "msg": f"  wkhtmltopdf (HTML->PDF): {str(_e_enc)[:60]}"})
             html_enc = enc.get("html", "") or ""
             if html_enc:
                 from bs4 import BeautifulSoup as _bsr
