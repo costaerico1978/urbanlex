@@ -462,7 +462,13 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                     with _tf_enc.NamedTemporaryFile(suffix=".html", mode="w", encoding="utf-8", delete=False) as _tmp_enc:
                         _tmp_enc.write(_html_limpo_enc)
                         _tmp_enc_path = _tmp_enc.name
-                    _r_enc = _sp_enc.run(["wkhtmltopdf","--encoding","utf-8","--quiet","--disable-javascript","--no-images","--load-error-handling","ignore", _tmp_enc_path, _pdf_enc_path], capture_output=True, text=True, timeout=30)
+                    _proc_enc = _sp_enc.Popen(["wkhtmltopdf","--encoding","utf-8","--quiet","--disable-javascript","--no-images","--load-error-handling","ignore", _tmp_enc_path, _pdf_enc_path])
+                    try:
+                        _proc_enc.wait(timeout=20)
+                    except _sp_enc.TimeoutExpired:
+                        _proc_enc.kill()
+                        _proc_enc.wait()
+                        raise Exception("wkhtmltopdf timeout")
                     _os_enc.unlink(_tmp_enc_path)
                     if _os_enc.path.exists(_pdf_enc_path) and _os_enc.path.getsize(_pdf_enc_path) > 1000:
                         enc["pdf_path"] = _pdf_enc_path
