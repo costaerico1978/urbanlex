@@ -4829,6 +4829,12 @@ def inicializar():
             atualizado_em TIMESTAMP DEFAULT NOW(),
             UNIQUE(municipio, estado)
         )""")
+        # Adicionar colunas novas se nao existirem
+        try:
+            cur.execute("ALTER TABLE municipio_fallback ADD COLUMN IF NOT EXISTS lm_nao_catalogado BOOLEAN DEFAULT FALSE")
+            cur.execute("ALTER TABLE municipio_fallback ADD COLUMN IF NOT EXISTS fonte_funcionou VARCHAR(20)")
+            conn.commit()
+        except: pass
         conn.commit(); conn.close()
         print("Tabela municipio_fallback verificada/criada")
     except Exception as e:

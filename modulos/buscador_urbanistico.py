@@ -35,6 +35,21 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
     _lm_nao_catalogado = False  # Municipio confirmado ausente no LeisMunicipais
     _lm_ja_verificado = False   # Verificacao de catalogo ja realizada para este municipio
     _fonte_funcionou = None      # Fonte que encontrou a 1a lei: lm/fallback1/fallback2
+    # Carregar cache do banco
+    try:
+        from app import get_db as _gdb_cache
+        _conn_cache = _gdb_cache()
+        _cur_cache = _conn_cache.cursor()
+        _cur_cache.execute("SELECT lm_nao_catalogado, fonte_funcionou FROM municipio_fallback WHERE LOWER(municipio)=LOWER(%s) AND LOWER(estado)=LOWER(%s)", (municipio, estado))
+        _row_cache = _cur_cache.fetchone()
+        _cur_cache.close(); _conn_cache.close()
+        if _row_cache:
+            if _row_cache[0]: _lm_nao_catalogado = True; _lm_ja_verificado = True
+            if _row_cache[1]: _fonte_funcionou = _row_cache[1]
+            if _lm_nao_catalogado:
+                logs.append({"nivel": "info", "msg": f"  [CACHE] {municipio}/{estado} nao catalogado no LM (cache) — pulando diretamente para {_fonte_funcionou or 'fallback1'}"})
+    except Exception as _ec:
+        pass
     analisadas = set()
     # Resetar contador global de tokens
     try:
@@ -371,6 +386,13 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                     if not _catalogado:
                         _lm_nao_catalogado = True
                         logs.append({"nivel": "aviso", "msg": f"  {municipio}/{estado} NAO catalogado no LeisMunicipais — proximas leis usarao fallbacks diretamente"})
+                        # Salvar no banco
+                        try:
+                            from app import get_db as _gdb_save
+                            _conn_s = _gdb_save(); _cur_s = _conn_s.cursor()
+                            _cur_s.execute("INSERT INTO municipio_fallback (municipio, estado, url, lm_nao_catalogado) VALUES (%s,%s,%s,TRUE) ON CONFLICT (municipio,estado) DO UPDATE SET lm_nao_catalogado=TRUE, atualizado_em=NOW()", (municipio, estado, ""))
+                            _conn_s.commit(); _cur_s.close(); _conn_s.close()
+                        except Exception as _es: pass
                     if not _fonte_funcionou: _fonte_funcionou = "fallback2"
         else:
             logs.append({"nivel": "info", "msg": f"Buscando {tipo} n {numero}/{ano} ({descricao}) no LeisMunicipais..."})
@@ -387,6 +409,13 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                         logs.append({"nivel": "aviso", "msg": f"  {municipio}/{estado} NAO catalogado no LeisMunicipais — proximas leis usarao fallbacks diretamente"})
         if enc and not _fonte_funcionou:
             _fonte_funcionou = enc.get("_fonte", "lm") if isinstance(enc, dict) else "lm"
+            # Salvar fonte no banco
+            try:
+                from app import get_db as _gdb_sf
+                _conn_sf = _gdb_sf(); _cur_sf = _conn_sf.cursor()
+                _cur_sf.execute("INSERT INTO municipio_fallback (municipio, estado, url, fonte_funcionou) VALUES (%s,%s,%s,%s) ON CONFLICT (municipio,estado) DO UPDATE SET fonte_funcionou=%s, atualizado_em=NOW()", (municipio, estado, "", _fonte_funcionou, _fonte_funcionou))
+                _conn_sf.commit(); _cur_sf.close(); _conn_sf.close()
+            except Exception as _esf: pass
         if not enc:
             _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=_pergunta_origem, status="nao_encontrada")
             _falhas_municipio += 1
