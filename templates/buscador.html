@@ -1845,6 +1845,16 @@ async function _nmIniciarFila() {
     fecharModalNovoMun();
         fetch('/api/fila/despausar', {method:'POST'}).catch(()=>{});
     if (enviados > 0) {
+        // Feedback imediato
+        const _btnBuscar = document.getElementById('btn-nm-ok');
+        if (_btnBuscar) { _btnBuscar.disabled = true; _btnBuscar.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Iniciando...'; }
+        const _bmLoading = document.getElementById('bm-loading');
+        const _bmLog = document.getElementById('bm-log');
+        const _loadMsg = document.getElementById('loading-msg');
+        if (_loadMsg) _loadMsg.textContent = '⏳ Iniciando busca para ' + mun + '/' + est + '...';
+        if (_bmLoading) _bmLoading.style.display = 'block';
+        if (_bmLog) _bmLog.style.display = 'block';
+
         const _btnCL = document.getElementById('btn-cancelar-limpar');
         if (_btnCL) _btnCL.style.display = 'inline-flex';
         _nmAtualizarProgressoFila();
