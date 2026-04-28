@@ -1963,7 +1963,25 @@ async function _nmAtualizarProgressoFila() {
         }
         // Mostrar/ocultar botao Iniciar Busca
         const _btnIF = document.getElementById('btn-iniciar-fila');
-        if (_btnIF) _btnIF.style.display = filaVisivel.some(i => i.status === 'aguardando') && !rodando ? 'inline-flex' : 'none';
+        const _btnIF = document.getElementById('btn-iniciar-fila');
+        const _filaParada = filaVisivel.some(i => i.status === 'aguardando') && !rodando;
+        if (_btnIF) {
+            _btnIF.style.display = _filaParada ? 'inline-flex' : 'none';
+            _btnIF.title = _filaParada ? 'A fila está pausada. Clique para iniciar a busca.' : '';
+        }
+        // Aviso de fila pausada
+        let _avisoFila = document.getElementById('aviso-fila-pausada');
+        if (_filaParada) {
+            if (!_avisoFila) {
+                _avisoFila = document.createElement('div');
+                _avisoFila.id = 'aviso-fila-pausada';
+                _avisoFila.style.cssText = 'font-size:12px;color:#f0ad4e;margin-top:6px;';
+                _avisoFila.textContent = '⚠️ A busca está pausada. Clique em "Iniciar Busca" para continuar.';
+                if (_btnIF && _btnIF.parentNode) _btnIF.parentNode.insertBefore(_avisoFila, _btnIF.nextSibling);
+            }
+        } else if (_avisoFila) {
+            _avisoFila.remove();
+        }
         // Se tudo concluido, parar polling
         if (done === total) {
             clearInterval(window._nmFilaPolling); window._nmFilaPolling = null;
