@@ -1963,7 +1963,6 @@ async function _nmAtualizarProgressoFila() {
         }
         // Mostrar/ocultar botao Iniciar Busca
         const _btnIF = document.getElementById('btn-iniciar-fila');
-        const _btnIF = document.getElementById('btn-iniciar-fila');
         const _filaParada = filaVisivel.some(i => i.status === 'aguardando') && !rodando;
         if (_btnIF) {
             _btnIF.style.display = _filaParada ? 'inline-flex' : 'none';
