@@ -1679,7 +1679,7 @@ def _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, an
                 _page = _ctx.new_page()
                 _page.goto(_url, timeout=30000, wait_until="domcontentloaded")
                 _page.wait_for_timeout(2000)
-                _res_nav = _nav_humano(_page, None, _leg_dict, chamar_llm, logs, label=f"FB1-{_i+1}", max_passos=8)
+                _res_nav = _nav_humano(_page, None, _leg_dict, chamar_llm, logs, label=f"FB1-{_i+1}", max_passos=15)
                 _browser.close()
             if _res_nav and _res_nav.get("encontrada") and _res_nav.get("url"):
                 _url_enc = _res_nav["url"]
