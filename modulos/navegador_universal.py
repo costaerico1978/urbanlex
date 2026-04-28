@@ -4095,6 +4095,14 @@ def navegar_como_humano(
                     # IA disse encontrada mas também quer executar ação (ex: clicar no ícone)
                     # Executar a ação primeiro — o resultado será avaliado no próximo passo
                     logs.append({'nivel': 'info', 'msg': f'{label}: 🔍 IA disse encontrada mas quer {tipo_acao} primeiro — executando...'})
+                    # Capturar HTML da pagina atual antes de tentar o clique
+                    try:
+                        _html_antes = pagina_ativa.content()
+                        if _html_antes and len(_html_antes) > 500:
+                            resultado["html"] = _html_antes
+                            logs.append({"nivel": "info", "msg": f"{label}: 📄 HTML capturado antes do clique ({len(_html_antes)} chars)"})
+                    except Exception:
+                        pass
 
             # 6b. Spinner LeisMunicipais — sair do loop sem screenshot
             if tipo_acao == 'screenshot' and 'leismunicipais' in (pagina_ativa.url if pagina_ativa else ''):
