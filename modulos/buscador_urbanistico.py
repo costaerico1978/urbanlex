@@ -552,16 +552,37 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                     except Exception as _ez:
                         logs.append({"nivel": "aviso", "msg": f"  [ANEXOS] Erro ZIP {label}: {str(_ez)[:80]}"})
                     return _txt_zip
-                # PDF: tentar pdftotext primeiro
+                # PDF: Gemini Vision sempre (mais confiavel para legislacao urbanistica)
                 if ext == '.pdf':
                     try:
-                        _res = _sp_ax.run(['pdftotext', path, '-'], capture_output=True, text=True, timeout=60)
-                        if _res.returncode == 0 and len(_res.stdout.strip()) > 100:
-                            logs.append({"nivel": "info", "msg": f"  [ANEXOS] {label}: {len(_res.stdout)} chars via pdftotext"})
-                            return _res.stdout
-                    except Exception:
-                        pass
-                    # Fallback: Gemini Vision para PDF rasterizado
+                        import base64 as _b64_ax, tempfile as _tmp_gs, os as _os_gs
+                        import subprocess as _sp_gs
+                        _tmpdir_gs = _tmp_gs.mkdtemp()
+                        _png_pattern = _os_gs.path.join(_tmpdir_gs, 'page')
+                        _sp_gs.run(['gs', '-dNOPAUSE', '-dBATCH', '-sDEVICE=png16m', '-r150',
+                                    f'-sOutputFile={_png_pattern}_%03d.png', path],
+                                   capture_output=True, timeout=120)
+                        _pages = sorted([f for f in _os_gs.listdir(_tmpdir_gs) if f.endswith('.png')])[:10]
+                        if _pages:
+                            from google import genai as _gai_ax
+                            _model_ax = _gai_ax.Client(api_key=__import__('os').environ.get('GEMINI_API_KEY',''))
+                            _prompt_vision = "Extraia todo o texto desta pagina de documento municipal brasileiro. Retorne apenas o texto, sem comentarios."
+                            _img_parts = []
+                            for _pg_name in _pages:
+                                _pg_path = _os_gs.path.join(_tmpdir_gs, _pg_name)
+                                with open(_pg_path, "rb") as _f_pg:
+                                    _img_parts.append({"inline_data": {"mime_type": "image/png", "data": _b64_ax.b64encode(_f_pg.read()).decode()}})
+                            _contents = [{"role": "user", "parts": [{"text": _prompt_vision}] + _img_parts}]
+                            _resp_ax = _model_ax.models.generate_content(model="gemini-2.5-flash", contents=_contents)
+                            _txt_vision = _resp_ax.text or ""
+                            if _txt_vision:
+                                logs.append({"nivel": "info", "msg": f"  [ANEXOS] {label}: {len(_txt_vision)} chars via Gemini Vision"})
+                                import shutil as _sh_ax; _sh_ax.rmtree(_tmpdir_gs, ignore_errors=True)
+                                return _txt_vision
+                        import shutil as _sh_ax2; _sh_ax2.rmtree(_tmpdir_gs, ignore_errors=True)
+                    except Exception as _ev:
+                        logs.append({"nivel": "aviso", "msg": f"  [ANEXOS] Gemini Vision erro {label}: {str(_ev)[:80]}"})
+                    # Fallback: pdftotext se Gemini Vision falhou
                     try:
                         import base64 as _b64_ax
                         import subprocess as _sp_gs
