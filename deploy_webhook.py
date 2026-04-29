@@ -30,7 +30,7 @@ if echo "$ATIVOS" | grep -q '"ativos": true'; then
         sleep 30
         ATIVOS2=$(curl -sf http://localhost:5000/api/buscador/jobs-ativos 2>/dev/null)
         if ! echo "$ATIVOS2" | grep -q '"ativos": true'; then
-            FILA=$(python3 -c "import psycopg2; conn=psycopg2.connect('postgresql://urbanlex:urbanlex123@localhost:5432/urbanlex'); cur=conn.cursor(); cur.execute(\"SELECT COUNT(*) FROM fila_buscas WHERE status='rodando'\"); print(cur.fetchone()[0]); conn.close()" 2>/dev/null || echo 0)
+            FILA=$(psql postgresql://urbanlex:urbanlex123@localhost:5432/urbanlex -t -c "SELECT COUNT(*) FROM fila_buscas WHERE status='rodando'" 2>/dev/null | tr -d ' ' || echo 0)
             if [ "$FILA" = "0" ]; then
             break
             fi
