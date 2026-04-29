@@ -365,7 +365,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
             # Ja sabemos qual fonte funciona — ir direto sem tentar LM
             logs.append({"nivel": "info", "msg": f"  [{_fonte_funcionou.upper()}] Fonte conhecida para {municipio} — buscando {tipo} {numero}/{ano} diretamente..."})
             if _fonte_funcionou == "fallback1":
-                enc = _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
+                enc = _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, url_direta=fallback_url)
             if enc:
                 # Verificar sentinel de municipio nao catalogado
                 if isinstance(enc, dict) and enc.get("_lm_indisponivel"):
@@ -1591,7 +1591,7 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
         if _lm_indisponivel:
             logs.append({"nivel": "aviso", "msg": f"  [LM] Municipio {municipio}/{estado} confirmado NAO catalogado — pulando LM para proximas leis"})
             # Retornar sentinel para o loop principal setar _lm_nao_catalogado
-            enc_fb1 = _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
+            enc_fb1 = _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, url_direta=fallback_url)
             if enc_fb1:
                 enc_fb1["_lm_indisponivel"] = True
                 return enc_fb1
@@ -1615,7 +1615,7 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
                     if _enc_fp: return {"tipo": tipo, "numero": numero, "ano": ano, "link": f"{_fb_url_local}?q={_q}", "html": _html_fp, "ementa": _enc_fp.get("ementa","") if isinstance(_enc_fp,dict) else ""}
             except Exception as _efp:
                 logs.append({"nivel": "aviso", "msg": f"  [FallbackP] Erro: {str(_efp)[:60]}"})
-        enc = _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
+        enc = _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, url_direta=fallback_url)
         if enc:
             enc["_fonte"] = "fallback1"
             return enc
@@ -1628,7 +1628,7 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
         logs.append({"nivel": "aviso", "msg": f"  Erro LeisMunicipais: {str(e)[:80]}"})
     return None
 
-def _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas):
+def _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, url_direta=None):
     """Fallback1: Google query formal, Gemini rankeia snippets, navega top 3 URLs com Playwright max 8 passos."""
     import urllib.parse as _upl, re as _re, requests as _req
     from bs4 import BeautifulSoup as _bs
@@ -1639,6 +1639,31 @@ def _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, an
         "escavador.com", "direitocom.com", "qconcursos.com",
         "portaldatransparencia.gov.br", "lexml.gov.br"
     ]
+    # Se URL direta fornecida, usa como primeira candidata sem precisar do Google
+    if url_direta and url_direta.lower() not in analisadas:
+        logs.append({"nivel": "info", "msg": f"  [Fallback1] URL direta do cache: {url_direta[:80]}"})
+        try:
+            from modulos.navegador_universal import navegar_como_humano as _nav_humano
+            from playwright.sync_api import sync_playwright as _swp
+            _leg_dict = {"tipo": tipo, "numero": numero, "ano": ano, "municipio": municipio, "estado": estado, "data_publicacao": "", "assunto": ""}
+            analisadas.add(url_direta.lower())
+            with _swp() as _pw:
+                _browser = _pw.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+                _ctx = _browser.new_context(viewport={"width": 1280, "height": 800}, user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36")
+                _page = _ctx.new_page()
+                _page.goto(url_direta, timeout=30000, wait_until="domcontentloaded")
+                _page.wait_for_timeout(2000)
+                _res_dir = _nav_humano(_page, None, _leg_dict, chamar_llm, logs, label="FB1-direto", max_passos=15)
+                _browser.close()
+            if _res_dir and _res_dir.get("encontrada") and _res_dir.get("url"):
+                _html_dir = _res_dir.get("html", "")
+                _pdf_dir = _res_dir.get("pdf_path", "")
+                if _html_dir or _pdf_dir:
+                    logs.append({"nivel": "ok", "msg": f"  [Fallback1] Encontrada via URL direta: {_res_dir['url'][:80]}"})
+                    return {"tipo": tipo, "numero": numero, "ano": ano, "link": _res_dir["url"], "pdf_path": _pdf_dir, "html": _html_dir, "_fonte": "fallback1"}
+        except Exception as _ed:
+            logs.append({"nivel": "aviso", "msg": f"  [Fallback1] URL direta falhou: {str(_ed)[:60]}"})
+
     query_str = f"Consulta Legislacao Prefeitura {municipio} {estado}"
     logs.append({"nivel": "info", "msg": f"  [Fallback1] Query Google: {query_str}"})
     _html_google = ""
@@ -1889,7 +1914,7 @@ def _buscar_fallback2(municipio, estado, tipo, numero, ano, logs, chamar_llm, an
 
 # Aliases para compatibilidade com chamadas existentes
 def _buscar_site_prefeitura(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas):
-    return _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas)
+    return _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, url_direta=fallback_url)
 
 
 def _buscar_google(termo, municipio, estado, logs, chamar_llm, analisadas):
