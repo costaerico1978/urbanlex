@@ -506,6 +506,14 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                 texto_enc = ""
             # Incluir texto dos anexos no texto_enc (ZIP/PDF/rasterizado)
             _anexos_enc = enc.get("anexos_lm") or []
+            # Se nao tem anexos_lm mas tem pdf_path (ex: Fallback1/2), usar pdf_path como anexo
+            if not _anexos_enc and enc.get("pdf_path"):
+                import os as _os_anx
+                _pdf_anx = enc.get("pdf_path", "")
+                if _pdf_anx and _os_anx.path.exists(_pdf_anx):
+                    _nome_anx = _os_anx.path.basename(_pdf_anx)
+                    _anexos_enc = [{"path": _pdf_anx, "pdf_path": _pdf_anx, "nome": _nome_anx, "texto": ""}]
+                    logs.append({"nivel": "anexo", "msg": f"  [ANEXOS] pdf_path adicionado como anexo: {_nome_anx}"})
             if _anexos_enc:
                 logs.append({"nivel": "relacao", "msg": f"  [ANEXOS] {len(_anexos_enc)} anexo(s): {[str(a)[:100] for a in _anexos_enc]}"})
             def _extrair_texto_arquivo(path, logs, label="Anexo", chamar_llm_fn=None):
