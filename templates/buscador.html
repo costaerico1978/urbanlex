@@ -735,6 +735,7 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
     <div id="esp-loading" style="display:none;text-align:center;padding:30px;color:var(--muted);">
         <div class="spinner-busca"></div>
         <div style="font-size:13px;font-weight:600;margin-top:12px;" id="esp-loading-msg">Iniciando análise...</div>
+        <div style="margin-top:12px;"><button class="btn btn-ghost btn-sm" style="color:#e74c3c;border-color:rgba(231,76,60,.3);" onclick="cancelarBuscaEspecifica()">✕ Cancelar e limpar</button></div>
     </div>
     <div id="esp-log" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:16px;">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface);">
@@ -3699,6 +3700,8 @@ async function iniciarBuscaEspecifica() {
     document.getElementById('esp-loading').style.display = 'block';
     document.getElementById('esp-log').style.display = 'none';
     document.getElementById('esp-resultado').style.display = 'none';
+    document.getElementById('esp-downloads').style.display = 'none';
+    document.getElementById('tabela-legs-esp').innerHTML = '';
     document.getElementById('esp-loading-msg').textContent = 'Iniciando análise de ' + tipo + ' ' + num + '/' + ano + '...';
     try {
         const resp = await fetch('/api/buscador/lei-especifica', {
@@ -3716,6 +3719,7 @@ async function iniciarBuscaEspecifica() {
         const jobId = data.job_id;
         sessionStorage.setItem('esp_job_id', jobId);
         sessionStorage.setItem('esp_cursor', '0');
+        window._espJobId = jobId;
         document.getElementById('esp-log').style.display = 'block';
         const logLines = document.getElementById('esp-log-lines');
         logLines.innerHTML = '';
@@ -3769,6 +3773,20 @@ async function iniciarBuscaEspecifica() {
     }
 }
 
+function cancelarBuscaEspecifica() {
+    if (window._espJobId) {
+        fetch('/api/buscador/cancelar', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({job_id: window._espJobId})}).catch(()=>{});
+        window._espJobId = null;
+    }
+    sessionStorage.removeItem('esp_job_id');
+    sessionStorage.removeItem('esp_cursor');
+    document.getElementById('esp-loading').style.display = 'none';
+    document.getElementById('esp-downloads').style.display = 'none';
+    document.getElementById('tabela-legs-esp').innerHTML = '';
+    document.getElementById('esp-log').style.display = 'none';
+    document.getElementById('esp-log-lines').innerHTML = '';
+}
+
 function limparBuscaEspecifica() {
     document.getElementById('esp-municipio').value = '';
     document.getElementById('esp-estado').value = '';
@@ -3777,6 +3795,10 @@ function limparBuscaEspecifica() {
     document.getElementById('esp-log').style.display = 'none';
     document.getElementById('esp-resultado').style.display = 'none';
     document.getElementById('esp-loading').style.display = 'none';
+    document.getElementById('esp-downloads').style.display = 'none';
+    document.getElementById('tabela-legs-esp').innerHTML = '';
+    sessionStorage.removeItem('esp_job_id');
+    sessionStorage.removeItem('esp_cursor');
 }
 
 function baixarLogEsp() {
