@@ -390,7 +390,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                         try:
                             from app import get_db as _gdb_save
                             _conn_s = _gdb_save(); _cur_s = _conn_s.cursor()
-                            _cur_s.execute("INSERT INTO municipio_fallback (municipio, estado, url, lm_nao_catalogado) VALUES (%s,%s,%s,TRUE) ON CONFLICT (municipio,estado) DO UPDATE SET lm_nao_catalogado=TRUE, atualizado_em=NOW()", (municipio, estado, ""))
+                            _cur_s.execute("INSERT INTO municipio_fallback (municipio, estado, lm_nao_catalogado) VALUES (%s,%s,TRUE) ON CONFLICT (municipio,estado) DO UPDATE SET lm_nao_catalogado=TRUE, atualizado_em=NOW()", (municipio, estado))
                             _conn_s.commit(); _cur_s.close(); _conn_s.close()
                         except Exception as _es: pass
                     if not _fonte_funcionou: _fonte_funcionou = "fallback2"
@@ -413,7 +413,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
             try:
                 from app import get_db as _gdb_sf
                 _conn_sf = _gdb_sf(); _cur_sf = _conn_sf.cursor()
-                _cur_sf.execute("INSERT INTO municipio_fallback (municipio, estado, url, fonte_funcionou) VALUES (%s,%s,%s,%s) ON CONFLICT (municipio,estado) DO UPDATE SET fonte_funcionou=%s, atualizado_em=NOW()", (municipio, estado, "", _fonte_funcionou, _fonte_funcionou))
+                _cur_sf.execute("INSERT INTO municipio_fallback (municipio, estado, fonte_funcionou) VALUES (%s,%s,%s) ON CONFLICT (municipio,estado) DO UPDATE SET fonte_funcionou=EXCLUDED.fonte_funcionou, atualizado_em=NOW()", (municipio, estado, _fonte_funcionou))
                 _conn_sf.commit(); _cur_sf.close(); _conn_sf.close()
             except Exception as _esf: pass
         if not enc:
