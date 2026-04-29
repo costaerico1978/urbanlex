@@ -88,6 +88,11 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
     ]
     legs = []
     _chaves_legs = set()
+    # Se legs_override fornecido, pular as 7 perguntas
+    if _legs_override:
+        legs = list(_legs_override)
+        logs.append({"nivel": "ok", "msg": f"[Lei Específica] {legs[0].get('tipo','')} {legs[0].get('numero','')}/{legs[0].get('ano','')} — pulando perguntas ao Gemini"})
+
 
     def _gemini_pergunta(pergunta):
         _legs = []
@@ -193,7 +198,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                 logs.append({"nivel": "aviso", "msg": f"DDG falhou: {str(e2)[:60]}"})
         return _legs
 
-    for idx, pergunta in enumerate(PERGUNTAS, 1):
+    if not _legs_override:
+     for idx, pergunta in enumerate(PERGUNTAS, 1):
         logs.append({"nivel": "ok", "msg": f"--- Pergunta {idx}/{len(PERGUNTAS)} ---"})
         _modo_pergunta = "parametros" if idx == 1 else "geral"
         for leg in _gemini_pergunta(pergunta):
@@ -273,10 +279,6 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
         except Exception: pass
         return resultado
 
-    # Se legs_override fornecido, usar diretamente sem as 7 perguntas
-    if _legs_override:
-        legs = _legs_override
-        logs.append({"nivel": "ok", "msg": f"[Lei Específica] Usando lei informada: {legs[0].get('tipo','')} {legs[0].get('numero','')}/{legs[0].get('ano','')}"})
     # Ordenar por ano mais recente primeiro, depois por numero
     def _sort_key(l):
         try: ano_k = int(l.get("ano", "0") or "0")

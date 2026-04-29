@@ -670,11 +670,24 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:700px;">
         <div>
             <div class="field-label">Município</div>
-            <input class="field-input" type="text" id="esp-municipio" placeholder="Ex: Rio de Janeiro">
+            <div class="ac-wrapper">
+                <input type="text" class="field-input" id="esp-municipio" placeholder="Ex: Natal, Cascavel, Resende..." autocomplete="off"
+                    oninput="_espAcMunicipio(this.value)" onblur="setTimeout(()=>document.getElementById('esp-ac-list').classList.remove('open'),200)">
+                <div class="ac-list" id="esp-ac-list"></div>
+            </div>
         </div>
         <div>
             <div class="field-label">Estado</div>
-            <input class="field-input" type="text" id="esp-estado" placeholder="Ex: RJ" maxlength="2" style="text-transform:uppercase">
+            <select class="field-input" id="esp-estado">
+                <option value="">Selecione...</option>
+                <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
+                <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+                <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
+                <option>MG</option><option>PA</option><option>PB</option><option>PR</option>
+                <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
+                <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
+                <option>SP</option><option>SE</option><option>TO</option>
+            </select>
         </div>
         <div>
             <div class="field-label">Tipo de Ato</div>
@@ -3592,6 +3605,29 @@ if (BUSCA_PAGINA === 'buscador-manual') {
     // No painel de buscas: ocultar tab historico
     const th = document.getElementById('tab-historico');
     if (th) th.style.display = 'none';
+}
+
+
+function _espAcMunicipio(val) {
+    const list = document.getElementById('esp-ac-list');
+    if (!val || val.length < 2) { list.classList.remove('open'); return; }
+    fetch('/api/municipios?q=' + encodeURIComponent(val))
+        .then(r => r.json()).then(data => {
+            list.innerHTML = '';
+            (data.municipios || []).slice(0,8).forEach(m => {
+                const div = document.createElement('div');
+                div.className = 'ac-item';
+                div.innerHTML = '<span>' + m.nome + '</span><span class="ac-sep">·</span><span class="ac-estado">' + m.estado + '</span>';
+                div.onclick = () => {
+                    document.getElementById('esp-municipio').value = m.nome;
+                    document.getElementById('esp-estado').value = m.estado;
+                    list.classList.remove('open');
+                };
+                list.appendChild(div);
+            });
+            if (data.municipios && data.municipios.length) list.classList.add('open');
+            else list.classList.remove('open');
+        }).catch(() => list.classList.remove('open'));
 }
 
 // ═══════════════════════════════════════
