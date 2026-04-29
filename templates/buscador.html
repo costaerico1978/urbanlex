@@ -3608,6 +3608,52 @@ if (BUSCA_PAGINA === 'buscador-manual') {
 }
 
 
+// Reconectar job Lei Específica se estava rodando
+function _espReconectar() {
+    const jobId = sessionStorage.getItem('esp_job_id');
+    if (!jobId) return;
+    let cursor = parseInt(sessionStorage.getItem('esp_cursor') || '0');
+    mudarTab('especifica');
+    document.getElementById('esp-loading').style.display = 'block';
+    document.getElementById('esp-loading-msg').textContent = 'Reconectando à análise em andamento...';
+    document.getElementById('esp-log').style.display = 'block';
+    const logLines = document.getElementById('esp-log-lines');
+    const poll = setInterval(async () => {
+        try {
+            const p = await fetch('/api/buscador/job/' + jobId + '?cursor=' + cursor);
+            const pd = await p.json();
+            if (pd.logs) {
+                pd.logs.forEach(l => {
+                    if (l.nivel === 'tabela' || l.nivel === 'token') return;
+                    const div = document.createElement('div');
+                    div.style.color = l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'aviso' ? '#f0ad4e' : l.nivel === 'erro' ? '#e74c3c' : 'var(--muted)';
+                    div.innerHTML = l.msg || '';
+                    logLines.appendChild(div);
+                });
+                cursor = pd.cursor || cursor;
+                sessionStorage.setItem('esp_cursor', cursor);
+                logLines.scrollTop = logLines.scrollHeight;
+            }
+            if (pd.done) {
+                clearInterval(poll);
+                sessionStorage.removeItem('esp_job_id');
+                sessionStorage.removeItem('esp_cursor');
+                document.getElementById('esp-loading').style.display = 'none';
+                if (pd.result) {
+                    const res = pd.result;
+                    document.getElementById('esp-resultado').style.display = 'block';
+                    const links = document.getElementById('esp-resultado-links');
+                    links.innerHTML = '';
+                    if (res.zip_url) links.innerHTML += '<a href="' + res.zip_url + '" target="_blank" style="font-size:12px;color:var(--accent);text-decoration:none;">📦 Baixar ZIP</a>';
+                    if (res.relatorio_url) links.innerHTML += '<a href="' + res.relatorio_url + '" target="_blank" style="font-size:12px;color:var(--muted);text-decoration:none;">📄 Relatório PDF</a>';
+                    if (res.tabela_url) links.innerHTML += '<a href="' + res.tabela_url + '" target="_blank" style="font-size:12px;color:var(--muted);text-decoration:none;">📊 Tabela PDF</a>';
+                }
+            }
+        } catch(e) {}
+    }, 1500);
+}
+setTimeout(_espReconectar, 1000);
+
 function _espAcMunicipio(val) {
     const list = document.getElementById('esp-ac-list');
     if (!val || val.length < 2) { list.classList.remove('open'); return; }
@@ -3661,10 +3707,13 @@ async function iniciarBuscaEspecifica() {
         const data = await resp.json();
         if (!data.success) { alert('Erro: ' + (data.error || 'Falha ao iniciar')); document.getElementById('esp-loading').style.display = 'none'; return; }
         const jobId = data.job_id;
+        sessionStorage.setItem('esp_job_id', jobId);
+        sessionStorage.setItem('esp_cursor', '0');
         document.getElementById('esp-log').style.display = 'block';
         const logLines = document.getElementById('esp-log-lines');
         logLines.innerHTML = '';
         let cursor = 0;
+        mudarTab('especifica');
         const poll = setInterval(async () => {
             try {
                 const p = await fetch('/api/buscador/job/' + jobId + '?cursor=' + cursor);
@@ -3682,6 +3731,8 @@ async function iniciarBuscaEspecifica() {
                 }
                 if (pd.done) {
                     clearInterval(poll);
+                    sessionStorage.removeItem('esp_job_id');
+                    sessionStorage.removeItem('esp_cursor');
                     document.getElementById('esp-loading').style.display = 'none';
                     if (pd.result) {
                         const res = pd.result;
