@@ -730,6 +730,8 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
         <button class="btn btn-secondary btn-sm" onclick="limparBuscaEspecifica()">Limpar</button>
         <span style="font-size:11px;color:var(--muted2);margin-left:8px;">Estimativa: 2–5 minutos</span>
     </div>
+    <div id="tabela-legs-esp" style="margin-top:16px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:var(--accent) var(--surface)"></div>
+    <div id="esp-downloads" style="display:none;margin-top:12px;gap:10px;flex-wrap:wrap;"></div>
     <div id="esp-loading" style="display:none;text-align:center;padding:30px;color:var(--muted);">
         <div class="spinner-busca"></div>
         <div style="font-size:13px;font-weight:600;margin-top:12px;" id="esp-loading-msg">Iniciando análise...</div>
@@ -3179,6 +3181,8 @@ function _renderTabelaLegs() {
     });
     h+=`</tbody></table>`;
     tbl.innerHTML=h;
+    const tblEsp=document.getElementById("tabela-legs-esp");
+    if(tblEsp) tblEsp.innerHTML=h;
 }
 
 // ── Baixar Tabela de Legislações em PDF ──
@@ -3723,7 +3727,8 @@ async function iniciarBuscaEspecifica() {
                 const pd = await p.json();
                 if (pd.logs) {
                     pd.logs.forEach(l => {
-                        if (l.nivel === 'tabela' || l.nivel === 'token') return;
+                        if (l.nivel === 'token') return;
+                        if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
                         const div = document.createElement('div');
                         div.style.color = l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'aviso' ? '#f0ad4e' : l.nivel === 'erro' ? '#e74c3c' : 'var(--muted)';
                         div.innerHTML = l.msg || '';
@@ -3745,6 +3750,15 @@ async function iniciarBuscaEspecifica() {
                         if (res.zip_url) links.innerHTML += '<a href="' + res.zip_url + '" target="_blank" style="font-size:12px;color:var(--accent);text-decoration:none;">📦 Baixar ZIP</a>';
                         if (res.relatorio_url) links.innerHTML += '<a href="' + res.relatorio_url + '" target="_blank" style="font-size:12px;color:var(--muted);text-decoration:none;">📄 Relatório PDF</a>';
                         if (res.tabela_url) links.innerHTML += '<a href="' + res.tabela_url + '" target="_blank" style="font-size:12px;color:var(--muted);text-decoration:none;">📊 Tabela PDF</a>';
+                        // Botoes de download estilo busca automatica
+                        const dlDiv = document.getElementById('esp-downloads');
+                        if (dlDiv) {
+                            dlDiv.style.display = 'flex';
+                            dlDiv.innerHTML = '';
+                            if (res.zip_url) dlDiv.innerHTML += `<a href="${res.zip_url}" target="_blank" class="btn btn-primary btn-sm">📦 Pacote Completo ZIP</a>`;
+                            if (res.relatorio_url) dlDiv.innerHTML += `<a href="${res.relatorio_url}" target="_blank" class="btn btn-secondary btn-sm">📄 Relatório PDF</a>`;
+                            if (res.tabela_url) dlDiv.innerHTML += `<a href="${res.tabela_url}" target="_blank" class="btn btn-secondary btn-sm">📊 Tabela PDF</a>`;
+                        }
                     }
                 }
             } catch(e) {}
