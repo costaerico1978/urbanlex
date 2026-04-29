@@ -29,7 +29,7 @@ def _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta="", stat
     }
     logs.append({"nivel": "tabela", "msg": _j.dumps(dados, ensure_ascii=False)})
 
-def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallback_url=None, max_legislacoes=None):
+def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallback_url=None, max_legislacoes=None, _legs_override=None):
     resultado = {"encontradas": [], "nao_encontrada": False}
     _falhas_municipio = 0  # Contador de legislacoes nao encontradas em nenhum fallback
     _browser_mun = None  # Browser Playwright compartilhado por municipio
@@ -273,6 +273,10 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
         except Exception: pass
         return resultado
 
+    # Se legs_override fornecido, usar diretamente sem as 7 perguntas
+    if _legs_override:
+        legs = _legs_override
+        logs.append({"nivel": "ok", "msg": f"[Lei Específica] Usando lei informada: {legs[0].get('tipo','')} {legs[0].get('numero','')}/{legs[0].get('ano','')}"})
     # Ordenar por ano mais recente primeiro, depois por numero
     def _sort_key(l):
         try: ano_k = int(l.get("ano", "0") or "0")

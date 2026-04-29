@@ -259,6 +259,10 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
     <button class="tab-btn" onclick="mudarTab('manual')" id="tab-manual">
         🔎 Busca Manual
     </button>
+    <button class="tab-btn" onclick="mudarTab('especifica')" id="tab-especifica">
+        ⚡ Lei Específica
+        <span style="display:inline-block;background:rgba(0,229,160,.15);color:var(--accent);font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:6px;border:1px solid rgba(0,229,160,.3)">NOVO</span>
+    </button>
     <button class="tab-btn" onclick="mudarTab('historico')" id="tab-historico">
         📋 Histórico de Buscas
     </button>
@@ -641,6 +645,94 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
     </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- TAB: LEI ESPECÍFICA                                             -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="panel-especifica">
+    <div class="busca-card">
+        <div class="busca-card-header">
+            <span class="busca-card-icon">⚡</span>
+            <span class="busca-card-title">Análise Completa de Lei Específica</span>
+        </div>
+        <div class="busca-card-desc">
+            Informe uma legislação específica e o sistema realizará a análise completa: busca nas fontes,
+            download do PDF, extração de texto com Gemini Vision, detecção de relações com outras leis
+            e adição automática das leis referenciadas à fila — sem as 7 perguntas iniciais ao Gemini.
+        </div>
+    </div>
+    <div style="background:rgba(0,229,160,.05);border:1px solid rgba(0,229,160,.2);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:16px;max-width:700px;">
+        <strong style="color:var(--accent)">Diferença da Busca Manual:</strong>
+        a Busca Manual apenas localiza e baixa o arquivo. Esta modalidade faz a
+        <strong style="color:var(--text)">análise completa</strong> — igual à Busca Automática,
+        mas para uma lei que você indica diretamente.
+    </div>
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted2);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);max-width:700px;">Identificação da Legislação</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:700px;">
+        <div>
+            <div class="field-label">Município</div>
+            <input class="field-input" type="text" id="esp-municipio" placeholder="Ex: Rio de Janeiro">
+        </div>
+        <div>
+            <div class="field-label">Estado</div>
+            <input class="field-input" type="text" id="esp-estado" placeholder="Ex: RJ" maxlength="2" style="text-transform:uppercase">
+        </div>
+        <div>
+            <div class="field-label">Tipo de Ato</div>
+            <select class="field-input" id="esp-tipo">
+                <option value="Lei Complementar">Lei Complementar</option>
+                <option value="Lei">Lei</option>
+                <option value="Decreto">Decreto</option>
+                <option value="Decreto-Lei">Decreto-Lei</option>
+                <option value="Resolução">Resolução</option>
+            </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div>
+                <div class="field-label">Número</div>
+                <input class="field-input" type="text" id="esp-numero" placeholder="Ex: 270">
+            </div>
+            <div>
+                <div class="field-label">Ano</div>
+                <input class="field-input" type="text" id="esp-ano" placeholder="Ex: 2024" maxlength="4">
+            </div>
+        </div>
+    </div>
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted2);margin:20px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border);max-width:700px;">Opções de Análise</div>
+    <div style="display:flex;flex-direction:column;gap:8px;max-width:700px;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="esp-opt-anexos" checked style="accent-color:var(--accent);width:14px;height:14px;">
+            <span style="font-size:12px;color:var(--muted)"><strong style="color:var(--text)">Analisar anexos com Gemini Vision</strong> — extrai texto de PDFs e ZIPs</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="esp-opt-relacoes" checked style="accent-color:var(--accent);width:14px;height:14px;">
+            <span style="font-size:12px;color:var(--muted)"><strong style="color:var(--text)">Detectar referências a outras leis</strong> — adiciona automaticamente à fila</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="esp-opt-revogacao" checked style="accent-color:var(--accent);width:14px;height:14px;">
+            <span style="font-size:12px;color:var(--muted)"><strong style="color:var(--text)">Verificar se está revogada</strong> — cruza com legislações mais recentes</span>
+        </label>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;align-items:center;">
+        <button class="btn btn-primary btn-sm" onclick="iniciarBuscaEspecifica()">⚡ Analisar Lei</button>
+        <button class="btn btn-secondary btn-sm" onclick="limparBuscaEspecifica()">Limpar</button>
+        <span style="font-size:11px;color:var(--muted2);margin-left:8px;">Estimativa: 2–5 minutos</span>
+    </div>
+    <div id="esp-loading" style="display:none;text-align:center;padding:30px;color:var(--muted);">
+        <div class="spinner-busca"></div>
+        <div style="font-size:13px;font-weight:600;margin-top:12px;" id="esp-loading-msg">Iniciando análise...</div>
+    </div>
+    <div id="esp-log" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface);">
+            <span style="font-size:12px;font-weight:600;color:var(--text)">📋 Log da Análise</span>
+            <button class="btn btn-ghost btn-sm" onclick="baixarLogEsp()">⬇ Baixar Log</button>
+        </div>
+        <div id="esp-log-lines" style="padding:10px 12px;max-height:400px;overflow-y:auto;font-family:var(--font-mono);font-size:11px;line-height:1.8;"></div>
+    </div>
+    <div id="esp-resultado" style="display:none;margin-top:16px;padding:14px;background:rgba(0,229,160,.05);border:1px solid rgba(0,229,160,.2);border-radius:8px;">
+        <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:8px;">✅ Análise concluída</div>
+        <div id="esp-resultado-links" style="display:flex;gap:12px;flex-wrap:wrap;"></div>
+    </div>
+</div>
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <!-- TAB 4: HISTÓRICO DE BUSCAS                                     -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
@@ -3501,5 +3593,94 @@ if (BUSCA_PAGINA === 'buscador-manual') {
     const th = document.getElementById('tab-historico');
     if (th) th.style.display = 'none';
 }
+
+// ═══════════════════════════════════════
+// LEI ESPECÍFICA
+// ═══════════════════════════════════════
+async function iniciarBuscaEspecifica() {
+    const mun = (document.getElementById('esp-municipio').value || '').trim();
+    const est = (document.getElementById('esp-estado').value || '').trim().toUpperCase();
+    const tipo = document.getElementById('esp-tipo').value;
+    const num = (document.getElementById('esp-numero').value || '').trim();
+    const ano = (document.getElementById('esp-ano').value || '').trim();
+    if (!mun || !est || !num || !ano) {
+        alert('Preencha município, estado, número e ano.');
+        return;
+    }
+    document.getElementById('esp-loading').style.display = 'block';
+    document.getElementById('esp-log').style.display = 'none';
+    document.getElementById('esp-resultado').style.display = 'none';
+    document.getElementById('esp-loading-msg').textContent = 'Iniciando análise de ' + tipo + ' ' + num + '/' + ano + '...';
+    try {
+        const resp = await fetch('/api/buscador/lei-especifica', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                municipio: mun, estado: est, tipo: tipo, numero: num, ano: ano,
+                analisar_anexos: document.getElementById('esp-opt-anexos').checked,
+                detectar_relacoes: document.getElementById('esp-opt-relacoes').checked,
+                verificar_revogacao: document.getElementById('esp-opt-revogacao').checked
+            })
+        });
+        const data = await resp.json();
+        if (!data.success) { alert('Erro: ' + (data.error || 'Falha ao iniciar')); document.getElementById('esp-loading').style.display = 'none'; return; }
+        const jobId = data.job_id;
+        document.getElementById('esp-log').style.display = 'block';
+        const logLines = document.getElementById('esp-log-lines');
+        logLines.innerHTML = '';
+        let cursor = 0;
+        const poll = setInterval(async () => {
+            try {
+                const p = await fetch('/api/buscador/job/' + jobId + '?cursor=' + cursor);
+                const pd = await p.json();
+                if (pd.logs) {
+                    pd.logs.forEach(l => {
+                        if (l.nivel === 'tabela' || l.nivel === 'token') return;
+                        const div = document.createElement('div');
+                        div.style.color = l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'aviso' ? '#f0ad4e' : l.nivel === 'erro' ? '#e74c3c' : 'var(--muted)';
+                        div.innerHTML = l.msg || '';
+                        logLines.appendChild(div);
+                    });
+                    cursor = pd.cursor || cursor;
+                    logLines.scrollTop = logLines.scrollHeight;
+                }
+                if (pd.done) {
+                    clearInterval(poll);
+                    document.getElementById('esp-loading').style.display = 'none';
+                    if (pd.result) {
+                        const res = pd.result;
+                        document.getElementById('esp-resultado').style.display = 'block';
+                        const links = document.getElementById('esp-resultado-links');
+                        links.innerHTML = '';
+                        if (res.zip_url) links.innerHTML += '<a href="' + res.zip_url + '" target="_blank" style="font-size:12px;color:var(--accent);text-decoration:none;">📦 Baixar ZIP</a>';
+                        if (res.relatorio_url) links.innerHTML += '<a href="' + res.relatorio_url + '" target="_blank" style="font-size:12px;color:var(--muted);text-decoration:none;">📄 Relatório PDF</a>';
+                        if (res.tabela_url) links.innerHTML += '<a href="' + res.tabela_url + '" target="_blank" style="font-size:12px;color:var(--muted);text-decoration:none;">📊 Tabela PDF</a>';
+                    }
+                }
+            } catch(e) {}
+        }, 1500);
+    } catch(e) {
+        document.getElementById('esp-loading').style.display = 'none';
+        alert('Erro: ' + e.message);
+    }
+}
+
+function limparBuscaEspecifica() {
+    document.getElementById('esp-municipio').value = '';
+    document.getElementById('esp-estado').value = '';
+    document.getElementById('esp-numero').value = '';
+    document.getElementById('esp-ano').value = '';
+    document.getElementById('esp-log').style.display = 'none';
+    document.getElementById('esp-resultado').style.display = 'none';
+    document.getElementById('esp-loading').style.display = 'none';
+}
+
+function baixarLogEsp() {
+    const lines = document.getElementById('esp-log-lines').innerText;
+    const blob = new Blob([lines], {type: 'text/plain'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'log_lei_especifica.txt'; a.click();
+}
+
 </script>
 {% endblock %}

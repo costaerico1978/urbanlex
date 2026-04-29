@@ -3458,6 +3458,88 @@ def api_buscador_municipio():
                 pass
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({"success": True, "job_id": job_id})
+@app.route('/api/buscador/lei-especifica', methods=['POST'])
+@editor_required
+def api_buscador_lei_especifica():
+    """Inicia analise completa de uma lei especifica em background."""
+    import uuid, threading
+    d = request.json or {}
+    mun = d.get("municipio", "").strip()
+    est = d.get("estado", "").strip().upper()
+    tipo = d.get("tipo", "").strip()
+    numero = d.get("numero", "").strip()
+    ano = d.get("ano", "").strip()
+    if not mun or not est or not tipo or not numero or not ano:
+        return jsonify({"success": False, "error": "municipio, estado, tipo, numero e ano sao obrigatorios"}), 400
+    # Bloquear jobs concorrentes
+    _jc_ativos = [j for jid, j in _buscador_jobs.items() if not j.get("done") and not j.get("cancelled")]
+    if _jc_ativos:
+        return jsonify({"success": False, "error": "job_concorrente"}), 409
+    job_id = str(uuid.uuid4())[:8]
+    job = {"done": False, "cancelled": False, "logs": _LogList(job_id, get_db), "result": None, "tipo": "especifica"}
+    _buscador_jobs[job_id] = job
+    hist_id = None
+    try:
+        _hconn = get_db(); _hcur = _hconn.cursor()
+        _hcur.execute("""INSERT INTO buscas_historico (tipo, municipio, estado, iniciado_em, job_id)
+                         VALUES (%s, %s, %s, NOW(), %s) RETURNING id""",
+                      ('especifica', mun, est, job_id))
+        hist_id = _hcur.fetchone()[0]
+        _hconn.commit(); _hcur.close(); _hconn.close()
+    except Exception: pass
+    def _run():
+        try:
+            from modulos.buscador_legislacoes import _chamar_llm as _llm
+            from modulos.buscador_urbanistico import buscar_legislacoes_urbanisticas
+            def chamar_llm(prompt, logs, label="LLM", max_retries=2):
+                return _llm(prompt, logs, label, max_retries)
+            _fb_url = None
+            try:
+                _fb_conn = get_db(); _fb_cur = _fb_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                _fb_cur.execute("SELECT url FROM municipio_fallback WHERE LOWER(municipio)=LOWER(%s) AND LOWER(estado)=LOWER(%s)", (mun, est))
+                _fb_row = _fb_cur.fetchone(); _fb_conn.close()
+                if _fb_row: _fb_url = _fb_row['url']
+            except: pass
+            # Criar lista de leis com apenas a lei especificada
+            from modulos.buscador_urbanistico import buscar_legislacoes_urbanisticas as _bla
+            # Chamar diretamente com a lei especificada como unica legislacao
+            _legs_override = [{"tipo": tipo, "numero": numero, "ano": ano, "descricao": "", "_nivel": 0, "_pergunta_label": ""}]
+            from modulos.buscador_urbanistico import _buscar_leismunicipais, _buscar_fallback1, _buscar_fallback2
+            # Usar o fluxo completo mas com lista de leis pre-definida
+            import json as _json_esp
+            r = buscar_legislacoes_urbanisticas(mun, est, job["logs"], chamar_llm,
+                                                fallback_url=_fb_url, max_legislacoes=1,
+                                                _legs_override=_legs_override)
+            job["result"] = {
+                "encontradas": r.get("encontradas", []),
+                "zip_url": r.get("zip_url"),
+                "zip_nome": r.get("zip_nome"),
+                "relatorio_url": r.get("relatorio_url"),
+                "relatorio_nome": r.get("relatorio_nome"),
+                "tabela_url": r.get("tabela_url"),
+                "tabela_nome": r.get("tabela_nome"),
+                "nao_encontrada": r.get("nao_encontrada", False),
+            }
+            job["hist_id"] = hist_id
+            if hist_id:
+                try:
+                    _enc = r.get("encontradas", [])
+                    _leg = _enc[0] if _enc else {}
+                    _hconn2 = get_db(); _hcur2 = _hconn2.cursor()
+                    _hcur2.execute("""UPDATE buscas_historico SET concluido_em=NOW(), sucesso=%s,
+                        legislacao_tipo=%s, legislacao_numero=%s, legislacao_ano=%s,
+                        zip_path=%s, relatorio_path=%s, tabela_path=%s WHERE id=%s""",
+                        (bool(_enc), _leg.get("tipo",""), _leg.get("numero",""), _leg.get("ano",""),
+                         r.get("zip_url",""), r.get("relatorio_url",""), r.get("tabela_url",""), hist_id))
+                    _hconn2.commit(); _hcur2.close(); _hconn2.close()
+                except Exception: pass
+        except Exception as e:
+            job["logs"].append({"nivel": "erro", "msg": f"Erro: {str(e)[:200]}"})
+        finally:
+            job["done"] = True
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"success": True, "job_id": job_id})
+
 @app.route('/api/buscador/manual', methods=['POST'])
 @editor_required
 def api_buscador_manual():
