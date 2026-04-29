@@ -32,9 +32,8 @@ if echo "$ATIVOS" | grep -q '"ativos": true'; then
         if ! echo "$ATIVOS2" | grep -q '"ativos": true'; then
             FILA=$(psql postgresql://urbanlex:urbanlex123@localhost:5432/urbanlex -t -c "SELECT COUNT(*) FROM fila_buscas WHERE status='rodando'" 2>/dev/null | tr -d ' ' || echo 0)
             if [ "$FILA" = "0" ]; then
-            break
+                break
             fi
-        fi
         fi
     done
 fi
