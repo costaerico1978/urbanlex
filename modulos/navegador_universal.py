@@ -188,6 +188,8 @@ de clicar no botao de download.
 
 24. CAMPOS DE PERIODO: Quando o formulario tiver campos de periodo (AnoInicio/AnoFinal, De/Ate, Data Inicio/Data Fim, A partir de/Ate), SEMPRE preencha os dois campos. Use o ano da legislacao procurada para ambos (ex: AnoInicio=2024 e AnoFinal=2024). Nunca preencha apenas um dos dois campos de periodo — isso pode retornar resultados incorretos ou vazios.
 
+25. CAPTCHA BLOQUEANDO DOWNLOAD: Se um CAPTCHA aparecer apos clicar em "Download" ou "Baixar PDF", NAO desista imediatamente. Primeiro tente clicar em links alternativos de download visiveis na pagina, como "Arq. ORIGINAL PDF", "PDF Original", "Arquivo Original", "Baixar Original" ou links diretos para arquivos .pdf. Esses links alternativos geralmente nao passam pelo reCAPTCHA. So desista se todos os links alternativos tambem falharem ou se nao houver nenhum link alternativo disponivel.
+
 21. LISTA DE RESULTADOS DE LEGISLACAO: Quando uma pagina exibir uma lista de leis encontradas e a lei procurada estiver visivel, clique no TITULO ou NOME da lei para navegar a pagina de detalhes. NAO clique em icones de download, botoes de PDF, setas ou icones laterais — esses elementos geralmente acionam downloads via JavaScript que nao funcionam no navegador automatizado. O PDF ou conteudo da lei deve ser obtido a partir da pagina de detalhes, nao diretamente da lista.
 
 20. RADIO BUTTONS E CHECKBOXES: O bloco "ELEMENTOS DE FORMULARIO NO HTML" no prompt ja indica a ACAO correta para cada elemento. Se o elemento tem label visivel, use "clicar" com esse texto exato. Se o elemento tem coordenadas x,y mas sem label, use "clicar_coordenada" com os valores x,y exatos fornecidos. NUNCA estime coordenadas para elementos que ja tem label — use "clicar" com o texto do label.
