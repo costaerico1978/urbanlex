@@ -672,7 +672,7 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
             <div class="field-label">Município</div>
             <div class="ac-wrapper">
                 <input type="text" class="field-input" id="esp-municipio" placeholder="Ex: Natal, Cascavel, Resende..." autocomplete="off"
-                    oninput="_espAcMunicipio(this.value)" onblur="setTimeout(()=>document.getElementById('esp-ac-list').classList.remove('open'),200)">
+                       oninput="acBuscar(this.value, 'esp')" onfocus="acBuscar(this.value, 'esp')" onkeydown="acKeydown(event, 'esp')">
                 <div class="ac-list" id="esp-ac-list"></div>
             </div>
         </div>
@@ -2805,7 +2805,7 @@ let _acIdx = -1;
 async function acBuscar(query, prefix) {
     prefix = prefix || 'bm';
     const listEl = document.getElementById(prefix + '-ac-list');
-    const estado = document.getElementById(prefix === 'bm' ? 'bm-estado' : 'nm-estado').value;
+    const estado = document.getElementById(prefix === 'bm' ? 'bm-estado' : (prefix === 'esp' ? 'esp-estado' : 'nm-estado')).value;
     query = (query || '').trim();
 
     if (query.length < 2) { listEl.classList.remove('open'); return; }
@@ -2873,8 +2873,11 @@ function acSelecionar(el, prefix) {
     prefix = prefix || 'bm';
     const nome = el.dataset.nome;
     const estado = el.dataset.estado;
-    document.getElementById(prefix === 'bm' ? 'bm-municipio' : 'nm-municipio').value = nome; if(prefix!=='bm') setTimeout(_nmCarregarFonte,100);
-    document.getElementById(prefix === 'bm' ? 'bm-estado' : 'nm-estado').value = estado;
+    const munId = prefix === 'bm' ? 'bm-municipio' : (prefix === 'esp' ? 'esp-municipio' : 'nm-municipio');
+    const estId = prefix === 'bm' ? 'bm-estado' : (prefix === 'esp' ? 'esp-estado' : 'nm-estado');
+    document.getElementById(munId).value = nome;
+    if(prefix==='nm') setTimeout(_nmCarregarFonte,100);
+    document.getElementById(estId).value = estado;
     document.getElementById(prefix + '-ac-list').classList.remove('open');
 
     // Se é busca manual, carregar sites de referência automaticamente
