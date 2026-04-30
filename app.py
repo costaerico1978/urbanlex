@@ -5629,6 +5629,175 @@ def _executar_sync_landly():
             conn2.commit(); cur2.close(); conn2.close()
         except: pass
 
+@app.route('/gerador-planilha')
+@login_required
+def gerador_planilha():
+    return render_template('gerador_planilha.html', active_page='gerador-planilha', active_group='gerador', **tmpl_ctx())
+
+@app.route('/api/gerador/iniciar', methods=['POST'])
+@editor_required
+def api_gerador_iniciar():
+    import uuid, threading
+    job_id = str(uuid.uuid4())[:8]
+    template_file = request.files.get('template')
+    compilados = json.loads(request.form.get('compilados', '[]'))
+    prompt = request.form.get('prompt', '')
+    if not template_file or not compilados:
+        return jsonify({'success': False, 'error': 'template e compilados obrigatorios'}), 400
+    import os as _os_gp
+    template_path = f'/var/www/urbanlex/static/downloads/template_{job_id}.xlsx'
+    template_file.save(template_path)
+    job = {'done': False, 'cancelled': False, 'logs': [], 'result': None}
+    _buscador_jobs[job_id] = job
+
+    def _run():
+        try:
+            import anthropic, zipfile as _zf, tempfile as _tmp, base64 as _b64, openpyxl as _xl, re as _re_gp, shutil as _sh
+            from pathlib import Path
+            client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY',''))
+            job['logs'].append({'nivel':'ok','msg':'✅ Iniciando análise de parâmetros urbanísticos...'})
+            # Coletar todos os arquivos
+            files_content = []
+            for comp in compilados:
+                mun = comp.get('municipio','')
+                est = comp.get('estado','')
+                if comp.get('zip_on') and comp.get('zip'):
+                    zpath = comp['zip']
+                    if zpath.startswith('/static/'): zpath = '/var/www/urbanlex' + zpath
+                    if _os_gp.path.exists(zpath):
+                        job['logs'].append({'nivel':'info','msg':f'📦 Descompactando {_os_gp.path.basename(zpath)}...'})
+                        tmpdir = _tmp.mkdtemp()
+                        try:
+                            with _zf.ZipFile(zpath,'r') as z: z.extractall(tmpdir)
+                            for root, dirs, files in _os_gp.walk(tmpdir):
+                                for fname in sorted(files):
+                                    fpath = _os_gp.path.join(root, fname)
+                                    job['logs'].append({'nivel':'info','msg':f'📄 Lendo: {fname}'})
+                                    try:
+                                        with open(fpath,'rb') as f2:
+                                            data = _b64.standard_b64encode(f2.read()).decode()
+                                        ext = fname.lower().split('.')[-1]
+                                        mt = 'application/pdf' if ext=='pdf' else 'application/octet-stream'
+                                        files_content.append({'type':'document','source':{'type':'base64','media_type':mt,'data':data},'title':f'{mun}/{est}: {fname}'})
+                                    except Exception: pass
+                        finally:
+                            _sh.rmtree(tmpdir, ignore_errors=True)
+                if comp.get('tabela_on') and comp.get('tabela'):
+                    tpath = comp['tabela']
+                    if tpath.startswith('/static/'): tpath = '/var/www/urbanlex' + tpath
+                    if _os_gp.path.exists(tpath):
+                        job['logs'].append({'nivel':'info','msg':f'📊 Incluindo tabela: {_os_gp.path.basename(tpath)}'})
+                        try:
+                            with open(tpath,'rb') as f2:
+                                data = _b64.standard_b64encode(f2.read()).decode()
+                            files_content.append({'type':'document','source':{'type':'base64','media_type':'application/pdf','data':data},'title':f'Tabela {mun}/{est}'})
+                        except Exception: pass
+            # Ler template xlsx
+            wb = _xl.load_workbook(template_path)
+            ws = wb.active
+            # Montar mensagem para Claude
+            job['logs'].append({'nivel':'info','msg':'🤖 Claude analisando documentos...'})
+            _prompt_final = prompt + '\n\nResponda APENAS com JSON conforme estrutura da planilha template.'
+            msgs = [{'role':'user','content': files_content + [{'type':'text','text': _prompt_final}]}]
+            resp = client.messages.create(model='claude-sonnet-4-20250514', max_tokens=8000, messages=msgs)
+            txt = resp.content[0].text if resp.content else ''
+            # Extrair JSON
+            import json as _json_gp
+            s = txt.find('{'); e = txt.rfind('}') + 1
+            zonas = []
+            if s >= 0:
+                try: zonas = _json_gp.loads(txt[s:e]).get('zonas', [])
+                except Exception: pass
+            job['logs'].append({'nivel':'ok','msg':f'✅ {len(zonas)} zonas identificadas'})
+            # Preencher planilha
+            headers = ['Zona','TO','CA Básico','CA Máximo','Permeabilidade','Gabarito','Rec. Frontal','Rec. Lateral','Rec. Fundo','Uso']
+            campos = ['nome','to','ca_basico','ca_maximo','permeabilidade','gabarito','recuo_frontal','recuo_lateral','recuo_fundo','uso']
+            # Tentar encontrar linha de cabeçalho
+            start_row = ws.max_row + 2
+            for row in ws.iter_rows():
+                for cell in row:
+                    if cell.value and 'zona' in str(cell.value).lower():
+                        start_row = cell.row + 1
+                        break
+            for i, zona in enumerate(zonas):
+                job['logs'].append({'nivel':'info','msg':f'📝 Preenchendo zona: {zona.get("nome","?")}...'})
+                for j, campo in enumerate(campos):
+                    ws.cell(row=start_row+i, column=j+1, value=zona.get(campo,'NI'))
+            # Salvar
+            from datetime import datetime as _dt
+            _now = _dt.now()
+            _ts = _now.strftime('%d%m%Y_%I%M%p').lower()
+            muns = list(set(c['municipio'] for c in compilados))
+            _est = compilados[0]['estado'] if compilados else 'XX'
+            _mun = muns[0].replace(' ','_') if muns else 'municipio'
+            nome_arquivo = f'parametros_urbanos_{_est}_{_mun}_{_ts}.xlsx'
+            out_path = f'/var/www/urbanlex/static/downloads/{nome_arquivo}'
+            wb.save(out_path)
+            job['logs'].append({'nivel':'ok','msg':f'✅ Planilha salva: {nome_arquivo}'})
+            # Salvar no banco
+            try:
+                conn2 = get_db(); cur2 = conn2.cursor()
+                for comp in compilados:
+                    cur2.execute("INSERT INTO planilhas_geradas (municipio, estado, arquivo_path, arquivo_nome, zonas_count, prompt) VALUES (%s,%s,%s,%s,%s,%s)",
+                        (comp['municipio'], comp['estado'], out_path, nome_arquivo, len(zonas), prompt))
+                conn2.commit(); cur2.close(); conn2.close()
+            except Exception: pass
+            job['result'] = {'arquivo_url': f'/static/downloads/{nome_arquivo}', 'arquivo_nome': nome_arquivo, 'zonas': len(zonas)}
+        except Exception as e:
+            job['logs'].append({'nivel':'erro','msg':f'Erro: {str(e)[:200]}'})
+        finally:
+            job['done'] = True
+            try: _os_gp.unlink(template_path)
+            except: pass
+
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({'success': True, 'job_id': job_id})
+
+@app.route('/api/gerador/job/<job_id>')
+@login_required
+def api_gerador_job(job_id):
+    job = _buscador_jobs.get(job_id)
+    if not job: return jsonify({'done': True, 'logs': [], 'cursor': 0})
+    cursor = int(request.args.get('cursor', 0))
+    logs = job['logs'][cursor:]
+    return jsonify({'done': job['done'], 'logs': logs, 'cursor': cursor + len(logs), 'result': job.get('result')})
+
+@app.route('/api/gerador/cancelar/<job_id>', methods=['POST'])
+@login_required
+def api_gerador_cancelar(job_id):
+    job = _buscador_jobs.get(job_id)
+    if job: job['done'] = True; job['cancelled'] = True
+    return jsonify({'success': True})
+
+@app.route('/api/gerador/historico')
+@login_required
+def api_gerador_historico():
+    try:
+        conn = get_db(); cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT * FROM planilhas_geradas ORDER BY criado_em DESC LIMIT 100")
+        rows = cur.fetchall(); cur.close(); conn.close()
+        result = []
+        for r in rows:
+            result.append({'id': r['id'], 'municipio': r['municipio'], 'estado': r['estado'],
+                'arquivo_nome': r['arquivo_nome'], 'zonas_count': r['zonas_count'],
+                'criado_em': r['criado_em'].strftime('%d/%m/%Y às %H:%M') if r['criado_em'] else '',
+                'arquivo_url': '/static/downloads/' + r['arquivo_nome'] if r['arquivo_nome'] else None})
+        return jsonify({'success': True, 'planilhas': result})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/gerador/excluir', methods=['DELETE'])
+@editor_required
+def api_gerador_excluir():
+    ids = (request.json or {}).get('ids', [])
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("DELETE FROM planilhas_geradas WHERE id = ANY(%s)", (ids,))
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/dossie-municipais')
 @login_required
 def dossie_municipais():

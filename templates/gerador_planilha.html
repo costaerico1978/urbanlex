@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Gerador de Planilha · UrbanLex{% endblock %}
+{% block extra_style %}
+<style>
+.gp-section{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted2);margin:20px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.gp-section:first-child{margin-top:0;}
+.gp-search{position:relative;max-width:420px;margin-bottom:14px;}
+.gp-search input{width:100%;padding:8px 12px 8px 34px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;}
+.gp-search input:focus{border-color:var(--accent);outline:none;}
+.gp-search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);}
+.gp-ac{position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--accent);border-radius:0 0 6px 6px;z-index:100;display:none;max-height:200px;overflow-y:auto;}
+.gp-ac.open{display:block;}
+.gp-ac-item{padding:8px 12px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+.gp-ac-item:hover{background:var(--surface2);}
+.gp-ac-est{font-size:10px;font-weight:700;color:var(--muted);background:var(--bg);padding:1px 5px;border-radius:3px;}
+.gp-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;}
+.gp-card-hdr{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.gp-card-mun{font-size:13px;font-weight:700;flex:1;}
+.gp-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+.gp-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;background:var(--surface);border:1px solid var(--border);border-radius:20px;font-size:11px;cursor:pointer;transition:all .15s;}
+.gp-chip:hover{border-color:var(--accent);}
+.gp-chip.on{border-color:var(--accent);background:rgba(0,229,160,.08);color:var(--accent);}
+.gp-chip.off{opacity:.5;cursor:default;}
+.gp-upload{border:2px dashed var(--border);border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:all .15s;position:relative;}
+.gp-upload:hover{border-color:var(--accent);background:rgba(0,229,160,.02);}
+.gp-upload.done{border-color:var(--accent2);background:rgba(0,229,160,.04);}
+.gp-upload input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.gp-prompt-bar{display:flex;gap:6px;margin-bottom:8px;}
+.gp-prompt-ta{width:100%;min-height:110px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:monospace;padding:10px 12px;resize:vertical;line-height:1.6;}
+.gp-prompt-ta:focus{border-color:var(--accent);outline:none;}
+.gp-log-wrap{margin-top:20px;border:1px solid var(--border);border-radius:8px;overflow:hidden;display:none;}
+.gp-log-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--border);}
+.gp-log-body{background:#080a0d;padding:12px;font-family:monospace;font-size:11px;line-height:1.8;max-height:280px;overflow-y:auto;}
+.gp-log-ts{color:var(--muted2);margin-right:6px;}
+.gp-resultado{background:rgba(0,229,160,.05);border:1px solid rgba(0,229,160,.25);border-radius:8px;padding:16px;margin-top:16px;display:none;}
+.gp-resultado-file{font-size:10px;color:var(--muted2);font-family:monospace;margin-top:8px;}
+.hist-group{margin-bottom:16px;}
+.hist-group-hdr{font-size:12px;font-weight:700;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px 6px 0 0;display:flex;align-items:center;gap:8px;}
+.hist-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-top:none;}
+.hist-row:last-child{border-radius:0 0 6px 6px;}
+.hist-info{flex:1;}
+.hist-nome{font-size:11px;font-weight:600;font-family:monospace;color:var(--accent);}
+.hist-meta{font-size:10px;color:var(--muted);margin-top:2px;}
+.tabs{display:flex;border-bottom:2px solid var(--border);margin-bottom:24px;}
+.tab-btn{padding:10px 18px;background:none;border:none;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;position:relative;transition:color .2s;}
+.tab-btn.active{color:var(--accent);}
+.tab-btn.active::after{content:'';position:absolute;bottom:-2px;left:0;right:0;height:2px;background:var(--accent);}
+</style>
+{% endblock %}
+{% block content %}
+<h2 style="font-size:18px;font-weight:700;margin-bottom:20px;">📊 Gerador de Planilha de Parâmetros</h2>
+<div class="tabs">
+  <button class="tab-btn active" onclick="gpTab('gerador',this)">⚙️ Gerador</button>
+  <button class="tab-btn" onclick="gpTab('historico',this)">🕐 Histórico de Planilhas</button>
+</div>
+<div id="gp-tab-gerador" style="max-width:780px;">
+  <div class="gp-section">1. Selecionar Compilados</div>
+  <div class="gp-search">
+    <span class="gp-search-icon">🔍</span>
+    <input type="text" id="gp-search-mun" placeholder="Buscar município para adicionar..." autocomplete="off" oninput="gpAcBuscar(this.value)" onblur="setTimeout(()=>document.getElementById('gp-ac').classList.remove('open'),200)">
+    <div class="gp-ac" id="gp-ac"></div>
+  </div>
+  <div id="gp-compilados"></div>
+  <div id="gp-compilados-empty" style="font-size:12px;color:var(--muted);padding:10px 0;">Nenhum compilado adicionado. Busque um município acima.</div>
+  <div class="gp-section">2. Planilha Excel Template</div>
+  <div class="gp-upload" id="gp-upload-area">
+    <input type="file" id="gp-template-file" accept=".xlsx,.xls" onchange="gpTemplateSelected(this)">
+    <div id="gp-upload-inner">
+      <div style="font-size:28px;margin-bottom:8px;">📂</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Clique para selecionar a planilha template</div>
+      <div style="font-size:11px;color:var(--muted);">Arquivo .xlsx que será preenchido pelo Claude</div>
+    </div>
+  </div>
+  <div class="gp-section">3. Prompt de Análise</div>
+  <div class="gp-prompt-bar">
+    <button class="btn btn-secondary btn-sm" onclick="gpPromptIncluir()">+ Incluir</button>
+    <button class="btn btn-secondary btn-sm" onclick="gpPromptEditar()">✏️ Editar</button>
+    <button class="btn btn-sm" style="background:rgba(231,76,60,.1);color:#e74c3c;border:1px solid rgba(231,76,60,.3);" onclick="gpPromptExcluir()">🗑 Excluir</button>
+    <button class="btn btn-primary btn-sm" style="margin-left:auto;" onclick="gpPromptSalvar()">💾 Salvar</button>
+  </div>
+  <textarea class="gp-prompt-ta" id="gp-prompt">Analise todos os documentos fornecidos e preencha a planilha Excel com os parâmetros urbanísticos de cada zona identificada. Para cada zona extraia: nome/código, taxa de ocupação, coeficiente de aproveitamento básico e máximo, taxa de permeabilidade, gabarito máximo, recuos mínimos e uso permitido. Caso algum parâmetro não esteja definido, indique "NI".</textarea>
+  <div class="gp-section">4. Gerar</div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+    <button class="btn btn-primary" onclick="gpIniciar()">🤖 Gerar Planilha de Parâmetros</button>
+    <button class="btn btn-ghost" onclick="gpLimpar()">Limpar</button>
+    <button class="btn btn-sm" id="gp-btn-cancelar" style="display:none;background:rgba(231,76,60,.1);color:#e74c3c;border:1px solid rgba(231,76,60,.3);" onclick="gpCancelar()">✕ Cancelar</button>
+  </div>
+  <div class="gp-log-wrap" id="gp-log-wrap">
+    <div class="gp-log-hdr">
+      <span style="font-size:12px;font-weight:600;">📋 Log em tempo real</span>
+      <button class="btn btn-ghost btn-sm" onclick="gpBaixarLog()">⬇ Salvar TXT</button>
+    </div>
+    <div class="gp-log-body" id="gp-log-body"></div>
+  </div>
+  <div class="gp-resultado" id="gp-resultado">
+    <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:6px;">✅ Planilha gerada com sucesso</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;" id="gp-resultado-sub"></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <a id="gp-btn-baixar" href="#" class="btn btn-primary">⬇ Baixar Planilha</a>
+      <button class="btn btn-ghost" onclick="gpLimpar()">Limpar</button>
+    </div>
+    <div class="gp-resultado-file" id="gp-resultado-file"></div>
+  </div>
+</div>
+<div id="gp-tab-historico" style="display:none;max-width:780px;">
+  <div class="gp-section" style="margin-top:0;">Histórico de Planilhas Geradas</div>
+  <div id="gp-hist-lista"><div style="font-size:12px;color:var(--muted);">Carregando...</div></div>
+  <div style="display:flex;gap:8px;margin-top:8px;">
+    <button class="btn btn-sm" style="background:rgba(231,76,60,.1);color:#e74c3c;border:1px solid rgba(231,76,60,.3);" onclick="gpHistExcluir()">🗑 Excluir Selecionadas</button>
+  </div>
+</div>
+{% endblock %}
+{% block extra_script %}
+<script>
+let _gpCompilados=[],_gpJobId=null,_gpPoll=null,_gpTemplateFile=null,_gpAcCache={};
+function gpTab(tab,el){document.getElementById('gp-tab-gerador').style.display=tab==='gerador'?'block':'none';document.getElementById('gp-tab-historico').style.display=tab==='historico'?'block':'none';document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');if(tab==='historico')gpCarregarHistorico();}
+async function gpAcBuscar(val){const ac=document.getElementById('gp-ac');if(!val||val.length<2){ac.classList.remove('open');return;}if(_gpAcCache[val]){gpAcRender(_gpAcCache[val]);return;}try{const r=await fetch('/api/buscador/autocomplete-municipios?q='+encodeURIComponent(val));const d=await r.json();_gpAcCache[val]=d.municipios||[];gpAcRender(_gpAcCache[val]);}catch(e){ac.classList.remove('open');}}
+function gpAcRender(items){const ac=document.getElementById('gp-ac');ac.innerHTML='';if(!items.length){ac.classList.remove('open');return;}items.slice(0,8).forEach(m=>{const div=document.createElement('div');div.className='gp-ac-item';div.innerHTML='<span class="gp-ac-est">'+m.estado+'</span>'+m.nome;div.onclick=()=>gpAdicionarMun(m.nome,m.estado);ac.appendChild(div);});ac.classList.add('open');}
+function gpAdicionarMun(nome,estado){document.getElementById('gp-ac').classList.remove('open');document.getElementById('gp-search-mun').value='';if(_gpCompilados.find(c=>c.municipio===nome&&c.estado===estado))return;fetch('/api/dossie/municipio/'+encodeURIComponent(nome)+'/'+encodeURIComponent(estado)).then(r=>r.json()).then(d=>{const comp={municipio:nome,estado:estado,zip:null,tabela:null,zip_on:false,tabela_on:false};if(d.success&&d.historico&&d.historico.length>0){const h=d.historico[0];if(h.zip_path){comp.zip=h.zip_path;comp.zip_on=true;}if(h.tabela_path){comp.tabela=h.tabela_path;comp.tabela_on=true;}}_gpCompilados.push(comp);gpRenderCompilados();}).catch(()=>{_gpCompilados.push({municipio:nome,estado:estado,zip:null,tabela:null,zip_on:false,tabela_on:false});gpRenderCompilados();});}
+function gpRenderCompilados(){const el=document.getElementById('gp-compilados');const empty=document.getElementById('gp-compilados-empty');empty.style.display=_gpCompilados.length?'none':'block';el.innerHTML='';_gpCompilados.forEach((c,i)=>{const div=document.createElement('div');div.className='gp-card';div.innerHTML='<div class="gp-card-hdr"><input type="checkbox" checked style="accent-color:var(--accent);width:15px;height:15px;flex-shrink:0;"><div class="gp-card-mun">🏙️ '+c.municipio+' / '+c.estado+'</div><button class="btn btn-ghost btn-sm" onclick="gpRemoverCompilado('+i+')">✕ Remover</button></div><div class="gp-chips">'+(c.zip?'<div class="gp-chip '+(c.zip_on?'on':'')+'" onclick="gpToggleChip('+i+',\'zip\',this)">📦 '+c.zip.split('/').pop()+'</div>':'<span style="font-size:11px;color:var(--muted2)">Sem ZIP</span>')+(c.tabela?'<div class="gp-chip '+(c.tabela_on?'on':'')+'" onclick="gpToggleChip('+i+',\'tabela\',this)">📊 '+c.tabela.split('/').pop()+'</div>':'<span style="font-size:10px;color:var(--warn)">📊 Tabela indisponível</span>')+'</div><div style="font-size:10px;color:var(--muted2);">Clique nos arquivos para incluir/excluir da análise</div>';el.appendChild(div);});}
+function gpToggleChip(idx,tipo,el){if(_gpCompilados[idx]){_gpCompilados[idx][tipo+'_on']=!_gpCompilados[idx][tipo+'_on'];el.classList.toggle('on',_gpCompilados[idx][tipo+'_on']);}}
+function gpRemoverCompilado(idx){_gpCompilados.splice(idx,1);gpRenderCompilados();}
+function gpTemplateSelected(input){if(!input.files[0])return;_gpTemplateFile=input.files[0];const area=document.getElementById('gp-upload-area');area.classList.add('done');document.getElementById('gp-upload-inner').innerHTML='<div style="font-size:28px;margin-bottom:8px;">✅</div><div style="font-size:13px;font-weight:600;color:var(--accent);margin-bottom:4px;">'+_gpTemplateFile.name+'</div><div style="font-size:11px;color:var(--muted);">Clique para substituir · '+(_gpTemplateFile.size/1024).toFixed(0)+' KB</div>';}
+async function gpIniciar(){if(!_gpTemplateFile){alert('Selecione a planilha template (.xlsx)');return;}const ativos=_gpCompilados.filter(c=>c.zip_on||c.tabela_on);if(!ativos.length){alert('Adicione pelo menos um compilado com arquivo selecionado.');return;}const prompt=document.getElementById('gp-prompt').value.trim();if(!prompt){alert('Digite o prompt de análise.');return;}document.getElementById('gp-log-wrap').style.display='block';document.getElementById('gp-log-body').innerHTML='';document.getElementById('gp-resultado').style.display='none';document.getElementById('gp-btn-cancelar').style.display='inline-flex';const fd=new FormData();fd.append('template',_gpTemplateFile);fd.append('compilados',JSON.stringify(ativos));fd.append('prompt',prompt);try{const r=await fetch('/api/gerador/iniciar',{method:'POST',body:fd});const d=await r.json();if(!d.success){alert('Erro: '+d.error);return;}_gpJobId=d.job_id;sessionStorage.setItem('gp_job_id',_gpJobId);gpIniciarPolling();}catch(e){alert('Erro: '+e.message);}}
+function gpIniciarPolling(){let cursor=0;_gpPoll=setInterval(async()=>{try{const r=await fetch('/api/gerador/job/'+_gpJobId+'?cursor='+cursor);const d=await r.json();if(d.logs){const body=document.getElementById('gp-log-body');d.logs.forEach(l=>{const div=document.createElement('div');const ts=new Date(Date.now()-3*3600000);const tsStr=ts.getUTCHours().toString().padStart(2,'0')+':'+ts.getUTCMinutes().toString().padStart(2,'0')+':'+ts.getUTCSeconds().toString().padStart(2,'0');const cor=l.nivel==='ok'?'var(--accent)':l.nivel==='aviso'?'#f0ad4e':l.nivel==='erro'?'#e74c3c':'var(--muted)';div.innerHTML='<span class="gp-log-ts">'+tsStr+'</span><span style="color:'+cor+'">'+l.msg+'</span>';body.appendChild(div);});cursor=d.cursor||cursor;body.scrollTop=body.scrollHeight;}if(d.done){clearInterval(_gpPoll);_gpPoll=null;sessionStorage.removeItem('gp_job_id');document.getElementById('gp-btn-cancelar').style.display='none';if(d.result&&d.result.arquivo_url){document.getElementById('gp-resultado').style.display='block';document.getElementById('gp-resultado-sub').textContent=(d.result.zonas||0)+' zonas · '+_gpCompilados.length+' município(s)';document.getElementById('gp-btn-baixar').href=d.result.arquivo_url;document.getElementById('gp-resultado-file').textContent=d.result.arquivo_nome||'';}}}catch(e){}},1500);}
+function gpCancelar(){if(_gpJobId)fetch('/api/gerador/cancelar/'+_gpJobId,{method:'POST'}).catch(()=>{});if(_gpPoll)clearInterval(_gpPoll);_gpJobId=null;document.getElementById('gp-btn-cancelar').style.display='none';}
+function gpLimpar(){gpCancelar();_gpCompilados=[];_gpTemplateFile=null;gpRenderCompilados();document.getElementById('gp-log-body').innerHTML='';document.getElementById('gp-log-wrap').style.display='none';document.getElementById('gp-resultado').style.display='none';document.getElementById('gp-upload-area').classList.remove('done');document.getElementById('gp-upload-inner').innerHTML='<div style="font-size:28px;margin-bottom:8px;">📂</div><div style="font-size:13px;font-weight:600;margin-bottom:4px;">Clique para selecionar a planilha template</div><div style="font-size:11px;color:var(--muted);">Arquivo .xlsx que será preenchido pelo Claude</div>';document.getElementById('gp-template-file').value='';}
+function gpBaixarLog(){const lines=Array.from(document.getElementById('gp-log-body').querySelectorAll('div')).map(d=>d.textContent).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([lines],{type:'text/plain'}));a.download='log_gerador_planilha.txt';a.click();}
+async function gpCarregarHistorico(){const el=document.getElementById('gp-hist-lista');try{const r=await fetch('/api/gerador/historico');const d=await r.json();if(!d.success||!d.planilhas.length){el.innerHTML='<div style="font-size:12px;color:var(--muted);">Nenhuma planilha gerada ainda.</div>';return;}const grupos={};d.planilhas.forEach(p=>{const k=p.municipio+'/'+p.estado;if(!grupos[k])grupos[k]={municipio:p.municipio,estado:p.estado,items:[]};grupos[k].items.push(p);});let html='';Object.values(grupos).forEach(g=>{html+='<div class="hist-group"><div class="hist-group-hdr">🏙️ '+g.municipio+' / '+g.estado+'<span style="font-size:10px;color:var(--muted);font-weight:400;margin-left:auto;">'+g.items.length+' planilha(s)</span></div>';g.items.forEach(p=>{html+='<div class="hist-row"><input type="checkbox" data-id="'+p.id+'" style="accent-color:var(--accent);width:14px;height:14px;flex-shrink:0;"><div class="hist-info"><div class="hist-nome">'+(p.arquivo_nome||'planilha.xlsx')+'</div><div class="hist-meta">'+p.criado_em+' · '+(p.zonas_count||0)+' zonas</div></div><a href="'+(p.arquivo_url||'#')+'" class="btn btn-secondary btn-sm">⬇ Baixar</a></div>';});html+='</div>';});el.innerHTML=html;}catch(e){el.innerHTML='<div style="font-size:12px;color:var(--muted);">Erro ao carregar histórico.</div>';}}
+async function gpHistExcluir(){const ids=Array.from(document.querySelectorAll('#gp-hist-lista input[type=checkbox]:checked')).map(c=>c.dataset.id);if(!ids.length){alert('Selecione planilhas para excluir.');return;}if(!confirm('Excluir '+ids.length+' planilha(s)?'))return;await fetch('/api/gerador/excluir',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})});gpCarregarHistorico();}
+function gpPromptSalvar(){alert('Prompt salvo!');}
+function gpPromptIncluir(){document.getElementById('gp-prompt').value='';document.getElementById('gp-prompt').focus();}
+function gpPromptEditar(){document.getElementById('gp-prompt').focus();}
+function gpPromptExcluir(){if(confirm('Limpar o prompt?'))document.getElementById('gp-prompt').value='';}
+const _gpJobSalvo=sessionStorage.getItem('gp_job_id');
+if(_gpJobSalvo){_gpJobId=_gpJobSalvo;document.getElementById('gp-log-wrap').style.display='block';document.getElementById('gp-btn-cancelar').style.display='inline-flex';gpIniciarPolling();}
+document.addEventListener('click',e=>{if(!e.target.closest('.gp-search'))document.getElementById('gp-ac').classList.remove('open');});
+</script>
+{% endblock %}
