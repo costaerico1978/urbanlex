@@ -3632,11 +3632,11 @@ if (BUSCA_PAGINA === 'buscador-manual') {
 // Reconectar job Lei Específica se estava rodando
 function _espReconectar() {
     // Restaurar tabela do sessionStorage
-    try { const _td=sessionStorage.getItem('_tabelaLegsData'); if(_td){ _tabelaLegsData=JSON.parse(_td); _renderTabelaLegs(); } } catch(e) {}
     const jobId = sessionStorage.getItem('esp_job_id');
     if (!jobId) return;
     let cursor = 0; // Sempre do inicio ao reconectar para mostrar log completo
     mudarTab('especifica');
+    try { const _td=sessionStorage.getItem('_tabelaLegsData'); if(_td){ _tabelaLegsData=JSON.parse(_td); _renderTabelaLegs(); } } catch(e) {}
     document.getElementById('esp-loading').style.display = 'block';
     document.getElementById('esp-loading-msg').textContent = 'Reconectando à análise em andamento...';
     document.getElementById('esp-log').style.display = 'block';
