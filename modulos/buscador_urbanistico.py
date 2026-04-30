@@ -1656,7 +1656,7 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
         if _lm_indisponivel:
             logs.append({"nivel": "aviso", "msg": f"  [LM] Municipio {municipio}/{estado} confirmado NAO catalogado — pulando LM para proximas leis"})
             # Retornar sentinel para o loop principal setar _lm_nao_catalogado
-            enc_fb1 = _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, url_direta=fallback_url, page_existente=_page_mun, ctx_existente=_ctx_mun)
+            enc_fb1 = _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, url_direta=fallback_url)
             if enc_fb1:
                 enc_fb1["_lm_indisponivel"] = True
                 return enc_fb1
@@ -1680,7 +1680,7 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
                     if _enc_fp: return {"tipo": tipo, "numero": numero, "ano": ano, "link": f"{_fb_url_local}?q={_q}", "html": _html_fp, "ementa": _enc_fp.get("ementa","") if isinstance(_enc_fp,dict) else ""}
             except Exception as _efp:
                 logs.append({"nivel": "aviso", "msg": f"  [FallbackP] Erro: {str(_efp)[:60]}"})
-        enc = _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, url_direta=fallback_url, page_existente=_page_mun, ctx_existente=_ctx_mun)
+        enc = _buscar_fallback1(municipio, estado, tipo, numero, ano, logs, chamar_llm, analisadas, url_direta=fallback_url)
         if enc:
             enc["_fonte"] = "fallback1"
             return enc
