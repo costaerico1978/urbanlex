@@ -9,6 +9,10 @@ class LogList(list):
         self.get_db = get_db
 
     def append(self, item):
+        from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+        if isinstance(item, dict) and 'ts' not in item:
+            _utc3 = _dt.now(_tz.utc) - _td(hours=3)
+            item['ts'] = _utc3.strftime('%H:%M:%S')
         super().append(item)
         # Persistir no banco em background
         try:
