@@ -3723,9 +3723,9 @@ async function iniciarBuscaEspecifica() {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 municipio: mun, estado: est, tipo: tipo, numero: num, ano: ano,
-                analisar_anexos: document.getElementById('esp-opt-anexos').checked,
-                detectar_relacoes: document.getElementById('esp-opt-relacoes').checked,
-                verificar_revogacao: document.getElementById('esp-opt-revogacao').checked
+                analisar_anexos: true,
+                detectar_relacoes: true,
+                verificar_revogacao: true
             })
         });
         const data = await resp.json();
