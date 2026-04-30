@@ -678,7 +678,7 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
         </div>
         <div>
             <div class="field-label">Estado</div>
-            <select class="field-input" id="esp-estado">
+            <select class="field-input" id="esp-estado" onchange="_espCarregarFallback()">
                 <option value="">Selecione...</option>
                 <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
                 <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
@@ -707,6 +707,32 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
             <div>
                 <div class="field-label">Ano</div>
                 <input class="field-input" type="text" id="esp-ano" placeholder="Ex: 2024" maxlength="4">
+            </div>
+        </div>
+    </div>
+    <div id="esp-fallback-box" style="max-width:700px;margin-top:16px;display:none;">
+        <div id="esp-fb-vazia">
+            <label style="font-size:10px;color:var(--muted);letter-spacing:1px;display:block;margin-bottom:6px;text-transform:uppercase;">Fonte para Fallback Prioritário</label>
+            <div style="display:flex;gap:6px;">
+                <input type="text" id="esp-fb-input" placeholder="https://..." style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;padding:6px 8px;outline:none;" />
+                <button class="btn btn-primary btn-sm" onclick="_espFbSalvar()" style="white-space:nowrap;">Salvar</button>
+            </div>
+            <p style="margin:6px 0 0;font-size:10px;color:var(--muted);">Tentada antes do Fallback 1 (Google) se o LeisMunicipais falhar.</p>
+        </div>
+        <div id="esp-fb-salva" style="border:1px solid #0f3d2e;background:#0a1f18;border-radius:6px;padding:12px;display:none;">
+            <label style="font-size:10px;color:var(--accent);letter-spacing:1px;display:block;margin-bottom:8px;text-transform:uppercase;">&#11088; Fallback Prioritário Configurado</label>
+            <div style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:7px 9px;font-size:11px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:8px;font-family:monospace;" id="esp-fb-url-display"></div>
+            <div style="display:flex;gap:6px;">
+                <button class="btn btn-secondary btn-sm" onclick="_espFbEditar()" style="flex:1;">Editar</button>
+                <button onclick="_espFbRemover()" style="flex:1;border:1px solid #3d1414;color:#e74c3c;background:transparent;border-radius:6px;font-size:12px;padding:5px 12px;cursor:pointer;font-weight:600;">Remover</button>
+            </div>
+        </div>
+        <div id="esp-fb-editando" style="border:1px solid var(--border);border-radius:6px;padding:12px;display:none;">
+            <label style="font-size:10px;color:var(--muted);letter-spacing:1px;display:block;margin-bottom:6px;text-transform:uppercase;">Fonte para Fallback Prioritário</label>
+            <div style="display:flex;gap:6px;">
+                <input type="text" id="esp-fb-input-edit" placeholder="https://..." style="flex:1;background:var(--bg);border:1px solid var(--accent);border-radius:5px;color:var(--text);font-size:12px;padding:6px 8px;outline:none;" />
+                <button class="btn btn-primary btn-sm" onclick="_espFbSalvarEdit()" style="white-space:nowrap;">Salvar</button>
+                <button class="btn btn-secondary btn-sm" onclick="_espFbCancelarEdit()">X</button>
             </div>
         </div>
     </div>
@@ -2865,6 +2891,7 @@ function acSelecionar(el, prefix) {
     const estId = prefix === 'bm' ? 'bm-estado' : (prefix === 'esp' ? 'esp-estado' : 'nm-estado');
     document.getElementById(munId).value = nome;
     if(prefix==='nm') setTimeout(_nmCarregarFonte,100);
+    if(prefix==='esp') setTimeout(_espCarregarFallback,100);
     document.getElementById(estId).value = estado;
     document.getElementById(prefix + '-ac-list').classList.remove('open');
 
@@ -3756,6 +3783,67 @@ async function iniciarBuscaEspecifica() {
         document.getElementById('esp-loading').style.display = 'none';
         alert('Erro: ' + e.message);
     }
+}
+
+let _espFbUrlAtual = null;
+
+function _espFbMostrarEstado() {
+    const vazia = document.getElementById('esp-fb-vazia');
+    const salva = document.getElementById('esp-fb-salva');
+    const edit = document.getElementById('esp-fb-editando');
+    if (_espFbUrlAtual) {
+        if(vazia) vazia.style.display='none';
+        if(edit) edit.style.display='none';
+        if(salva) { salva.style.display='block'; const d=document.getElementById('esp-fb-url-display'); if(d) d.textContent=_espFbUrlAtual; }
+    } else {
+        if(salva) salva.style.display='none';
+        if(edit) edit.style.display='none';
+        if(vazia) vazia.style.display='block';
+    }
+}
+
+async function _espCarregarFallback() {
+    const mun=(document.getElementById('esp-municipio')||{}).value||'';
+    const est=(document.getElementById('esp-estado')||{}).value||'';
+    const box=document.getElementById('esp-fallback-box');
+    if (!mun||!est) { if(box) box.style.display='none'; return; }
+    if(box) box.style.display='block';
+    try { const r=await api('GET','/api/municipio/fallback?municipio='+encodeURIComponent(mun)+'&estado='+encodeURIComponent(est)); _espFbUrlAtual=r.url||null; _espFbMostrarEstado(); }
+    catch(e) { _espFbUrlAtual=null; _espFbMostrarEstado(); }
+}
+
+async function _espFbSalvar() {
+    const mun=(document.getElementById('esp-municipio')||{}).value||'';
+    const est=(document.getElementById('esp-estado')||{}).value||'';
+    const url=(document.getElementById('esp-fb-input')||{}).value||'';
+    if(!url) return;
+    try { await api('POST','/api/municipio/fallback',{municipio:mun,estado:est,url}); _espFbUrlAtual=url; _espFbMostrarEstado(); } catch(e) { alert('Erro: '+e.message); }
+}
+
+async function _espFbSalvarEdit() {
+    const mun=(document.getElementById('esp-municipio')||{}).value||'';
+    const est=(document.getElementById('esp-estado')||{}).value||'';
+    const url=(document.getElementById('esp-fb-input-edit')||{}).value||'';
+    if(!url) return;
+    try { await api('POST','/api/municipio/fallback',{municipio:mun,estado:est,url}); _espFbUrlAtual=url; _espFbMostrarEstado(); } catch(e) { alert('Erro: '+e.message); }
+}
+
+async function _espFbRemover() {
+    if(!confirm('Remover fonte prioritária?')) return;
+    const mun=(document.getElementById('esp-municipio')||{}).value||'';
+    const est=(document.getElementById('esp-estado')||{}).value||'';
+    try { await api('DELETE','/api/municipio/fallback',{municipio:mun,estado:est}); _espFbUrlAtual=null; _espFbMostrarEstado(); } catch(e) { alert('Erro: '+e.message); }
+}
+
+function _espFbEditar() {
+    document.getElementById('esp-fb-salva').style.display='none';
+    const ei=document.getElementById('esp-fb-input-edit'); if(ei) ei.value=_espFbUrlAtual||'';
+    document.getElementById('esp-fb-editando').style.display='block';
+}
+
+function _espFbCancelarEdit() {
+    document.getElementById('esp-fb-editando').style.display='none';
+    _espFbMostrarEstado();
 }
 
 function cancelarBuscaEspecifica() {
