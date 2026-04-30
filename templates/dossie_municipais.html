@@ -75,6 +75,7 @@
   <!-- Files -->
   <div id="drawer-files" style="padding:20px 24px;border-bottom:1px solid var(--border);
     display:flex;gap:12px;flex-shrink:0;flex-wrap:wrap"></div>
+  <button id="drawer-gerador-btn" style="display:none;width:calc(100% - 48px);margin:0 24px 16px;padding:10px;border:none;border-radius:8px;font-size:13px;font-weight:700;transition:all .2s;">📊 Enviar para Gerador de Planilha</button>
 
   <!-- Log Header -->
   <div style="padding:14px 24px 10px;border-bottom:1px solid var(--border);
@@ -200,6 +201,23 @@ async function dossieOpenDrawer(m) {
       <div style="font-size:22px">🗂️</div><div style="font-size:11px;font-weight:700;color:var(--text)">Planilha Excel</div>
       <div style="font-size:10px;color:#f0a000">Em breve</div></div>
   `;
+  // Botao Enviar para Gerador
+  const hasZipTabela = m.zip_url && m.tabela_url;
+  document.getElementById('drawer-gerador-btn').style.display = 'block';
+  const btnGerador = document.getElementById('drawer-gerador-btn');
+  if (hasZipTabela) {
+    btnGerador.style.background = 'var(--accent)';
+    btnGerador.style.color = '#000';
+    btnGerador.style.cursor = 'pointer';
+    btnGerador.style.opacity = '1';
+    btnGerador.onclick = () => enviarParaGerador(m);
+  } else {
+    btnGerador.style.background = 'var(--surface2)';
+    btnGerador.style.color = 'var(--muted)';
+    btnGerador.style.cursor = 'not-allowed';
+    btnGerador.style.opacity = '0.5';
+    btnGerador.onclick = null;
+  }
 
   // Load logs
   document.getElementById('drawer-log').innerHTML = '<div style="color:var(--muted2)">Carregando logs...</div>';
@@ -305,7 +323,13 @@ function _dossieAtualizarToolbar() {
     if (lbl) lbl.textContent = sel === total && total > 0 ? 'Desmarcar todos' : 'Selecionar todos';
 }
 
-async function dossieExcluirSelecionados() {
+async function enviarParaGerador(m) {
+  const dados = {municipio: m.municipio, estado: m.estado, zip: m.zip_url, tabela: m.tabela_url};
+  sessionStorage.setItem('gp_envio', JSON.stringify(dados));
+  window.location.href = '/gerador-planilha';
+}
+
+function dossieExcluirSelecionados() {
     const keys = Object.keys(_dossieSel).filter(k => _dossieSel[k]);
     if (!keys.length) return;
     if (!confirm(`Excluir ${keys.length} município(s) do dossiê?`)) return;
