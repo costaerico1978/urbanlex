@@ -20,8 +20,8 @@ class LogList(list):
             conn = self.get_db()
             cur = conn.cursor()
             cur.execute(
-                "INSERT INTO buscas_logs (job_id, cursor, nivel, msg) VALUES (%s,%s,%s,%s)",
-                (self.job_id, cursor, item.get('nivel',''), item.get('msg',''))
+                "INSERT INTO buscas_logs (job_id, cursor, nivel, msg, ts) VALUES (%s,%s,%s,%s,%s)",
+                (self.job_id, cursor, item.get('nivel',''), item.get('msg',''), item.get('ts',''))
             )
             conn.commit()
             cur.close()
@@ -36,7 +36,7 @@ def carregar_logs(job_id, get_db, cursor_from=0):
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute(
-            "SELECT cursor, nivel, msg FROM buscas_logs WHERE job_id=%s AND cursor>=%s ORDER BY cursor ASC",
+            "SELECT cursor, nivel, msg, ts FROM buscas_logs WHERE job_id=%s AND cursor>=%s ORDER BY cursor ASC",
             (job_id, cursor_from)
         )
         logs = [dict(r) for r in cur.fetchall()]
