@@ -132,6 +132,16 @@ function gpPromptSalvar(){alert('Prompt salvo!');}
 function gpPromptIncluir(){document.getElementById('gp-prompt').value='';document.getElementById('gp-prompt').focus();}
 function gpPromptEditar(){document.getElementById('gp-prompt').focus();}
 function gpPromptExcluir(){if(confirm('Limpar o prompt?'))document.getElementById('gp-prompt').value='';}
+// Receber envio do Dossie
+const _gpEnvio=sessionStorage.getItem('gp_envio');
+if(_gpEnvio){
+  try{
+    const _e=JSON.parse(_gpEnvio);
+    sessionStorage.removeItem('gp_envio');
+    _gpCompilados.push({municipio:_e.municipio,estado:_e.estado,zip:_e.zip,tabela:_e.tabela,zip_on:!!_e.zip,tabela_on:!!_e.tabela});
+    gpRenderCompilados();
+  }catch(e){}
+}
 const _gpJobSalvo=sessionStorage.getItem('gp_job_id');
 if(_gpJobSalvo){_gpJobId=_gpJobSalvo;document.getElementById('gp-log-wrap').style.display='block';document.getElementById('gp-btn-cancelar').style.display='inline-flex';gpIniciarPolling();}
 document.addEventListener('click',e=>{if(!e.target.closest('.gp-search'))document.getElementById('gp-ac').classList.remove('open');});
