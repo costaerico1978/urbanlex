@@ -710,21 +710,6 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
             </div>
         </div>
     </div>
-    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted2);margin:20px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border);max-width:700px;">Opções de Análise</div>
-    <div style="display:flex;flex-direction:column;gap:8px;max-width:700px;">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-            <input type="checkbox" id="esp-opt-anexos" checked style="accent-color:var(--accent);width:14px;height:14px;">
-            <span style="font-size:12px;color:var(--muted)"><strong style="color:var(--text)">Analisar anexos com Gemini Vision</strong> — extrai texto de PDFs e ZIPs</span>
-        </label>
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-            <input type="checkbox" id="esp-opt-relacoes" checked style="accent-color:var(--accent);width:14px;height:14px;">
-            <span style="font-size:12px;color:var(--muted)"><strong style="color:var(--text)">Detectar referências a outras leis</strong> — adiciona automaticamente à fila</span>
-        </label>
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-            <input type="checkbox" id="esp-opt-revogacao" checked style="accent-color:var(--accent);width:14px;height:14px;">
-            <span style="font-size:12px;color:var(--muted)"><strong style="color:var(--text)">Verificar se está revogada</strong> — cruza com legislações mais recentes</span>
-        </label>
-    </div>
     <div style="display:flex;gap:10px;margin-top:20px;align-items:center;">
         <button class="btn btn-primary btn-sm" onclick="iniciarBuscaEspecifica()">⚡ Analisar Lei</button>
         <button class="btn btn-secondary btn-sm" onclick="limparBuscaEspecifica()">Limpar</button>
