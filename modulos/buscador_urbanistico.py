@@ -507,7 +507,14 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                     logs.append({"nivel": "aviso", "msg": f"  wkhtmltopdf (HTML->PDF): {str(_e_enc)[:60]}"})
             if html_enc:
                 from bs4 import BeautifulSoup as _bsr
-                texto_enc = _bsr(html_enc, "html.parser").get_text()
+                _soup_enc2 = _bsr(html_enc, "html.parser")
+                _lc_enc = _soup_enc2.find(class_="law-container") or _soup_enc2.find(class_="law-content") or _soup_enc2.find(class_="ato-content") or _soup_enc2.find(id="conteudo") or _soup_enc2.find("article")
+                if _lc_enc:
+                    texto_enc = _lc_enc.get_text(separator="\n", strip=True)
+                    logs.append({"nivel": "info", "msg": f"  Texto extraido do law-container: {len(texto_enc)} chars"})
+                else:
+                    texto_enc = _soup_enc2.get_text(separator="\n", strip=True)
+                    logs.append({"nivel": "info", "msg": f"  Texto extraido do HTML completo: {len(texto_enc)} chars"})
             else:
                 texto_enc = ""
             # Incluir texto dos anexos no texto_enc (ZIP/PDF/rasterizado)
