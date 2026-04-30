@@ -2566,7 +2566,7 @@ def api_mapeamento_preparar():
         return jsonify({'success': True, 'job_id': _job_id})
 
     job_id = str(uuid.uuid4())[:12]
-    job = {'logs': [], 'done': False, 'result': None}
+    job = {'logs': _LogList(job_id, get_db), 'done': False, 'result': None}
     _buscador_jobs[job_id] = job
 
     def _run():
@@ -2686,7 +2686,7 @@ def api_mapeamento_upscale():
         meta = json.load(f)
 
     job_id = str(__import__('uuid').uuid4())[:12]
-    job = {'logs': [], 'done': False, 'result': None}
+    job = {'logs': _LogList(job_id, get_db), 'done': False, 'result': None}
     _buscador_jobs[job_id] = job
 
     def _run():
@@ -2790,7 +2790,7 @@ def api_mapeamento_georef_analisar():
     pontos = data.get('pontos', {})
 
     job_id = str(uuid.uuid4())[:12]
-    job = {'logs': [], 'done': False, 'result': None}
+    job = {'logs': _LogList(job_id, get_db), 'done': False, 'result': None}
     _buscador_jobs[job_id] = job
 
     def _run():
@@ -3019,7 +3019,7 @@ def api_mapeamento_iniciar():
     tmp = tempfile.mkdtemp()
     fpath = os.path.join(tmp, f.filename)
     f.save(fpath)
-    job = {'logs': [], 'done': False, 'result': None}
+    job = {'logs': _LogList(job_id, get_db), 'done': False, 'result': None}
     _buscador_jobs[job_id] = job
     def _run():
         try:
@@ -3057,7 +3057,7 @@ def api_analisar_anexo():
     # Compatibilidade: fpath/f.filename apontam para o primeiro arquivo
     fpath, _ = fpaths[0]
     f = type('F', (), {'filename': fpaths[0][1]})()
-    job = {'logs': [], 'done': False, 'result': None}
+    job = {'logs': _LogList(job_id, get_db), 'done': False, 'result': None}
     _buscador_jobs[job_id] = job
     def _run():
         try:
@@ -3632,7 +3632,7 @@ def _carregar_ibge():
 threading.Thread(target=_carregar_ibge, daemon=True).start()
 
 # ── Buscador: jobs em background com polling de logs ──
-_buscador_jobs = {}  # job_id -> {'logs': [], 'result': None, 'done': False, 'ts': time.time()}
+_buscador_jobs = {}  # job_id -> {'logs': _LogList(job_id, get_db), 'result': None, 'done': False, 'ts': time.time()}
 _fila_pausada = False  # pausar worker apos cancelamento
 from modulos.fila_worker import iniciar_worker as _iniciar_fila_worker
 from modulos.log_persistente import LogList as _LogList
@@ -3852,7 +3852,7 @@ def api_buscador_manual_start():
 
     d = request.json or {}
     job_id = str(uuid.uuid4())[:12]
-    job = {'logs': [], 'result': None, 'done': False, 'ts': time.time(), 'log_cursor': 0, 'cancelled': False, 'tipo': 'manual'}
+    job = {'logs': _LogList(job_id, get_db), 'result': None, 'done': False, 'ts': time.time(), 'log_cursor': 0, 'cancelled': False, 'tipo': 'manual'}
     _buscador_jobs[job_id] = job
     # Registrar inicio no historico
     _hist_id_manual = None
@@ -5647,7 +5647,7 @@ def api_gerador_iniciar():
     import os as _os_gp
     template_path = f'/var/www/urbanlex/static/downloads/template_{job_id}.xlsx'
     template_file.save(template_path)
-    job = {'done': False, 'cancelled': False, 'logs': [], 'result': None}
+    job = {'done': False, 'cancelled': False, 'logs': _LogList(job_id, get_db), 'result': None}
     _buscador_jobs[job_id] = job
 
     def _run():
@@ -5757,7 +5757,7 @@ def api_gerador_iniciar():
 @login_required
 def api_gerador_job(job_id):
     job = _buscador_jobs.get(job_id)
-    if not job: return jsonify({'done': True, 'logs': [], 'cursor': 0})
+    if not job: return jsonify({'done': True, 'logs': _LogList(job_id, get_db), 'cursor': 0})
     cursor = int(request.args.get('cursor', 0))
     logs = job['logs'][cursor:]
     return jsonify({'done': job['done'], 'logs': logs, 'cursor': cursor + len(logs), 'result': job.get('result')})
