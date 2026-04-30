@@ -3635,7 +3635,7 @@ function _espReconectar() {
     try { const _td=sessionStorage.getItem('_tabelaLegsData'); if(_td){ _tabelaLegsData=JSON.parse(_td); _renderTabelaLegs(); } } catch(e) {}
     const jobId = sessionStorage.getItem('esp_job_id');
     if (!jobId) return;
-    let cursor = parseInt(sessionStorage.getItem('esp_cursor') || '0');
+    let cursor = 0; // Sempre do inicio ao reconectar para mostrar log completo
     mudarTab('especifica');
     document.getElementById('esp-loading').style.display = 'block';
     document.getElementById('esp-loading-msg').textContent = 'Reconectando à análise em andamento...';
