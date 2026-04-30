@@ -479,6 +479,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                 break
             # Verificar via IA se esta legislacao revoga outras da lista
             html_enc = enc.get("html", "") or ""
+            logs.append({"nivel": "info", "msg": f"  [DEBUG] html_enc={len(html_enc)} chars, pdf_path={str(enc.get(chr(39)+'pdf_path'+chr(39),'vazio'))[:50]}, fonte={enc.get(chr(39)+'_fonte'+chr(39),chr(39)+'?'+chr(39))}"})
             # Gerar PDF a partir do HTML se nao tiver pdf_path (ex: resultado do Fallback)
             if html_enc and not enc.get("pdf_path"):
                 try:
