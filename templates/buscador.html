@@ -741,7 +741,11 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
         <button class="btn btn-secondary btn-sm" onclick="limparBuscaEspecifica()">Limpar</button>
         <span style="font-size:11px;color:var(--muted2);margin-left:8px;">Estimativa: 2–5 minutos</span>
     </div>
-    <div id="tabela-legs-esp" style="margin-top:16px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:var(--accent) var(--surface)"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;margin-bottom:4px;">
+      <span style="font-size:11px;color:var(--muted);">Legislações identificadas</span>
+      <button id="btn-baixar-tabela-esp" class="btn btn-secondary btn-sm" style="display:none;" onclick="baixarTabelaPDF()">📊 Baixar Tabela PDF</button>
+    </div>
+    <div id="tabela-legs-esp" style="overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:var(--accent) var(--surface)"></div>
     <div id="esp-downloads" style="display:none;margin-top:12px;gap:10px;flex-wrap:wrap;"></div>
     <div id="esp-loading" style="display:none;text-align:center;padding:30px;color:var(--muted);">
         <div class="spinner-busca"></div>
@@ -3197,6 +3201,8 @@ function _renderTabelaLegs() {
     tbl.innerHTML=h;
     const tblEsp=document.getElementById("tabela-legs-esp");
     if(tblEsp) tblEsp.innerHTML=h;
+    const _btnEsp=document.getElementById("btn-baixar-tabela-esp");
+    if(_btnEsp && rows.length>0) _btnEsp.style.display="inline-flex";
 }
 
 // ── Baixar Tabela de Legislações em PDF ──
@@ -3726,6 +3732,7 @@ async function iniciarBuscaEspecifica() {
     document.getElementById('esp-resultado').style.display = 'none';
     document.getElementById('esp-downloads').style.display = 'none';
     document.getElementById('tabela-legs-esp').innerHTML = '';
+    const _btnEspC=document.getElementById('btn-baixar-tabela-esp'); if(_btnEspC) _btnEspC.style.display='none';
     document.getElementById('esp-loading-msg').textContent = 'Iniciando análise de ' + tipo + ' ' + num + '/' + ano + '...';
     try {
         const resp = await fetch('/api/buscador/lei-especifica', {
