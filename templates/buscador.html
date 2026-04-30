@@ -3674,7 +3674,16 @@ function _espReconectar() {
         } catch(e) {}
     }, 1500);
 }
-setTimeout(_espReconectar, 1000);
+setTimeout(async () => {
+    const _jid = sessionStorage.getItem('esp_job_id');
+    if (!_jid) return;
+    try {
+        const _jr = await fetch('/api/buscador/job/' + _jid + '?cursor=0');
+        const _jd = await _jr.json();
+        if (_jd.done) { sessionStorage.removeItem('esp_job_id'); sessionStorage.removeItem('esp_cursor'); return; }
+    } catch(e) { sessionStorage.removeItem('esp_job_id'); return; }
+    _espReconectar();
+}, 1000);
 
 function _espAcMunicipio(val) {
     const list = document.getElementById('esp-ac-list');
