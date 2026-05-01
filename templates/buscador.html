@@ -3641,6 +3641,25 @@ function _espReconectar() {
     const jobId = sessionStorage.getItem('esp_job_id');
     if (!jobId) return;
     let cursor = 0; // Sempre do inicio ao reconectar para mostrar log completo
+    // Restaurar resultado salvo
+    try {
+        const _sr = sessionStorage.getItem('esp_result');
+        if (_sr) {
+            const res = JSON.parse(_sr);
+            document.getElementById('esp-resultado').style.display = 'block';
+            const links = document.getElementById('esp-resultado-links');
+            links.innerHTML = '';
+            if (res.zip_url) links.innerHTML += '<a href="'+res.zip_url+'" target="_blank" style="font-size:12px;color:var(--accent);text-decoration:none;">📦 Baixar ZIP</a>';
+            if (res.relatorio_url) links.innerHTML += '<a href="'+res.relatorio_url+'" target="_blank" style="font-size:12px;color:var(--muted);text-decoration:none;">📄 Relatório PDF</a>';
+            if (res.tabela_url) links.innerHTML += '<a href="'+res.tabela_url+'" target="_blank" style="font-size:12px;color:var(--muted);text-decoration:none;">📊 Tabela PDF</a>';
+            const dlDiv = document.getElementById('esp-downloads');
+            if (dlDiv) { dlDiv.style.display = 'flex'; dlDiv.innerHTML = '';
+                if (res.zip_url) dlDiv.innerHTML += '<a href="'+res.zip_url+'" target="_blank" class="btn btn-primary btn-sm">📦 Pacote ZIP</a>';
+                if (res.relatorio_url) dlDiv.innerHTML += '<a href="'+res.relatorio_url+'" target="_blank" class="btn btn-secondary btn-sm">📄 Relatório PDF</a>';
+                if (res.tabela_url) dlDiv.innerHTML += '<a href="'+res.tabela_url+'" target="_blank" class="btn btn-secondary btn-sm">📊 Tabela PDF</a>';
+            }
+        }
+    } catch(e) {}
     mudarTab('especifica');
     try { const _td=sessionStorage.getItem('_tabelaLegsData'); if(_td){ _tabelaLegsData=JSON.parse(_td); _renderTabelaLegs(); } } catch(e) {}
     document.getElementById('esp-loading').style.display = 'block';
@@ -3777,6 +3796,7 @@ async function iniciarBuscaEspecifica() {
                     sessionStorage.removeItem('esp_cursor');
                     sessionStorage.removeItem('_tabelaLegsData');
                     document.getElementById('esp-loading').style.display = 'none';
+                    if (pd.result) { try { sessionStorage.setItem('esp_result', JSON.stringify(pd.result)); } catch(e) {} }
                     if (pd.result) {
                         const res = pd.result;
                         document.getElementById('esp-resultado').style.display = 'block';
