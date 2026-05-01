@@ -3656,7 +3656,7 @@ function _espReconectar() {
                     if (l.nivel === 'tabela' || l.nivel === 'token') return;
                     const div = document.createElement('div');
                     div.style.color = l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'aviso' ? '#f0ad4e' : l.nivel === 'erro' ? '#e74c3c' : 'var(--muted)';
-                    const _tsStr = l.ts || (new Date(Date.now()-10800000)).toISOString().substr(11,8);
+                    const _tsStr = l.ts || '';
                         div.innerHTML = '<span style="color:var(--muted2);margin-right:6px;">'+_tsStr+'</span>'+(l.msg||'');
                     logLines.appendChild(div);
                 });
