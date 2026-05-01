@@ -3898,7 +3898,20 @@ function baixarLogEsp() {
     const lines = document.getElementById('esp-log-lines').innerText;
     const blob = new Blob([lines], {type: 'text/plain'});
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = 'log_lei_especifica.txt'; a.click();
+    const _mun = (document.getElementById('esp-municipio').value||'municipio').replace(/ /g,'_');
+    const _est = (document.getElementById('esp-estado').value||'XX');
+    const _tipo = document.getElementById('esp-tipo').value||'';
+    const _num = document.getElementById('esp-numero').value||'';
+    const _ano = document.getElementById('esp-ano').value||'';
+    const _tipoAbrev = _tipo.replace('Lei Complementar','LC').replace('Decreto-Lei','DL').replace('Decreto','D').replace('Resolução','Res').replace('Lei','L');
+    const _now = new Date(Date.now() - 3*3600000);
+    const _dd = _now.getUTCDate().toString().padStart(2,'0');
+    const _mm = (_now.getUTCMonth()+1).toString().padStart(2,'0');
+    const _yyyy = _now.getUTCFullYear();
+    const _hh = _now.getUTCHours().toString().padStart(2,'0');
+    const _mi = _now.getUTCMinutes().toString().padStart(2,'0');
+    const _nomeLog = 'Log_leg_especifica_'+_est+'_'+_mun+'_'+_tipoAbrev+_num+'_'+_ano+'_'+_dd+_mm+_yyyy+'_'+_hh+_mi+'.txt';
+    a.download = _nomeLog; a.click();
 }
 
 </script>
