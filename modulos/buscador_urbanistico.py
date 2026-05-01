@@ -474,9 +474,6 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
             enc['_cita_enc'] = list(set(_regulamenta_enc + _cita_enc))
             resultado["encontradas"].append(enc)
 
-            if max_legislacoes and len(resultado["encontradas"]) >= max_legislacoes:
-                logs.append({"nivel": "ok", "msg": f"  Limite de {max_legislacoes} legislacoes encontradas atingido — encerrando busca"})
-                break
             # Verificar via IA se esta legislacao revoga outras da lista
             html_enc = enc.get("html", "") or ""
             logs.append({"nivel": "info", "msg": f"  [DEBUG] html_enc={len(html_enc)} chars, pdf_path={str(enc.get(chr(39)+'pdf_path'+chr(39),'vazio'))[:50]}, fonte={enc.get(chr(39)+'_fonte'+chr(39),chr(39)+'?'+chr(39))}"})
@@ -858,6 +855,10 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
             cita=list(set(_regulamenta_enc + _cita_enc)), citado_em=_regulamentado_por_enc,
             link=enc.get('link',''),
             ementa=enc.get('ementa','') or leg.get('descricao','') or '')
+        # Verificar limite apos analise completa da lei
+        if max_legislacoes and len(resultado["encontradas"]) >= max_legislacoes:
+            logs.append({"nivel": "ok", "msg": f"  Limite de {max_legislacoes} legislacoes — encerrando apos analise completa"})
+            break
         # Adicionar leis descobertas nas relacoes a fila dinamica
         _nivel_atual = leg.get("_nivel", 0)
         def _extrair_num_ano_fila(s):
