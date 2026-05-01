@@ -3891,6 +3891,7 @@ function cancelarBuscaEspecifica() {
         window._espJobId = null;
     }
     sessionStorage.removeItem('esp_job_id');
+    sessionStorage.removeItem('esp_result');
     sessionStorage.removeItem('esp_cursor');
     document.getElementById('esp-loading').style.display = 'none';
     document.getElementById('esp-downloads').style.display = 'none';
