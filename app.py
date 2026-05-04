@@ -5936,12 +5936,22 @@ def api_gerador_iniciar():
             else:
                 # Gemini: enviar PDFs como bytes
                 _gemini_parts = [_prompt_final]
+                _ok_count = 0; _skip_count = 0
                 for fc in files_content:
                     if fc.get('type') == 'document':
                         try:
                             _data = _b64.b64decode(fc['source']['data'])
+                            # Validar PDF tem pelo menos 1 pagina
+                            if len(_data) < 100 or not _data.startswith(b'%PDF'):
+                                job['logs'].append({'nivel':'aviso','msg':f'  ⚠ Pulando arquivo invalido: {fc.get("title","?")}'})
+                                _skip_count += 1
+                                continue
                             _gemini_parts.append({'mime_type': 'application/pdf', 'data': _data})
-                        except Exception: pass
+                            _ok_count += 1
+                        except Exception as _ee:
+                            job['logs'].append({'nivel':'aviso','msg':f'  ⚠ Erro decodificar: {fc.get("title","?")}: {_ee}'})
+                            _skip_count += 1
+                job['logs'].append({'nivel':'info','msg':f'📤 Enviando {_ok_count} arquivo(s) para Gemini ({_skip_count} pulados)'})
                 resp = client.generate_content(_gemini_parts)
                 txt = resp.text if hasattr(resp, 'text') else str(resp)
             # Extrair JSON
