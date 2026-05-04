@@ -5439,6 +5439,95 @@ def api_dossie_municipio_dossies(mun_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/prompts-salvos')
+@login_required
+def api_prompts_salvos_listar():
+    try:
+        rows = qry("SELECT id, nome, arquivo_origem, tamanho_bytes, criado_em FROM prompts_salvos ORDER BY criado_em DESC")
+        for r in rows:
+            if r.get('criado_em'):
+                r['criado_em'] = r['criado_em'].strftime('%d/%m/%Y %H:%M') if hasattr(r['criado_em'], 'strftime') else str(r['criado_em'])
+        return jsonify({'success': True, 'data': rows or []})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/prompts-salvos/<int:pid>')
+@login_required
+def api_prompts_salvos_get(pid):
+    try:
+        rows = qry("SELECT id, nome, conteudo FROM prompts_salvos WHERE id=%s", (pid,))
+        if not rows:
+            return jsonify({'success': False, 'error': 'nao encontrado'}), 404
+        return jsonify({'success': True, 'data': rows[0]})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/prompts-salvos/upload', methods=['POST'])
+@login_required
+def api_prompts_salvos_upload():
+    try:
+        criados = []
+        for f in request.files.getlist('arquivos'):
+            if not f or not f.filename: continue
+            nome = f.filename
+            ext = nome.lower().rsplit('.', 1)[-1] if '.' in nome else ''
+            try:
+                if ext == 'txt':
+                    conteudo = f.read().decode('utf-8', errors='ignore')
+                elif ext == 'pdf':
+                    import tempfile as _t, subprocess as _sp, os as _o
+                    with _t.NamedTemporaryFile(suffix='.pdf', delete=False) as _tf:
+                        f.save(_tf.name); _path = _tf.name
+                    try:
+                        _r = _sp.run(['pdftotext', _path, '-'], capture_output=True, text=True, timeout=30)
+                        conteudo = _r.stdout if _r.returncode == 0 else ''
+                    finally:
+                        try: _o.unlink(_path)
+                        except: pass
+                elif ext in ('doc', 'docx'):
+                    import tempfile as _t, os as _o
+                    with _t.NamedTemporaryFile(suffix='.'+ext, delete=False) as _tf:
+                        f.save(_tf.name); _path = _tf.name
+                    try:
+                        if ext == 'docx':
+                            import docx as _docx
+                            _d = _docx.Document(_path)
+                            conteudo = '\n'.join(p.text for p in _d.paragraphs)
+                        else:
+                            import subprocess as _sp
+                            _r = _sp.run(['antiword', _path], capture_output=True, text=True, timeout=30)
+                            conteudo = _r.stdout if _r.returncode == 0 else ''
+                    finally:
+                        try: _o.unlink(_path)
+                        except: pass
+                else:
+                    continue
+                conn = get_db(); cur = conn.cursor()
+                cur.execute("INSERT INTO prompts_salvos (nome, conteudo, arquivo_origem, tamanho_bytes, criado_por) VALUES (%s,%s,%s,%s,%s) RETURNING id",
+                    (nome.rsplit('.',1)[0][:200], conteudo.strip(), nome, len(conteudo.encode('utf-8')), session.get('user_id')))
+                pid = cur.fetchone()[0]
+                conn.commit(); cur.close(); conn.close()
+                criados.append({'id': pid, 'nome': nome})
+            except Exception as _ef:
+                continue
+        return jsonify({'success': True, 'criados': criados})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/prompts-salvos/excluir', methods=['POST'])
+@login_required
+def api_prompts_salvos_excluir():
+    try:
+        ids = (request.json or {}).get('ids', [])
+        if not ids:
+            return jsonify({'success': False, 'error': 'ids obrigatorio'}), 400
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("DELETE FROM prompts_salvos WHERE id = ANY(%s)", (ids,))
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/api-keys')
 @login_required
 def api_api_keys():
