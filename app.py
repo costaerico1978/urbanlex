@@ -5412,7 +5412,7 @@ def api_dossie_municipio_dossies(mun_id):
                    bh.zip_path, bh.relatorio_path, bh.tabela_path,
                    COALESCE(
                        (SELECT COUNT(*) FROM buscas_logs bl WHERE bl.job_id=bh.job_id
-                        AND bl.nivel='tabela' AND bl.msg LIKE '%encontrada%'),
+                        AND bl.nivel='tabela' AND bl.msg LIKE '%%encontrada%%'),
                        0
                    ) as total_legs
             FROM buscas_historico bh
