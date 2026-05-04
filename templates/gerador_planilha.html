@@ -339,7 +339,15 @@ async function gpSalvarKey(){
   try{
     const r = await fetch('/api/api-keys/' + _gpModalKeyServico, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({chave})});
     const d = await r.json();
-    if(d.success){ gpToast('✅ Chave salva'); gpFecharModalKey(); gpCarregarIAs(); }
+    if(d.success){ gpToast('✅ Chave salva'); gpFecharModalKey(); gpCarregarIAs();
+// Restaurar estado salvo
+(function(){
+  try {
+    gpRestaurarCompilados();
+    const pid = sessionStorage.getItem('gp_prompt_id');
+    if (pid) { _gpPromptIdSelecionado = parseInt(pid); }
+  } catch(e) {}
+})(); }
     else gpToast('Erro: ' + d.error, true);
   }catch(e){ gpToast('Erro de rede', true); }
 }
@@ -386,6 +394,7 @@ async function gpCarregarPrompts(){
 }
 function gpSelecionarPrompt(id){
   _gpPromptIdSelecionado = id;
+  try { sessionStorage.setItem('gp_prompt_id', String(id)); } catch(e) {}
   document.querySelectorAll('.gp-prompt-item').forEach(p => p.classList.remove('selected'));
   document.querySelector('.gp-prompt-item[data-id="' + id + '"]').classList.add('selected');
 }
@@ -417,6 +426,7 @@ async function gpExcluirPrompts(){
 }
 
 function gpRenderCompilados(){
+  try { sessionStorage.setItem('gp_compilados_persist', JSON.stringify(_gpCompilados)); } catch(e) {}
   const el = document.getElementById('gp-compilados');
   document.getElementById('gp-compilados-empty').style.display = _gpCompilados.length ? 'none' : 'block';
   el.innerHTML = _gpCompilados.map((c,i) =>
@@ -433,6 +443,7 @@ function gpRenderCompilados(){
 }
 function gpToggleChip(i, tipo){ _gpCompilados[i][tipo+'_on'] = !_gpCompilados[i][tipo+'_on']; }
 function gpRemoverCompilado(i){ _gpCompilados.splice(i,1); gpRenderCompilados(); }
+function gpRestaurarCompilados(){ try { const s = sessionStorage.getItem('gp_compilados_persist'); if (s) { _gpCompilados = JSON.parse(s); gpRenderCompilados(); } } catch(e) {} }
 async function gpAcBuscar(val){
   if(!val || val.length < 2){ document.getElementById('gp-ac').style.display='none'; return; }
   try{
@@ -549,6 +560,7 @@ async function gpPolling(){
 }
 function gpLimpar(){
   _gpCompilados = []; _gpTemplateFile = null; _gpJobId = null;
+  try { sessionStorage.removeItem('gp_compilados_persist'); sessionStorage.removeItem('gp_prompt_id'); } catch(e) {}
   gpRenderCompilados();
   document.getElementById('gp-template-file').value = '';
   document.getElementById('gp-upload-area').classList.remove('done');
