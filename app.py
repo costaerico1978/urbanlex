@@ -2156,7 +2156,7 @@ def api_dashboard_feed():
             UNION ALL
             SELECT tipo, mensagem as titulo, '' as descricao, criado_em
             FROM feed_atividades
-        ) sub ORDER BY iniciado_em DESC LIMIT 30
+        ) sub ORDER BY criado_em DESC LIMIT 30
     """)
     return jsonify({'success':True,'data':rows})
 
@@ -2186,11 +2186,11 @@ def api_feed_atividades():
         if tipo:
             rows = qry("""SELECT id, tipo, mensagem, detalhes, lida, criado_em
                          FROM feed_atividades WHERE tipo=%s
-                         ORDER BY iniciado_em DESC LIMIT %s""", (tipo, limit))
+                         ORDER BY criado_em DESC LIMIT %s""", (tipo, limit))
         else:
             rows = qry("""SELECT id, tipo, mensagem, detalhes, lida, criado_em
                          FROM feed_atividades
-                         ORDER BY iniciado_em DESC LIMIT %s""", (limit,))
+                         ORDER BY criado_em DESC LIMIT %s""", (limit,))
         return jsonify({'success': True, 'data': rows or []})
     except Exception as e:
         return jsonify({'success': True, 'data': []})
@@ -2255,7 +2255,7 @@ def api_integracao_config():
 @app.route('/api/integracao-plataforma/historico')
 @login_required
 def api_integracao_historico():
-    rows = qry("SELECT * FROM integracao_log ORDER BY iniciado_em DESC LIMIT 20")
+    rows = qry("SELECT * FROM integracao_log ORDER BY criado_em DESC LIMIT 20")
     return jsonify({'success': True, 'data': rows or []})
 
 # -------------------------------------------------------------------
@@ -4707,7 +4707,7 @@ def api_listar_prompts():
         cur.execute("""SELECT id, nome, arquivo_origem, tamanho_bytes, criado_em,
                               LEFT(conteudo, 200) AS preview
                        FROM prompts_salvos
-                       ORDER BY iniciado_em DESC""")
+                       ORDER BY criado_em DESC""")
         rows = cur.fetchall()
         cur.close(); conn.close()
         data = []
@@ -6713,7 +6713,7 @@ def api_gerador_historico():
                               legislacoes_usadas, landly_status, landly_enviado_em,
                               landly_erro, landly_endpoint
                        FROM planilhas_geradas
-                       ORDER BY iniciado_em DESC LIMIT 200""")
+                       ORDER BY criado_em DESC LIMIT 200""")
         rows = cur.fetchall()
         cur.close(); conn.close()
         planilhas = []
