@@ -5954,14 +5954,21 @@ def api_gerador_iniciar():
                 job['logs'].append({'nivel':'info','msg':f'📤 Enviando {_ok_count} arquivo(s) para Gemini ({_skip_count} pulados)'})
                 resp = client.generate_content(_gemini_parts)
                 txt = resp.text if hasattr(resp, 'text') else str(resp)
+            # Log resposta da IA para diagnostico
+            job['logs'].append({'nivel':'info','msg':f'📥 Resposta da IA ({len(txt)} chars): {txt[:300]}'})
             # Extrair JSON
             import json as _json_gp
             s = txt.find('{'); e = txt.rfind('}') + 1
             zonas = []
             if s >= 0:
-                try: zonas = _json_gp.loads(txt[s:e]).get('zonas', [])
-                except Exception: pass
-            job['logs'].append({'nivel':'ok','msg':f'✅ {len(zonas)} zonas identificadas'})
+                try:
+                    _parsed = _json_gp.loads(txt[s:e])
+                    zonas = _parsed.get('zonas', _parsed.get('zoneamentos', _parsed.get('parametros', [])))
+                    if not zonas and isinstance(_parsed, list):
+                        zonas = _parsed
+                except Exception as _ej:
+                    job['logs'].append({'nivel':'aviso','msg':f'⚠ Erro parse JSON: {_ej}'})
+            job['logs'].append({'nivel':'ok','msg':f'✅  {len(zonas)} zonas identificadas'})
             # Preencher planilha
             headers = ['Zona','TO','CA Básico','CA Máximo','Permeabilidade','Gabarito','Rec. Frontal','Rec. Lateral','Rec. Fundo','Uso']
             campos = ['nome','to','ca_basico','ca_maximo','permeabilidade','gabarito','recuo_frontal','recuo_lateral','recuo_fundo','uso']
