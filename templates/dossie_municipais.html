@@ -134,6 +134,7 @@ async function dossieCarregar() {
       return;
     }
     _dossieData = r.municipios;
+    document.getElementById('dossie-list').innerHTML = '<div style="padding:20px;color:#0f0">DEBUG: ' + (r.municipios||[]).length + ' municipios recebidos. Primeiro: ' + JSON.stringify((r.municipios||[])[0]||{}).substring(0,200) + '</div>';
     dossieRenderStats(r.municipios);
     dossieRenderList(r.municipios);
   } catch(e) { console.error("Dossie erro:", e); document.getElementById("dossie-list").innerHTML = "<div style=\"padding:20px;color:#e74c3c\">Erro: " + (e.message || e) + "</div>"; }
