@@ -418,7 +418,7 @@ async function gpExcluirPrompts(){
 }
 
 function gpRenderCompilados(){
-  try { sessionStorage.setItem('gp_compilados_persist', JSON.stringify(_gpCompilados)); } catch(e) {}
+  try { if (_gpCompilados.length > 0) sessionStorage.setItem('gp_compilados_persist', JSON.stringify(_gpCompilados)); } catch(e) {}
   const el = document.getElementById('gp-compilados');
   document.getElementById('gp-compilados-empty').style.display = _gpCompilados.length ? 'none' : 'block';
   el.innerHTML = _gpCompilados.map((c,i) =>
@@ -435,7 +435,7 @@ function gpRenderCompilados(){
 }
 function gpToggleChip(i, tipo){ _gpCompilados[i][tipo+'_on'] = !_gpCompilados[i][tipo+'_on']; }
 function gpRemoverCompilado(i){ _gpCompilados.splice(i,1); gpRenderCompilados(); }
-function gpRestaurarCompilados(){ try { const s = sessionStorage.getItem('gp_compilados_persist'); alert('DEBUG restaurar: ' + (s||'VAZIO').substring(0,150)); if (s) { _gpCompilados = JSON.parse(s); gpRenderCompilados(); } } catch(e) { alert('Erro restaurar: ' + e.message); } }
+function gpRestaurarCompilados(){ try { const s = sessionStorage.getItem('gp_compilados_persist'); if (s) { _gpCompilados = JSON.parse(s); gpRenderCompilados(); } } catch(e) {} }
 async function gpAcBuscar(val){
   if(!val || val.length < 2){ document.getElementById('gp-ac').style.display='none'; return; }
   try{
