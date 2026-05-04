@@ -339,15 +339,7 @@ async function gpSalvarKey(){
   try{
     const r = await fetch('/api/api-keys/' + _gpModalKeyServico, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({chave})});
     const d = await r.json();
-    if(d.success){ gpToast('✅ Chave salva'); gpFecharModalKey(); gpCarregarIAs();
-// Restaurar estado salvo
-(function(){
-  try {
-    gpRestaurarCompilados();
-    const pid = sessionStorage.getItem('gp_prompt_id');
-    if (pid) { _gpPromptIdSelecionado = parseInt(pid); }
-  } catch(e) {}
-})(); }
+    if(d.success){ gpToast('✅ Chave salva'); gpFecharModalKey(); gpCarregarIAs(); }
     else gpToast('Erro: ' + d.error, true);
   }catch(e){ gpToast('Erro de rede', true); }
 }
@@ -479,7 +471,14 @@ function gpProcessarPendentes(){
     gpRenderCompilados();
   } catch(e) { console.error('gpProcessarPendentes:', e); }
 }
-document.addEventListener('DOMContentLoaded', gpProcessarPendentes);
+document.addEventListener('DOMContentLoaded', function(){
+  gpProcessarPendentes();
+  try {
+    gpRestaurarCompilados();
+    const _pid = sessionStorage.getItem('gp_prompt_id');
+    if (_pid) { _gpPromptIdSelecionado = parseInt(_pid); }
+  } catch(e) {}
+});
 
 function gpAdicionarComp(id, mun, est, zip, tabela){
   if(_gpCompilados.find(c => c.municipio === mun && c.estado === est)){ gpToast('Já adicionado'); return; }
