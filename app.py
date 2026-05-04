@@ -5439,6 +5439,31 @@ def api_dossie_municipio_dossies(mun_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/dossie/dossie-detalhe/<int:dossie_id>')
+@login_required
+def api_dossie_dossie_detalhe(dossie_id):
+    """Retorna detalhes de um dossie (busca_historico) individual."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT id, municipio, estado, zip_path, relatorio_path, tabela_path, iniciado_em FROM buscas_historico WHERE id=%s", (dossie_id,))
+        r = cur.fetchone()
+        cur.close(); conn.close()
+        if not r:
+            return jsonify({'success': False, 'error': 'nao encontrado'}), 404
+        return jsonify({
+            'success': True,
+            'id': r['id'],
+            'municipio': r['municipio'],
+            'estado': r['estado'],
+            'zip_url': r['zip_path'],
+            'relatorio_url': r['relatorio_path'],
+            'tabela_url': r['tabela_path'],
+            'iniciado_em': r['iniciado_em'].strftime('%d/%m/%Y %H:%M') if r['iniciado_em'] else None,
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/dossie/dossie/<int:dossie_id>', methods=['DELETE'])
 @login_required
 def api_dossie_apagar_dossie(dossie_id):
