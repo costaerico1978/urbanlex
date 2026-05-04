@@ -43,7 +43,7 @@
     <span style="font-size:10px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.8px">Status</span>
     <span></span>
   </div>
-  <div id="dossie-list"><div style="padding:40px;text-align:center;color:var(--muted)">Carregando...</div></div><div id="dossie-debug" style="padding:10px;background:#222;color:#0f0;font-family:monospace;font-size:11px;">DEBUG: aguardando...</div>
+  <div id="dossie-list"><div style="padding:40px;text-align:center;color:var(--muted)">Carregando...</div></div>
 </div>
 
 <!-- Drawer Overlay -->
@@ -127,7 +127,6 @@ let _drawerLog = [];
 let _drawerMun = '';
 
 async function dossieCarregar() {
-  document.getElementById('dossie-debug').textContent = 'DEBUG: dossieCarregar iniciou';
   try {
     const r = await api('GET', '/api/dossie/municipios');
     if (!r.success) {
@@ -135,7 +134,6 @@ async function dossieCarregar() {
       return;
     }
     _dossieData = r.municipios;
-    document.getElementById('dossie-list').innerHTML = '<div style="padding:20px;color:#0f0">DEBUG: ' + (r.municipios||[]).length + ' municipios recebidos. Primeiro: ' + JSON.stringify((r.municipios||[])[0]||{}).substring(0,200) + '</div>';
     dossieRenderStats(r.municipios);
     dossieRenderList(r.municipios);
   } catch(e) { console.error("Dossie erro:", e); document.getElementById("dossie-list").innerHTML = "<div style=\"padding:20px;color:#e74c3c\">Erro: " + (e.message || e) + "</div>"; }
