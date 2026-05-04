@@ -183,7 +183,7 @@ function dossieRenderList(data) {
 
 async function dossieOpenDrawerById(id) { const m = _dossieData.find(x => x.id === id); if (m) dossieOpenDrawer(m); }
 
-function dossieOpenDrawer(m) {
+async function dossieOpenDrawer(m) {
   _drawerMun = m.municipio + '/' + m.estado;
   document.getElementById('drawer-mun-name').textContent = _drawerMun;
   document.getElementById('drawer-mun-date').textContent = m.ultima_busca ? 'Busca em ' + m.ultima_busca : 'Ainda não buscada';
