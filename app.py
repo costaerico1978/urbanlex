@@ -635,7 +635,7 @@ def api_perfil():
 @app.route('/api/admin/usuarios', methods=['GET'])
 @admin_required
 def api_listar_usuarios():
-    users = qry("SELECT id,nome,email,role,ativo,aprovado,criado_em,ultimo_acesso FROM users ORDER BY criado_em DESC")
+    users = qry("SELECT id,nome,email,role,ativo,aprovado,criado_em,ultimo_acesso FROM users ORDER BY iniciado_em DESC")
     return jsonify({'success':True,'data':users})
 
 @app.route('/api/admin/usuarios/<int:uid>/role', methods=['POST'])
@@ -6196,7 +6196,7 @@ def api_dossie_municipio_dossies(mun_id):
         if not mun:
             return jsonify({'success': False, 'error': 'municipio nao encontrado'}), 404
         cur.execute("""
-            SELECT id, job_id, criado_em, concluido_em, sucesso, tipo,
+            SELECT id, job_id, iniciado_em as criado_em, concluido_em, sucesso, tipo,
                    zip_path, relatorio_path, tabela_path,
                    COALESCE(
                        (SELECT COUNT(*) FROM buscas_logs bl WHERE bl.job_id=bh.job_id
