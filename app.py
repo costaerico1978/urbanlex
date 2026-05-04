@@ -5926,7 +5926,7 @@ def api_gerador_iniciar():
             wb = _xl.load_workbook(template_path)
             ws = wb.active
             # Montar mensagem para Claude
-            job['logs'].append({'nivel':'info','msg':'🤖 Claude analisando documentos...'})
+            job['logs'].append({'nivel':'info','msg':f'🤖 {_modelo} analisando documentos...'})
             _prompt_final = prompt + '\n\nResponda APENAS com JSON conforme estrutura da planilha template.'
             txt = ''
             if _provedor == 'anthropic':
