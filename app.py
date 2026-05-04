@@ -5396,6 +5396,76 @@ def api_dossie_municipios():
         return jsonify({'success': False, 'error': str(e)})
 
 
+@app.route('/api/dossie/municipio-dossies/<int:mun_id>')
+@login_required
+def api_dossie_municipio_dossies(mun_id):
+    """Lista todos os dossies (buscas_historico) de um municipio."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT municipio, estado FROM dossie_municipios WHERE id=%s", (mun_id,))
+        mun = cur.fetchone()
+        if not mun:
+            return jsonify({'success': False, 'error': 'municipio nao encontrado'}), 404
+        cur.execute("""
+            SELECT bh.id, bh.job_id, bh.iniciado_em, bh.concluido_em, bh.sucesso, bh.tipo,
+                   bh.zip_path, bh.relatorio_path, bh.tabela_path,
+                   COALESCE(
+                       (SELECT COUNT(*) FROM buscas_logs bl WHERE bl.job_id=bh.job_id
+                        AND bl.nivel='tabela' AND bl.msg LIKE '%encontrada%'),
+                       0
+                   ) as total_legs
+            FROM buscas_historico bh
+            WHERE LOWER(bh.municipio)=LOWER(%s) AND LOWER(bh.estado)=LOWER(%s)
+            ORDER BY bh.iniciado_em DESC
+        """, (mun['municipio'], mun['estado']))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        dossies = []
+        for r in rows:
+            dossies.append({
+                'id': r['id'],
+                'job_id': r['job_id'],
+                'iniciado_em': r['iniciado_em'].strftime('%d/%m/%Y %H:%M') if r['iniciado_em'] else None,
+                'concluido_em': r['concluido_em'].strftime('%d/%m/%Y %H:%M') if r['concluido_em'] else None,
+                'sucesso': r['sucesso'],
+                'tipo': r['tipo'] or 'manual',
+                'zip_url': r['zip_path'],
+                'relatorio_url': r['relatorio_path'],
+                'tabela_url': r['tabela_path'],
+                'total_legislacoes': r['total_legs'] or 0,
+            })
+        return jsonify({'success': True, 'municipio': mun['municipio'], 'estado': mun['estado'], 'dossies': dossies})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/dossie/dossie/<int:dossie_id>', methods=['DELETE'])
+@login_required
+def api_dossie_apagar_dossie(dossie_id):
+    """Apaga um dossie individual e seus arquivos."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT job_id, zip_path, relatorio_path, tabela_path FROM buscas_historico WHERE id=%s", (dossie_id,))
+        row = cur.fetchone()
+        if not row:
+            cur.close(); conn.close()
+            return jsonify({'success': False, 'error': 'nao encontrado'}), 404
+        import os as _os_d
+        for _p in (row['zip_path'], row['relatorio_path'], row['tabela_path']):
+            if _p:
+                _full = _p.lstrip('/')
+                if not _full.startswith('var/www'): _full = '/var/www/urbanlex/' + _full
+                try: _os_d.unlink(_full)
+                except: pass
+        if row['job_id']:
+            cur.execute("DELETE FROM buscas_logs WHERE job_id=%s", (row['job_id'],))
+        cur.execute("DELETE FROM buscas_historico WHERE id=%s", (dossie_id,))
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/dossie/municipio/<municipio>/<estado>')
 @login_required
 def api_dossie_municipio_detalhe(municipio, estado):

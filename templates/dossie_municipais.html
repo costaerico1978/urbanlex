@@ -166,7 +166,7 @@ function dossieRenderList(data) {
   _dossieData = data;
   _dossieSel = {};
   document.getElementById('dossie-list').innerHTML = data.map(m => `
-    <div class="dossie-row" onclick="dossieOpenDrawerById(${m.id})">
+    <div class="dossie-row" onclick="dossieToggleAccordion(${m.id})">
       <div style="display:flex;align-items:center;gap:10px">
         <div onclick="event.stopPropagation();dossieToggleSel('${m.municipio}','${m.estado}')" id="dossie-cb-${m.id}" style="width:16px;height:16px;border:1.5px solid var(--muted);border-radius:3px;background:var(--surface2);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .15s"></div>
         <div><div class="dr-name">${m.municipio}</div><div class="dr-state">${m.estado}</div></div>
@@ -176,8 +176,107 @@ function dossieRenderList(data) {
       <div style="font-size:11px;color:var(--muted)">${m.max_legislacoes ? m.max_legislacoes : '<span style="color:var(--accent)">∞</span>'}</div>
       <div>${obMap[m.origem] || obMap.manual}</div>
       <div>${sbMap[m.leg_status] || sbMap.none}</div>
-    </div>`).join('');
+    </div>
+    <div id="acc-${m.id}" class="dossie-accordion" style="display:none;background:var(--surface2);border-bottom:1px solid var(--border);"></div>`).join('');
 }
+
+let _accordionOpen = {};
+let _dossiesSel = new Set();
+
+async function dossieToggleAccordion(munId) {
+  const div = document.getElementById('acc-' + munId);
+  if (!div) return;
+  if (_accordionOpen[munId]) {
+    div.style.display = 'none';
+    _accordionOpen[munId] = false;
+    return;
+  }
+  div.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:12px">Carregando dossiês...</div>';
+  div.style.display = 'block';
+  _accordionOpen[munId] = true;
+  try {
+    const r = await api('GET', '/api/dossie/municipio-dossies/' + munId);
+    if (!r.success) {
+      div.innerHTML = '<div style="padding:14px;color:#e74c3c">Erro: ' + (r.error||'?') + '</div>';
+      return;
+    }
+    if (!r.dossies.length) {
+      div.innerHTML = '<div style="padding:14px;color:var(--muted)">Nenhum dossiê para este município.</div>';
+      return;
+    }
+    div.innerHTML = '<div style="padding:8px 14px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700">Dossiês (' + r.dossies.length + ')</div>' + r.dossies.map(d => {
+      const status = d.sucesso === true ? '<span style="font-size:10px;padding:2px 7px;border-radius:6px;background:rgba(0,229,160,.1);color:var(--accent)">✓ Concluído</span>'
+        : (d.sucesso === false && d.concluido_em ? '<span style="font-size:10px;padding:2px 7px;border-radius:6px;background:rgba(231,76,60,.1);color:#e74c3c">✗ Erro</span>'
+        : '<span style="font-size:10px;padding:2px 7px;border-radius:6px;background:rgba(240,173,78,.1);color:#f0ad4e">⏳ Em andamento</span>');
+      return '<div onclick="dossieOpenDossieDrawer(' + d.id + ')" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--border);cursor:pointer">'
+        + '<input type="checkbox" onclick="event.stopPropagation();dossieToggleDossieSel(' + d.id + ')" ' + (_dossiesSel.has(d.id)?'checked':'') + ' style="accent-color:var(--accent);width:14px;height:14px">'
+        + '<div style="flex:1"><div style="font-size:12px;font-weight:600">📄 ' + (d.iniciado_em||'—') + '</div>'
+        + '<div style="font-size:10px;color:var(--muted);margin-top:2px">' + (d.tipo==='manual'?'🖱 Manual':'🤖 Automática') + ' · ' + d.total_legislacoes + ' lei(s) · ' + status + '</div></div>'
+        + '</div>';
+    }).join('');
+    dossieAtualizarToolbarDossies();
+  } catch(e) {
+    div.innerHTML = '<div style="padding:14px;color:#e74c3c">Erro: ' + e.message + '</div>';
+  }
+}
+
+function dossieToggleDossieSel(id) {
+  if (_dossiesSel.has(id)) _dossiesSel.delete(id); else _dossiesSel.add(id);
+  dossieAtualizarToolbarDossies();
+}
+
+function dossieAtualizarToolbarDossies() {
+  let tb = document.getElementById('dossie-toolbar-dossies');
+  if (!tb) {
+    tb = document.createElement('div');
+    tb.id = 'dossie-toolbar-dossies';
+    tb.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--accent);border-radius:8px;padding:10px 16px;display:flex;gap:8px;align-items:center;box-shadow:0 4px 16px rgba(0,0,0,.4);z-index:100';
+    document.body.appendChild(tb);
+  }
+  if (_dossiesSel.size === 0) { tb.style.display = 'none'; return; }
+  tb.style.display = 'flex';
+  tb.innerHTML = '<span style="color:var(--accent);font-weight:700;font-size:12px">' + _dossiesSel.size + ' dossiê(s)</span>'
+    + '<button onclick="dossieApagarDossiesSel()" style="padding:5px 10px;border-radius:5px;background:rgba(231,76,60,.1);color:#e74c3c;border:1px solid rgba(231,76,60,.3);font-size:11px;font-weight:600;cursor:pointer">🗑 Apagar</button>'
+    + '<button onclick="dossieEnviarDossiesSelGerador()" style="padding:5px 10px;border-radius:5px;background:rgba(155,89,182,.12);color:#9b59b6;border:1px solid rgba(155,89,182,.3);font-size:11px;font-weight:600;cursor:pointer">📊 Gerador</button>';
+}
+
+async function dossieApagarDossiesSel() {
+  if (!_dossiesSel.size) return;
+  if (!confirm('Apagar ' + _dossiesSel.size + ' dossiê(s)? Os arquivos serão removidos permanentemente.')) return;
+  for (const id of _dossiesSel) {
+    try { await fetch('/api/dossie/dossie/' + id, {method:'DELETE'}); } catch(e) {}
+  }
+  _dossiesSel.clear();
+  // Recarregar accordions abertos
+  for (const munId of Object.keys(_accordionOpen)) {
+    if (_accordionOpen[munId]) { _accordionOpen[munId] = false; dossieToggleAccordion(parseInt(munId)); }
+  }
+  dossieAtualizarToolbarDossies();
+  dossieCarregar();
+}
+
+function dossieEnviarDossiesSelGerador() {
+  if (!_dossiesSel.size) return;
+  const compilados = [];
+  for (const id of _dossiesSel) {
+    // Como nao temos os dados em memoria global, vamos buscar do que estiver visivel
+    // Solucao simples: fazer fetch por dossie
+  }
+  // Implementacao simplificada: buscar dados de todos os dossies selecionados
+  Promise.all(Array.from(_dossiesSel).map(id => 
+    fetch('/api/dossie/dossie-detalhe/' + id).then(r => r.ok ? r.json() : null).catch(()=>null)
+  )).then(results => {
+    const c = results.filter(x => x && x.success).map(x => ({
+      municipio: x.municipio, estado: x.estado,
+      zip_url: x.zip_url, tabela_url: x.tabela_url,
+      zip_on: !!x.zip_url, tabela_on: !!x.tabela_url
+    }));
+    try { sessionStorage.setItem('gp_compilados_pendentes', JSON.stringify(c)); } catch(e) {}
+    window.location.href = '/gerador-planilha';
+  });
+}
+
+function dossieOpenDossieDrawer(id) { window.location.href = '/dossie-municipais#dossie-' + id; }
 
 async function dossieOpenDrawerById(id) { const m = _dossieData.find(x => x.id === id); if (m) dossieOpenDrawer(m); }
 
