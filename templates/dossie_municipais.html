@@ -336,7 +336,7 @@ async function enviarParaGerador(m) {
   window.location.href = '/gerador-planilha';
 }
 
-function dossieExcluirSelecionados() {
+async function dossieExcluirSelecionados() {
     const keys = Object.keys(_dossieSel).filter(k => _dossieSel[k]);
     if (!keys.length) return;
     if (!confirm(`Excluir ${keys.length} município(s) do dossiê?`)) return;
