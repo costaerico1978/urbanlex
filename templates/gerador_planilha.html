@@ -510,7 +510,7 @@ async function gpIniciar(){
     try{
       const pr = await fetch('/api/prompts-salvos/' + _gpPromptIdSelecionado);
       const pd = await pr.json();
-      prompt = pd.success ? (pd.conteudo||'') : '';
+      prompt = pd.success ? ((pd.data && pd.data.conteudo) || '') : '';
     }catch(e){ gpToast('Erro ao carregar prompt', true); return; }
   }
   if(!prompt){ gpToast('Prompt vazio', true); return; }
