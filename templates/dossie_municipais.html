@@ -1,87 +1,385 @@
 {% extends "base.html" %}
-{% block title %}Dossiê Municipais — UrbanLex{% endblock %}
+{% block title %}Dossiê Municipais{% endblock %}
 {% block content %}
+<div class="page-header" style="margin-bottom:24px">
+  <h1 style="font-size:20px;font-weight:700;color:var(--text);letter-spacing:-0.5px">🏙️ Dossiê Municipais</h1>
+  <p style="font-size:12px;color:var(--muted);margin-top:4px">Histórico de buscas e arquivos por município</p>
+</div>
+
+<!-- Search -->
+<div style="position:relative;max-width:420px;margin-bottom:24px">
+  <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted2)">🔍</span>
+  <input type="text" id="dossie-search" placeholder="Buscar município... (ex: São Paulo, Curitiba/PR)"
+    style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    color:var(--text);font-size:13px;padding:11px 16px 11px 40px;outline:none;transition:border-color 0.15s"
+    oninput="dossieSearch(this.value)" onblur="setTimeout(()=>dossieCloseAC(),200)">
+  <div id="dossie-ac" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;
+    background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    box-shadow:0 8px 32px rgba(0,0,0,0.4);z-index:100;overflow:hidden"></div>
+</div>
+
+<!-- Stats -->
+<div style="display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap" id="dossie-stats"></div>
+
+<!-- List -->
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+  <!-- Toolbar -->
+  <div id="dossie-toolbar" style="display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--surface2);border-bottom:1px solid var(--border)">
+    <div onclick="dossieToggleAll()" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+      <div id="dossie-cb-all" style="width:16px;height:16px;border:1.5px solid var(--muted);border-radius:3px;background:var(--surface2);display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0"></div>
+      <span id="dossie-lbl-all" style="font-size:11px;color:var(--muted)">Selecionar todos</span>
+    </div>
+    <button id="dossie-btn-del" onclick="dossieExcluirSelecionados()" style="display:none;align-items:center;gap:5px;margin-left:auto;background:rgba(248,81,73,0.12);border:1px solid rgba(248,81,73,0.3);border-radius:6px;color:#f85149;font-size:11px;font-family:inherit;padding:5px 12px;cursor:pointer;font-weight:600">
+      🗑 Excluir <span id="dossie-count-sel">0</span> selecionado(s)
+    </button>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 110px 100px 80px 130px 100px 36px;
+    padding:10px 20px;border-bottom:1px solid var(--border);background:var(--surface2)">
+    <span style="font-size:10px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.8px">Município</span>
+    <span style="font-size:10px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.8px">Última busca</span>
+    <span style="font-size:10px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.8px">Legislações</span>
+    <span style="font-size:10px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.8px">Limite</span>
+    <span style="font-size:10px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.8px">Origem</span>
+    <span style="font-size:10px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.8px">Status</span>
+    <span></span>
+  </div>
+  <div id="dossie-list"><div style="padding:40px;text-align:center;color:var(--muted)">Carregando...</div></div>
+</div>
+
+<!-- Drawer Overlay -->
+<div id="dossie-overlay" onclick="dossieCloseDrawer()"
+  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200"></div>
+
+<!-- Drawer -->
+<div id="dossie-drawer" style="position:fixed;top:0;right:0;bottom:0;width:62%;
+  background:var(--surface);border-left:1px solid var(--border);z-index:201;
+  transform:translateX(100%);transition:transform 0.28s cubic-bezier(.4,0,.2,1);
+  display:flex;flex-direction:column;overflow:hidden">
+
+  <!-- Drawer Header -->
+  <div style="padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-shrink:0">
+    <div style="width:40px;height:40px;background:linear-gradient(135deg,#00e5a0,#00b377);
+      border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🏙️</div>
+    <div style="flex:1">
+      <div id="drawer-mun-name" style="font-size:17px;font-weight:800;color:var(--text);letter-spacing:-0.4px"></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:10px">
+        <span id="drawer-mun-date"></span>
+        <span id="drawer-mun-origin"></span>
+      </div>
+    </div>
+    <button onclick="dossieCloseDrawer()" style="width:32px;height:32px;border:1px solid var(--border);
+      background:var(--surface2);border-radius:8px;color:var(--muted);cursor:pointer;
+      display:flex;align-items:center;justify-content:center;font-size:16px">✕</button>
+  </div>
+
+  <!-- Files -->
+  <div id="drawer-files" style="padding:20px 24px;border-bottom:1px solid var(--border);
+    display:flex;gap:12px;flex-shrink:0;flex-wrap:wrap"></div>
+  <button id="drawer-gerador-btn" style="display:none;width:calc(100% - 48px);margin:0 24px 16px;padding:10px;border:none;border-radius:8px;font-size:13px;font-weight:700;transition:all .2s;">📊 Enviar para Gerador de Planilha</button>
+
+  <!-- Log Header -->
+  <div style="padding:14px 24px 10px;border-bottom:1px solid var(--border);
+    display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+    <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px">Log da pesquisa</span>
+    <button id="drawer-log-dl" onclick="dossieDownloadLog()"
+      style="font-size:11px;color:var(--accent);background:none;border:1px solid rgba(0,229,160,0.3);
+      border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit">⬇ Baixar .txt</button>
+  </div>
+
+  <!-- Log Body -->
+  <div id="drawer-log" style="flex:1;overflow-y:auto;padding:14px 24px;
+    font-size:11px;line-height:1.8;color:var(--muted)"></div>
+</div>
+
 <style>
-.three-col { display:grid; grid-template-columns:280px 1fr 340px; height:calc(100vh - 100px); border:1px solid var(--border); border-radius:8px; overflow:hidden; background:var(--surface); }
-.tc-col { border-right:1px solid var(--border); overflow-y:auto; display:flex; flex-direction:column; }
-.tc-col:last-child { border-right:none; }
-.tc-header { padding:12px 14px; border-bottom:1px solid var(--border); background:var(--surface2); position:sticky; top:0; z-index:10; }
-.tc-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--muted); }
-.tc-search { padding:10px 12px; border-bottom:1px solid var(--border); position:sticky; top:42px; background:var(--surface); z-index:9; }
-.tc-search input { width:100%; padding:6px 10px; background:var(--bg); border:1px solid var(--border); border-radius:5px; color:var(--text); font-size:12px; }
-.tc-search input:focus { border-color:var(--accent); outline:none; }
-.tc-toolbar { padding:8px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:6px; background:var(--surface2); }
-.tc-toolbar.hidden { display:none; }
-.tc-sel-count { font-size:11px; font-weight:700; color:var(--accent); }
-.btn-mini { padding:4px 9px; border-radius:5px; font-size:11px; font-weight:600; cursor:pointer; border:none; display:inline-flex; align-items:center; gap:4px; }
-.btn-mini-danger { background:rgba(231,76,60,.1); color:#e74c3c; border:1px solid rgba(231,76,60,.3); }
-.btn-mini-purple { background:rgba(155,89,182,.12); color:#9b59b6; border:1px solid rgba(155,89,182,.3); }
-.mun-item { display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--border); cursor:pointer; }
-.mun-item:hover { background:var(--surface2); }
-.mun-item.active { background:rgba(0,229,160,.08); border-left:2px solid var(--accent); padding-left:10px; }
-.mun-cb { width:14px; height:14px; accent-color:var(--accent); cursor:pointer; flex-shrink:0; }
-.mun-info { flex:1; min-width:0; }
-.mun-nome { font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.mun-est { font-size:9px; font-weight:700; background:var(--surface2); color:var(--muted); padding:1px 4px; border-radius:3px; margin-left:4px; }
-.mun-meta { font-size:10px; color:var(--muted); margin-top:1px; }
-.mun-count { font-size:10px; padding:2px 7px; border-radius:8px; background:rgba(0,229,160,.1); color:var(--accent); font-weight:700; flex-shrink:0; }
-.dossie-item { display:flex; align-items:flex-start; gap:8px; padding:11px 12px; border-bottom:1px solid var(--border); cursor:pointer; }
-.dossie-item:hover { background:var(--surface2); }
-.dossie-item.active { background:rgba(0,229,160,.08); border-left:2px solid var(--accent); padding-left:10px; }
-.dossie-cb { width:14px; height:14px; accent-color:var(--accent); cursor:pointer; margin-top:2px; flex-shrink:0; }
-.dossie-info { flex:1; min-width:0; }
-.dossie-titulo { font-size:12px; font-weight:600; line-height:1.3; }
-.dossie-meta { font-size:10px; color:var(--muted); margin-top:3px; }
-.dossie-status { display:inline-block; font-size:9px; padding:2px 7px; border-radius:6px; font-weight:600; margin-top:5px; }
-.status-ok { background:rgba(0,229,160,.1); color:var(--accent); }
-.status-erro { background:rgba(231,76,60,.1); color:#e74c3c; }
-.status-pend { background:rgba(240,173,78,.1); color:#f0ad4e; }
-.detail-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; flex:1; color:var(--muted); padding:40px; text-align:center; }
-.detail-empty-icon { font-size:36px; margin-bottom:10px; opacity:.4; }
-.detail-content { padding:14px; }
-.detail-section { margin-bottom:14px; }
-.detail-section-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); margin-bottom:7px; padding-bottom:4px; border-bottom:1px solid var(--border); }
-.file-row { display:flex; align-items:center; gap:8px; padding:7px 10px; background:var(--surface2); border:1px solid var(--border); border-radius:5px; margin-bottom:5px; font-size:11px; }
-.file-row a { color:var(--accent); text-decoration:none; font-weight:600; margin-left:auto; }
+.dossie-row { display:grid;grid-template-columns:1fr 110px 100px 80px 130px 100px 36px;
+  padding:13px 20px;border-bottom:1px solid rgba(48,54,61,0.4);
+  cursor:pointer;transition:background 0.1s;align-items:center; }
+.dossie-row:last-child { border-bottom:none; }
+.dossie-row:hover { background:rgba(0,229,160,0.03); }
+.dossie-row:hover .dr-name { color:var(--accent); }
+.dr-name { font-size:13px;font-weight:600;color:var(--text);transition:color 0.1s; }
+.dr-state { font-size:11px;color:var(--muted2); }
+.dr-date { font-size:11px;color:var(--muted); }
+.dr-legs { font-size:11px;color:var(--text); }
+.ob { font-size:10px;padding:2px 7px;border-radius:20px;font-weight:600; }
+.ob-manual { background:rgba(139,148,158,0.1);color:var(--muted);border:1px solid rgba(139,148,158,0.2); }
+.ob-integracao { background:rgba(124,106,247,0.12);color:#7c6af7;border:1px solid rgba(124,106,247,0.25); }
+.sb { font-size:10px;padding:2px 7px;border-radius:20px;font-weight:600; }
+.sb-ok { background:rgba(0,229,160,0.1);color:var(--accent);border:1px solid rgba(0,229,160,0.2); }
+.sb-pending { background:rgba(240,160,0,0.1);color:#f0a000;border:1px solid rgba(240,160,0,0.2); }
+.sb-none { background:rgba(139,148,158,0.08);color:var(--muted);border:1px solid rgba(139,148,158,0.15); }
+.file-card { flex:1;min-width:120px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:10px;padding:14px 16px;cursor:pointer;transition:all 0.15s;
+  display:flex;flex-direction:column;gap:6px; }
+.file-card:hover:not(.fc-disabled) { border-color:var(--accent);background:rgba(0,229,160,0.04); }
+.fc-disabled { opacity:0.4;cursor:not-allowed; }
+.fc-zip { border-color:rgba(0,229,160,0.25); }
+.fc-pdf { border-color:rgba(124,106,247,0.25); }
+.fc-tabela { border-color:rgba(30,160,80,0.25); }
+.stat-c { background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:14px 18px;flex:1;min-width:130px; }
 </style>
-<div class="content">
-<div class="topbar"><div><div class="topbar-title">📁 Dossiê Municipais</div><div class="topbar-sub">Selecione um município para ver seus dossiês</div></div></div>
-<div class="three-col">
-<div class="tc-col">
-<div class="tc-header"><div class="tc-title" id="mun-title">Municípios (0)</div></div>
-<div class="tc-search"><input type="text" id="mun-search" placeholder="🔍 Buscar município..." oninput="dossieFiltrarMun(this.value)"></div>
-<div class="tc-toolbar hidden" id="mun-sel-toolbar"><span class="tc-sel-count" id="mun-sel-count">0 selecionados</span><button class="btn-mini btn-mini-danger" style="margin-left:auto;" onclick="dossieApagarMunsSel()">🗑 Apagar</button></div>
-<div id="mun-list"><div style="padding:30px;text-align:center;color:var(--muted)">Carregando...</div></div>
-</div>
-<div class="tc-col">
-<div class="tc-header"><div class="tc-title" id="dos-title">Dossiês</div></div>
-<div class="tc-toolbar hidden" id="dos-sel-toolbar"><span class="tc-sel-count" id="dos-sel-count">0 selecionados</span><button class="btn-mini btn-mini-purple" style="margin-left:auto;" onclick="dossieEnviarSelGerador()">📊 Enviar ao Gerador</button><button class="btn-mini btn-mini-danger" onclick="dossieApagarDossiesSel()">🗑 Apagar</button></div>
-<div id="dos-list"><div class="detail-empty"><div class="detail-empty-icon">👈</div><div>Selecione um município</div></div></div>
-</div>
-<div class="tc-col">
-<div class="tc-header"><div class="tc-title">Detalhes</div></div>
-<div id="det-content"><div class="detail-empty"><div class="detail-empty-icon">📄</div><div>Selecione um dossiê</div></div></div>
-</div>
-</div>
-</div>
+
 <script>
-let _muns=[],_munsFiltered=[],_munsSel=new Set(),_munActiveId=null;
-let _dossies=[],_dossiesSel=new Set(),_dossieActiveId=null;
-async function dossieCarregarMuns(){try{const r=await api('GET','/api/dossie/municipios');if(!r.success){document.getElementById('mun-list').innerHTML='<div style="padding:20px;color:#e74c3c">Erro: '+(r.error||'?')+'</div>';return;}_muns=r.municipios||[];_munsFiltered=_muns;dossieRenderMuns();}catch(e){document.getElementById('mun-list').innerHTML='<div style="padding:20px;color:#e74c3c">Erro: '+e.message+'</div>';}}
-function dossieRenderMuns(){document.getElementById('mun-title').textContent='Municípios ('+_munsFiltered.length+')';if(!_munsFiltered.length){document.getElementById('mun-list').innerHTML='<div style="padding:30px;text-align:center;color:var(--muted)">Nenhum município</div>';return;}document.getElementById('mun-list').innerHTML=_munsFiltered.map(m=>'<div class="mun-item '+(_munActiveId===m.id?'active':'')+'" onclick="dossieSelMun('+m.id+')"><input type="checkbox" class="mun-cb" '+(_munsSel.has(m.id)?'checked':'')+' onclick="event.stopPropagation();dossieToggleMunSel('+m.id+')"><div class="mun-info"><div class="mun-nome">'+esc(m.municipio)+'<span class="mun-est">'+m.estado+'</span></div><div class="mun-meta">'+(m.ultima_busca?'Atualizado '+m.ultima_busca:'Sem buscas')+'</div></div>'+(m.total_legislacoes>0?'<div class="mun-count">'+m.total_legislacoes+'</div>':'')+'</div>').join('');}
-function dossieFiltrarMun(v){const s=(v||'').toLowerCase();_munsFiltered=_muns.filter(m=>m.municipio.toLowerCase().includes(s)||m.estado.toLowerCase().includes(s));dossieRenderMuns();}
-function dossieToggleMunSel(id){if(_munsSel.has(id))_munsSel.delete(id);else _munsSel.add(id);dossieAtualizarToolbarMun();}
-function dossieAtualizarToolbarMun(){const tb=document.getElementById('mun-sel-toolbar');if(_munsSel.size>0){tb.classList.remove('hidden');document.getElementById('mun-sel-count').textContent=_munsSel.size+' selecionado'+(_munsSel.size>1?'s':'');}else tb.classList.add('hidden');}
-async function dossieApagarMunsSel(){if(!_munsSel.size)return;if(!confirm('Apagar '+_munsSel.size+' município(s)?'))return;for(const id of _munsSel){const m=_muns.find(x=>x.id===id);if(m){try{await fetch('/api/dossie/municipio/'+encodeURIComponent(m.municipio)+'/'+m.estado,{method:'DELETE'});}catch(e){}}}_munsSel.clear();_munActiveId=null;dossieAtualizarToolbarMun();document.getElementById('dos-list').innerHTML='<div class="detail-empty"><div class="detail-empty-icon">👈</div><div>Selecione um município</div></div>';document.getElementById('det-content').innerHTML='<div class="detail-empty"><div class="detail-empty-icon">📄</div><div>Selecione um dossiê</div></div>';dossieCarregarMuns();}
-async function dossieSelMun(id){_munActiveId=id;_dossiesSel.clear();_dossieActiveId=null;dossieRenderMuns();dossieAtualizarToolbarDos();document.getElementById('det-content').innerHTML='<div class="detail-empty"><div class="detail-empty-icon">📄</div><div>Selecione um dossiê</div></div>';document.getElementById('dos-list').innerHTML='<div style="padding:20px;text-align:center;color:var(--muted)">Carregando...</div>';try{const r=await api('GET','/api/dossie/municipio-dossies/'+id);if(!r.success){document.getElementById('dos-list').innerHTML='<div style="padding:20px;color:#e74c3c">Erro: '+(r.error||'?')+'</div>';return;}_dossies=r.dossies||[];document.getElementById('dos-title').textContent='Dossiês — '+r.municipio+'/'+r.estado+' ('+_dossies.length+')';dossieRenderDossies();}catch(e){document.getElementById('dos-list').innerHTML='<div style="padding:20px;color:#e74c3c">Erro: '+e.message+'</div>';}}
-function dossieRenderDossies(){if(!_dossies.length){document.getElementById('dos-list').innerHTML='<div class="detail-empty"><div class="detail-empty-icon">📭</div><div>Nenhum dossiê</div></div>';return;}const sm=d=>d.sucesso===true?'<span class="dossie-status status-ok">✓ Concluído</span>':(d.sucesso===false&&d.concluido_em?'<span class="dossie-status status-erro">✗ Erro</span>':'<span class="dossie-status status-pend">⏳ Em andamento</span>');document.getElementById('dos-list').innerHTML=_dossies.map(d=>'<div class="dossie-item '+(_dossieActiveId===d.id?'active':'')+'" onclick="dossieSelDossie('+d.id+')"><input type="checkbox" class="dossie-cb" '+(_dossiesSel.has(d.id)?'checked':'')+' onclick="event.stopPropagation();dossieToggleDossieSel('+d.id+')"><div class="dossie-info"><div class="dossie-titulo">📄 Dossiê '+(d.criado_em||'—')+'</div><div class="dossie-meta">'+(d.tipo==='manual'?'🖱 Manual':'🤖 Automática')+' · '+d.total_legislacoes+' legislação(ões)</div>'+sm(d)+'</div></div>').join('');}
-function dossieToggleDossieSel(id){if(_dossiesSel.has(id))_dossiesSel.delete(id);else _dossiesSel.add(id);dossieAtualizarToolbarDos();}
-function dossieAtualizarToolbarDos(){const tb=document.getElementById('dos-sel-toolbar');if(_dossiesSel.size>0){tb.classList.remove('hidden');document.getElementById('dos-sel-count').textContent=_dossiesSel.size+' selecionado'+(_dossiesSel.size>1?'s':'');}else tb.classList.add('hidden');}
-async function dossieApagarDossiesSel(){if(!_dossiesSel.size)return;if(!confirm('Apagar '+_dossiesSel.size+' dossiê(s)?'))return;for(const id of _dossiesSel){try{await fetch('/api/dossie/dossie/'+id,{method:'DELETE'});}catch(e){}}_dossiesSel.clear();_dossieActiveId=null;dossieAtualizarToolbarDos();document.getElementById('det-content').innerHTML='<div class="detail-empty"><div class="detail-empty-icon">📄</div><div>Selecione um dossiê</div></div>';if(_munActiveId)dossieSelMun(_munActiveId);dossieCarregarMuns();}
-function dossieEnviarSelGerador(){if(!_dossiesSel.size)return;const c=[];for(const id of _dossiesSel){const d=_dossies.find(x=>x.id===id);if(d){const m=_muns.find(x=>x.id===_munActiveId);c.push({municipio:m?.municipio||'',estado:m?.estado||'',zip_url:d.zip_url,tabela_url:d.tabela_url,zip_on:!!d.zip_url,tabela_on:!!d.tabela_url,criado_em:d.criado_em});}}try{sessionStorage.setItem('gp_compilados_pendentes',JSON.stringify(c));}catch(e){}window.location.href='/gerador-planilha';}
-function dossieSelDossie(id){_dossieActiveId=id;dossieRenderDossies();const d=_dossies.find(x=>x.id===id);if(!d)return;const m=_muns.find(x=>x.id===_munActiveId);let h='<div class="detail-content">';h+='<div style="font-size:14px;font-weight:700;margin-bottom:4px">'+esc(m?.municipio||'')+' / '+(m?.estado||'')+'</div>';h+='<div style="font-size:11px;color:var(--muted);margin-bottom:14px">Dossiê de '+(d.criado_em||'—')+'</div>';h+='<div class="detail-section"><div class="detail-section-title">Arquivos</div>';if(d.zip_url)h+='<div class="file-row">📦 ZIP de legislações<a href="'+d.zip_url+'" target="_blank">Baixar</a></div>';if(d.relatorio_url)h+='<div class="file-row">📄 Relatório PDF<a href="'+d.relatorio_url+'" target="_blank">Baixar</a></div>';if(d.tabela_url)h+='<div class="file-row">📊 Tabela PDF<a href="'+d.tabela_url+'" target="_blank">Baixar</a></div>';if(!d.zip_url&&!d.relatorio_url&&!d.tabela_url)h+='<div style="color:var(--muted);font-size:11px">Nenhum arquivo</div>';h+='</div>';h+='<div class="detail-section"><div class="detail-section-title">Status</div><div style="font-size:11px">'+(d.sucesso?'✓ Concluído':'✗ Erro/Em andamento')+'</div></div>';h+='<div class="detail-section"><div class="detail-section-title">Legislações</div><div style="font-size:11px">'+d.total_legislacoes+' legislação(ões) encontrada(s)</div></div>';if(d.zip_url&&d.tabela_url)h+='<div style="margin-top:14px"><button class="btn-mini btn-mini-purple" onclick="dossieEnviarUmGerador('+d.id+')">📊 Enviar ao Gerador</button></div>';h+='</div>';document.getElementById('det-content').innerHTML=h;}
-function dossieEnviarUmGerador(id){const d=_dossies.find(x=>x.id===id);if(!d)return;const m=_muns.find(x=>x.id===_munActiveId);const c=[{municipio:m?.municipio||'',estado:m?.estado||'',zip_url:d.zip_url,tabela_url:d.tabela_url,zip_on:!!d.zip_url,tabela_on:!!d.tabela_url,criado_em:d.criado_em}];try{sessionStorage.setItem('gp_compilados_pendentes',JSON.stringify(c));}catch(e){}window.location.href='/gerador-planilha';}
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
-document.addEventListener('DOMContentLoaded',dossieCarregarMuns);
+let _dossieData = [];
+let _drawerLog = [];
+let _drawerMun = '';
+
+async function dossieCarregar() {
+  try {
+    const r = await api('GET', '/api/dossie/municipios');
+    if (!r.success) {
+      document.getElementById('dossie-list').innerHTML = '<div style="padding:20px;color:#e74c3c">Backend erro: ' + (r.error || 'desconhecido') + '</div>';
+      return;
+    }
+    _dossieData = r.municipios;
+    dossieRenderStats(r.municipios);
+    dossieRenderList(r.municipios);
+  } catch(e) { console.error("Dossie erro:", e); document.getElementById("dossie-list").innerHTML = "<div style=\"padding:20px;color:#e74c3c\">Erro: " + (e.message || e) + "</div>"; }
+}
+
+function dossieRenderStats(data) {
+  const buscados = data.filter(m => m.leg_status === 'ok').length;
+  const fila = data.filter(m => m.leg_status === 'pending').length;
+  const naobuscados = data.filter(m => m.leg_status === 'none').length;
+  const integracao = data.filter(m => m.origem === 'integracao').length;
+  document.getElementById('dossie-stats').innerHTML = `
+    <div class="stat-c"><div style="font-size:22px;font-weight:800;color:var(--accent)">${buscados}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.8px">Municípios buscados</div></div>
+    <div class="stat-c"><div style="font-size:22px;font-weight:800;color:#f0a000">${fila}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.8px">Em fila</div></div>
+    <div class="stat-c"><div style="font-size:22px;font-weight:800;color:var(--text)">${naobuscados}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.8px">Não buscados</div></div>
+    <div class="stat-c"><div style="font-size:22px;font-weight:800;color:#7c6af7">${integracao}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.8px">Via integração</div></div>
+  `;
+}
+
+function dossieRenderList(data) {
+  if (!data.length) {
+    document.getElementById('dossie-list').innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">Nenhum município encontrado.</div>';
+    return;
+  }
+  const sbMap = { ok:'<span class="sb sb-ok">✓ Buscada</span>', pending:'<span class="sb sb-pending">⏳ Em fila</span>', none:'<span class="sb sb-none">— Não buscada</span>' };
+  const obMap = { manual:'<span class="ob ob-manual">Manual</span>', integracao:'<span class="ob ob-integracao">Via integração</span>' };
+  _dossieData = data;
+  _dossieSel = {};
+  document.getElementById('dossie-list').innerHTML = data.map(m => `
+    <div class="dossie-row" onclick="dossieOpenDrawerById(${m.id})">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div onclick="event.stopPropagation();dossieToggleSel('${m.municipio}','${m.estado}')" id="dossie-cb-${m.id}" style="width:16px;height:16px;border:1.5px solid var(--muted);border-radius:3px;background:var(--surface2);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .15s"></div>
+        <div><div class="dr-name">${m.municipio}</div><div class="dr-state">${m.estado}</div></div>
+      </div>
+      <div class="dr-date">${m.ultima_busca || '<span style="color:var(--muted2)">—</span>'}</div>
+      <div class="dr-legs">${m.total_legislacoes > 0 ? m.total_legislacoes + ' lei' + (m.total_legislacoes > 1 ? 's' : '') : '<span style="color:var(--muted2)">—</span>'}</div>
+      <div style="font-size:11px;color:var(--muted)">${m.max_legislacoes ? m.max_legislacoes : '<span style="color:var(--accent)">∞</span>'}</div>
+      <div>${obMap[m.origem] || obMap.manual}</div>
+      <div>${sbMap[m.leg_status] || sbMap.none}</div>
+    </div>`).join('');
+}
+
+async function dossieOpenDrawerById(id) { const m = _dossieData.find(x => x.id === id); if (m) dossieOpenDrawer(m); }
+
+async function dossieOpenDrawer(m) {
+  _drawerMun = m.municipio + '/' + m.estado;
+  document.getElementById('drawer-mun-name').textContent = _drawerMun;
+  document.getElementById('drawer-mun-date').textContent = m.ultima_busca ? 'Busca em ' + m.ultima_busca : 'Ainda não buscada';
+  const ob = m.origem === 'integracao'
+    ? '<span class="ob ob-integracao">Via integração</span>'
+    : '<span class="ob ob-manual">Manual</span>';
+  document.getElementById('drawer-mun-origin').innerHTML = ob;
+
+  // Files
+  const hasFiles = m.leg_status === 'ok';
+  document.getElementById('drawer-files').innerHTML = `
+    <div class="file-card fc-zip ${hasFiles?'':'fc-disabled'}" onclick="${hasFiles?'window.open(\''+m.zip_url+'\')':''}">
+      <div style="font-size:22px">📦</div><div style="font-size:11px;font-weight:700;color:var(--text)">Pacote ZIP</div>
+      <div style="font-size:10px;color:var(--muted)">Todas as legislações</div></div>
+    <div class="file-card fc-pdf ${hasFiles?'':'fc-disabled'}" onclick="${hasFiles?'window.open(\''+m.relatorio_url+'\')':''}">
+      <div style="font-size:22px">📄</div><div style="font-size:11px;font-weight:700;color:var(--text)">Relatório PDF</div>
+      <div style="font-size:10px;color:var(--muted)">Análise urbanística</div></div>
+    <div class="file-card fc-tabela ${hasFiles?'':'fc-disabled'}" onclick="${hasFiles?'window.open(\''+m.tabela_url+'\')':''}">
+      <div style="font-size:22px">📊</div><div style="font-size:11px;font-weight:700;color:var(--text)">Tabela PDF</div>
+      <div style="font-size:10px;color:var(--muted)">Parâmetros</div></div>
+    <div class="file-card fc-disabled">
+      <div style="font-size:22px">🗂️</div><div style="font-size:11px;font-weight:700;color:var(--text)">Planilha Excel</div>
+      <div style="font-size:10px;color:#f0a000">Em breve</div></div>
+  `;
+  // Botao Enviar para Gerador
+  const hasZipTabela = m.zip_url && m.tabela_url;
+  document.getElementById('drawer-gerador-btn').style.display = 'block';
+  const btnGerador = document.getElementById('drawer-gerador-btn');
+  if (hasZipTabela) {
+    btnGerador.style.background = 'var(--accent)';
+    btnGerador.style.color = '#000';
+    btnGerador.style.cursor = 'pointer';
+    btnGerador.style.opacity = '1';
+    btnGerador.onclick = () => enviarParaGerador(m);
+  } else {
+    btnGerador.style.background = 'var(--surface2)';
+    btnGerador.style.color = 'var(--muted)';
+    btnGerador.style.cursor = 'not-allowed';
+    btnGerador.style.opacity = '0.5';
+    btnGerador.onclick = null;
+  }
+
+  // Load logs
+  document.getElementById('drawer-log').innerHTML = '<div style="color:var(--muted2)">Carregando logs...</div>';
+  document.getElementById('dossie-overlay').style.display = 'block';
+  document.getElementById('dossie-drawer').style.transform = 'translateX(0)';
+  document.body.style.overflow = 'hidden';
+
+  try {
+    const det = await api('GET', `/api/dossie/municipio/${encodeURIComponent(m.municipio)}/${m.estado}`);
+    _drawerLog = det.logs || [];
+    const colMap = { ok:'var(--accent)', aviso:'#f0a000', erro:'#f85149', info:'var(--muted)', relacao:'#4fc3f7' };
+    document.getElementById('drawer-log').innerHTML = _drawerLog.length
+      ? _drawerLog.map(l => `<div style="color:${colMap[l.nivel]||'var(--muted)'}">${l.msg}</div>`).join('')
+      : '<div style="color:var(--muted2)">Nenhum log disponível.</div>';
+  } catch(e) {
+    document.getElementById('drawer-log').innerHTML = '<div style="color:var(--danger)">Erro ao carregar logs.</div>';
+  }
+}
+
+function dossieCloseDrawer() {
+  document.getElementById('dossie-overlay').style.display = 'none';
+  document.getElementById('dossie-drawer').style.transform = 'translateX(100%)';
+  document.body.style.overflow = '';
+}
+
+function dossieDownloadLog() {
+  if (!_drawerLog.length) return;
+  const txt = _drawerLog.map(l => l.msg).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(txt);
+  a.download = 'log_' + _drawerMun.replace('/','_') + '.txt';
+  a.click();
+}
+
+function dossieSearch(val) {
+  const ac = document.getElementById('dossie-ac');
+  if (!val || val.length < 2) { ac.style.display = 'none'; dossieRenderList(_dossieData); return; }
+  const filtered = _dossieData.filter(m =>
+    (m.municipio + '/' + m.estado).toLowerCase().includes(val.toLowerCase()));
+  dossieRenderList(filtered);
+  const acItems = filtered.slice(0,6).map(m => `
+    <div onmousedown="document.getElementById('dossie-search').value='${m.municipio}/${m.estado}';dossieCloseAC()"
+      style="padding:9px 16px;font-size:12px;color:var(--text);cursor:pointer;
+      border-bottom:1px solid rgba(48,54,61,0.4);display:flex;align-items:center;justify-content:space-between"
+      onmouseover="this.style.background='rgba(0,229,160,0.06)'" onmouseout="this.style.background=''">
+      <span>${m.municipio}</span>
+      <span style="font-size:10px;color:var(--muted2);background:var(--surface2);padding:2px 6px;border-radius:4px">${m.estado}</span>
+    </div>`).join('');
+  ac.innerHTML = acItems;
+  ac.style.display = filtered.length ? 'block' : 'none';
+}
+
+
+function dossieToggleSel(mun, est) {
+    const key = mun + '/' + est;
+    _dossieSel[key] = !_dossieSel[key];
+    const cb = document.getElementById('dossie-cb-' + mun + '-' + est);
+    if (cb) {
+        cb.style.background = _dossieSel[key] ? '#f85149' : 'var(--surface2)';
+        cb.style.borderColor = _dossieSel[key] ? '#f85149' : 'var(--muted)';
+        cb.innerHTML = _dossieSel[key] ? '<span style="color:white;font-size:10px;font-weight:700">✓</span>' : '';
+    }
+    const row = cb ? cb.closest('.dossie-row') : null;
+    if (row) row.style.background = _dossieSel[key] ? 'rgba(248,81,73,0.05)' : '';
+    _dossieAtualizarToolbar();
+}
+
+function dossieToggleAll() {
+    const total = _dossieData.length;
+    const sel = Object.values(_dossieSel).filter(Boolean).length;
+    const marcar = sel < total;
+    _dossieData.forEach(m => {
+        const key = m.municipio + '/' + m.estado;
+        _dossieSel[key] = marcar;
+        const cb = document.getElementById('dossie-cb-' + m.municipio + '-' + m.estado);
+        if (cb) {
+            cb.style.background = marcar ? '#f85149' : 'var(--surface2)';
+            cb.style.borderColor = marcar ? '#f85149' : 'var(--muted)';
+            cb.innerHTML = marcar ? '<span style="color:white;font-size:10px;font-weight:700">✓</span>' : '';
+        }
+        const row = cb ? cb.closest('.dossie-row') : null;
+        if (row) row.style.background = marcar ? 'rgba(248,81,73,0.05)' : '';
+    });
+    _dossieAtualizarToolbar();
+}
+
+function _dossieAtualizarToolbar() {
+    const sel = Object.values(_dossieSel).filter(Boolean).length;
+    const total = _dossieData.length;
+    const toolbar = document.getElementById('dossie-toolbar');
+    const btnDel = document.getElementById('dossie-btn-del');
+    const cbAll = document.getElementById('dossie-cb-all');
+    const lbl = document.getElementById('dossie-lbl-all');
+    const count = document.getElementById('dossie-count-sel');
+    if (toolbar) toolbar.style.display = 'flex';
+    if (count) count.textContent = sel;
+    if (btnDel) btnDel.style.display = sel > 0 ? 'flex' : 'none';
+    if (cbAll) {
+        cbAll.style.background = sel === total && total > 0 ? '#f85149' : 'var(--surface2)';
+        cbAll.style.borderColor = sel === total && total > 0 ? '#f85149' : 'var(--muted)';
+        cbAll.innerHTML = sel === total && total > 0 ? '<span style="color:white;font-size:10px;font-weight:700">✓</span>' : '';
+    }
+    if (lbl) lbl.textContent = sel === total && total > 0 ? 'Desmarcar todos' : 'Selecionar todos';
+}
+
+async function enviarParaGerador(m) {
+  const dados = {municipio: m.municipio, estado: m.estado, zip: m.zip_url, tabela: m.tabela_url};
+  sessionStorage.setItem('gp_envio', JSON.stringify(dados));
+  window.location.href = '/gerador-planilha';
+}
+
+async function dossieExcluirSelecionados() {
+    const keys = Object.keys(_dossieSel).filter(k => _dossieSel[k]);
+    if (!keys.length) return;
+    if (!confirm(`Excluir ${keys.length} município(s) do dossiê?`)) return;
+    for (const key of keys) {
+        const [mun, est] = key.split('/');
+        try { await fetch('/api/dossie/municipio/' + encodeURIComponent(mun) + '/' + est, {method:'DELETE'}); } catch(e) {}
+    }
+    _dossieSel = {};
+    // Resetar toolbar
+    const btnDel = document.getElementById('dossie-btn-del');
+    const cbAll = document.getElementById('dossie-cb-all');
+    const lbl = document.getElementById('dossie-lbl-all');
+    if (btnDel) btnDel.style.display = 'none';
+    if (cbAll) { cbAll.style.background='var(--surface2)'; cbAll.style.borderColor='var(--muted)'; cbAll.innerHTML=''; }
+    if (lbl) lbl.textContent = 'Selecionar todos';
+    dossieCarregar();
+}
+
+async function dossieConfirmarExcluir(m) {
+    if (typeof m === "string") { try { m = JSON.parse(m); } catch(e) { return; } }
+    const temBusca = m.leg_status === 'ok';
+    const naFila = m.leg_status === 'pending';
+    let msg = '';
+    if (temBusca) {
+        msg = `Deseja apagar todos os dados de ${m.municipio}/${m.estado}?\n\nIsso removerá o histórico, logs, ZIP, relatório e tabela.`;
+    } else if (naFila) {
+        msg = `Deseja remover ${m.municipio}/${m.estado} da fila e do dossiê?`;
+    } else {
+        msg = `Deseja remover ${m.municipio}/${m.estado} do dossiê?`;
+    }
+    if (!confirm(msg)) return;
+    try {
+        const r = await api('DELETE', `/api/dossie/municipio/${encodeURIComponent(m.municipio)}/${m.estado}`);
+        if (r.success) {
+            _dossieData = _dossieData.filter(x => !(x.municipio === m.municipio && x.estado === m.estado));
+            dossieRenderStats(_dossieData);
+            dossieRenderList(_dossieData);
+        } else {
+            alert('Erro ao remover: ' + (r.error || 'desconhecido'));
+        }
+    } catch(e) { alert('Erro: ' + e.message); }
+}
+
+function dossieCloseAC() { document.getElementById('dossie-ac').style.display = 'none'; }
+document.addEventListener('keydown', e => { if(e.key==='Escape') dossieCloseDrawer(); });
+document.addEventListener('DOMContentLoaded', dossieCarregar);
 </script>
 {% endblock %}
