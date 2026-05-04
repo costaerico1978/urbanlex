@@ -129,7 +129,10 @@ let _drawerMun = '';
 async function dossieCarregar() {
   try {
     const r = await api('GET', '/api/dossie/municipios');
-    if (!r.success) return;
+    if (!r.success) {
+      document.getElementById('dossie-table-body').innerHTML = '<tr><td colspan=6 style=color:#e74c3c>Backend erro: ' + (r.error || 'desconhecido') + '</td></tr>';
+      return;
+    }
     _dossieData = r.municipios;
     dossieRenderStats(r.municipios);
     dossieRenderList(r.municipios);
