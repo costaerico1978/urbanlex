@@ -165,7 +165,7 @@
 
   <div id="gp-log-wrap" style="display:none;margin-top:14px;">
     <div class="gp-card">
-      <div class="gp-card-title">📜 Log de Execução</div>
+      <div class="gp-card-title" style="display:flex;align-items:center;justify-content:space-between;">📜 Log de Execução<button class="btn btn-secondary btn-sm" onclick="gpBaixarLog()" style="font-size:11px;padding:5px 10px;">⬇ Baixar Log</button></div>
       <div id="gp-log-body" style="font-family:var(--font-mono);font-size:11px;max-height:300px;overflow-y:auto;background:var(--surface2);padding:10px;border-radius:6px;"></div>
     </div>
   </div>
@@ -495,6 +495,21 @@ function gpTemplateSelected(input){
     '<div style="font-size:13px;font-weight:600;color:var(--accent);">' + _gpTemplateFile.name + '</div>' +
     '<div style="font-size:11px;color:var(--muted);">Clique para substituir · ' + (_gpTemplateFile.size/1024).toFixed(0) + ' KB</div>';
 }
+function gpBaixarLog(){
+  const txt = document.getElementById('gp-log-body').innerText;
+  if (!txt.trim()) return;
+  const muns = (_gpCompilados||[]).map(c => c.municipio + '_' + c.estado).join('-') || 'gerador';
+  const now = new Date(Date.now() - 3*3600000);
+  const dd = now.getUTCDate().toString().padStart(2,'0');
+  const mm = (now.getUTCMonth()+1).toString().padStart(2,'0');
+  const yyyy = now.getUTCFullYear();
+  const hh = now.getUTCHours().toString().padStart(2,'0');
+  const mi = now.getUTCMinutes().toString().padStart(2,'0');
+  const nome = 'log_gerador_' + muns.replace(/ /g,'_') + '_' + dd+mm+yyyy + '_' + hh+mi + '.txt';
+  const blob = new Blob([txt], {type:'text/plain'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; a.click();
+}
+
 async function gpIniciar(){
   if(!_gpTemplateFile){ gpToast('Selecione a planilha base', true); return; }
   if(!_gpCompilados.filter(c => c.zip_on || c.tabela_on).length){ gpToast('Adicione ao menos um compilado', true); return; }
