@@ -435,7 +435,7 @@ function gpRenderCompilados(){
 }
 function gpToggleChip(i, tipo){ _gpCompilados[i][tipo+'_on'] = !_gpCompilados[i][tipo+'_on']; }
 function gpRemoverCompilado(i){ _gpCompilados.splice(i,1); gpRenderCompilados(); }
-function gpRestaurarCompilados(){ try { const s = sessionStorage.getItem('gp_compilados_persist'); if (s) { _gpCompilados = JSON.parse(s); gpRenderCompilados(); } } catch(e) {} }
+function gpRestaurarCompilados(){ try { const s = sessionStorage.getItem('gp_compilados_persist'); alert('DEBUG restaurar: ' + (s||'VAZIO').substring(0,150)); if (s) { _gpCompilados = JSON.parse(s); gpRenderCompilados(); } } catch(e) { alert('Erro restaurar: ' + e.message); } }
 async function gpAcBuscar(val){
   if(!val || val.length < 2){ document.getElementById('gp-ac').style.display='none'; return; }
   try{
