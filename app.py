@@ -5462,7 +5462,7 @@ def api_prompts_salvos_get(pid):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/prompts-salvos/upload', methods=['POST'])
+@app.route('/api/prompts-salvos', methods=['POST'])
 @login_required
 def api_prompts_salvos_upload():
     try:
