@@ -448,6 +448,7 @@ async function gpAcBuscar(val){
 function gpProcessarPendentes(){
   try {
     const _p = sessionStorage.getItem('gp_compilados_pendentes');
+    alert('DEBUG pendentes: ' + (_p||'VAZIO').substring(0,100));
     if (!_p) return;
     const arr = JSON.parse(_p);
     if (!Array.isArray(arr)) return;
@@ -466,7 +467,7 @@ function gpProcessarPendentes(){
     }
     sessionStorage.removeItem('gp_compilados_pendentes');
     gpRenderCompilados();
-  } catch(e) { console.error('gpProcessarPendentes:', e); }
+  } catch(e) { console.error('gpProcessarPendentes:', e); alert('Erro: ' + e.message); }
 }
 document.addEventListener('DOMContentLoaded', gpProcessarPendentes);
 
