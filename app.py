@@ -5439,6 +5439,33 @@ def api_dossie_municipio_dossies(mun_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/api-keys')
+@login_required
+def api_api_keys():
+    """Lista status das API keys configuradas para uso no gerador."""
+    try:
+        import os as _os_k
+        servicos = [
+            ('gemini', 'GEMINI_API_KEY'),
+            ('claude', 'ANTHROPIC_API_KEY'),
+            ('groq', 'GROQ_API_KEY'),
+            ('openai', 'OPENAI_API_KEY'),
+        ]
+        data = []
+        for srv, env_var in servicos:
+            key = _os_k.environ.get(env_var, '') or ''
+            mascarada = ''
+            if key and len(key) > 12:
+                mascarada = key[:6] + '****' + key[-4:]
+            data.append({
+                'servico': srv,
+                'configurada': bool(key),
+                'mascarada': mascarada,
+            })
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/dossie/dossie-detalhe/<int:dossie_id>')
 @login_required
 def api_dossie_dossie_detalhe(dossie_id):
