@@ -290,8 +290,7 @@ async function gpCarregarIAs(){
     const r = await fetch('/api/api-keys');
     const d = await r.json();
     if(!d.success){ document.getElementById('gp-ia-list').innerHTML = '<div style="color:#e74c3c;padding:10px;font-size:12px;">Erro: ' + d.error + '</div>'; return; }
-    const labels = {gemini:'Gemini', claude:'Claude', groq:'Groq', openai:'OpenAI'};
-    const modelos = {gemini:'2.5 Pro', claude:'Sonnet 4.5', groq:'Llama 3.3', openai:'GPT-4'};
+    // Labels e modelos vem do backend agora
     document.getElementById('gp-ia-list').innerHTML = d.data.map(ia => {
       const sel = ia.servico === _gpIaSelecionada ? 'selected' : '';
       const dis = !ia.configurada ? 'disabled' : '';
@@ -303,9 +302,8 @@ async function gpCarregarIAs(){
         : '<button class="gp-mini primary" onclick="gpAbrirModalKey(\'' + ia.servico + '\', \'\')">+ Configurar</button>';
       return '<div class="gp-ia-row ' + sel + ' ' + dis + '" data-ia="' + ia.servico + '" onclick="gpSelecionarIa(\'' + ia.servico + '\', ' + ia.configurada + ')">' +
         '<input type="radio" name="gp-ia" ' + (sel?'checked':'') + ' ' + (dis?'disabled':'') + ' style="accent-color:var(--accent);">' +
-        '<div class="gp-ia-name">' + labels[ia.servico] + '</div>' +
+        '<div class="gp-ia-name">' + (ia.label||ia.servico) + '</div>' +
         keyHtml +
-        '<span style="font-size:10px;padding:1px 6px;background:rgba(124,106,247,.12);color:#7c6af7;border-radius:3px;font-weight:600;">' + modelos[ia.servico] + '</span>' +
         '<div class="gp-ia-action">' + btnHtml + '</div>' +
       '</div>';
     }).join('');

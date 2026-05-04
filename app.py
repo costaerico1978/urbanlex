@@ -5535,19 +5535,20 @@ def api_api_keys():
     try:
         import os as _os_k
         servicos = [
-            ('gemini', 'GEMINI_API_KEY'),
-            ('claude', 'ANTHROPIC_API_KEY'),
-            ('groq', 'GROQ_API_KEY'),
-            ('openai', 'OPENAI_API_KEY'),
+            ('gemini-flash', 'GEMINI_API_KEY', 'Gemini 2.5 Flash'),
+            ('gemini-pro', 'GEMINI_API_KEY', 'Gemini 2.5 Pro'),
+            ('claude-sonnet', 'ANTHROPIC_API_KEY', 'Claude Sonnet 4.5'),
+            ('claude-opus', 'ANTHROPIC_API_KEY', 'Claude Opus 4.7'),
         ]
         data = []
-        for srv, env_var in servicos:
+        for srv, env_var, label in servicos:
             key = _os_k.environ.get(env_var, '') or ''
             mascarada = ''
             if key and len(key) > 12:
                 mascarada = key[:6] + '****' + key[-4:]
             data.append({
                 'servico': srv,
+                'label': label,
                 'configurada': bool(key),
                 'mascarada': mascarada,
             })
@@ -5853,6 +5854,7 @@ def api_gerador_iniciar():
     template_file = request.files.get('template')
     compilados = json.loads(request.form.get('compilados', '[]'))
     prompt = request.form.get('prompt', '')
+    ia_provider = request.form.get('ia_provider', 'gemini-pro')
     if not template_file or not compilados:
         return jsonify({'success': False, 'error': 'template e compilados obrigatorios'}), 400
     import os as _os_gp
@@ -5863,9 +5865,26 @@ def api_gerador_iniciar():
 
     def _run():
         try:
-            import anthropic, zipfile as _zf, tempfile as _tmp, base64 as _b64, openpyxl as _xl, re as _re_gp, shutil as _sh
+            import zipfile as _zf, tempfile as _tmp, base64 as _b64, openpyxl as _xl, re as _re_gp, shutil as _sh
             from pathlib import Path
-            client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY',''))
+            # Determinar IA a usar
+            _ia = ia_provider or 'gemini-pro'
+            _modelos_ia = {
+                'gemini-flash': ('gemini', 'gemini-2.5-flash'),
+                'gemini-pro': ('gemini', 'gemini-2.5-pro'),
+                'claude-sonnet': ('anthropic', 'claude-sonnet-4-5'),
+                'claude-opus': ('anthropic', 'claude-opus-4-7'),
+            }
+            _provedor, _modelo = _modelos_ia.get(_ia, ('gemini', 'gemini-2.5-pro'))
+            job['logs'].append({'nivel':'info','msg':f'🤖 Usando: {_ia} ({_modelo})'})
+            client = None
+            if _provedor == 'anthropic':
+                import anthropic
+                client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY',''))
+            else:
+                import google.generativeai as _genai
+                _genai.configure(api_key=os.getenv('GEMINI_API_KEY',''))
+                client = _genai.GenerativeModel(_modelo)
             job['logs'].append({'nivel':'ok','msg':'✅ Iniciando análise de parâmetros urbanísticos...'})
             # Coletar todos os arquivos
             files_content = []
@@ -5909,9 +5928,22 @@ def api_gerador_iniciar():
             # Montar mensagem para Claude
             job['logs'].append({'nivel':'info','msg':'🤖 Claude analisando documentos...'})
             _prompt_final = prompt + '\n\nResponda APENAS com JSON conforme estrutura da planilha template.'
-            msgs = [{'role':'user','content': files_content + [{'type':'text','text': _prompt_final}]}]
-            resp = client.messages.create(model='claude-sonnet-4-20250514', max_tokens=8000, messages=msgs)
-            txt = resp.content[0].text if resp.content else ''
+            txt = ''
+            if _provedor == 'anthropic':
+                msgs = [{'role':'user','content': files_content + [{'type':'text','text': _prompt_final}]}]
+                resp = client.messages.create(model=_modelo, max_tokens=8000, messages=msgs)
+                txt = resp.content[0].text if resp.content else ''
+            else:
+                # Gemini: enviar PDFs como bytes
+                _gemini_parts = [_prompt_final]
+                for fc in files_content:
+                    if fc.get('type') == 'document':
+                        try:
+                            _data = _b64.b64decode(fc['source']['data'])
+                            _gemini_parts.append({'mime_type': 'application/pdf', 'data': _data})
+                        except Exception: pass
+                resp = client.generate_content(_gemini_parts)
+                txt = resp.text if hasattr(resp, 'text') else str(resp)
             # Extrair JSON
             import json as _json_gp
             s = txt.find('{'); e = txt.rfind('}') + 1
