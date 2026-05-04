@@ -133,7 +133,7 @@ async function dossieCarregar() {
     _dossieData = r.municipios;
     dossieRenderStats(r.municipios);
     dossieRenderList(r.municipios);
-  } catch(e) {}
+  } catch(e) { console.error("Dossie erro:", e); document.getElementById("dossie-table-body").innerHTML = "<tr><td colspan=6 style=color:#e74c3c>Erro: " + (e.message || e) + "</td></tr>"; }
 }
 
 function dossieRenderStats(data) {
