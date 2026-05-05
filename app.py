@@ -6048,22 +6048,43 @@ def api_gerador_iniciar():
                 # Gemini: enviar PDFs como bytes
                 _gemini_parts = [_prompt_final]
                 _ok_count = 0; _skip_count = 0
+                _bytes_total = 0
                 for fc in files_content:
                     if fc.get('type') == 'document':
+                        _title = fc.get('title','?')
                         try:
                             _data = _b64.b64decode(fc['source']['data'])
+                            _kb = len(_data) / 1024
                             # Validar PDF tem pelo menos 1 pagina
-                            if len(_data) < 100 or not _data.startswith(b'%PDF'):
-                                job['logs'].append({'nivel':'aviso','msg':f'  ⚠ Pulando arquivo invalido: {fc.get("title","?")}'})
+                            if len(_data) < 100:
+                                job['logs'].append({'nivel':'aviso','msg':f'  ⚠ Pulado (vazio, {len(_data)}B): {_title}'})
+                                _skip_count += 1
+                                continue
+                            if not _data.startswith(b'%PDF'):
+                                _magic = _data[:8].decode('latin-1', errors='replace')
+                                job['logs'].append({'nivel':'aviso','msg':f'  ⚠ Pulado (nao-PDF, magic={repr(_magic)}, {_kb:.1f}KB): {_title}'})
                                 _skip_count += 1
                                 continue
                             _gemini_parts.append({'mime_type': 'application/pdf', 'data': _data})
                             _ok_count += 1
+                            _bytes_total += len(_data)
+                            job['logs'].append({'nivel':'info','msg':f'  ✓ {_kb:.1f}KB: {_title}'})
                         except Exception as _ee:
-                            job['logs'].append({'nivel':'aviso','msg':f'  ⚠ Erro decodificar: {fc.get("title","?")}: {_ee}'})
+                            job['logs'].append({'nivel':'aviso','msg':f'  ⚠ Erro decodificar: {_title}: {_ee}'})
                             _skip_count += 1
-                job['logs'].append({'nivel':'info','msg':f'📤 Enviando {_ok_count} arquivo(s) para Gemini ({_skip_count} pulados)'})
-                resp = client.generate_content(_gemini_parts)
+                _mb_total = _bytes_total / 1024 / 1024
+                job['logs'].append({'nivel':'info','msg':f'📤 Enviando {_ok_count} arquivo(s) ({_mb_total:.1f}MB total) para Gemini, {_skip_count} pulados'})
+                job['logs'].append({'nivel':'info','msg':f'⏳ Aguardando resposta da IA (pode levar varios minutos para PDFs grandes)...'})
+                import time as _t_gp
+                _t_inicio = _t_gp.time()
+                try:
+                    resp = client.generate_content(_gemini_parts)
+                    _t_decorrido = _t_gp.time() - _t_inicio
+                    job['logs'].append({'nivel':'ok','msg':f'⏱ IA respondeu em {_t_decorrido:.1f}s'})
+                except Exception as _ei:
+                    _t_decorrido = _t_gp.time() - _t_inicio
+                    job['logs'].append({'nivel':'erro','msg':f'❌ Falha apos {_t_decorrido:.1f}s: {type(_ei).__name__}: {_ei}'})
+                    raise
                 txt = resp.text if hasattr(resp, 'text') else str(resp)
             # Log resposta da IA para diagnostico
             job['logs'].append({'nivel':'info','msg':f'📥 Resposta da IA ({len(txt)} chars): {txt[:300]}'})
