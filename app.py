@@ -5539,9 +5539,10 @@ def api_gerador_compilados_listar():
             FROM gerador_compilados gc
             ORDER BY gc.municipio, gc.estado, gc.criado_em DESC
         """)
+        from datetime import timedelta as _td
         for r in rows:
             if r.get('criado_em') and hasattr(r['criado_em'], 'strftime'):
-                r['criado_em'] = r['criado_em'].strftime('%d/%m/%Y %H:%M')
+                r['criado_em'] = (r['criado_em'] - _td(hours=3)).strftime('%d/%m/%Y %H:%M')
         return jsonify({'success': True, 'data': rows or []})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
