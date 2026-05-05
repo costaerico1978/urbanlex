@@ -6044,7 +6044,14 @@ def api_gerador_iniciar():
         try:
             import zipfile as _zf, tempfile as _tmp, base64 as _b64, openpyxl as _xl, re as _re_gp, shutil as _sh
             from pathlib import Path
+            from modulos.gerador_hibrido import (
+                chamar_ia, extrair_json, filtrar_pdfs_para_zona,
+                prompt_passada_0_catalogacao, prompt_passada_1_inventario,
+                prompt_passada_2_zona, prompt_passada_3_validacao
+            )
+            # ============================================================
             # Determinar IA a usar
+            # ============================================================
             _ia = ia_provider or 'gemini-pro'
             _modelos_ia = {
                 'gemini-flash': ('gemini', 'gemini-2.5-flash'),
@@ -6062,187 +6069,208 @@ def api_gerador_iniciar():
                 import google.generativeai as _genai
                 _genai.configure(api_key=os.getenv('GEMINI_API_KEY',''))
                 client = _genai.GenerativeModel(_modelo)
-            job['logs'].append({'nivel':'ok','msg':'✅ Iniciando análise de parâmetros urbanísticos...'})
-            # Coletar todos os arquivos
-            files_content = []
+            # ============================================================
+            # Coletar todos os PDFs do compilado em estrutura padronizada
+            # ============================================================
+            todos_anexos = []  # list of {title, data_b64, nome_arquivo}
+            job['logs'].append({'nivel':'info','msg':'✅ Iniciando estrategia hibrida (4 passadas)'})
             for comp in compilados:
-                mun = comp.get('municipio','')
-                est = comp.get('estado','')
+                mun = comp.get('municipio','?'); est = comp.get('estado','??')
+                # ZIP
                 if comp.get('zip_on') and comp.get('zip'):
                     zpath = comp['zip']
                     if zpath.startswith('/static/'): zpath = '/var/www/urbanlex' + zpath
                     if _os_gp.path.exists(zpath):
                         job['logs'].append({'nivel':'info','msg':f'📦 Descompactando {_os_gp.path.basename(zpath)}...'})
-                        tmpdir = _tmp.mkdtemp()
                         try:
-                            with _zf.ZipFile(zpath,'r') as z: z.extractall(tmpdir)
-                            for root, dirs, files in _os_gp.walk(tmpdir):
-                                for fname in sorted(files):
-                                    fpath = _os_gp.path.join(root, fname)
-                                    job['logs'].append({'nivel':'info','msg':f'📄 Lendo: {fname}'})
+                            with _zf.ZipFile(zpath) as zf:
+                                for fname in zf.namelist():
+                                    if fname.endswith('/') or fname.startswith('__MACOSX'): continue
+                                    base = _os_gp.path.basename(fname)
+                                    if not base.lower().endswith('.pdf'): continue
+                                    job['logs'].append({'nivel':'info','msg':f'📄 Lendo: {base}'})
                                     try:
-                                        with open(fpath,'rb') as f2:
-                                            data = _b64.standard_b64encode(f2.read()).decode()
-                                        ext = fname.lower().split('.')[-1]
-                                        mt = 'application/pdf' if ext=='pdf' else 'application/octet-stream'
-                                        files_content.append({'type':'document','source':{'type':'base64','media_type':mt,'data':data},'title':f'{mun}/{est}: {fname}'})
-                                    except Exception: pass
-                        finally:
-                            _sh.rmtree(tmpdir, ignore_errors=True)
+                                        data = zf.read(fname)
+                                        if len(data) < 100 or not data.startswith(b'%PDF'):
+                                            job['logs'].append({'nivel':'aviso','msg':f'  ⚠ Pulado (nao-PDF ou vazio): {base}'})
+                                            continue
+                                        todos_anexos.append({
+                                            'title': f'{mun}/{est}: {base}',
+                                            'data_b64': _b64.standard_b64encode(data).decode(),
+                                            'nome_arquivo': base
+                                        })
+                                    except Exception as _ez:
+                                        job['logs'].append({'nivel':'aviso','msg':f'  ⚠ Erro lendo {base}: {_ez}'})
+                        except Exception as _ezi:
+                            job['logs'].append({'nivel':'erro','msg':f'❌ Erro extraindo ZIP: {_ezi}'})
+                # Tabela
                 if comp.get('tabela_on') and comp.get('tabela'):
                     tpath = comp['tabela']
                     if tpath.startswith('/static/'): tpath = '/var/www/urbanlex' + tpath
                     if _os_gp.path.exists(tpath):
-                        job['logs'].append({'nivel':'info','msg':f'📊 Incluindo tabela: {_os_gp.path.basename(tpath)}'})
+                        base = _os_gp.path.basename(tpath)
+                        job['logs'].append({'nivel':'info','msg':f'📊 Incluindo tabela: {base}'})
                         try:
-                            with open(tpath,'rb') as f2:
-                                data = _b64.standard_b64encode(f2.read()).decode()
-                            files_content.append({'type':'document','source':{'type':'base64','media_type':'application/pdf','data':data},'title':f'Tabela {mun}/{est}'})
+                            with open(tpath, 'rb') as f2:
+                                data = f2.read()
+                                todos_anexos.append({
+                                    'title': f'Tabela {mun}/{est}',
+                                    'data_b64': _b64.standard_b64encode(data).decode(),
+                                    'nome_arquivo': base
+                                })
                         except Exception: pass
-            # Ler template xlsx
+            if not todos_anexos:
+                raise Exception('Nenhum PDF valido para enviar a IA')
+            _kb_total = sum(len(_b64.b64decode(a['data_b64'])) for a in todos_anexos) / 1024
+            job['logs'].append({'nivel':'info','msg':f'📁 Total: {len(todos_anexos)} arquivo(s), {_kb_total/1024:.1f}MB'})
+            # ============================================================
+            # Ler cabecalhos da planilha base (precisa para Passada 2)
+            # ============================================================
             wb = _xl.load_workbook(template_path)
             ws = wb.active
-            # Extrair cabecalhos da planilha (primeira linha com >=3 celulas preenchidas)
             _headers = []
-            _header_row = 1
             for ri, row in enumerate(ws.iter_rows(values_only=True), start=1):
                 _vals = [str(v).strip() if v is not None else '' for v in row]
-                _non_empty = sum(1 for v in _vals if v)
-                if _non_empty >= 3:
+                if sum(1 for v in _vals if v) >= 3:
                     _headers = [v for v in _vals if v]
-                    _header_row = ri
                     break
-            job['logs'].append({'nivel':'info','msg':f'📋 Planilha tem {len(_headers)} colunas (linha header: {_header_row})'})
-            # Montar instrucao final automatica
-            job['logs'].append({'nivel':'info','msg':f'🤖 {_modelo} analisando documentos...'})
-            _instrucao_final = (
-                '\n\n=== INSTRUCAO FINAL DE EXECUCAO AUTOMATICA ===\n'
-                'Esta execucao e automatizada — NAO HA usuario para confirmar a etapa 0.5. Siga direto, sem aguardar confirmacao.\n'
-                'Apos analisar todos os PDFs anexos, retorne SOMENTE um JSON valido com esta estrutura:\n\n'
-                '{\n'
-                '  "linhas": [\n'
-                '    {"<nome_exato_do_cabecalho>": "<valor>", ...},\n'
-                '    ...\n'
-                '  ]\n'
-                '}\n\n'
-                'Cada item da lista linhas representa uma linha da planilha (uma zona/subzona/divisao unica).\n'
-                'Cada chave do objeto deve ser EXATAMENTE um dos cabecalhos da planilha listados abaixo (mesma grafia, mesmas maiusculas, mesmos acentos):\n\n'
-                + '\n'.join(f'  {i+1}. "{h}"' for i, h in enumerate(_headers)) + '\n\n'
-                'Para campos sem informacao na lei, use "NI" (Nao Informado).\n'
-                'Para colunas de calculo automatico (parte 12.7 do prompt), retorne string vazia "".\n'
-                'NAO envolva o JSON em markdown, NAO adicione comentarios, NAO adicione texto antes nem depois. Retorne APENAS o objeto JSON puro.'
-            )
-            _prompt_final = prompt + _instrucao_final
-            txt = ''
-            if _provedor == 'anthropic':
-                msgs = [{'role':'user','content': files_content + [{'type':'text','text': _prompt_final}]}]
-                job['logs'].append({'nivel':'info','msg':f'⏳ Aguardando IA (streaming)...'})
-                import time as _t_gp_a
-                _t_ini_a = _t_gp_a.time()
-                _ultimo_log_a = _t_ini_a
-                _chunks_a = 0
-                _chars_a = 0
-                txt = ''
-                with client.messages.stream(model=_modelo, max_tokens=64000, messages=msgs) as _stream:
-                    for _delta in _stream.text_stream:
-                        txt += _delta
-                        _chunks_a += 1
-                        _chars_a += len(_delta)
-                        _agora = _t_gp_a.time()
-                        if _agora - _ultimo_log_a >= 15:
-                            job['logs'].append({'nivel':'info','msg':f'⏱ IA gerando... {_chars_a} chars recebidos ({(_agora-_t_ini_a):.0f}s)'})
-                            _ultimo_log_a = _agora
-                _t_dec_a = _t_gp_a.time() - _t_ini_a
-                job['logs'].append({'nivel':'ok','msg':f'✅ IA terminou em {_t_dec_a:.1f}s ({_chars_a} chars, {_chunks_a} chunks)'})
-            else:
-                # Gemini: enviar PDFs como bytes
-                _gemini_parts = [_prompt_final]
-                _ok_count = 0; _skip_count = 0
-                _bytes_total = 0
-                for fc in files_content:
-                    if fc.get('type') == 'document':
-                        _title = fc.get('title','?')
-                        try:
-                            _data = _b64.b64decode(fc['source']['data'])
-                            _kb = len(_data) / 1024
-                            # Validar PDF tem pelo menos 1 pagina
-                            if len(_data) < 100:
-                                job['logs'].append({'nivel':'aviso','msg':f'  ⚠ Pulado (vazio, {len(_data)}B): {_title}'})
-                                _skip_count += 1
-                                continue
-                            if not _data.startswith(b'%PDF'):
-                                _magic = _data[:8].decode('latin-1', errors='replace')
-                                job['logs'].append({'nivel':'aviso','msg':f'  ⚠ Pulado (nao-PDF, magic={repr(_magic)}, {_kb:.1f}KB): {_title}'})
-                                _skip_count += 1
-                                continue
-                            _gemini_parts.append({'mime_type': 'application/pdf', 'data': _data})
-                            _ok_count += 1
-                            _bytes_total += len(_data)
-                            job['logs'].append({'nivel':'info','msg':f'  ✓ {_kb:.1f}KB: {_title}'})
-                        except Exception as _ee:
-                            job['logs'].append({'nivel':'aviso','msg':f'  ⚠ Erro decodificar: {_title}: {_ee}'})
-                            _skip_count += 1
-                _mb_total = _bytes_total / 1024 / 1024
-                job['logs'].append({'nivel':'info','msg':f'📤 Enviando {_ok_count} arquivo(s) ({_mb_total:.1f}MB total) para Gemini, {_skip_count} pulados'})
-                job['logs'].append({'nivel':'info','msg':f'⏳ Aguardando resposta da IA (pode levar varios minutos para PDFs grandes)...'})
-                import time as _t_gp
-                _t_inicio = _t_gp.time()
-                txt = ''
-                _ultimo_log_g = _t_inicio
-                _chunks_g = 0; _chars_g = 0
+            job['logs'].append({'nivel':'info','msg':f'📋 Planilha tem {len(_headers)} colunas'})
+            # ============================================================
+            # PASSADA 0: CATALOGACAO
+            # ============================================================
+            job['logs'].append({'nivel':'info','msg':'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'})
+            job['logs'].append({'nivel':'info','msg':'🔍 PASSADA 0: Catalogacao dos PDFs'})
+            mapa_arquivos = {}  # {nome_arquivo: identificacao}
+            try:
+                _p0 = prompt_passada_0_catalogacao()
+                _r0 = chamar_ia(client, _provedor, _modelo, _p0, todos_anexos, job['logs'], 'P0')
+                _j0 = extrair_json(_r0)
+                if _j0 and 'arquivos' in _j0:
+                    for it in _j0['arquivos']:
+                        n = it.get('nome_arquivo')
+                        ident = it.get('identificacao') or ''
+                        if n: mapa_arquivos[n] = ident
+                    job['logs'].append({'nivel':'ok','msg':f'✅ P0: {len(mapa_arquivos)} arquivo(s) catalogado(s)'})
+                    for n, ident in list(mapa_arquivos.items())[:10]:
+                        job['logs'].append({'nivel':'info','msg':f'  • {n} → {ident}'})
+                    if len(mapa_arquivos) > 10:
+                        job['logs'].append({'nivel':'info','msg':f'  ... e mais {len(mapa_arquivos)-10}'})
+                else:
+                    job['logs'].append({'nivel':'aviso','msg':'⚠ P0: JSON invalido, seguindo sem catalogacao'})
+            except Exception as _e0:
+                job['logs'].append({'nivel':'erro','msg':f'❌ P0 falhou: {_e0}'})
+                raise
+            # ============================================================
+            # PASSADA 1: INVENTARIO DE ZONAS
+            # ============================================================
+            job['logs'].append({'nivel':'info','msg':'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'})
+            job['logs'].append({'nivel':'info','msg':'📊 PASSADA 1: Inventario de zonas'})
+            zonas_canonicas = []
+            try:
+                _p1 = prompt_passada_1_inventario(prompt)
+                _r1 = chamar_ia(client, _provedor, _modelo, _p1, todos_anexos, job['logs'], 'P1')
+                _j1 = extrair_json(_r1)
+                if _j1 and 'zonas_canonicas' in _j1:
+                    zonas_canonicas = _j1['zonas_canonicas'] or []
+                    job['logs'].append({'nivel':'ok','msg':f'✅ P1: {len(zonas_canonicas)} zona(s) canonica(s) identificada(s)'})
+                    for z in zonas_canonicas[:20]:
+                        ut = z.get('unidade_territorial','?'); nc = z.get('nome_canonico','?')
+                        job['logs'].append({'nivel':'info','msg':f'  • {ut} / {nc}'})
+                    if len(zonas_canonicas) > 20:
+                        job['logs'].append({'nivel':'info','msg':f'  ... e mais {len(zonas_canonicas)-20}'})
+                    for al in (_j1.get('alertas') or [])[:5]:
+                        job['logs'].append({'nivel':'aviso','msg':f'  ⚠ {al}'})
+                else:
+                    raise Exception('P1: JSON invalido ou sem zonas_canonicas')
+            except Exception as _e1:
+                job['logs'].append({'nivel':'erro','msg':f'❌ P1 falhou: {_e1}'})
+                raise
+            if not zonas_canonicas:
+                raise Exception('P1 nao identificou nenhuma zona — abortando')
+            # ============================================================
+            # PASSADA 2: PREENCHIMENTO POR ZONA (SERIE)
+            # ============================================================
+            job['logs'].append({'nivel':'info','msg':'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'})
+            job['logs'].append({'nivel':'info','msg':f'🎯 PASSADA 2: Preenchendo {len(zonas_canonicas)} zona(s) em serie'})
+            todas_linhas = []
+            for idx, zona in enumerate(zonas_canonicas, 1):
+                if job.get('cancelled'):
+                    job['logs'].append({'nivel':'aviso','msg':'⚠ Cancelado pelo usuario'})
+                    break
+                nc = zona.get('nome_canonico','?')
+                ut = zona.get('unidade_territorial','?')
+                leis = zona.get('leis_aplicaveis') or []
+                job['logs'].append({'nivel':'info','msg':f'─── Zona {idx}/{len(zonas_canonicas)}: {ut} / {nc} ───'})
+                # Filtrar PDFs
+                anexos_zona = filtrar_pdfs_para_zona(leis, mapa_arquivos, todos_anexos)
+                if not anexos_zona:
+                    job['logs'].append({'nivel':'aviso','msg':f'  ⚠ Sem PDFs filtrados — usando todos como fallback'})
+                    anexos_zona = todos_anexos
+                else:
+                    job['logs'].append({'nivel':'info','msg':f'  📎 Usando {len(anexos_zona)} PDF(s) relevante(s) (de {len(todos_anexos)})'})
                 try:
-                    _stream_g = client.generate_content(_gemini_parts, stream=True)
-                    for _chunk in _stream_g:
-                        try:
-                            _piece = _chunk.text if hasattr(_chunk, 'text') else ''
-                        except Exception: _piece = ''
-                        if _piece:
-                            txt += _piece
-                            _chunks_g += 1
-                            _chars_g += len(_piece)
-                        _agora = _t_gp.time()
-                        if _agora - _ultimo_log_g >= 15:
-                            job['logs'].append({'nivel':'info','msg':f'⏱ IA gerando... {_chars_g} chars recebidos ({(_agora-_t_inicio):.0f}s)'})
-                            _ultimo_log_g = _agora
-                    _t_decorrido = _t_gp.time() - _t_inicio
-                    job['logs'].append({'nivel':'ok','msg':f'✅ IA terminou em {_t_decorrido:.1f}s ({_chars_g} chars, {_chunks_g} chunks)'})
-                except Exception as _ei:
-                    _t_decorrido = _t_gp.time() - _t_inicio
-                    job['logs'].append({'nivel':'erro','msg':f'❌ Falha apos {_t_decorrido:.1f}s: {type(_ei).__name__}: {_ei}'})
-                    raise
-            # Log resposta da IA para diagnostico
-            job['logs'].append({'nivel':'info','msg':f'📥 Resposta da IA ({len(txt)} chars): {txt[:300]}'})
-            # Extrair JSON
-            import json as _json_gp
-            s = txt.find('{'); e = txt.rfind('}') + 1
-            zonas = []
-            if s >= 0:
-                try:
-                    _parsed = _json_gp.loads(txt[s:e])
-                    zonas = _parsed.get('linhas', _parsed.get('zonas', _parsed.get('zoneamentos', _parsed.get('parametros', []))))
-                    if not zonas and isinstance(_parsed, list):
-                        zonas = _parsed
-                except Exception as _ej:
-                    job['logs'].append({'nivel':'aviso','msg':f'⚠ Erro parse JSON: {_ej}'})
-            job['logs'].append({'nivel':'ok','msg':f'✅  {len(zonas)} zonas identificadas'})
-            # Preencher planilha
-            headers = ['Zona','TO','CA Básico','CA Máximo','Permeabilidade','Gabarito','Rec. Frontal','Rec. Lateral','Rec. Fundo','Uso']
-            campos = ['nome','to','ca_basico','ca_maximo','permeabilidade','gabarito','recuo_frontal','recuo_lateral','recuo_fundo','uso']
-            # Tentar encontrar linha de cabeçalho
-            start_row = ws.max_row + 2
-            for row in ws.iter_rows():
-                for cell in row:
-                    if cell.value and 'zona' in str(cell.value).lower():
-                        start_row = cell.row + 1
-                        break
-            for i, zona in enumerate(zonas):
-                job['logs'].append({'nivel':'info','msg':f'📝 Preenchendo zona: {zona.get("nome","?")}...'})
-                for j, campo in enumerate(campos):
-                    ws.cell(row=start_row+i, column=j+1, value=zona.get(campo,'NI'))
+                    _p2 = prompt_passada_2_zona(prompt, nc, ut, _headers)
+                    _r2 = chamar_ia(client, _provedor, _modelo, _p2, anexos_zona, job['logs'], f'P2.{idx}')
+                    _j2 = extrair_json(_r2)
+                    if _j2 and 'linhas' in _j2:
+                        ls = _j2['linhas'] or []
+                        todas_linhas.extend(ls)
+                        job['logs'].append({'nivel':'ok','msg':f'  ✅ +{len(ls)} linha(s) (total: {len(todas_linhas)})'})
+                    else:
+                        job['logs'].append({'nivel':'aviso','msg':f'  ⚠ JSON invalido — pulando esta zona'})
+                except Exception as _e2:
+                    job['logs'].append({'nivel':'erro','msg':f'  ❌ Erro nesta zona: {_e2}'})
+                    continue
+            # ============================================================
+            # PASSADA 3: VALIDACAO FINAL
+            # ============================================================
+            job['logs'].append({'nivel':'info','msg':'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'})
+            job['logs'].append({'nivel':'info','msg':'🔎 PASSADA 3: Validacao final'})
+            try:
+                import json as _json3
+                _consolidado = _json3.dumps({'linhas': todas_linhas}, ensure_ascii=False, indent=2)[:50000]
+                _p3 = prompt_passada_3_validacao(_consolidado, zonas_canonicas)
+                _r3 = chamar_ia(client, _provedor, _modelo, _p3, todos_anexos, job['logs'], 'P3')
+                _j3 = extrair_json(_r3)
+                if _j3:
+                    faltantes = _j3.get('linhas_faltantes') or []
+                    if faltantes:
+                        todas_linhas.extend(faltantes)
+                        job['logs'].append({'nivel':'ok','msg':f'✅ P3: +{len(faltantes)} linha(s) faltantes adicionada(s)'})
+                    else:
+                        job['logs'].append({'nivel':'ok','msg':'✅ P3: nenhuma linha faltante'})
+                    for al in (_j3.get('alertas') or [])[:10]:
+                        job['logs'].append({'nivel':'aviso','msg':f'  ⚠ {al}'})
+                else:
+                    job['logs'].append({'nivel':'aviso','msg':'⚠ P3: JSON invalido — seguindo sem validacao'})
+            except Exception as _e3:
+                job['logs'].append({'nivel':'aviso','msg':f'⚠ P3 falhou (nao bloqueante): {_e3}'})
+            # ============================================================
+            # PREENCHER PLANILHA
+            # ============================================================
+            job['logs'].append({'nivel':'info','msg':'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'})
+            job['logs'].append({'nivel':'info','msg':f'📝 Preenchendo planilha com {len(todas_linhas)} linha(s)'})
+            # Encontrar linha de header e mapear cabecalho -> coluna
+            _header_row_idx = 1
+            _col_por_header = {}
+            for ri, row in enumerate(ws.iter_rows(values_only=True), start=1):
+                _vals = [str(v).strip() if v is not None else '' for v in row]
+                if sum(1 for v in _vals if v) >= 3:
+                    _header_row_idx = ri
+                    for ci, v in enumerate(_vals, start=1):
+                        if v: _col_por_header[v] = ci
+                    break
+            _start_row = _header_row_idx + 1
+            for i, linha in enumerate(todas_linhas):
+                if not isinstance(linha, dict): continue
+                for header, val in linha.items():
+                    col = _col_por_header.get(header)
+                    if col:
+                        ws.cell(row=_start_row+i, column=col, value=val)
             # Salvar
             from datetime import datetime as _dt
             _now = _dt.now()
-            _ts = _now.strftime('%d%m%Y_%I%M%p').lower()
+            _ts = _now.strftime('%d%m%Y_%H%M')
             muns = list(set(c['municipio'] for c in compilados))
             _est = compilados[0]['estado'] if compilados else 'XX'
             _mun = muns[0].replace(' ','_') if muns else 'municipio'
@@ -6255,17 +6283,16 @@ def api_gerador_iniciar():
                 conn2 = get_db(); cur2 = conn2.cursor()
                 for comp in compilados:
                     cur2.execute("INSERT INTO planilhas_geradas (municipio, estado, arquivo_path, arquivo_nome, zonas_count, prompt) VALUES (%s,%s,%s,%s,%s,%s)",
-                        (comp['municipio'], comp['estado'], out_path, nome_arquivo, len(zonas), prompt))
+                        (comp['municipio'], comp['estado'], out_path, nome_arquivo, len(todas_linhas), prompt))
                 conn2.commit(); cur2.close(); conn2.close()
             except Exception: pass
-            job['result'] = {'arquivo_url': f'/static/downloads/{nome_arquivo}', 'arquivo_nome': nome_arquivo, 'zonas': len(zonas)}
+            job['result'] = {'arquivo_url': f'/static/downloads/{nome_arquivo}', 'arquivo_nome': nome_arquivo, 'zonas': len(todas_linhas)}
         except Exception as e:
-            job['logs'].append({'nivel':'erro','msg':f'Erro: {str(e)[:200]}'})
+            job['logs'].append({'nivel':'erro','msg':f'Erro: {str(e)[:300]}'})
         finally:
             job['done'] = True
             try: _os_gp.unlink(template_path)
             except: pass
-
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({'success': True, 'job_id': job_id})
 
