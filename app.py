@@ -6136,8 +6136,24 @@ def api_gerador_iniciar():
             txt = ''
             if _provedor == 'anthropic':
                 msgs = [{'role':'user','content': files_content + [{'type':'text','text': _prompt_final}]}]
-                resp = client.messages.create(model=_modelo, max_tokens=64000, messages=msgs)
-                txt = resp.content[0].text if resp.content else ''
+                job['logs'].append({'nivel':'info','msg':f'⏳ Aguardando IA (streaming)...'})
+                import time as _t_gp_a
+                _t_ini_a = _t_gp_a.time()
+                _ultimo_log_a = _t_ini_a
+                _chunks_a = 0
+                _chars_a = 0
+                txt = ''
+                with client.messages.stream(model=_modelo, max_tokens=64000, messages=msgs) as _stream:
+                    for _delta in _stream.text_stream:
+                        txt += _delta
+                        _chunks_a += 1
+                        _chars_a += len(_delta)
+                        _agora = _t_gp_a.time()
+                        if _agora - _ultimo_log_a >= 15:
+                            job['logs'].append({'nivel':'info','msg':f'⏱ IA gerando... {_chars_a} chars recebidos ({(_agora-_t_ini_a):.0f}s)'})
+                            _ultimo_log_a = _agora
+                _t_dec_a = _t_gp_a.time() - _t_ini_a
+                job['logs'].append({'nivel':'ok','msg':f'✅ IA terminou em {_t_dec_a:.1f}s ({_chars_a} chars, {_chunks_a} chunks)'})
             else:
                 # Gemini: enviar PDFs como bytes
                 _gemini_parts = [_prompt_final]
