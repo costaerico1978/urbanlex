@@ -5686,6 +5686,59 @@ def api_gerador_compilados_excluir(cid):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/gerador/preview-prompts')
+@login_required
+def api_gerador_preview_prompts():
+    """Retorna os 4 prompts da estrategia hibrida ja com metadata do prompt selecionado aplicado."""
+    try:
+        from modulos.gerador_hibrido import (
+            DEFAULT_METADATA,
+            prompt_passada_0_catalogacao,
+            prompt_passada_1_inventario,
+            prompt_passada_2_zona,
+            prompt_passada_3_validacao,
+            extrair_metadata_yaml
+        )
+        prompt_id = request.args.get('prompt_id', '').strip()
+        prompt_text = ''
+        meta = dict(DEFAULT_METADATA)
+        if prompt_id:
+            try:
+                rows = qry("SELECT conteudo, metadata FROM prompts_salvos WHERE id=%s", (int(prompt_id),))
+                if rows:
+                    prompt_text = rows[0].get('conteudo','') or ''
+                    md = rows[0].get('metadata')
+                    if md:
+                        if isinstance(md, str):
+                            import json as _j
+                            md = _j.loads(md)
+                        if isinstance(md, dict):
+                            meta.update(md)
+            except Exception: pass
+        if not prompt_text:
+            prompt_text = '[Conteudo do prompt selecionado pelo usuario]'
+        # Gerar os 4 prompts (placeholders para nomes/zonas/headers)
+        nomes_exemplo = ['LC_270_2024.pdf', 'LC_281_2025.pdf', '...']
+        zona_ex = '<NOME_DA_ZONA>'
+        ut_ex = '<UNIDADE_TERRITORIAL>'
+        headers_ex = ['<cabecalho_1>', '<cabecalho_2>', '<cabecalho_3>']
+        json_consol_ex = '<JSON_CONSOLIDADO_DAS_PASSADAS_ANTERIORES>'
+        zonas_ex = [{'nome_canonico': '<ZONA_1>', 'unidade_territorial': '<UT_1>'}]
+        p0 = prompt_passada_0_catalogacao(nomes_exemplo, meta)
+        p1 = prompt_passada_1_inventario(prompt_text, meta)
+        p2 = prompt_passada_2_zona(prompt_text, zona_ex, ut_ex, headers_ex, meta)
+        p3 = prompt_passada_3_validacao(json_consol_ex, zonas_ex, meta)
+        return jsonify({
+            'success': True,
+            'metadata_versao': meta.get('versao', 0),
+            'p0': p0,
+            'p1': p1,
+            'p2': p2,
+            'p3': p3
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/gerador/ultimo-job')
 @login_required
 def api_gerador_ultimo_job():

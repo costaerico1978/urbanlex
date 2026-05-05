@@ -299,7 +299,7 @@
 
 <script>
 window._gpUserRole = '{{ "admin" if is_admin else "user" }}';
-const _gpPromptsEstrategia = {
+let _gpPromptsEstrategia = {
   p0: `=== PASSADA 0: CATALOGACAO ===
 Esta e a Passada 0. NAO preencha a planilha. Para cada PDF anexo, leia apenas o cabecalho/ementa/preambulo e identifique:
   - tipo de ato (Lei Complementar, Lei Ordinaria, Decreto, Portaria, Errata, Retificacao)
@@ -378,13 +378,41 @@ Retorne SOMENTE este JSON, sem markdown, sem comentarios:
 Se nada faltar, retorne "linhas_faltantes": [] e "alertas": [].`
 };
 
-function gpAbrirModalEstrategia(){
-  document.getElementById('gp-prompt-p0').textContent = _gpPromptsEstrategia.p0;
-  document.getElementById('gp-prompt-p1').textContent = _gpPromptsEstrategia.p1;
-  document.getElementById('gp-prompt-p2').textContent = _gpPromptsEstrategia.p2;
-  document.getElementById('gp-prompt-p3').textContent = _gpPromptsEstrategia.p3;
+async function gpAbrirModalEstrategia(){
   const m = document.getElementById('gp-modal-estrategia');
   m.style.display = 'flex';
+  // Mostrar loading
+  ['gp-prompt-p0','gp-prompt-p1','gp-prompt-p2','gp-prompt-p3'].forEach(id => {
+    document.getElementById(id).textContent = 'Carregando do backend...';
+  });
+  // Buscar prompts gerados (com metadata do prompt selecionado se houver)
+  try {
+    const url = '/api/gerador/preview-prompts' + (_gpPromptIdSelecionado ? '?prompt_id=' + _gpPromptIdSelecionado : '');
+    const r = await fetch(url);
+    const d = await r.json();
+    if (d.success) {
+      document.getElementById('gp-prompt-p0').textContent = d.p0;
+      document.getElementById('gp-prompt-p1').textContent = d.p1;
+      document.getElementById('gp-prompt-p2').textContent = d.p2;
+      document.getElementById('gp-prompt-p3').textContent = d.p3;
+      // Atualizar titulo com versao do metadata
+      const tituloEl = document.querySelector('#gp-modal-estrategia h2');
+      if (tituloEl) {
+        const v = d.metadata_versao || 0;
+        tituloEl.textContent = '🎯 Estrategia: Hibrida (4 passadas em serie) — Prompt v' + v;
+      }
+      // Atualizar cache para download
+      _gpPromptsEstrategia = {p0: d.p0, p1: d.p1, p2: d.p2, p3: d.p3};
+    } else {
+      ['gp-prompt-p0','gp-prompt-p1','gp-prompt-p2','gp-prompt-p3'].forEach(id => {
+        document.getElementById(id).textContent = 'Erro: ' + (d.error || 'falhou');
+      });
+    }
+  } catch(e) {
+    ['gp-prompt-p0','gp-prompt-p1','gp-prompt-p2','gp-prompt-p3'].forEach(id => {
+      document.getElementById(id).textContent = 'Erro de rede: ' + e.message;
+    });
+  }
 }
 function gpFecharModalEstrategia(){
   document.getElementById('gp-modal-estrategia').style.display = 'none';
