@@ -5455,10 +5455,18 @@ def api_prompts_salvos_listar():
 @login_required
 def api_prompts_salvos_get(pid):
     try:
-        rows = qry("SELECT id, nome, conteudo FROM prompts_salvos WHERE id=%s", (pid,))
+        rows = qry("SELECT id, nome, conteudo, metadata FROM prompts_salvos WHERE id=%s", (pid,))
         if not rows:
             return jsonify({'success': False, 'error': 'nao encontrado'}), 404
-        return jsonify({'success': True, 'data': rows[0]})
+        r = rows[0]
+        # metadata pode vir como dict (psycopg ja parseou) ou string
+        if r.get('metadata') and isinstance(r['metadata'], str):
+            try:
+                import json as _json_g
+                r['metadata'] = _json_g.loads(r['metadata'])
+            except Exception:
+                r['metadata'] = {}
+        return jsonify({'success': True, 'data': r})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
@@ -5503,8 +5511,15 @@ def api_prompts_salvos_upload():
                 else:
                     continue
                 conn = get_db(); cur = conn.cursor()
-                cur.execute("INSERT INTO prompts_salvos (nome, conteudo, arquivo_origem, tamanho_bytes, criado_por) VALUES (%s,%s,%s,%s,%s) RETURNING id",
-                    (nome.rsplit('.',1)[0][:200], conteudo.strip(), nome, len(conteudo.encode('utf-8')), session.get('user_id')))
+                # Extrair metadata YAML do prompt (se existir)
+                try:
+                    from modulos.gerador_hibrido import extrair_metadata_yaml
+                    _meta = extrair_metadata_yaml(conteudo)
+                except Exception:
+                    _meta = {}
+                import json as _json_meta
+                cur.execute("INSERT INTO prompts_salvos (nome, conteudo, arquivo_origem, tamanho_bytes, criado_por, metadata) VALUES (%s,%s,%s,%s,%s,%s::jsonb) RETURNING id",
+                    (nome.rsplit('.',1)[0][:200], conteudo.strip(), nome, len(conteudo.encode('utf-8')), session.get('user_id'), _json_meta.dumps(_meta)))
                 pid = cur.fetchone()[0]
                 conn.commit(); cur.close(); conn.close()
                 criados.append({'id': pid, 'nome': nome})

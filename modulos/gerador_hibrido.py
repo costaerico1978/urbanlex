@@ -275,3 +275,120 @@ def prompt_passada_3_validacao(json_consolidado, zonas_canonicas):
         '}\n\n'
         'Se nada faltar, retorne "linhas_faltantes": [] e "alertas": [].'
     )
+
+# ============================================================
+# Metadata YAML do prompt
+# ============================================================
+DEFAULT_METADATA = {
+    'versao': 0,
+    'chave_inventario': 'zonas_canonicas',
+    'chave_zona_individual': 'linhas',
+    'chave_validacao': 'linhas_faltantes',
+    'chave_catalogacao': 'arquivos',
+    'campo_sem_info': 'NI',
+    'campo_calculado': '',
+    'estrutura_inventario': {
+        'nome_canonico': 'nome_canonico',
+        'variantes_observadas': 'variantes_observadas',
+        'unidade_territorial': 'unidade_territorial',
+        'leis_aplicaveis': 'leis_aplicaveis'
+    },
+    'estrutura_catalogacao': {
+        'nome_arquivo': 'nome_arquivo',
+        'identificacao': 'identificacao',
+        'escopo': 'escopo'
+    }
+}
+
+
+def extrair_metadata_yaml(texto_prompt):
+    """
+    Extrai bloco YAML do inicio do texto do prompt.
+    Aceita 3 formatos: bloco delimitado, fence yaml, ou apenas a chave inicial.
+    Retorna dict com metadata. Em caso de erro, retorna DEFAULT_METADATA.
+    """
+    import yaml as _yaml
+    import re as _re
+    if not texto_prompt:
+        return dict(DEFAULT_METADATA)
+
+    yaml_text = None
+
+    # Formato 2: dentro de fence yaml com tag URBANLEX_METADATA
+    m = _re.search(
+        r'```\s*yaml\s*URBANLEX_METADATA\s*\n(.*?)\n\s*```',
+        texto_prompt, _re.DOTALL | _re.IGNORECASE
+    )
+    if m:
+        yaml_text = m.group(1)
+
+    # Formato 1: blocos delimitados
+    if not yaml_text:
+        m = _re.search(
+            r'URBANLEX_METADATA:\s*\n(.*?)\nURBANLEX_METADATA_FIM',
+            texto_prompt, _re.DOTALL | _re.IGNORECASE
+        )
+        if m:
+            yaml_text = m.group(1)
+
+    # Formato 3: chave URBANLEX_METADATA: + linhas indentadas seguintes
+    if not yaml_text:
+        m = _re.search(
+            r'URBANLEX_METADATA:\s*\n((?:[ \t].*\n?)+)',
+            texto_prompt
+        )
+        if m:
+            yaml_text = m.group(1)
+
+    if not yaml_text:
+        return dict(DEFAULT_METADATA)
+
+    try:
+        # Remover possivel indentacao comum
+        lines = yaml_text.split('\n')
+        non_empty = [l for l in lines if l.strip()]
+        if non_empty:
+            min_indent = min(len(l) - len(l.lstrip()) for l in non_empty)
+            yaml_text = '\n'.join(
+                l[min_indent:] if len(l) >= min_indent else l for l in lines
+            )
+
+        parsed = _yaml.safe_load(yaml_text)
+        if not isinstance(parsed, dict):
+            return dict(DEFAULT_METADATA)
+
+        # Mesclar com defaults
+        result = dict(DEFAULT_METADATA)
+        for k, v in parsed.items():
+            if isinstance(v, dict) and isinstance(result.get(k), dict):
+                merged = dict(result[k])
+                merged.update(v)
+                result[k] = merged
+            else:
+                result[k] = v
+        return result
+    except Exception:
+        return dict(DEFAULT_METADATA)
+
+
+def remover_bloco_yaml(texto_prompt):
+    """
+    Retorna o texto do prompt sem o bloco YAML, para enviar a IA apenas a prosa.
+    """
+    import re as _re
+    if not texto_prompt:
+        return texto_prompt
+    cleaned = texto_prompt
+    cleaned = _re.sub(
+        r'```\s*yaml\s*URBANLEX_METADATA\s*\n.*?\n\s*```',
+        '', cleaned, flags=_re.DOTALL | _re.IGNORECASE
+    )
+    cleaned = _re.sub(
+        r'URBANLEX_METADATA:\s*\n.*?\nURBANLEX_METADATA_FIM\s*\n?',
+        '', cleaned, flags=_re.DOTALL | _re.IGNORECASE
+    )
+    cleaned = _re.sub(
+        r'URBANLEX_METADATA:\s*\n(?:[ \t].*\n?)+',
+        '', cleaned
+    )
+    return cleaned.strip()
