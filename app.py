@@ -5925,13 +5925,41 @@ def api_gerador_iniciar():
             # Ler template xlsx
             wb = _xl.load_workbook(template_path)
             ws = wb.active
-            # Montar mensagem para Claude
+            # Extrair cabecalhos da planilha (primeira linha com >=3 celulas preenchidas)
+            _headers = []
+            _header_row = 1
+            for ri, row in enumerate(ws.iter_rows(values_only=True), start=1):
+                _vals = [str(v).strip() if v is not None else '' for v in row]
+                _non_empty = sum(1 for v in _vals if v)
+                if _non_empty >= 3:
+                    _headers = [v for v in _vals if v]
+                    _header_row = ri
+                    break
+            job['logs'].append({'nivel':'info','msg':f'📋 Planilha tem {len(_headers)} colunas (linha header: {_header_row})'})
+            # Montar instrucao final automatica
             job['logs'].append({'nivel':'info','msg':f'🤖 {_modelo} analisando documentos...'})
-            _prompt_final = prompt + '\n\nResponda APENAS com JSON conforme estrutura da planilha template.'
+            _instrucao_final = (
+                '\n\n=== INSTRUCAO FINAL DE EXECUCAO AUTOMATICA ===\n'
+                'Esta execucao e automatizada — NAO HA usuario para confirmar a etapa 0.5. Siga direto, sem aguardar confirmacao.\n'
+                'Apos analisar todos os PDFs anexos, retorne SOMENTE um JSON valido com esta estrutura:\n\n'
+                '{\n'
+                '  "linhas": [\n'
+                '    {"<nome_exato_do_cabecalho>": "<valor>", ...},\n'
+                '    ...\n'
+                '  ]\n'
+                '}\n\n'
+                'Cada item da lista linhas representa uma linha da planilha (uma zona/subzona/divisao unica).\n'
+                'Cada chave do objeto deve ser EXATAMENTE um dos cabecalhos da planilha listados abaixo (mesma grafia, mesmas maiusculas, mesmos acentos):\n\n'
+                + '\n'.join(f'  {i+1}. "{h}"' for i, h in enumerate(_headers)) + '\n\n'
+                'Para campos sem informacao na lei, use "NI" (Nao Informado).\n'
+                'Para colunas de calculo automatico (parte 12.7 do prompt), retorne string vazia "".\n'
+                'NAO envolva o JSON em markdown, NAO adicione comentarios, NAO adicione texto antes nem depois. Retorne APENAS o objeto JSON puro.'
+            )
+            _prompt_final = prompt + _instrucao_final
             txt = ''
             if _provedor == 'anthropic':
                 msgs = [{'role':'user','content': files_content + [{'type':'text','text': _prompt_final}]}]
-                resp = client.messages.create(model=_modelo, max_tokens=8000, messages=msgs)
+                resp = client.messages.create(model=_modelo, max_tokens=64000, messages=msgs)
                 txt = resp.content[0].text if resp.content else ''
             else:
                 # Gemini: enviar PDFs como bytes
@@ -5963,7 +5991,7 @@ def api_gerador_iniciar():
             if s >= 0:
                 try:
                     _parsed = _json_gp.loads(txt[s:e])
-                    zonas = _parsed.get('zonas', _parsed.get('zoneamentos', _parsed.get('parametros', [])))
+                    zonas = _parsed.get('linhas', _parsed.get('zonas', _parsed.get('zoneamentos', _parsed.get('parametros', []))))
                     if not zonas and isinstance(_parsed, list):
                         zonas = _parsed
                 except Exception as _ej:
