@@ -138,7 +138,7 @@
   </div>
 
   <div class="gp-card">
-    <div class="gp-card-title"><span class="num">3</span> IA que vai preencher</div>
+    <div class="gp-card-title" style="display:flex;align-items:center;justify-content:space-between;"><div><span class="num">3</span> IA que vai preencher</div><button class="btn btn-secondary" onclick="gpAbrirModalEstrategia()" style="font-size:11px;padding:5px 10px;">📋 Ver estrategia</button></div>
     <div class="gp-ia-list" id="gp-ia-list">
       <div style="padding:14px;text-align:center;font-size:12px;color:var(--muted);">Carregando...</div>
     </div>
@@ -259,8 +259,151 @@
 
 <div class="gp-toast" id="gp-toast"></div>
 
+<div id="gp-modal-estrategia" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;max-width:800px;width:100%;max-height:90vh;overflow-y:auto;padding:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <h2 style="margin:0;font-size:18px;">🎯 Estrategia: Hibrida (4 passadas em serie)</h2>
+      <button onclick="gpFecharModalEstrategia()" class="gp-mini" style="font-size:18px;">✕</button>
+    </div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6;">
+      Cada execucao do gerador faz 4 chamadas a IA, em serie, com prompts especificos:
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--surface2);">
+        <div style="font-weight:600;margin-bottom:6px;color:var(--accent);">🔍 Passada 0 - Catalogacao</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Identifica cada PDF pelo cabecalho/ementa. Monta mapa nome_arquivo → lei.</div>
+        <pre id="gp-prompt-p0" style="font-family:var(--font-mono);font-size:10px;white-space:pre-wrap;background:var(--surface);padding:10px;border-radius:6px;max-height:180px;overflow-y:auto;"></pre>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--surface2);">
+        <div style="font-weight:600;margin-bottom:6px;color:var(--accent);">📊 Passada 1 - Inventario</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Aplica seu prompt + identifica todas as zonas/subzonas e normaliza grafias (etapa 0.9).</div>
+        <pre id="gp-prompt-p1" style="font-family:var(--font-mono);font-size:10px;white-space:pre-wrap;background:var(--surface);padding:10px;border-radius:6px;max-height:180px;overflow-y:auto;"></pre>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--surface2);">
+        <div style="font-weight:600;margin-bottom:6px;color:var(--accent);">🎯 Passada 2 - Por zona (1 chamada por zona)</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Para cada zona da Passada 1, envia apenas os PDFs relevantes e pede 1 linha preenchida.</div>
+        <pre id="gp-prompt-p2" style="font-family:var(--font-mono);font-size:10px;white-space:pre-wrap;background:var(--surface);padding:10px;border-radius:6px;max-height:180px;overflow-y:auto;"></pre>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--surface2);">
+        <div style="font-weight:600;margin-bottom:6px;color:var(--accent);">🔎 Passada 3 - Validacao final</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Manda o consolidado + todos os PDFs e pergunta se alguma zona ficou de fora.</div>
+        <pre id="gp-prompt-p3" style="font-family:var(--font-mono);font-size:10px;white-space:pre-wrap;background:var(--surface);padding:10px;border-radius:6px;max-height:180px;overflow-y:auto;"></pre>
+      </div>
+    </div>
+    <div style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn btn-secondary" onclick="gpBaixarPrompts()">⬇ Baixar prompts (.txt)</button>
+      <button class="btn btn-primary" onclick="gpFecharModalEstrategia()">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 window._gpUserRole = '{{ "admin" if is_admin else "user" }}';
+const _gpPromptsEstrategia = {
+  p0: `=== PASSADA 0: CATALOGACAO ===
+Esta e a Passada 0. NAO preencha a planilha. Para cada PDF anexo, leia apenas o cabecalho/ementa/preambulo e identifique:
+  - tipo de ato (Lei Complementar, Lei Ordinaria, Decreto, Portaria, Errata, Retificacao)
+  - numero e ano (ex: "LC 270/2024", "Dec 52585/2023")
+  - municipio e estado
+  - escopo geografico (municipio inteiro, AP especifica, regiao, bairro, zona, etc.)
+
+Use o nome de arquivo EXATO (sem caminhos) como chave.
+
+Retorne SOMENTE este JSON, sem markdown, sem comentarios:
+{
+  "arquivos": [
+    {"nome_arquivo": "LC_270_2024.pdf", "identificacao": "LC 270/2024", "escopo": "Municipio inteiro"},
+    ...
+  ]
+}`,
+  p1: `[seu_prompt_v5_completo]
+
+=== PASSADA 1: INVENTARIO ===
+Esta e a Passada 1. NAO preencha a planilha. Aplique todas as etapas 0.0 a 0.9 e a PARTE 3 do prompt acima. Faca o inventario completo das zonas/subzonas/unidades territoriais e a normalizacao de nomenclaturas (Etapa 0.9).
+
+Retorne SOMENTE este JSON, sem markdown, sem comentarios:
+{
+  "zonas_canonicas": [
+    {
+      "nome_canonico": "ZRM2-A",
+      "variantes_observadas": ["ZRM2A", "ZRM-2A"],
+      "unidade_territorial": "AP-2.1",
+      "leis_aplicaveis": ["LC 270/2024", "Dec 52585/2023"]
+    }
+  ],
+  "alertas": ["..."]
+}
+
+IMPORTANTE: liste TODAS as combinacoes unicas. Uma mesma zona em unidades territoriais distintas e um item separado. Use leis_aplicaveis com a identificacao exata de cada lei (ex: "LC 270/2024"), mesmo formato da Passada 0.`,
+  p2: `[seu_prompt_v5_completo]
+
+=== PASSADA 2: PREENCHER ZONA ESPECIFICA ===
+Esta e a Passada 2. Os PDFs anexados sao EXCLUSIVAMENTE os relevantes para esta zona. Aplique todas as etapas do prompt acima.
+
+Zona canonica a preencher: <NOME_DA_ZONA>
+Unidade territorial: <UNIDADE_TERRITORIAL>
+
+Preencha APENAS uma linha (a desta zona/unidade territorial). Se a zona possui subdivisoes finas (logradouro, lado, faixa de numeracao, etc. - Etapa 0.4 do prompt), retorne MULTIPLAS linhas, uma para cada subdivisao.
+
+Retorne SOMENTE este JSON, sem markdown, sem comentarios:
+{
+  "linhas": [
+    {"<cabecalho>": "<valor>", ...},
+    ...
+  ]
+}
+
+Cada chave deve ser EXATAMENTE um dos cabecalhos da planilha (mesma grafia, mesmas maiusculas, mesmos acentos). Para campos sem informacao na lei, use "NI". Para colunas de calculo automatico (Parte 7 do prompt), retorne string vazia "".`,
+  p3: `=== PASSADA 3: VALIDACAO FINAL ===
+Esta e a Passada 3. Os PDFs anexados sao TODOS do compilado. Abaixo esta o JSON consolidado das zonas ja preenchidas nas passadas anteriores.
+
+Sua tarefa: verificar se alguma zona/unidade territorial ficou de fora ou se ha inconsistencias graves (ex: revogacao parcial nao aplicada, zona com mesmo nome em unidade territorial diferente nao listada).
+
+Lista de zonas que FORAM preenchidas:
+  - <ZONA_1> (<UT_1>)
+  - <ZONA_2> (<UT_2>)
+  - ...
+
+JSON consolidado:
+<JSON_CONSOLIDADO>
+
+Retorne SOMENTE este JSON, sem markdown, sem comentarios:
+{
+  "linhas_faltantes": [
+    {"<cabecalho>": "<valor>", ...}
+  ],
+  "alertas": ["..."]
+}
+
+Se nada faltar, retorne "linhas_faltantes": [] e "alertas": [].`
+};
+
+function gpAbrirModalEstrategia(){
+  document.getElementById('gp-prompt-p0').textContent = _gpPromptsEstrategia.p0;
+  document.getElementById('gp-prompt-p1').textContent = _gpPromptsEstrategia.p1;
+  document.getElementById('gp-prompt-p2').textContent = _gpPromptsEstrategia.p2;
+  document.getElementById('gp-prompt-p3').textContent = _gpPromptsEstrategia.p3;
+  const m = document.getElementById('gp-modal-estrategia');
+  m.style.display = 'flex';
+}
+function gpFecharModalEstrategia(){
+  document.getElementById('gp-modal-estrategia').style.display = 'none';
+}
+function gpBaixarPrompts(){
+  const txt = '====================================================================\n' +
+    'URBANLEX - PROMPTS DA ESTRATEGIA HIBRIDA (4 passadas)\n' +
+    '====================================================================\n\n' +
+    '--- PASSADA 0: CATALOGACAO ---\n\n' + _gpPromptsEstrategia.p0 + '\n\n' +
+    '--- PASSADA 1: INVENTARIO ---\n\n' + _gpPromptsEstrategia.p1 + '\n\n' +
+    '--- PASSADA 2: POR ZONA (1 chamada por zona) ---\n\n' + _gpPromptsEstrategia.p2 + '\n\n' +
+    '--- PASSADA 3: VALIDACAO FINAL ---\n\n' + _gpPromptsEstrategia.p3 + '\n';
+  const blob = new Blob([txt], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'urbanlex_prompts_estrategia_hibrida.txt';
+  a.click();
+}
+
 let _gpCompilados = [];
 let _gpTemplateFile = null;
 let _gpJobId = null;
