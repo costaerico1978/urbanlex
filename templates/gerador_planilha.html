@@ -841,6 +841,7 @@ async function gpIniciar(){
   if(_gpPlanilhaBaseId) fd.append('planilha_base_id', _gpPlanilhaBaseId);
   fd.append('compilados', JSON.stringify(_selecionados));
   fd.append('prompt', prompt);
+  if (_gpPromptIdSelecionado) fd.append('prompt_id', _gpPromptIdSelecionado);
   fd.append('ia_provider', _gpIaSelecionada);
   try{
     const r = await fetch('/api/gerador/iniciar', {method:'POST', body: fd});
