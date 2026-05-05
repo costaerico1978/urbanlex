@@ -5528,6 +5528,68 @@ def api_prompts_salvos_excluir():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/gerador/compilados', methods=['GET'])
+@login_required
+def api_gerador_compilados_listar():
+    """Lista todos os compilados (visivel para todos os usuarios)."""
+    try:
+        rows = qry("""
+            SELECT gc.id, gc.job_id, gc.municipio, gc.estado, gc.zip_path, gc.tabela_path,
+                   gc.criado_em, gc.criado_por, gc.criado_por_nome
+            FROM gerador_compilados gc
+            ORDER BY gc.municipio, gc.estado, gc.criado_em DESC
+        """)
+        for r in rows:
+            if r.get('criado_em') and hasattr(r['criado_em'], 'strftime'):
+                r['criado_em'] = r['criado_em'].strftime('%d/%m/%Y %H:%M')
+        return jsonify({'success': True, 'data': rows or []})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/gerador/compilados', methods=['POST'])
+@login_required
+def api_gerador_compilados_adicionar():
+    """Adiciona um compilado vindo do dossie. Visivel para todos."""
+    try:
+        data = request.json or {}
+        municipio = data.get('municipio'); estado = data.get('estado')
+        zip_path = data.get('zip_path') or data.get('zip')
+        tabela_path = data.get('tabela_path') or data.get('tabela')
+        job_id = data.get('job_id') or ''
+        if not municipio or not estado:
+            return jsonify({'success': False, 'error': 'municipio e estado obrigatorios'}), 400
+        # Quem esta criando
+        uid = session.get('user_id')
+        unome = ''
+        try:
+            urows = qry("SELECT nome FROM users WHERE id=%s", (uid,))
+            if urows: unome = urows[0].get('nome') or ''
+        except Exception: pass
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO gerador_compilados (job_id, municipio, estado, zip_path, tabela_path, criado_por, criado_por_nome)
+            VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id
+        """, (job_id, municipio, estado, zip_path, tabela_path, uid, unome))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({'success': True, 'id': new_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/gerador/compilados/<int:cid>', methods=['DELETE'])
+@login_required
+def api_gerador_compilados_excluir(cid):
+    """Apenas admin pode excluir."""
+    try:
+        if session.get('role') != 'admin':
+            return jsonify({'success': False, 'error': 'apenas admin pode excluir'}), 403
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("DELETE FROM gerador_compilados WHERE id=%s", (cid,))
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/api-keys')
 @login_required
 def api_api_keys():

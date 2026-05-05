@@ -268,11 +268,16 @@ function dossieEnviarDossiesSelGerador() {
   )).then(results => {
     const c = results.filter(x => x && x.success).map(x => ({
       municipio: x.municipio, estado: x.estado,
-      zip_url: x.zip_url, tabela_url: x.tabela_url,
-      zip_on: !!x.zip_url, tabela_on: !!x.tabela_url
+      zip_path: x.zip_url, tabela_path: x.tabela_url,
+      job_id: x.job_id || ''
     }));
-    try { sessionStorage.setItem('gp_compilados_pendentes', JSON.stringify(c)); } catch(e) {}
-    window.location.href = '/gerador-planilha';
+    // Salvar no banco - todos os usuarios verao
+    Promise.all(c.map(item => fetch('/api/gerador/compilados', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(item)
+    }).then(r => r.json()).catch(()=>null))).then(() => {
+      window.location.href = '/gerador-planilha';
+    });
   });
 }
 

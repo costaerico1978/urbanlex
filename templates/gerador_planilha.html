@@ -249,6 +249,7 @@
 <div class="gp-toast" id="gp-toast"></div>
 
 <script>
+window._gpUserRole = '{{ "admin" if is_admin else "user" }}';
 let _gpCompilados = [];
 let _gpTemplateFile = null;
 let _gpJobId = null;
@@ -416,20 +417,45 @@ async function gpExcluirPrompts(){
 }
 
 function gpRenderCompilados(){
-  try { if (_gpCompilados.length > 0) sessionStorage.setItem('gp_compilados_persist', JSON.stringify(_gpCompilados)); } catch(e) {}
   const el = document.getElementById('gp-compilados');
   document.getElementById('gp-compilados-empty').style.display = _gpCompilados.length ? 'none' : 'block';
-  el.innerHTML = _gpCompilados.map((c,i) =>
-    '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:6px;">' +
-    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
-      '<strong>🏙️ ' + c.municipio + ' / ' + c.estado + '</strong>' +
-      '<button class="gp-mini" style="margin-left:auto;" onclick="gpRemoverCompilado(' + i + ')">✕</button>' +
-    '</div>' +
-    '<div style="display:flex;gap:5px;flex-wrap:wrap;font-size:11px;">' +
-      (c.zip ? '<label style="cursor:pointer;padding:3px 8px;background:' + (c.zip_on ? 'rgba(0,229,160,.1)' : 'transparent') + ';border:1px solid var(--border);border-radius:3px;"><input type="checkbox" ' + (c.zip_on?'checked':'') + ' onchange="gpToggleChip(' + i + ',\'zip\')" style="margin-right:4px;">📦 ZIP</label>' : '') +
-      (c.tabela ? '<label style="cursor:pointer;padding:3px 8px;background:' + (c.tabela_on ? 'rgba(0,229,160,.1)' : 'transparent') + ';border:1px solid var(--border);border-radius:3px;"><input type="checkbox" ' + (c.tabela_on?'checked':'') + ' onchange="gpToggleChip(' + i + ',\'tabela\')" style="margin-right:4px;">📊 Tabela</label>' : '') +
-    '</div></div>'
-  ).join('');
+  const isAdmin = (window._gpUserRole === 'admin');
+  el.innerHTML = _gpCompilados.map((g, gi) => {
+    const entradas = (g.entradas||[]).map((e, ei) => {
+      const sel = (g._selIdx === ei) ? 'background:rgba(0,229,160,.15);' : '';
+      const dataCriado = e.criado_em || '';
+      const autor = e.criado_por_nome || '';
+      const btnDel = isAdmin ? '<button class="gp-mini" onclick="gpExcluirEntrada(event,' + e.id + ')" style="margin-left:8px;color:#e74c3c;">🗑</button>' : '';
+      return '<div onclick="gpSelEntrada(' + gi + ',' + ei + ')" style="cursor:pointer;padding:6px 10px;border:1px solid var(--border);border-radius:4px;margin-top:4px;font-size:11px;display:flex;align-items:center;gap:6px;' + sel + '">' +
+        '<input type="radio" name="gpsel_' + gi + '" ' + (g._selIdx===ei?'checked':'') + ' style="accent-color:var(--accent);">' +
+        '<span style="color:var(--muted);">' + dataCriado + '</span>' +
+        (autor ? '<span style="color:var(--muted);">· ' + autor + '</span>' : '') +
+        (e.zip_path ? '<span style="color:#7c6af7;">📦</span>' : '') +
+        (e.tabela_path ? '<span style="color:#7c6af7;">📊</span>' : '') +
+        btnDel +
+      '</div>';
+    }).join('');
+    return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:6px;">' +
+      '<div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="gpToggleAcc(' + gi + ')">' +
+        '<span id="gpacc-arrow-' + gi + '" style="font-size:11px;">' + (g._aberto ? '▼' : '▶') + '</span>' +
+        '<strong>🏙️ ' + g.municipio + ' / ' + g.estado + '</strong>' +
+        '<span style="margin-left:auto;font-size:11px;color:var(--muted);">' + (g.entradas||[]).length + ' compilado(s)</span>' +
+      '</div>' +
+      '<div id="gpacc-' + gi + '" style="display:' + (g._aberto?'block':'none') + ';">' + entradas + '</div>' +
+    '</div>';
+  }).join('');
+}
+function gpToggleAcc(gi){ _gpCompilados[gi]._aberto = !_gpCompilados[gi]._aberto; gpRenderCompilados(); }
+function gpSelEntrada(gi, ei){ _gpCompilados[gi]._selIdx = ei; gpRenderCompilados(); }
+async function gpExcluirEntrada(ev, id){
+  ev.stopPropagation();
+  if(!confirm('Excluir este compilado?')) return;
+  try{
+    const r = await fetch('/api/gerador/compilados/' + id, {method:'DELETE'});
+    const d = await r.json();
+    if (d.success) { gpToast('✅ Excluido'); gpCarregarCompiladosServer(); }
+    else gpToast('Erro: ' + (d.error||'sem permissao'), true);
+  }catch(e){ gpToast('Erro de rede', true); }
 }
 function gpToggleChip(i, tipo){ _gpCompilados[i][tipo+'_on'] = !_gpCompilados[i][tipo+'_on']; }
 function gpRemoverCompilado(i){ _gpCompilados.splice(i,1); gpRenderCompilados(); }
@@ -446,33 +472,25 @@ async function gpAcBuscar(val){
     ).join('') || '<div style="padding:8px;font-size:11px;color:var(--muted);">Nenhum encontrado.</div>';
   }catch(e){ console.warn(e); }
 }
-function gpProcessarPendentes(){
+async function gpCarregarCompiladosServer(){
   try {
-    const _p = sessionStorage.getItem('gp_compilados_pendentes');
-    if (!_p) return;
-    const arr = JSON.parse(_p);
-    if (!Array.isArray(arr)) return;
-    for (const item of arr) {
-      if (!item.municipio || !item.estado) continue;
-      if (_gpCompilados.find(c => c.municipio === item.municipio && c.estado === item.estado)) continue;
-      _gpCompilados.push({
-        id: 'pend-' + Math.random().toString(36).slice(2,8),
-        municipio: item.municipio,
-        estado: item.estado,
-        zip: item.zip_url || null,
-        tabela: item.tabela_url || null,
-        zip_on: !!item.zip_url,
-        tabela_on: !!item.tabela_url
-      });
+    const r = await fetch('/api/gerador/compilados');
+    const d = await r.json();
+    if (!d.success) return;
+    // Agrupar por municipio/estado em accordion
+    const grupos = {};
+    for (const item of (d.data||[])) {
+      const k = item.municipio + '||' + item.estado;
+      if (!grupos[k]) grupos[k] = { municipio: item.municipio, estado: item.estado, entradas: [] };
+      grupos[k].entradas.push(item);
     }
-    sessionStorage.removeItem('gp_compilados_pendentes');
+    _gpCompilados = Object.values(grupos);
     gpRenderCompilados();
-  } catch(e) { console.error('gpProcessarPendentes:', e); }
+  } catch(e) { console.error('gpCarregarCompiladosServer:', e); }
 }
 document.addEventListener('DOMContentLoaded', function(){
-  gpProcessarPendentes();
+  gpCarregarCompiladosServer();
   try {
-    gpRestaurarCompilados();
     const _pid = sessionStorage.getItem('gp_prompt_id');
     if (_pid) { _gpPromptIdSelecionado = parseInt(_pid); }
   } catch(e) {}
@@ -512,7 +530,18 @@ function gpBaixarLog(){
 
 async function gpIniciar(){
   if(!_gpTemplateFile){ gpToast('Selecione a planilha base', true); return; }
-  if(!_gpCompilados.filter(c => c.zip_on || c.tabela_on).length){ gpToast('Adicione ao menos um compilado', true); return; }
+  // Construir lista de compilados selecionados (1 entrada por municipio)
+  const _selecionados = [];
+  for (const g of _gpCompilados) {
+    if (typeof g._selIdx !== 'number' || !g.entradas || !g.entradas[g._selIdx]) continue;
+    const e = g.entradas[g._selIdx];
+    _selecionados.push({
+      municipio: g.municipio, estado: g.estado,
+      zip: e.zip_path, tabela: e.tabela_path,
+      zip_on: !!e.zip_path, tabela_on: !!e.tabela_path
+    });
+  }
+  if (!_selecionados.length){ gpToast('Selecione um compilado em cada municipio', true); return; }
   if(!_gpIaSelecionada){ gpToast('Escolha uma IA', true); return; }
   let prompt = '';
   if(_gpFonteAtiva === 'texto'){
@@ -531,7 +560,7 @@ async function gpIniciar(){
   document.getElementById('gp-resultado').style.display = 'none';
   const fd = new FormData();
   fd.append('template', _gpTemplateFile);
-  fd.append('compilados', JSON.stringify(_gpCompilados.filter(c => c.zip_on || c.tabela_on)));
+  fd.append('compilados', JSON.stringify(_selecionados));
   fd.append('prompt', prompt);
   fd.append('ia_provider', _gpIaSelecionada);
   try{
