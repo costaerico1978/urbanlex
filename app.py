@@ -5686,6 +5686,76 @@ def api_gerador_compilados_excluir(cid):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/gerador/test-preencher', methods=['GET'])
+@login_required
+def api_gerador_test_preencher():
+    """Teste sintetico: preenche uma planilha com linhas mock incluindo dict/list/None
+    para validar se o fix de conversao de tipos funciona."""
+    try:
+        if session.get('role') != 'admin':
+            return jsonify({'success': False, 'error': 'apenas admin'}), 403
+        # Pegar a planilha base mais recente
+        rows = qry("SELECT id, arquivo_path, nome FROM planilhas_base ORDER BY criado_em DESC LIMIT 1")
+        if not rows:
+            return jsonify({'success': False, 'error': 'nenhuma planilha base cadastrada'}), 400
+        template_path_orig = rows[0]['arquivo_path']
+        nome_base = rows[0]['nome']
+        # Copiar para temp
+        import shutil as _sh, os as _o, uuid as _u, openpyxl as _xl
+        from datetime import datetime as _dt
+        job_id = str(_u.uuid4())[:8]
+        out_path = f'/var/www/urbanlex/static/downloads/teste_preencher_{job_id}.xlsx'
+        _sh.copy(template_path_orig, out_path)
+        wb = _xl.load_workbook(out_path)
+        ws = wb.active
+        # Achar header
+        _header_row_idx = 1
+        _col_por_header = {}
+        for ri, row in enumerate(ws.iter_rows(values_only=True), start=1):
+            _vals = [str(v).strip() if v is not None else '' for v in row]
+            if sum(1 for v in _vals if v) >= 3:
+                _header_row_idx = ri
+                for ci, v in enumerate(_vals, start=1):
+                    if v: _col_por_header[v] = ci
+                break
+        if not _col_por_header:
+            return jsonify({'success': False, 'error': 'header nao encontrado'}), 400
+        # Linhas mock — usar os 3 primeiros headers
+        headers_lst = list(_col_por_header.keys())
+        h1 = headers_lst[0] if len(headers_lst) > 0 else 'col1'
+        h2 = headers_lst[1] if len(headers_lst) > 1 else 'col2'
+        h3 = headers_lst[2] if len(headers_lst) > 2 else 'col3'
+        linhas_mock = [
+            {h1: 'string normal', h2: 42, h3: 'NI'},
+            {h1: {'valor_aninhado': 'isso é um dict'}, h2: 'string', h3: ''},  # dict
+            {h1: ['lista', 'de', 'valores'], h2: None, h3: 'NI'},  # list e None
+            {h1: 'teste final', h2: True, h3: 3.14},
+        ]
+        _start_row = _header_row_idx + 1
+        for i, linha in enumerate(linhas_mock):
+            for header, val in linha.items():
+                col = _col_por_header.get(header)
+                if col:
+                    if val is None:
+                        _v = ''
+                    elif isinstance(val, (dict, list)):
+                        import json as _jcell
+                        _v = _jcell.dumps(val, ensure_ascii=False)
+                    else:
+                        _v = val
+                    ws.cell(row=_start_row+i, column=col, value=_v)
+        wb.save(out_path)
+        return jsonify({
+            'success': True,
+            'arquivo_url': f'/static/downloads/teste_preencher_{job_id}.xlsx',
+            'arquivo_nome': f'teste_preencher_{job_id}.xlsx',
+            'linhas': len(linhas_mock),
+            'mensagem': 'Teste OK — incluiu dict, list, None, int, bool, float, string'
+        })
+    except Exception as e:
+        import traceback as _tb
+        return jsonify({'success': False, 'error': str(e), 'trace': _tb.format_exc()[-500:]})
+
 @app.route('/api/gerador/preview-prompts')
 @login_required
 def api_gerador_preview_prompts():
