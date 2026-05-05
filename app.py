@@ -6079,6 +6079,7 @@ def api_gerador_iniciar():
     compilados = json.loads(request.form.get('compilados', '[]'))
     prompt = request.form.get('prompt', '')
     ia_provider = request.form.get('ia_provider', 'gemini-pro')
+    prompt_id_form = (request.form.get('prompt_id') or request.form.get('prompt_salvo_id') or '').strip()
     if not compilados:
         return jsonify({'success': False, 'error': 'compilados obrigatorios'}), 400
     if not template_file and not planilha_base_id:
@@ -6143,7 +6144,7 @@ def api_gerador_iniciar():
             # ============================================================
             _metadata = dict(DEFAULT_METADATA)
             try:
-                _prompt_id = request.form.get('prompt_id') or request.form.get('prompt_salvo_id')
+                _prompt_id = prompt_id_form
                 if _prompt_id:
                     _mrows = qry("SELECT metadata FROM prompts_salvos WHERE id=%s", (int(_prompt_id),))
                     if _mrows and _mrows[0].get('metadata'):
