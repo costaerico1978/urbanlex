@@ -6363,7 +6363,15 @@ def api_gerador_iniciar():
                 for header, val in linha.items():
                     col = _col_por_header.get(header)
                     if col:
-                        ws.cell(row=_start_row+i, column=col, value=val)
+                        # Converter dict/list/None para string antes de escrever (openpyxl nao aceita)
+                        if val is None:
+                            _v = ''
+                        elif isinstance(val, (dict, list)):
+                            import json as _jcell
+                            _v = _jcell.dumps(val, ensure_ascii=False)
+                        else:
+                            _v = val
+                        ws.cell(row=_start_row+i, column=col, value=_v)
             # Salvar
             from datetime import datetime as _dt
             _now = _dt.now()
