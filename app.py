@@ -6187,15 +6187,29 @@ def api_gerador_iniciar():
                 job['logs'].append({'nivel':'info','msg':f'⏳ Aguardando resposta da IA (pode levar varios minutos para PDFs grandes)...'})
                 import time as _t_gp
                 _t_inicio = _t_gp.time()
+                txt = ''
+                _ultimo_log_g = _t_inicio
+                _chunks_g = 0; _chars_g = 0
                 try:
-                    resp = client.generate_content(_gemini_parts)
+                    _stream_g = client.generate_content(_gemini_parts, stream=True)
+                    for _chunk in _stream_g:
+                        try:
+                            _piece = _chunk.text if hasattr(_chunk, 'text') else ''
+                        except Exception: _piece = ''
+                        if _piece:
+                            txt += _piece
+                            _chunks_g += 1
+                            _chars_g += len(_piece)
+                        _agora = _t_gp.time()
+                        if _agora - _ultimo_log_g >= 15:
+                            job['logs'].append({'nivel':'info','msg':f'⏱ IA gerando... {_chars_g} chars recebidos ({(_agora-_t_inicio):.0f}s)'})
+                            _ultimo_log_g = _agora
                     _t_decorrido = _t_gp.time() - _t_inicio
-                    job['logs'].append({'nivel':'ok','msg':f'⏱ IA respondeu em {_t_decorrido:.1f}s'})
+                    job['logs'].append({'nivel':'ok','msg':f'✅ IA terminou em {_t_decorrido:.1f}s ({_chars_g} chars, {_chunks_g} chunks)'})
                 except Exception as _ei:
                     _t_decorrido = _t_gp.time() - _t_inicio
                     job['logs'].append({'nivel':'erro','msg':f'❌ Falha apos {_t_decorrido:.1f}s: {type(_ei).__name__}: {_ei}'})
                     raise
-                txt = resp.text if hasattr(resp, 'text') else str(resp)
             # Log resposta da IA para diagnostico
             job['logs'].append({'nivel':'info','msg':f'📥 Resposta da IA ({len(txt)} chars): {txt[:300]}'})
             # Extrair JSON
