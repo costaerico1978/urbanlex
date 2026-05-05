@@ -6142,7 +6142,7 @@ def api_gerador_iniciar():
             job['logs'].append({'nivel':'info','msg':'🔍 PASSADA 0: Catalogacao dos PDFs'})
             mapa_arquivos = {}  # {nome_arquivo: identificacao}
             try:
-                _p0 = prompt_passada_0_catalogacao()
+                _p0 = prompt_passada_0_catalogacao([a['nome_arquivo'] for a in todos_anexos])
                 _r0 = chamar_ia(client, _provedor, _modelo, _p0, todos_anexos, job['logs'], 'P0')
                 _j0 = extrair_json(_r0)
                 if _j0 and 'arquivos' in _j0:

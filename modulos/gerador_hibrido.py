@@ -181,16 +181,21 @@ def filtrar_pdfs_para_zona(leis_aplicaveis, mapa_arquivos, todos_anexos):
 # ============================================================
 # Geradores de prompt para cada passada
 # ============================================================
-def prompt_passada_0_catalogacao():
+def prompt_passada_0_catalogacao(nomes_arquivos=None):
+    nomes_arquivos = nomes_arquivos or []
+    lista_nomes = '\n'.join(f'  {i+1}. {n}' for i, n in enumerate(nomes_arquivos))
     return (
         '\n\n=== INSTRUCAO DESTA EXECUCAO — PASSADA 0: CATALOGACAO ===\n'
-        'Esta e a Passada 0. NAO preencha a planilha. Para cada PDF anexo, leia apenas o '
-        'cabecalho/ementa/preambulo e identifique:\n'
+        'Esta e a Passada 0. NAO preencha a planilha. Os PDFs anexados, NA ORDEM em que foram '
+        'enviados, correspondem aos seguintes nomes de arquivo:\n\n'
+        + lista_nomes + '\n\n'
+        'Para cada PDF, leia apenas o cabecalho/ementa/preambulo e identifique:\n'
         '  - tipo de ato (Lei Complementar, Lei Ordinaria, Decreto, Portaria, Errata, Retificacao)\n'
         '  - numero e ano (ex: "LC 270/2024", "Dec 52585/2023")\n'
         '  - municipio e estado\n'
         '  - escopo geografico (municipio inteiro, AP especifica, regiao, bairro, zona, etc.)\n\n'
-        'Use o nome de arquivo EXATO (sem caminhos) como chave.\n\n'
+        'Use o nome de arquivo EXATO da lista acima (mesma posicao que o PDF foi anexado). '
+        'Nao invente nomes como "anexo_1.pdf" — use os nomes da lista.\n\n'
         'Retorne SOMENTE este JSON, sem markdown, sem comentarios:\n'
         '{\n'
         '  "arquivos": [\n'
