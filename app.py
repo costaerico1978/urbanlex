@@ -5528,6 +5528,86 @@ def api_prompts_salvos_excluir():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/planilhas-base', methods=['GET'])
+@login_required
+def api_planilhas_base_listar():
+    try:
+        from datetime import timedelta as _td
+        rows = qry("""SELECT id, nome, tamanho_bytes, criado_em, criado_por_nome
+                       FROM planilhas_base ORDER BY criado_em DESC""")
+        for r in rows:
+            if r.get('criado_em') and hasattr(r['criado_em'], 'strftime'):
+                r['criado_em'] = (r['criado_em'] - _td(hours=3)).strftime('%d/%m/%Y %H:%M')
+        return jsonify({'success': True, 'data': rows or []})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/planilhas-base', methods=['POST'])
+@login_required
+def api_planilhas_base_upload():
+    try:
+        f = request.files.get('arquivo')
+        if not f or not f.filename:
+            return jsonify({'success': False, 'error': 'arquivo obrigatorio'}), 400
+        nome = f.filename
+        if not nome.lower().endswith(('.xlsx','.xls','.xlsm')):
+            return jsonify({'success': False, 'error': 'arquivo deve ser .xlsx'}), 400
+        # Salvar arquivo
+        import os as _o, time as _t
+        ts = int(_t.time())
+        safe_name = ''.join(ch if ch.isalnum() or ch in '._-' else '_' for ch in nome)[:100]
+        arq_path = f'/var/www/urbanlex/static/planilhas_base/{ts}_{safe_name}'
+        f.save(arq_path)
+        size = _o.path.getsize(arq_path)
+        # Pegar nome do usuario
+        uid = session.get('user_id')
+        unome = ''
+        try:
+            urows = qry("SELECT nome FROM users WHERE id=%s", (uid,))
+            if urows: unome = urows[0].get('nome') or ''
+        except Exception: pass
+        # Inserir
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""INSERT INTO planilhas_base (nome, arquivo_path, tamanho_bytes, criado_por, criado_por_nome)
+                       VALUES (%s,%s,%s,%s,%s) RETURNING id""",
+                    (nome[:200], arq_path, size, uid, unome))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({'success': True, 'id': new_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/planilhas-base/<int:pid>/download')
+@login_required
+def api_planilhas_base_download(pid):
+    try:
+        rows = qry("SELECT nome, arquivo_path FROM planilhas_base WHERE id=%s", (pid,))
+        if not rows:
+            return jsonify({'success': False, 'error': 'nao encontrado'}), 404
+        from flask import send_file as _sf
+        return _sf(rows[0]['arquivo_path'], as_attachment=True, download_name=rows[0]['nome'])
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/planilhas-base/<int:pid>', methods=['DELETE'])
+@login_required
+def api_planilhas_base_excluir(pid):
+    try:
+        if session.get('role') != 'admin':
+            return jsonify({'success': False, 'error': 'apenas admin pode excluir'}), 403
+        rows = qry("SELECT arquivo_path FROM planilhas_base WHERE id=%s", (pid,))
+        if rows and rows[0].get('arquivo_path'):
+            try:
+                import os as _o2
+                _o2.remove(rows[0]['arquivo_path'])
+            except Exception: pass
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("DELETE FROM planilhas_base WHERE id=%s", (pid,))
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/gerador/compilados', methods=['GET'])
 @login_required
 def api_gerador_compilados_listar():
@@ -5927,14 +6007,28 @@ def api_gerador_iniciar():
     import uuid, threading
     job_id = str(uuid.uuid4())[:8]
     template_file = request.files.get('template')
+    planilha_base_id = request.form.get('planilha_base_id', '').strip()
     compilados = json.loads(request.form.get('compilados', '[]'))
     prompt = request.form.get('prompt', '')
     ia_provider = request.form.get('ia_provider', 'gemini-pro')
-    if not template_file or not compilados:
-        return jsonify({'success': False, 'error': 'template e compilados obrigatorios'}), 400
+    if not compilados:
+        return jsonify({'success': False, 'error': 'compilados obrigatorios'}), 400
+    if not template_file and not planilha_base_id:
+        return jsonify({'success': False, 'error': 'planilha base obrigatoria (anexar ou escolher da lista)'}), 400
     import os as _os_gp
     template_path = f'/var/www/urbanlex/static/downloads/template_{job_id}.xlsx'
-    template_file.save(template_path)
+    if template_file:
+        template_file.save(template_path)
+    else:
+        # Copiar do banco
+        try:
+            _rows = qry("SELECT arquivo_path FROM planilhas_base WHERE id=%s", (int(planilha_base_id),))
+            if not _rows:
+                return jsonify({'success': False, 'error': 'planilha base nao encontrada'}), 404
+            import shutil as _sh_gp
+            _sh_gp.copy(_rows[0]['arquivo_path'], template_path)
+        except Exception as _ep:
+            return jsonify({'success': False, 'error': f'erro carregando planilha base: {_ep}'}), 500
     job = {'done': False, 'cancelled': False, 'logs': _LogList(job_id, get_db), 'result': None}
     _buscador_jobs[job_id] = job
     # Registrar como ultimo job (substitui antigo)

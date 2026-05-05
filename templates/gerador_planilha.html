@@ -116,12 +116,23 @@
   <div class="gp-card">
     <div class="gp-card-title"><span class="num">2</span> Planilha Base</div>
     <div class="gp-help">Arquivo .xlsx que será preenchido pela IA.</div>
-    <div class="gp-upload" id="gp-upload-area">
-      <input type="file" id="gp-template-file" accept=".xlsx,.xls" onchange="gpTemplateSelected(this)">
-      <div id="gp-upload-inner">
-        <div style="font-size:24px;margin-bottom:6px;">📂</div>
-        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Clique para selecionar planilha</div>
-        <div style="font-size:11px;color:var(--muted);">Arquivo .xlsx</div>
+    <div style="display:flex;gap:6px;margin-bottom:8px;">
+      <button class="btn btn-secondary" id="gp-pb-tab-lista" onclick="gpPbModo('lista')" style="flex:1;font-size:12px;">📂 Usar da lista</button>
+      <button class="btn btn-secondary" id="gp-pb-tab-novo" onclick="gpPbModo('novo')" style="flex:1;font-size:12px;">📎 Subir nova</button>
+    </div>
+    <div id="gp-pb-novo" style="display:none;">
+      <div class="gp-upload" id="gp-upload-area">
+        <input type="file" id="gp-template-file" accept=".xlsx,.xls,.xlsm" onchange="gpTemplateSelected(this)">
+        <div id="gp-upload-inner">
+          <div style="font-size:24px;margin-bottom:6px;">📂</div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Clique para selecionar planilha</div>
+          <div style="font-size:11px;color:var(--muted);">Arquivo .xlsx</div>
+        </div>
+      </div>
+    </div>
+    <div id="gp-pb-lista">
+      <div id="gp-pb-list" style="border:1px solid var(--border);border-radius:8px;background:var(--surface2);max-height:280px;overflow-y:auto;">
+        <div style="padding:14px;text-align:center;font-size:12px;color:var(--muted);">Carregando...</div>
       </div>
     </div>
   </div>
@@ -503,7 +514,9 @@ async function gpRestaurarJob(){
 
 document.addEventListener('DOMContentLoaded', function(){
   gpCarregarCompiladosServer();
+  gpCarregarPlanilhasBase();
   gpRestaurarJob();
+  gpPbModo('lista');
   try {
     const _pid = sessionStorage.getItem('gp_prompt_id');
     if (_pid) { _gpPromptIdSelecionado = parseInt(_pid); }
@@ -517,15 +530,95 @@ function gpAdicionarComp(id, mun, est, zip, tabela){
   document.getElementById('gp-ac').style.display = 'none';
   gpRenderCompilados();
 }
-function gpTemplateSelected(input){
+let _gpPlanilhaBaseId = null;
+function gpPbModo(modo){
+  document.getElementById('gp-pb-lista').style.display = modo === 'lista' ? 'block' : 'none';
+  document.getElementById('gp-pb-novo').style.display = modo === 'novo' ? 'block' : 'none';
+  // Limpar selecao quando troca de modo
+  if (modo === 'lista') {
+    _gpTemplateFile = null;
+    document.getElementById('gp-template-file').value = '';
+    gpCarregarPlanilhasBase();
+  } else {
+    _gpPlanilhaBaseId = null;
+  }
+}
+async function gpCarregarPlanilhasBase(){
+  try {
+    const r = await fetch('/api/planilhas-base');
+    const d = await r.json();
+    if (!d.success) { document.getElementById('gp-pb-list').innerHTML = '<div style="padding:14px;color:#e74c3c;font-size:12px;">Erro: ' + d.error + '</div>'; return; }
+    const isAdmin = (window._gpUserRole === 'admin');
+    if (!d.data.length) {
+      document.getElementById('gp-pb-list').innerHTML = '<div style="padding:14px;text-align:center;font-size:12px;color:var(--muted);">Nenhuma planilha base salva. Use Subir nova.</div>';
+      return;
+    }
+    // Pre-selecionar a mais recente (primeira)
+    if (!_gpPlanilhaBaseId) _gpPlanilhaBaseId = d.data[0].id;
+    document.getElementById('gp-pb-list').innerHTML = d.data.map(p => {
+      const sel = p.id === _gpPlanilhaBaseId ? 'background:rgba(0,229,160,.15);' : '';
+      const btnDel = isAdmin ? '<button class="gp-mini" onclick="gpPbExcluir(event,' + p.id + ')" style="margin-left:8px;color:#e74c3c;">🗑</button>' : '';
+      const kb = p.tamanho_bytes ? (p.tamanho_bytes/1024).toFixed(1) + ' KB' : '?';
+      const autor = p.criado_por_nome ? ' · ' + p.criado_por_nome : '';
+      return '<div onclick="gpPbSelecionar(' + p.id + ')" style="cursor:pointer;padding:9px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:12px;' + sel + '">' +
+        '<input type="radio" name="gppb" ' + (p.id===_gpPlanilhaBaseId?'checked':'') + ' style="accent-color:var(--accent);">' +
+        '<span style="flex:1;">📊 ' + p.nome + '</span>' +
+        '<span style="color:var(--muted);font-size:11px;">' + kb + ' · ' + (p.criado_em||'') + autor + '</span>' +
+        btnDel +
+      '</div>';
+    }).join('');
+  } catch(e) { console.error('gpCarregarPlanilhasBase:', e); }
+}
+function gpPbSelecionar(id){ _gpPlanilhaBaseId = id; gpCarregarPlanilhasBase(); }
+async function gpPbExcluir(ev, id){
+  ev.stopPropagation();
+  if(!confirm('Excluir esta planilha base?')) return;
+  try {
+    const r = await fetch('/api/planilhas-base/' + id, {method:'DELETE'});
+    const d = await r.json();
+    if (d.success) { gpToast('✅ Excluida'); if (_gpPlanilhaBaseId === id) _gpPlanilhaBaseId = null; gpCarregarPlanilhasBase(); }
+    else gpToast('Erro: ' + (d.error||'sem permissao'), true);
+  } catch(e) { gpToast('Erro de rede', true); }
+}
+async function gpPbUpload(){
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.xlsx,.xls,.xlsm';
+  inp.onchange = async () => {
+    if (!inp.files[0]) return;
+    const fd = new FormData(); fd.append('arquivo', inp.files[0]);
+    try {
+      const r = await fetch('/api/planilhas-base', {method:'POST', body: fd});
+      const d = await r.json();
+      if (d.success) { gpToast('✅ Salva'); _gpPlanilhaBaseId = d.id; gpPbModo('lista'); }
+      else gpToast('Erro: ' + d.error, true);
+    } catch(e) { gpToast('Erro de rede', true); }
+  };
+  inp.click();
+}
+
+async function gpTemplateSelected(input){
   if(!input.files[0]) return;
-  _gpTemplateFile = input.files[0];
+  const f = input.files[0];
   const area = document.getElementById('gp-upload-area');
-  area.classList.add('done');
-  document.getElementById('gp-upload-inner').innerHTML =
-    '<div style="font-size:24px;margin-bottom:6px;">✅</div>' +
-    '<div style="font-size:13px;font-weight:600;color:var(--accent);">' + _gpTemplateFile.name + '</div>' +
-    '<div style="font-size:11px;color:var(--muted);">Clique para substituir · ' + (_gpTemplateFile.size/1024).toFixed(0) + ' KB</div>';
+  document.getElementById('gp-upload-inner').innerHTML = '<div style="font-size:13px;color:var(--muted);">Enviando ' + f.name + '...</div>';
+  const fd = new FormData(); fd.append('arquivo', f);
+  try {
+    const r = await fetch('/api/planilhas-base', {method:'POST', body: fd});
+    const d = await r.json();
+    if (d.success) {
+      _gpPlanilhaBaseId = d.id;
+      _gpTemplateFile = null;
+      gpToast('✅ Planilha salva na lista');
+      gpPbModo('lista');
+    } else {
+      area.classList.remove('done');
+      document.getElementById('gp-upload-inner').innerHTML = '<div style="font-size:24px;margin-bottom:6px;">❌</div><div style="font-size:13px;color:#e74c3c;">' + d.error + '</div>';
+    }
+  } catch(e) {
+    area.classList.remove('done');
+    document.getElementById('gp-upload-inner').innerHTML = '<div style="font-size:13px;color:#e74c3c;">Erro de rede</div>';
+  }
+  input.value = '';
 }
 function gpBaixarLog(){
   const txt = document.getElementById('gp-log-body').innerText;
@@ -543,7 +636,7 @@ function gpBaixarLog(){
 }
 
 async function gpIniciar(){
-  if(!_gpTemplateFile){ gpToast('Selecione a planilha base', true); return; }
+  if(!_gpTemplateFile && !_gpPlanilhaBaseId){ gpToast('Selecione a planilha base', true); return; }
   // Construir lista de compilados selecionados (1 entrada por municipio)
   const _selecionados = [];
   for (const g of _gpCompilados) {
@@ -573,7 +666,8 @@ async function gpIniciar(){
   document.getElementById('gp-log-body').innerHTML = '';
   document.getElementById('gp-resultado').style.display = 'none';
   const fd = new FormData();
-  fd.append('template', _gpTemplateFile);
+  if(_gpTemplateFile) fd.append('template', _gpTemplateFile);
+  if(_gpPlanilhaBaseId) fd.append('planilha_base_id', _gpPlanilhaBaseId);
   fd.append('compilados', JSON.stringify(_selecionados));
   fd.append('prompt', prompt);
   fd.append('ia_provider', _gpIaSelecionada);
