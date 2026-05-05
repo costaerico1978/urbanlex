@@ -5591,6 +5591,18 @@ def api_gerador_compilados_excluir(cid):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/gerador/ultimo-job')
+@login_required
+def api_gerador_ultimo_job():
+    """Retorna o ultimo job de gerador (visivel para todos)."""
+    try:
+        rows = qry("SELECT valor FROM gerador_estado WHERE chave='ultimo_job' LIMIT 1")
+        if not rows or not rows[0].get('valor'):
+            return jsonify({'success': True, 'job_id': None})
+        return jsonify({'success': True, 'job_id': rows[0]['valor']})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/api-keys')
 @login_required
 def api_api_keys():
@@ -5925,6 +5937,14 @@ def api_gerador_iniciar():
     template_file.save(template_path)
     job = {'done': False, 'cancelled': False, 'logs': _LogList(job_id, get_db), 'result': None}
     _buscador_jobs[job_id] = job
+    # Registrar como ultimo job (substitui antigo)
+    try:
+        _conn = get_db(); _cur = _conn.cursor()
+        _cur.execute("INSERT INTO gerador_estado (chave, valor, atualizado_em) VALUES ('ultimo_job',%s,now()) ON CONFLICT (chave) DO UPDATE SET valor=EXCLUDED.valor, atualizado_em=now()", (job_id,))
+        # Limpar logs antigos de outros jobs de gerador (manter so esse)
+        _cur.execute("DELETE FROM buscas_logs WHERE job_id != %s AND job_id IN (SELECT job_id FROM buscas_historico WHERE tipo='gerador')", (job_id,))
+        _conn.commit(); _cur.close(); _conn.close()
+    except Exception as _eu: pass
 
     def _run():
         try:
@@ -6107,9 +6127,15 @@ def api_gerador_iniciar():
 @app.route('/api/gerador/job/<job_id>')
 @login_required
 def api_gerador_job(job_id):
-    job = _buscador_jobs.get(job_id)
-    if not job: return jsonify({'done': True, 'logs': _LogList(job_id, get_db), 'cursor': 0})
     cursor = int(request.args.get('cursor', 0))
+    job = _buscador_jobs.get(job_id)
+    if not job:
+        # Buscar do banco (job de processo anterior)
+        try:
+            rows = qry("SELECT nivel, msg, ts FROM buscas_logs WHERE job_id=%s ORDER BY id ASC OFFSET %s", (job_id, cursor))
+        except Exception:
+            rows = []
+        return jsonify({'done': True, 'logs': rows or [], 'cursor': cursor + len(rows or []), 'result': None})
     logs = job['logs'][cursor:]
     return jsonify({'done': job['done'], 'logs': logs, 'cursor': cursor + len(logs), 'result': job.get('result')})
 

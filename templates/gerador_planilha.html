@@ -488,8 +488,22 @@ async function gpCarregarCompiladosServer(){
     gpRenderCompilados();
   } catch(e) { console.error('gpCarregarCompiladosServer:', e); }
 }
+async function gpRestaurarJob(){
+  try {
+    const r = await fetch('/api/gerador/ultimo-job');
+    const d = await r.json();
+    if (!d.success || !d.job_id) return;
+    _gpJobId = d.job_id;
+    _gpLogCursor = 0;
+    document.getElementById('gp-log-wrap').style.display = 'block';
+    document.getElementById('gp-log-body').innerHTML = '';
+    gpPolling();
+  } catch(e) { console.error('gpRestaurarJob:', e); }
+}
+
 document.addEventListener('DOMContentLoaded', function(){
   gpCarregarCompiladosServer();
+  gpRestaurarJob();
   try {
     const _pid = sessionStorage.getItem('gp_prompt_id');
     if (_pid) { _gpPromptIdSelecionado = parseInt(_pid); }
@@ -568,23 +582,28 @@ async function gpIniciar(){
     const d = await r.json();
     if(!d.success){ gpToast('Erro: ' + d.error, true); return; }
     _gpJobId = d.job_id;
+    _gpLogCursor = 0;
+    document.getElementById('gp-log-body').innerHTML = '';
     gpPolling();
   }catch(e){ gpToast('Erro: ' + e.message, true); }
 }
+let _gpLogCursor = 0;
 async function gpPolling(){
   if(!_gpJobId) return;
   try{
-    const r = await fetch('/api/gerador/job/' + _gpJobId);
+    const r = await fetch('/api/gerador/job/' + _gpJobId + '?cursor=' + _gpLogCursor);
     const d = await r.json();
-    if(d.logs){
+    if(d.logs && d.logs.length){
       const body = document.getElementById('gp-log-body');
       d.logs.forEach(l => {
         const div = document.createElement('div');
         div.style.color = l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'aviso' ? '#f0ad4e' : l.nivel === 'erro' ? '#e74c3c' : 'var(--muted)';
-        div.textContent = l.msg || '';
+        const ts = l.ts ? '[' + l.ts + '] ' : '';
+        div.textContent = ts + (l.msg || '');
         body.appendChild(div);
       });
       body.scrollTop = body.scrollHeight;
+      _gpLogCursor = d.cursor || (_gpLogCursor + d.logs.length);
     }
     if(d.done){
       if(d.result){
