@@ -181,8 +181,14 @@ def filtrar_pdfs_para_zona(leis_aplicaveis, mapa_arquivos, todos_anexos):
 # ============================================================
 # Geradores de prompt para cada passada
 # ============================================================
-def prompt_passada_0_catalogacao(nomes_arquivos=None):
+def prompt_passada_0_catalogacao(nomes_arquivos=None, metadata=None):
+    metadata = metadata or DEFAULT_METADATA
     nomes_arquivos = nomes_arquivos or []
+    chave_cat = metadata.get('chave_catalogacao', 'arquivos')
+    estr = metadata.get('estrutura_catalogacao', {}) or {}
+    k_nome = estr.get('nome_arquivo', 'nome_arquivo')
+    k_ident = estr.get('identificacao', 'identificacao')
+    k_escopo = estr.get('escopo', 'escopo')
     lista_nomes = '\n'.join(f'  {i+1}. {n}' for i, n in enumerate(nomes_arquivos))
     return (
         '\n\n=== INSTRUCAO DESTA EXECUCAO — PASSADA 0: CATALOGACAO ===\n'
@@ -198,64 +204,80 @@ def prompt_passada_0_catalogacao(nomes_arquivos=None):
         'Nao invente nomes como "anexo_1.pdf" — use os nomes da lista.\n\n'
         'Retorne SOMENTE este JSON, sem markdown, sem comentarios:\n'
         '{\n'
-        '  "arquivos": [\n'
-        '    {"nome_arquivo": "LC_270_2024.pdf", "identificacao": "LC 270/2024", "escopo": "Municipio inteiro"},\n'
+        f'  "{chave_cat}": [\n'
+        f'    {{"{k_nome}": "LC_270_2024.pdf", "{k_ident}": "LC 270/2024", "{k_escopo}": "Municipio inteiro"}},\n'
         '    ...\n'
         '  ]\n'
         '}'
     )
 
 
-def prompt_passada_1_inventario(prompt_usuario):
+def prompt_passada_1_inventario(prompt_usuario, metadata=None):
+    metadata = metadata or DEFAULT_METADATA
+    chave_inv = metadata.get('chave_inventario', 'zonas_canonicas')
+    estr = metadata.get('estrutura_inventario', {}) or {}
+    k_nome = estr.get('nome_canonico', 'nome_canonico')
+    k_var = estr.get('variantes_observadas', 'variantes_observadas')
+    k_ut = estr.get('unidade_territorial', 'unidade_territorial')
+    k_leis = estr.get('leis_aplicaveis', 'leis_aplicaveis')
     return prompt_usuario + (
         '\n\n=== INSTRUCAO DESTA EXECUCAO — PASSADA 1: INVENTARIO ===\n'
-        'Esta e a Passada 1. NAO preencha a planilha. Aplique todas as etapas 0.0 a 0.9 e a '
-        'PARTE 3 do prompt acima. Faca o inventario completo das zonas/subzonas/unidades '
-        'territoriais e a normalizacao de nomenclaturas (Etapa 0.9).\n\n'
+        'Esta e a Passada 1. NAO preencha a planilha. Aplique todas as etapas e regras de '
+        'identificacao, mapeamento espacial multinivel, revogacao parcial, granularidade fina '
+        'e normalizacao de nomenclaturas descritas no prompt acima. Faca o inventario completo.\n\n'
         'Retorne SOMENTE este JSON, sem markdown, sem comentarios:\n'
         '{\n'
-        '  "zonas_canonicas": [\n'
+        f'  "{chave_inv}": [\n'
         '    {\n'
-        '      "nome_canonico": "ZRM2-A",\n'
-        '      "variantes_observadas": ["ZRM2A", "ZRM-2A"],\n'
-        '      "unidade_territorial": "AP-2.1",\n'
-        '      "leis_aplicaveis": ["LC 270/2024", "Dec 52585/2023"]\n'
+        f'      "{k_nome}": "ZRM2-A",\n'
+        f'      "{k_var}": ["ZRM2A", "ZRM-2A"],\n'
+        f'      "{k_ut}": "AP-2.1",\n'
+        f'      "{k_leis}": ["LC 270/2024", "Dec 52585/2023"]\n'
         '    }\n'
         '  ],\n'
         '  "alertas": ["..."]\n'
         '}\n\n'
         'IMPORTANTE: liste TODAS as combinacoes unicas. Uma mesma zona em unidades territoriais '
-        'distintas e um item separado. Use leis_aplicaveis com a identificacao exata de cada lei '
+        'distintas e um item separado. Use ' + k_leis + ' com a identificacao exata de cada lei '
         '(ex: "LC 270/2024"), mesmo formato da Passada 0.'
     )
 
 
-def prompt_passada_2_zona(prompt_usuario, zona_canonica, unidade_territorial, headers):
+def prompt_passada_2_zona(prompt_usuario, zona_canonica, unidade_territorial, headers, metadata=None):
+    metadata = metadata or DEFAULT_METADATA
+    chave_zona = metadata.get('chave_zona_individual', 'linhas')
+    campo_ni = metadata.get('campo_sem_info', 'NI')
+    campo_calc = metadata.get('campo_calculado', '')
     headers_lista = '\n'.join(f'  {i+1}. "{h}"' for i, h in enumerate(headers))
     return prompt_usuario + (
         f'\n\n=== INSTRUCAO DESTA EXECUCAO — PASSADA 2: PREENCHER ZONA ESPECIFICA ===\n'
         f'Esta e a Passada 2. Os PDFs anexados sao EXCLUSIVAMENTE os relevantes para esta zona. '
-        f'Aplique todas as etapas do prompt acima.\n\n'
+        f'Aplique todas as regras do prompt acima.\n\n'
         f'Zona canonica a preencher: {zona_canonica}\n'
         f'Unidade territorial: {unidade_territorial}\n\n'
         f'Preencha APENAS uma linha (a desta zona/unidade territorial). Se a zona possui '
-        f'subdivisoes finas (logradouro, lado, faixa de numeracao, etc. — Etapa 0.4 do prompt), '
-        f'retorne MULTIPLAS linhas, uma para cada subdivisao.\n\n'
+        f'subdivisoes finas (logradouro, lado, faixa de numeracao, etc.), retorne MULTIPLAS '
+        f'linhas, uma para cada subdivisao.\n\n'
         f'Retorne SOMENTE este JSON, sem markdown, sem comentarios:\n'
-        f'{{\n'
-        f'  "linhas": [\n'
-        f'    {{"<cabecalho>": "<valor>", ...}},\n'
-        f'    ...\n'
-        f'  ]\n'
-        f'}}\n\n'
+        '{\n'
+        f'  "{chave_zona}": [\n'
+        '    {"<cabecalho>": "<valor>", ...},\n'
+        '    ...\n'
+        '  ]\n'
+        '}\n\n'
         f'Cada chave deve ser EXATAMENTE um dos cabecalhos da planilha listados abaixo (mesma '
         f'grafia, mesmas maiusculas, mesmos acentos):\n\n{headers_lista}\n\n'
-        f'Para campos sem informacao na lei, use "NI". Para colunas de calculo automatico (Parte '
-        f'7 do prompt), retorne string vazia "".'
+        f'Para campos sem informacao na lei, use "{campo_ni}". Para colunas de calculo automatico, '
+        f'retorne string vazia "{campo_calc}".'
     )
 
 
-def prompt_passada_3_validacao(json_consolidado, zonas_canonicas):
+def prompt_passada_3_validacao(json_consolidado, zonas_canonicas, metadata=None):
+    metadata = metadata or DEFAULT_METADATA
+    chave_falt = metadata.get('chave_validacao', 'linhas_faltantes')
+    estr = metadata.get('estrutura_inventario', {}) or {}
+    k_nome = estr.get('nome_canonico', 'nome_canonico')
+    k_ut = estr.get('unidade_territorial', 'unidade_territorial')
     return (
         '\n\n=== INSTRUCAO DESTA EXECUCAO — PASSADA 3: VALIDACAO FINAL ===\n'
         'Esta e a Passada 3. Os PDFs anexados sao TODOS do compilado. Abaixo esta o JSON '
@@ -264,17 +286,18 @@ def prompt_passada_3_validacao(json_consolidado, zonas_canonicas):
         'inconsistencias graves (ex: revogacao parcial nao aplicada, zona com mesmo nome em '
         'unidade territorial diferente nao listada).\n\n'
         'Lista de zonas que FORAM preenchidas:\n'
-        + '\n'.join(f'  - {z.get("nome_canonico","?")} ({z.get("unidade_territorial","?")})' for z in zonas_canonicas) +
+        + '\n'.join(f'  - {z.get(k_nome,"?")} ({z.get(k_ut,"?")})' for z in zonas_canonicas) +
         '\n\nJSON consolidado:\n' + json_consolidado +
         '\n\nRetorne SOMENTE este JSON, sem markdown, sem comentarios:\n'
         '{\n'
-        '  "linhas_faltantes": [\n'
+        f'  "{chave_falt}": [\n'
         '    {"<cabecalho>": "<valor>", ...}\n'
         '  ],\n'
         '  "alertas": ["..."]\n'
         '}\n\n'
-        'Se nada faltar, retorne "linhas_faltantes": [] e "alertas": [].'
+        f'Se nada faltar, retorne "{chave_falt}": [] e "alertas": [].'
     )
+
 
 # ============================================================
 # Metadata YAML do prompt

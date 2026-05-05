@@ -6062,7 +6062,8 @@ def api_gerador_iniciar():
             from modulos.gerador_hibrido import (
                 chamar_ia, extrair_json, filtrar_pdfs_para_zona,
                 prompt_passada_0_catalogacao, prompt_passada_1_inventario,
-                prompt_passada_2_zona, prompt_passada_3_validacao
+                prompt_passada_2_zona, prompt_passada_3_validacao,
+                DEFAULT_METADATA
             )
             # ============================================================
             # Determinar IA a usar
@@ -6084,6 +6085,29 @@ def api_gerador_iniciar():
                 import google.generativeai as _genai
                 _genai.configure(api_key=os.getenv('GEMINI_API_KEY',''))
                 client = _genai.GenerativeModel(_modelo)
+            # ============================================================
+            # Carregar metadata do prompt selecionado
+            # ============================================================
+            _metadata = dict(DEFAULT_METADATA)
+            try:
+                _prompt_id = request.form.get('prompt_id') or request.form.get('prompt_salvo_id')
+                if _prompt_id:
+                    _mrows = qry("SELECT metadata FROM prompts_salvos WHERE id=%s", (int(_prompt_id),))
+                    if _mrows and _mrows[0].get('metadata'):
+                        _md = _mrows[0]['metadata']
+                        if isinstance(_md, str):
+                            import json as _jm
+                            _md = _jm.loads(_md)
+                        if isinstance(_md, dict):
+                            _metadata.update(_md)
+                            job['logs'].append({'nivel':'info','msg':f'📋 Metadata do prompt v{_metadata.get("versao",0)} carregado'})
+                else:
+                    # Sem prompt_id: tentar extrair do conteudo direto
+                    from modulos.gerador_hibrido import extrair_metadata_yaml
+                    _ext = extrair_metadata_yaml(prompt)
+                    if _ext: _metadata.update(_ext)
+            except Exception as _emm:
+                job['logs'].append({'nivel':'aviso','msg':f'⚠ Erro carregando metadata: {_emm} — usando defaults'})
             # ============================================================
             # Coletar todos os PDFs do compilado em estrutura padronizada
             # ============================================================
@@ -6157,13 +6181,14 @@ def api_gerador_iniciar():
             job['logs'].append({'nivel':'info','msg':'🔍 PASSADA 0: Catalogacao dos PDFs'})
             mapa_arquivos = {}  # {nome_arquivo: identificacao}
             try:
-                _p0 = prompt_passada_0_catalogacao([a['nome_arquivo'] for a in todos_anexos])
+                _p0 = prompt_passada_0_catalogacao([a['nome_arquivo'] for a in todos_anexos], _metadata)
                 _r0 = chamar_ia(client, _provedor, _modelo, _p0, todos_anexos, job['logs'], 'P0')
                 _j0 = extrair_json(_r0)
-                if _j0 and 'arquivos' in _j0:
-                    for it in _j0['arquivos']:
-                        n = it.get('nome_arquivo')
-                        ident = it.get('identificacao') or ''
+                if _j0 and _metadata['chave_catalogacao'] in _j0:
+                    for it in _j0[_metadata['chave_catalogacao']]:
+                        _e_cat = _metadata.get('estrutura_catalogacao') or {}
+                        n = it.get(_e_cat.get('nome_arquivo','nome_arquivo'))
+                        ident = it.get(_e_cat.get('identificacao','identificacao')) or ''
                         if n: mapa_arquivos[n] = ident
                     job['logs'].append({'nivel':'ok','msg':f'✅ P0: {len(mapa_arquivos)} arquivo(s) catalogado(s)'})
                     for n, ident in list(mapa_arquivos.items())[:10]:
@@ -6182,21 +6207,23 @@ def api_gerador_iniciar():
             job['logs'].append({'nivel':'info','msg':'📊 PASSADA 1: Inventario de zonas'})
             zonas_canonicas = []
             try:
-                _p1 = prompt_passada_1_inventario(prompt)
+                _p1 = prompt_passada_1_inventario(prompt, _metadata)
                 _r1 = chamar_ia(client, _provedor, _modelo, _p1, todos_anexos, job['logs'], 'P1')
                 _j1 = extrair_json(_r1)
-                if _j1 and 'zonas_canonicas' in _j1:
-                    zonas_canonicas = _j1['zonas_canonicas'] or []
+                if _j1 and _metadata['chave_inventario'] in _j1:
+                    zonas_canonicas = _j1[_metadata['chave_inventario']] or []
                     job['logs'].append({'nivel':'ok','msg':f'✅ P1: {len(zonas_canonicas)} zona(s) canonica(s) identificada(s)'})
+                    _e_inv = _metadata.get('estrutura_inventario') or {}
                     for z in zonas_canonicas[:20]:
-                        ut = z.get('unidade_territorial','?'); nc = z.get('nome_canonico','?')
+                        ut = z.get(_e_inv.get('unidade_territorial','unidade_territorial'),'?')
+                        nc = z.get(_e_inv.get('nome_canonico','nome_canonico'),'?')
                         job['logs'].append({'nivel':'info','msg':f'  • {ut} / {nc}'})
                     if len(zonas_canonicas) > 20:
                         job['logs'].append({'nivel':'info','msg':f'  ... e mais {len(zonas_canonicas)-20}'})
                     for al in (_j1.get('alertas') or [])[:5]:
                         job['logs'].append({'nivel':'aviso','msg':f'  ⚠ {al}'})
                 else:
-                    raise Exception('P1: JSON invalido ou sem zonas_canonicas')
+                    raise Exception(f'P1: JSON invalido ou sem chave "' + _metadata['chave_inventario'] + '"')
             except Exception as _e1:
                 job['logs'].append({'nivel':'erro','msg':f'❌ P1 falhou: {_e1}'})
                 raise
@@ -6212,9 +6239,10 @@ def api_gerador_iniciar():
                 if job.get('cancelled'):
                     job['logs'].append({'nivel':'aviso','msg':'⚠ Cancelado pelo usuario'})
                     break
-                nc = zona.get('nome_canonico','?')
-                ut = zona.get('unidade_territorial','?')
-                leis = zona.get('leis_aplicaveis') or []
+                _e_inv2 = _metadata.get('estrutura_inventario') or {}
+                nc = zona.get(_e_inv2.get('nome_canonico','nome_canonico'),'?')
+                ut = zona.get(_e_inv2.get('unidade_territorial','unidade_territorial'),'?')
+                leis = zona.get(_e_inv2.get('leis_aplicaveis','leis_aplicaveis')) or []
                 job['logs'].append({'nivel':'info','msg':f'─── Zona {idx}/{len(zonas_canonicas)}: {ut} / {nc} ───'})
                 # Filtrar PDFs
                 anexos_zona = filtrar_pdfs_para_zona(leis, mapa_arquivos, todos_anexos)
@@ -6224,11 +6252,11 @@ def api_gerador_iniciar():
                 else:
                     job['logs'].append({'nivel':'info','msg':f'  📎 Usando {len(anexos_zona)} PDF(s) relevante(s) (de {len(todos_anexos)})'})
                 try:
-                    _p2 = prompt_passada_2_zona(prompt, nc, ut, _headers)
+                    _p2 = prompt_passada_2_zona(prompt, nc, ut, _headers, _metadata)
                     _r2 = chamar_ia(client, _provedor, _modelo, _p2, anexos_zona, job['logs'], f'P2.{idx}')
                     _j2 = extrair_json(_r2)
-                    if _j2 and 'linhas' in _j2:
-                        ls = _j2['linhas'] or []
+                    if _j2 and _metadata['chave_zona_individual'] in _j2:
+                        ls = _j2[_metadata['chave_zona_individual']] or []
                         todas_linhas.extend(ls)
                         job['logs'].append({'nivel':'ok','msg':f'  ✅ +{len(ls)} linha(s) (total: {len(todas_linhas)})'})
                     else:
@@ -6244,11 +6272,11 @@ def api_gerador_iniciar():
             try:
                 import json as _json3
                 _consolidado = _json3.dumps({'linhas': todas_linhas}, ensure_ascii=False, indent=2)[:50000]
-                _p3 = prompt_passada_3_validacao(_consolidado, zonas_canonicas)
+                _p3 = prompt_passada_3_validacao(_consolidado, zonas_canonicas, _metadata)
                 _r3 = chamar_ia(client, _provedor, _modelo, _p3, todos_anexos, job['logs'], 'P3')
                 _j3 = extrair_json(_r3)
                 if _j3:
-                    faltantes = _j3.get('linhas_faltantes') or []
+                    faltantes = _j3.get(_metadata['chave_validacao']) or []
                     if faltantes:
                         todas_linhas.extend(faltantes)
                         job['logs'].append({'nivel':'ok','msg':f'✅ P3: +{len(faltantes)} linha(s) faltantes adicionada(s)'})
