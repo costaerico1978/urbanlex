@@ -5821,6 +5821,84 @@ def api_gerador_ultimo_job():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/api-keys/<servico>', methods=['POST'])
+@login_required
+def api_api_keys_salvar(servico):
+    """Salva chave de API no .env e atualiza os.environ. Apenas admin."""
+    try:
+        if session.get('role') != 'admin':
+            return jsonify({'success': False, 'error': 'apenas admin'}), 403
+        chave = (request.json or {}).get('chave', '').strip()
+        if not chave:
+            return jsonify({'success': False, 'error': 'chave vazia'}), 400
+        env_var_map = {
+            'gemini-flash': 'GEMINI_API_KEY',
+            'gemini-pro': 'GEMINI_API_KEY',
+            'claude-sonnet': 'ANTHROPIC_API_KEY',
+            'claude-opus': 'ANTHROPIC_API_KEY',
+            'gemini': 'GEMINI_API_KEY',
+            'claude': 'ANTHROPIC_API_KEY',
+        }
+        env_var = env_var_map.get(servico)
+        if not env_var:
+            return jsonify({'success': False, 'error': f'servico desconhecido: {servico}'}), 400
+        # Atualizar runtime
+        os.environ[env_var] = chave
+        # Persistir no .env
+        env_path = '/var/www/urbanlex/.env'
+        try:
+            if os.path.exists(env_path):
+                with open(env_path, 'r') as f:
+                    linhas = f.readlines()
+            else:
+                linhas = []
+            achou = False
+            for i, l in enumerate(linhas):
+                if l.startswith(env_var + '=') or l.startswith('export ' + env_var + '='):
+                    linhas[i] = f'{env_var}={chave}\n'
+                    achou = True
+                    break
+            if not achou:
+                linhas.append(f'{env_var}={chave}\n')
+            with open(env_path, 'w') as f:
+                f.writelines(linhas)
+        except Exception as _ee:
+            return jsonify({'success': False, 'error': f'erro persistindo: {_ee}'})
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/api-keys/<servico>', methods=['DELETE'])
+@login_required
+def api_api_keys_remover(servico):
+    try:
+        if session.get('role') != 'admin':
+            return jsonify({'success': False, 'error': 'apenas admin'}), 403
+        env_var_map = {
+            'gemini-flash': 'GEMINI_API_KEY',
+            'gemini-pro': 'GEMINI_API_KEY',
+            'claude-sonnet': 'ANTHROPIC_API_KEY',
+            'claude-opus': 'ANTHROPIC_API_KEY',
+            'gemini': 'GEMINI_API_KEY',
+            'claude': 'ANTHROPIC_API_KEY',
+        }
+        env_var = env_var_map.get(servico)
+        if not env_var:
+            return jsonify({'success': False, 'error': 'servico desconhecido'}), 400
+        os.environ.pop(env_var, None)
+        env_path = '/var/www/urbanlex/.env'
+        try:
+            if os.path.exists(env_path):
+                with open(env_path, 'r') as f:
+                    linhas = f.readlines()
+                novas = [l for l in linhas if not l.startswith(env_var + '=') and not l.startswith('export ' + env_var + '=')]
+                with open(env_path, 'w') as f:
+                    f.writelines(novas)
+        except Exception: pass
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/api-keys')
 @login_required
 def api_api_keys():
