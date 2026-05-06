@@ -5713,13 +5713,22 @@ def api_gerador_test_preencher():
         _col_por_header = {}
         for ri, row in enumerate(ws.iter_rows(values_only=True), start=1):
             _vals = [str(v).strip() if v is not None else '' for v in row]
-            if sum(1 for v in _vals if v) >= 3:
+            if sum(1 for v in _vals if v) >= 10:
                 _header_row_idx = ri
                 for ci, v in enumerate(_vals, start=1):
                     if v: _col_por_header[v] = ci
                 break
         if not _col_por_header:
             return jsonify({'success': False, 'error': 'header nao encontrado'}), 400
+        # Pular sub-linha de header (EN)
+        _start_row_test = _header_row_idx + 1
+        for ri in range(_header_row_idx + 1, _header_row_idx + 5):
+            row_vals = [ws.cell(row=ri, column=col).value for col in range(1, min(ws.max_column+1, 20))]
+            row_vals = [str(v).strip() if v else '' for v in row_vals]
+            if sum(1 for v in row_vals if v) >= 5:
+                _start_row_test = ri + 1
+            else:
+                break
         # Linhas mock — usar os 3 primeiros headers
         headers_lst = list(_col_por_header.keys())
         h1 = headers_lst[0] if len(headers_lst) > 0 else 'col1'
@@ -5731,7 +5740,6 @@ def api_gerador_test_preencher():
             {h1: ['lista', 'de', 'valores'], h2: None, h3: 'NI'},  # list e None
             {h1: 'teste final', h2: True, h3: 3.14},
         ]
-        _start_row = _header_row_idx + 1
         for i, linha in enumerate(linhas_mock):
             for header, val in linha.items():
                 col = _col_por_header.get(header)
@@ -5743,7 +5751,7 @@ def api_gerador_test_preencher():
                         _v = _jcell.dumps(val, ensure_ascii=False)
                     else:
                         _v = val
-                    ws.cell(row=_start_row+i, column=col, value=_v)
+                    ws.cell(row=_start_row_test+i, column=col, value=_v)
         wb.save(out_path)
         return jsonify({
             'success': True,
@@ -6372,7 +6380,8 @@ def api_gerador_iniciar():
             _headers = []
             for ri, row in enumerate(ws.iter_rows(values_only=True), start=1):
                 _vals = [str(v).strip() if v is not None else '' for v in row]
-                if sum(1 for v in _vals if v) >= 3:
+                # Procurar linha com >=10 valores (headers reais), ignorando linhas de titulo de grupo
+                if sum(1 for v in _vals if v) >= 10:
                     _headers = [v for v in _vals if v]
                     break
             job['logs'].append({'nivel':'info','msg':f'📋 Planilha tem {len(_headers)} colunas'})
@@ -6500,12 +6509,23 @@ def api_gerador_iniciar():
             _col_por_header = {}
             for ri, row in enumerate(ws.iter_rows(values_only=True), start=1):
                 _vals = [str(v).strip() if v is not None else '' for v in row]
-                if sum(1 for v in _vals if v) >= 3:
+                # Procurar linha com >=10 valores (headers reais), ignorando linhas de titulo de grupo
+                if sum(1 for v in _vals if v) >= 10:
                     _header_row_idx = ri
                     for ci, v in enumerate(_vals, start=1):
                         if v: _col_por_header[v] = ci
                     break
+            # Pular para a linha de dados: header pode ter sub-linha (EN) na linha seguinte
+            # Procurar primeira linha vazia/quase vazia apos o header
             _start_row = _header_row_idx + 1
+            for ri in range(_header_row_idx + 1, _header_row_idx + 5):
+                row_vals = [ws.cell(row=ri, column=c).value for c in range(1, min(ws.max_column+1, 20))]
+                row_vals = [str(v).strip() if v else '' for v in row_vals]
+                # Se a linha tem muitos valores, eh sub-header (continuar pulando)
+                if sum(1 for v in row_vals if v) >= 5:
+                    _start_row = ri + 1
+                else:
+                    break
             for i, linha in enumerate(todas_linhas):
                 if not isinstance(linha, dict): continue
                 for header, val in linha.items():
