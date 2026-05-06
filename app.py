@@ -6601,9 +6601,14 @@ def api_gerador_historico():
         result = []
         for r in rows:
             result.append({'id': r['id'], 'municipio': r['municipio'], 'estado': r['estado'],
-                'arquivo_nome': r['arquivo_nome'], 'zonas_count': r['zonas_count'],
+                'arquivo_nome': r['arquivo_nome'], 'zonas_count': r['zonas_count'] or 0,
                 'criado_em': r['criado_em'].strftime('%d/%m/%Y às %H:%M') if r['criado_em'] else '',
-                'arquivo_url': '/static/downloads/' + r['arquivo_nome'] if r['arquivo_nome'] else None})
+                'arquivo_url': '/static/downloads/' + r['arquivo_nome'] if r['arquivo_nome'] else None,
+                'tokens_total': 0,
+                'landly_status': 'nao_enviada',
+                'landly_enviado_em': None,
+                'landly_erro': None,
+                'legislacoes_usadas': []})
         stats = {'total': len(result), 'tokens_total': 0, 'custo_usd_total': 0.0, 'landly_enviadas': 0}
         return jsonify({'success': True, 'planilhas': result, 'stats': stats})
     except Exception as e:
