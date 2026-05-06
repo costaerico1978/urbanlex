@@ -6270,39 +6270,33 @@ def api_gerador_iniciar():
             import zipfile as _zf, tempfile as _tmp, base64 as _b64, openpyxl as _xl, re as _re_gp, shutil as _sh
             from pathlib import Path
             from modulos.gerador_hibrido import (
-                chamar_ia, chamar_ia_com_retry, extrair_json, filtrar_pdfs_para_zona,
-                prompt_passada_0_catalogacao, prompt_passada_1_inventario,
-                prompt_passada_2_zona, prompt_passada_3_validacao,
-                DEFAULT_METADATA
+                extrair_json, DEFAULT_METADATA,
+                prompt_passada_0_catalogacao_avancada,
+                prompt_passada_1_inventario,
+                prompt_passada_2_pdf_driven_principal,
+                prompt_passada_2_pdf_driven_verificacao,
+                prompt_passada_3_validacao,
+                merge_resultado_no_estado,
+                estado_para_resumo_para_prompt,
+                estado_para_planilha_final,
             )
-            # ============================================================
-            # Determinar IA a usar
-            # ============================================================
+            from modulos.multi_ia import chamar_ia, montar_client, info_modelo, adequar_pdfs_para_janela
+            from modulos.vigencia import (
+                ordenar_pdfs_por_prioridade,
+                calcular_matriz_vigencia,
+                gerar_instrucao_revogacao_para_pdf,
+                filtrar_pdfs_revogados_totalmente,
+            )
             _ia = ia_provider or 'gemini-pro'
-            _modelos_ia = {
-                'gemini-flash': ('gemini', 'gemini-2.5-flash'),
-                'gemini-pro': ('gemini', 'gemini-2.5-pro'),
-                'claude-sonnet': ('anthropic', 'claude-sonnet-4-5'),
-                'claude-opus': ('anthropic', 'claude-opus-4-7'),
-            }
-            _provedor, _modelo = _modelos_ia.get(_ia, ('gemini', 'gemini-2.5-pro'))
-            job['logs'].append({'nivel':'info','msg':f'🤖 Usando: {_ia} ({_modelo})'})
-            client = None
-            if _provedor == 'anthropic':
-                import anthropic
-                client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY',''))
-            else:
-                import google.generativeai as _genai
-                _genai.configure(api_key=os.getenv('GEMINI_API_KEY',''))
-                client = _genai.GenerativeModel(_modelo)
-            # ============================================================
-            # Carregar metadata do prompt selecionado
-            # ============================================================
+            info_ia = info_modelo(_ia)
+            job['logs'].append({'nivel':'info','msg':f'IA: {_ia} ({info_ia["modelo"]})'})
+            client = montar_client(_ia)
+            if client is None:
+                raise Exception(f'IA {_ia} sem chave configurada')
             _metadata = dict(DEFAULT_METADATA)
             try:
-                _prompt_id = prompt_id_form
-                if _prompt_id:
-                    _mrows = qry("SELECT metadata FROM prompts_salvos WHERE id=%s", (int(_prompt_id),))
+                if prompt_id_form:
+                    _mrows = qry("SELECT metadata FROM prompts_salvos WHERE id=%s", (int(prompt_id_form),))
                     if _mrows and _mrows[0].get('metadata'):
                         _md = _mrows[0]['metadata']
                         if isinstance(_md, str):
@@ -6310,218 +6304,172 @@ def api_gerador_iniciar():
                             _md = _jm.loads(_md)
                         if isinstance(_md, dict):
                             _metadata.update(_md)
-                            job['logs'].append({'nivel':'info','msg':f'📋 Metadata do prompt v{_metadata.get("versao",0)} carregado'})
+                            job['logs'].append({'nivel':'info','msg':f'Metadata v{_metadata.get("versao",0)}'})
                 else:
-                    # Sem prompt_id: tentar extrair do conteudo direto
                     from modulos.gerador_hibrido import extrair_metadata_yaml
                     _ext = extrair_metadata_yaml(prompt)
                     if _ext: _metadata.update(_ext)
             except Exception as _emm:
-                job['logs'].append({'nivel':'aviso','msg':f'⚠ Erro carregando metadata: {_emm} — usando defaults'})
-            # ============================================================
-            # Coletar todos os PDFs do compilado em estrutura padronizada
-            # ============================================================
-            todos_anexos = []  # list of {title, data_b64, nome_arquivo}
-            job['logs'].append({'nivel':'info','msg':'✅ Iniciando estrategia hibrida (4 passadas)'})
+                job['logs'].append({'nivel':'aviso','msg':f'Erro metadata: {_emm}'})
+            todos_anexos = []
+            job['logs'].append({'nivel':'info','msg':'Iniciando arquitetura PDF-driven'})
             for comp in compilados:
                 mun = comp.get('municipio','?'); est = comp.get('estado','??')
-                # ZIP
                 if comp.get('zip_on') and comp.get('zip'):
                     zpath = comp['zip']
                     if zpath.startswith('/static/'): zpath = '/var/www/urbanlex' + zpath
                     if _os_gp.path.exists(zpath):
-                        job['logs'].append({'nivel':'info','msg':f'📦 Descompactando {_os_gp.path.basename(zpath)}...'})
                         try:
                             with _zf.ZipFile(zpath) as zf:
                                 for fname in zf.namelist():
                                     if fname.endswith('/') or fname.startswith('__MACOSX'): continue
                                     base = _os_gp.path.basename(fname)
                                     if not base.lower().endswith('.pdf'): continue
-                                    job['logs'].append({'nivel':'info','msg':f'📄 Lendo: {base}'})
                                     try:
                                         data = zf.read(fname)
-                                        if len(data) < 100 or not data.startswith(b'%PDF'):
-                                            job['logs'].append({'nivel':'aviso','msg':f'  ⚠ Pulado (nao-PDF ou vazio): {base}'})
-                                            continue
-                                        todos_anexos.append({
-                                            'title': f'{mun}/{est}: {base}',
-                                            'data_b64': _b64.standard_b64encode(data).decode(),
-                                            'nome_arquivo': base
-                                        })
-                                    except Exception as _ez:
-                                        job['logs'].append({'nivel':'aviso','msg':f'  ⚠ Erro lendo {base}: {_ez}'})
+                                        if len(data) < 100 or not data.startswith(b'%PDF'): continue
+                                        todos_anexos.append({'title': f'{mun}/{est}: {base}', 'data_b64': _b64.standard_b64encode(data).decode(), 'nome_arquivo': base})
+                                    except Exception: pass
                         except Exception as _ezi:
-                            job['logs'].append({'nivel':'erro','msg':f'❌ Erro extraindo ZIP: {_ezi}'})
-                # Tabela
+                            job['logs'].append({'nivel':'erro','msg':f'Erro ZIP: {_ezi}'})
                 if comp.get('tabela_on') and comp.get('tabela'):
                     tpath = comp['tabela']
                     if tpath.startswith('/static/'): tpath = '/var/www/urbanlex' + tpath
                     if _os_gp.path.exists(tpath):
-                        base = _os_gp.path.basename(tpath)
-                        job['logs'].append({'nivel':'info','msg':f'📊 Incluindo tabela: {base}'})
                         try:
                             with open(tpath, 'rb') as f2:
                                 data = f2.read()
-                                todos_anexos.append({
-                                    'title': f'Tabela {mun}/{est}',
-                                    'data_b64': _b64.standard_b64encode(data).decode(),
-                                    'nome_arquivo': base
-                                })
+                                todos_anexos.append({'title': f'Tabela {mun}/{est}', 'data_b64': _b64.standard_b64encode(data).decode(), 'nome_arquivo': _os_gp.path.basename(tpath)})
                         except Exception: pass
             if not todos_anexos:
-                raise Exception('Nenhum PDF valido para enviar a IA')
+                raise Exception('Nenhum PDF valido')
             _kb_total = sum(len(_b64.b64decode(a['data_b64'])) for a in todos_anexos) / 1024
-            job['logs'].append({'nivel':'info','msg':f'📁 Total: {len(todos_anexos)} arquivo(s), {_kb_total/1024:.1f}MB'})
-            # ============================================================
-            # Ler cabecalhos da planilha base (precisa para Passada 2)
-            # ============================================================
+            job['logs'].append({'nivel':'info','msg':f'Total: {len(todos_anexos)} arquivo(s), {_kb_total/1024:.1f}MB'})
+            todos_anexos, _ = adequar_pdfs_para_janela(todos_anexos, _ia, job['logs'])
             wb = _xl.load_workbook(template_path)
             ws = wb.active
             _headers = []
+            _header_row_idx = 1
             for ri, row in enumerate(ws.iter_rows(values_only=True), start=1):
                 _vals = [str(v).strip() if v is not None else '' for v in row]
-                # Procurar linha com >=10 valores (headers reais), ignorando linhas de titulo de grupo
                 if sum(1 for v in _vals if v) >= 10:
+                    _header_row_idx = ri
                     _headers = [v for v in _vals if v]
                     break
-            job['logs'].append({'nivel':'info','msg':f'📋 Planilha tem {len(_headers)} colunas'})
-            # ============================================================
-            # PASSADA 0: CATALOGACAO
-            # ============================================================
-            job['logs'].append({'nivel':'info','msg':'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'})
-            job['logs'].append({'nivel':'info','msg':'🔍 PASSADA 0: Catalogacao dos PDFs'})
-            mapa_arquivos = {}  # {nome_arquivo: identificacao}
+            job['logs'].append({'nivel':'info','msg':f'Planilha: {len(_headers)} colunas (header linha {_header_row_idx})'})
+            job['logs'].append({'nivel':'info','msg':'======= P0 CATALOGACAO ======='})
+            catalogacao = []
             try:
-                _p0 = prompt_passada_0_catalogacao([a['nome_arquivo'] for a in todos_anexos], _metadata)
-                _r0 = chamar_ia_com_retry(client, _provedor, _modelo, _p0, todos_anexos, job['logs'], 'P0')
+                _p0 = prompt_passada_0_catalogacao_avancada([a['nome_arquivo'] for a in todos_anexos], _metadata)
+                _r0 = chamar_ia(client, _ia, _p0, todos_anexos, job['logs'], 'P0')
                 _j0 = extrair_json(_r0)
-                if _j0 and _metadata['chave_catalogacao'] in _j0:
-                    for it in _j0[_metadata['chave_catalogacao']]:
-                        _e_cat = _metadata.get('estrutura_catalogacao') or {}
-                        n = it.get(_e_cat.get('nome_arquivo','nome_arquivo'))
-                        ident = it.get(_e_cat.get('identificacao','identificacao')) or ''
-                        if n: mapa_arquivos[n] = ident
-                    job['logs'].append({'nivel':'ok','msg':f'✅ P0: {len(mapa_arquivos)} arquivo(s) catalogado(s)'})
-                    for n, ident in list(mapa_arquivos.items())[:10]:
-                        job['logs'].append({'nivel':'info','msg':f'  • {n} → {ident}'})
-                    if len(mapa_arquivos) > 10:
-                        job['logs'].append({'nivel':'info','msg':f'  ... e mais {len(mapa_arquivos)-10}'})
+                if _j0 and 'arquivos' in _j0:
+                    catalogacao = _j0['arquivos']
+                    job['logs'].append({'nivel':'ok','msg':f'P0: {len(catalogacao)} catalogado(s)'})
                 else:
-                    job['logs'].append({'nivel':'aviso','msg':'⚠ P0: JSON invalido, seguindo sem catalogacao'})
+                    raise Exception('P0: JSON invalido')
             except Exception as _e0:
-                job['logs'].append({'nivel':'erro','msg':f'❌ P0 falhou: {_e0}'})
+                job['logs'].append({'nivel':'erro','msg':f'P0: {_e0}'})
                 raise
-            # ============================================================
-            # PASSADA 1: INVENTARIO DE ZONAS
-            # ============================================================
-            job['logs'].append({'nivel':'info','msg':'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'})
-            job['logs'].append({'nivel':'info','msg':'📊 PASSADA 1: Inventario de zonas'})
+            job['logs'].append({'nivel':'info','msg':'======= P1.5 MATRIZ VIGENCIA ======='})
+            matriz = calcular_matriz_vigencia(catalogacao)
+            cat_filtrada = filtrar_pdfs_revogados_totalmente(catalogacao, matriz)
+            cat_ordenada = ordenar_pdfs_por_prioridade(cat_filtrada)
+            job['logs'].append({'nivel':'info','msg':f'Revogadas: {len(matriz["leis_revogadas_totalmente"])}, Parciais: {len(matriz["revogacoes_parciais"])}'})
+            job['logs'].append({'nivel':'info','msg':'======= P1 INVENTARIO ======='})
             zonas_canonicas = []
             try:
                 _p1 = prompt_passada_1_inventario(prompt, _metadata)
-                _r1 = chamar_ia_com_retry(client, _provedor, _modelo, _p1, todos_anexos, job['logs'], 'P1')
+                _r1 = chamar_ia(client, _ia, _p1, todos_anexos, job['logs'], 'P1')
                 _j1 = extrair_json(_r1)
                 if _j1 and _metadata['chave_inventario'] in _j1:
                     zonas_canonicas = _j1[_metadata['chave_inventario']] or []
-                    job['logs'].append({'nivel':'ok','msg':f'✅ P1: {len(zonas_canonicas)} zona(s) canonica(s) identificada(s)'})
-                    _e_inv = _metadata.get('estrutura_inventario') or {}
-                    for z in zonas_canonicas[:20]:
-                        ut = z.get(_e_inv.get('unidade_territorial','unidade_territorial'),'?')
-                        nc = z.get(_e_inv.get('nome_canonico','nome_canonico'),'?')
-                        job['logs'].append({'nivel':'info','msg':f'  • {ut} / {nc}'})
-                    if len(zonas_canonicas) > 20:
-                        job['logs'].append({'nivel':'info','msg':f'  ... e mais {len(zonas_canonicas)-20}'})
-                    for al in (_j1.get('alertas') or [])[:5]:
-                        job['logs'].append({'nivel':'aviso','msg':f'  ⚠ {al}'})
+                    job['logs'].append({'nivel':'ok','msg':f'P1: {len(zonas_canonicas)} zonas'})
                 else:
-                    raise Exception(f'P1: JSON invalido ou sem chave "' + _metadata['chave_inventario'] + '"')
+                    raise Exception('P1: JSON invalido')
             except Exception as _e1:
-                job['logs'].append({'nivel':'erro','msg':f'❌ P1 falhou: {_e1}'})
+                job['logs'].append({'nivel':'erro','msg':f'P1: {_e1}'})
                 raise
             if not zonas_canonicas:
-                raise Exception('P1 nao identificou nenhuma zona — abortando')
-            # ============================================================
-            # PASSADA 2: PREENCHIMENTO POR ZONA (SERIE)
-            # ============================================================
-            job['logs'].append({'nivel':'info','msg':'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'})
-            job['logs'].append({'nivel':'info','msg':f'🎯 PASSADA 2: Preenchendo {len(zonas_canonicas)} zona(s) em serie'})
-            todas_linhas = []
-            for idx, zona in enumerate(zonas_canonicas, 1):
+                raise Exception('P1 nao identificou zonas')
+            job['logs'].append({'nivel':'info','msg':f'======= P2 PDF-DRIVEN ({len(cat_ordenada)} PDFs) ======='})
+            estado_planilha = {}
+            conflitos_log = []
+            mapa_nome_anexo = {a['nome_arquivo']: a for a in todos_anexos}
+            for idx_pdf, item_cat in enumerate(cat_ordenada, 1):
                 if job.get('cancelled'):
-                    job['logs'].append({'nivel':'aviso','msg':'⚠ Cancelado pelo usuario'})
+                    job['logs'].append({'nivel':'aviso','msg':'Cancelado'})
                     break
-                _e_inv2 = _metadata.get('estrutura_inventario') or {}
-                nc = zona.get(_e_inv2.get('nome_canonico','nome_canonico'),'?')
-                ut = zona.get(_e_inv2.get('unidade_territorial','unidade_territorial'),'?')
-                leis = zona.get(_e_inv2.get('leis_aplicaveis','leis_aplicaveis')) or []
-                job['logs'].append({'nivel':'info','msg':f'─── Zona {idx}/{len(zonas_canonicas)}: {ut} / {nc} ───'})
-                # Filtrar PDFs
-                anexos_zona = filtrar_pdfs_para_zona(leis, mapa_arquivos, todos_anexos)
-                if not anexos_zona:
-                    job['logs'].append({'nivel':'aviso','msg':f'  ⚠ Sem PDFs filtrados — usando todos como fallback'})
-                    anexos_zona = todos_anexos
-                else:
-                    job['logs'].append({'nivel':'info','msg':f'  📎 Usando {len(anexos_zona)} PDF(s) relevante(s) (de {len(todos_anexos)})'})
-                try:
-                    _p2 = prompt_passada_2_zona(prompt, nc, ut, _headers, _metadata)
-                    _r2 = chamar_ia_com_retry(client, _provedor, _modelo, _p2, anexos_zona, job['logs'], f'P2.{idx}')
-                    _j2 = extrair_json(_r2)
-                    if _j2 and _metadata['chave_zona_individual'] in _j2:
-                        ls = _j2[_metadata['chave_zona_individual']] or []
-                        todas_linhas.extend(ls)
-                        job['logs'].append({'nivel':'ok','msg':f'  ✅ +{len(ls)} linha(s) (total: {len(todas_linhas)})'})
-                    else:
-                        job['logs'].append({'nivel':'aviso','msg':f'  ⚠ JSON invalido — pulando esta zona'})
-                except Exception as _e2:
-                    job['logs'].append({'nivel':'erro','msg':f'  ❌ Erro nesta zona: {_e2}'})
+                lei_id = item_cat.get('identificacao', '?')
+                nome_arq = item_cat.get('nome_arquivo', '?')
+                anexo_pdf = mapa_nome_anexo.get(nome_arq)
+                if not anexo_pdf:
+                    job['logs'].append({'nivel':'aviso','msg':f'PDF {nome_arq} nao encontrado'})
                     continue
-            # ============================================================
-            # PASSADA 3: VALIDACAO FINAL
-            # ============================================================
-            job['logs'].append({'nivel':'info','msg':'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'})
-            job['logs'].append({'nivel':'info','msg':'🔎 PASSADA 3: Validacao final'})
+                job['logs'].append({'nivel':'info','msg':f'--- {idx_pdf}/{len(cat_ordenada)}: {lei_id} ---'})
+                instrucao_rev = gerar_instrucao_revogacao_para_pdf(lei_id, matriz)
+                resumo_estado = estado_para_resumo_para_prompt(estado_planilha)
+                try:
+                    _p2a = prompt_passada_2_pdf_driven_principal(prompt, lei_id, zonas_canonicas, _headers, instrucao_rev, resumo_estado, _metadata)
+                    _r2a = chamar_ia(client, _ia, _p2a, [anexo_pdf], job['logs'], f'P2.{idx_pdf}a')
+                    _j2a = extrair_json(_r2a)
+                    if _j2a:
+                        adic, conf = merge_resultado_no_estado(_j2a, lei_id, nome_arq, estado_planilha, conflitos_log, _metadata)
+                        job['logs'].append({'nivel':'ok','msg':f'  Principal: +{adic} celulas, {conf} conflitos'})
+                    else:
+                        continue
+                except Exception as _e2a:
+                    job['logs'].append({'nivel':'erro','msg':f'  Principal: {_e2a}'})
+                    continue
+                try:
+                    _p2b = prompt_passada_2_pdf_driven_verificacao(prompt, lei_id, _j2a, zonas_canonicas, _headers, instrucao_rev, _metadata)
+                    _r2b = chamar_ia(client, _ia, _p2b, [anexo_pdf], job['logs'], f'P2.{idx_pdf}b')
+                    _j2b = extrair_json(_r2b)
+                    if _j2b:
+                        adic_v, _ = merge_resultado_no_estado(_j2b, lei_id, nome_arq, estado_planilha, conflitos_log, _metadata)
+                        if adic_v > 0:
+                            job['logs'].append({'nivel':'ok','msg':f'  Verificacao: +{adic_v}'})
+                except Exception as _e2b:
+                    job['logs'].append({'nivel':'aviso','msg':f'  Verificacao falhou: {_e2b}'})
+            job['logs'].append({'nivel':'info','msg':'======= P3 VALIDACAO ======='})
             try:
                 import json as _json3
-                _consolidado = _json3.dumps({'linhas': todas_linhas}, ensure_ascii=False, indent=2)[:50000]
+                linhas_finais = estado_para_planilha_final(estado_planilha)
+                _consolidado = _json3.dumps({'linhas': linhas_finais}, ensure_ascii=False, indent=2)[:50000]
                 _p3 = prompt_passada_3_validacao(_consolidado, zonas_canonicas, _metadata)
-                _r3 = chamar_ia_com_retry(client, _provedor, _modelo, _p3, todos_anexos, job['logs'], 'P3')
+                _r3 = chamar_ia(client, _ia, _p3, todos_anexos, job['logs'], 'P3')
                 _j3 = extrair_json(_r3)
                 if _j3:
                     faltantes = _j3.get(_metadata['chave_validacao']) or []
                     if faltantes:
-                        todas_linhas.extend(faltantes)
-                        job['logs'].append({'nivel':'ok','msg':f'✅ P3: +{len(faltantes)} linha(s) faltantes adicionada(s)'})
-                    else:
-                        job['logs'].append({'nivel':'ok','msg':'✅ P3: nenhuma linha faltante'})
-                    for al in (_j3.get('alertas') or [])[:10]:
-                        job['logs'].append({'nivel':'aviso','msg':f'  ⚠ {al}'})
-                else:
-                    job['logs'].append({'nivel':'aviso','msg':'⚠ P3: JSON invalido — seguindo sem validacao'})
+                        adic_p3, _ = merge_resultado_no_estado({'linhas': faltantes}, 'P3', 'P3', estado_planilha, conflitos_log, _metadata)
+                        job['logs'].append({'nivel':'ok','msg':f'P3: +{adic_p3}'})
             except Exception as _e3:
-                job['logs'].append({'nivel':'aviso','msg':f'⚠ P3 falhou (nao bloqueante): {_e3}'})
-            # ============================================================
-            # PREENCHER PLANILHA
-            # ============================================================
-            job['logs'].append({'nivel':'info','msg':'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'})
-            job['logs'].append({'nivel':'info','msg':f'📝 Preenchendo planilha com {len(todas_linhas)} linha(s)'})
-            # Encontrar linha de header e mapear cabecalho -> coluna
-            _header_row_idx = 1
+                job['logs'].append({'nivel':'aviso','msg':f'P3 falhou: {_e3}'})
+            if conflitos_log:
+                try:
+                    conn_c = get_db(); cur_c = conn_c.cursor()
+                    for cf in conflitos_log:
+                        cur_c.execute("INSERT INTO gerador_conflitos_log (job_id, zona, coluna, lei_vencedora, valor_vencedor, lei_perdedora, valor_perdedor, motivo) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+                            (job_id, cf.get('chave_zona'), cf.get('coluna'), cf.get('lei_vencedora'), str(cf.get('valor_vencedor'))[:500], cf.get('lei_perdedora'), str(cf.get('valor_perdedor'))[:500], cf.get('motivo')))
+                    conn_c.commit(); cur_c.close(); conn_c.close()
+                    job['logs'].append({'nivel':'info','msg':f'{len(conflitos_log)} conflitos auditados'})
+                except Exception as _ec:
+                    job['logs'].append({'nivel':'aviso','msg':f'Conflitos: {_ec}'})
+            todas_linhas = estado_para_planilha_final(estado_planilha)
+            job['logs'].append({'nivel':'info','msg':f'Preenchendo planilha com {len(todas_linhas)} linhas'})
             _col_por_header = {}
             for ri, row in enumerate(ws.iter_rows(values_only=True), start=1):
                 _vals = [str(v).strip() if v is not None else '' for v in row]
-                # Procurar linha com >=10 valores (headers reais), ignorando linhas de titulo de grupo
                 if sum(1 for v in _vals if v) >= 10:
                     _header_row_idx = ri
                     for ci, v in enumerate(_vals, start=1):
                         if v: _col_por_header[v] = ci
                     break
-            # Pular para a linha de dados: header pode ter sub-linha (EN) na linha seguinte
-            # Procurar primeira linha vazia/quase vazia apos o header
             _start_row = _header_row_idx + 1
             for ri in range(_header_row_idx + 1, _header_row_idx + 5):
-                row_vals = [ws.cell(row=ri, column=c).value for c in range(1, min(ws.max_column+1, 20))]
+                row_vals = [ws.cell(row=ri, column=col).value for col in range(1, min(ws.max_column+1, 20))]
                 row_vals = [str(v).strip() if v else '' for v in row_vals]
-                # Se a linha tem muitos valores, eh sub-header (continuar pulando)
                 if sum(1 for v in row_vals if v) >= 5:
                     _start_row = ri + 1
                 else:
@@ -6531,16 +6479,12 @@ def api_gerador_iniciar():
                 for header, val in linha.items():
                     col = _col_por_header.get(header)
                     if col:
-                        # Converter dict/list/None para string antes de escrever (openpyxl nao aceita)
-                        if val is None:
-                            _v = ''
+                        if val is None: _v = ''
                         elif isinstance(val, (dict, list)):
                             import json as _jcell
                             _v = _jcell.dumps(val, ensure_ascii=False)
-                        else:
-                            _v = val
+                        else: _v = val
                         ws.cell(row=_start_row+i, column=col, value=_v)
-            # Salvar
             from datetime import datetime as _dt
             _now = _dt.now()
             _ts = _now.strftime('%d%m%Y_%H%M')
@@ -6550,8 +6494,7 @@ def api_gerador_iniciar():
             nome_arquivo = f'parametros_urbanos_{_est}_{_mun}_{_ts}.xlsx'
             out_path = f'/var/www/urbanlex/static/downloads/{nome_arquivo}'
             wb.save(out_path)
-            job['logs'].append({'nivel':'ok','msg':f'✅ Planilha salva: {nome_arquivo}'})
-            # Salvar no banco
+            job['logs'].append({'nivel':'ok','msg':f'Salvo: {nome_arquivo}'})
             try:
                 conn2 = get_db(); cur2 = conn2.cursor()
                 for comp in compilados:
