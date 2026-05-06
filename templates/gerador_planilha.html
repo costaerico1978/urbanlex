@@ -266,27 +266,37 @@
       <button onclick="gpFecharModalEstrategia()" class="gp-mini" style="font-size:18px;">✕</button>
     </div>
     <div style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6;">
-      Cada execucao do gerador faz 4 chamadas a IA, em serie, com prompts especificos:
+      Arquitetura PDF-driven com dupla passagem. Cada execucao processa 6 etapas:
     </div>
     <div style="display:flex;flex-direction:column;gap:14px;">
       <div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--surface2);">
-        <div style="font-weight:600;margin-bottom:6px;color:var(--accent);">🔍 Passada 0 - Catalogacao</div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Identifica cada PDF pelo cabecalho/ementa. Monta mapa nome_arquivo → lei.</div>
+        <div style="font-weight:600;margin-bottom:6px;color:var(--accent);">🔍 Passada 0 - Catalogacao Avancada</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Identifica cada PDF, hierarquia juridica, datas, abrangencia e detecta revogacoes parciais com escopo (dispositivo + geografia + uso).</div>
         <pre id="gp-prompt-p0" style="font-family:var(--font-mono);font-size:10px;white-space:pre-wrap;background:var(--surface);padding:10px;border-radius:6px;max-height:180px;overflow-y:auto;"></pre>
       </div>
       <div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--surface2);">
-        <div style="font-weight:600;margin-bottom:6px;color:var(--accent);">📊 Passada 1 - Inventario</div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Aplica seu prompt + identifica todas as zonas/subzonas e normaliza grafias (etapa 0.9).</div>
+        <div style="font-weight:600;margin-bottom:6px;color:var(--accent);">📊 Passada 1 - Inventario de Zonas</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Identifica todas as zonas/subzonas + normaliza grafias (etapa 0.9).</div>
         <pre id="gp-prompt-p1" style="font-family:var(--font-mono);font-size:10px;white-space:pre-wrap;background:var(--surface);padding:10px;border-radius:6px;max-height:180px;overflow-y:auto;"></pre>
       </div>
-      <div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--surface2);">
-        <div style="font-weight:600;margin-bottom:6px;color:var(--accent);">🎯 Passada 2 - Por zona (1 chamada por zona)</div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Para cada zona da Passada 1, envia apenas os PDFs relevantes e pede 1 linha preenchida.</div>
-        <pre id="gp-prompt-p2" style="font-family:var(--font-mono);font-size:10px;white-space:pre-wrap;background:var(--surface);padding:10px;border-radius:6px;max-height:180px;overflow-y:auto;"></pre>
+      <div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--surface2);border-left:3px solid #2ecc71;">
+        <div style="font-weight:600;margin-bottom:6px;color:#2ecc71;">⚖️ Passada 1.5 - Matriz de Vigencia (sem IA)</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Backend Python: filtra leis revogadas totalmente, ordena por hierarquia (LC > LO > Decreto > Errata) + data, prepara instrucoes de revogacao para cada PDF.</div>
+        <pre id="gp-prompt-p15" style="font-family:var(--font-mono);font-size:10px;white-space:pre-wrap;background:var(--surface);padding:10px;border-radius:6px;max-height:180px;overflow-y:auto;"></pre>
       </div>
       <div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--surface2);">
-        <div style="font-weight:600;margin-bottom:6px;color:var(--accent);">🔎 Passada 3 - Validacao final</div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Manda o consolidado + todos os PDFs e pergunta se alguma zona ficou de fora.</div>
+        <div style="font-weight:600;margin-bottom:6px;color:var(--accent);">🎯 Passada 2A - Preenchimento PDF-driven (principal)</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Para cada PDF (na ordem da P1.5), uma unica chamada. Preenche TUDO que esta lei define em todas as zonas que ela cobre. Sistema mescla sem sobrescrever.</div>
+        <pre id="gp-prompt-p2a" style="font-family:var(--font-mono);font-size:10px;white-space:pre-wrap;background:var(--surface);padding:10px;border-radius:6px;max-height:180px;overflow-y:auto;"></pre>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--surface2);">
+        <div style="font-weight:600;margin-bottom:6px;color:var(--accent);">🔁 Passada 2B - Verificacao de Omissoes</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Segunda chamada por PDF: revisa o resultado da 2A e identifica o que foi esquecido. Captura ~95% das omissoes.</div>
+        <pre id="gp-prompt-p2b" style="font-family:var(--font-mono);font-size:10px;white-space:pre-wrap;background:var(--surface);padding:10px;border-radius:6px;max-height:180px;overflow-y:auto;"></pre>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--surface2);">
+        <div style="font-weight:600;margin-bottom:6px;color:var(--accent);">🔎 Passada 3 - Validacao Final</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Recebe planilha consolidada + todos os PDFs. Detecta omissoes finais.</div>
         <pre id="gp-prompt-p3" style="font-family:var(--font-mono);font-size:10px;white-space:pre-wrap;background:var(--surface);padding:10px;border-radius:6px;max-height:180px;overflow-y:auto;"></pre>
       </div>
     </div>
@@ -382,7 +392,7 @@ async function gpAbrirModalEstrategia(){
   const m = document.getElementById('gp-modal-estrategia');
   m.style.display = 'flex';
   // Mostrar loading
-  ['gp-prompt-p0','gp-prompt-p1','gp-prompt-p2','gp-prompt-p3'].forEach(id => {
+  ['gp-prompt-p0','gp-prompt-p1','gp-prompt-p15','gp-prompt-p2a','gp-prompt-p2b','gp-prompt-p3'].forEach(id => {
     document.getElementById(id).textContent = 'Carregando do backend...';
   });
   // Buscar prompts gerados (com metadata do prompt selecionado se houver)
@@ -393,23 +403,25 @@ async function gpAbrirModalEstrategia(){
     if (d.success) {
       document.getElementById('gp-prompt-p0').textContent = d.p0;
       document.getElementById('gp-prompt-p1').textContent = d.p1;
-      document.getElementById('gp-prompt-p2').textContent = d.p2;
+      document.getElementById('gp-prompt-p15').textContent = d.p15 || '(passada interna sem IA)';
+      document.getElementById('gp-prompt-p2a').textContent = d.p2a || d.p2 || '';
+      document.getElementById('gp-prompt-p2b').textContent = d.p2b || '';
       document.getElementById('gp-prompt-p3').textContent = d.p3;
       // Atualizar titulo com versao do metadata
       const tituloEl = document.querySelector('#gp-modal-estrategia h2');
       if (tituloEl) {
         const v = d.metadata_versao || 0;
-        tituloEl.textContent = '🎯 Estrategia: Hibrida (4 passadas em serie) — Prompt v' + v;
+        tituloEl.textContent = '🎯 Estrategia: PDF-driven (6 etapas, dupla passagem) — Prompt v' + v;
       }
       // Atualizar cache para download
-      _gpPromptsEstrategia = {p0: d.p0, p1: d.p1, p2: d.p2, p3: d.p3};
+      _gpPromptsEstrategia = {p0: d.p0, p1: d.p1, p15: d.p15 || '', p2a: d.p2a || d.p2 || '', p2b: d.p2b || '', p3: d.p3};
     } else {
-      ['gp-prompt-p0','gp-prompt-p1','gp-prompt-p2','gp-prompt-p3'].forEach(id => {
+      ['gp-prompt-p0','gp-prompt-p1','gp-prompt-p15','gp-prompt-p2a','gp-prompt-p2b','gp-prompt-p3'].forEach(id => {
         document.getElementById(id).textContent = 'Erro: ' + (d.error || 'falhou');
       });
     }
   } catch(e) {
-    ['gp-prompt-p0','gp-prompt-p1','gp-prompt-p2','gp-prompt-p3'].forEach(id => {
+    ['gp-prompt-p0','gp-prompt-p1','gp-prompt-p15','gp-prompt-p2a','gp-prompt-p2b','gp-prompt-p3'].forEach(id => {
       document.getElementById(id).textContent = 'Erro de rede: ' + e.message;
     });
   }
@@ -418,17 +430,20 @@ function gpFecharModalEstrategia(){
   document.getElementById('gp-modal-estrategia').style.display = 'none';
 }
 function gpBaixarPrompts(){
-  const txt = '====================================================================\n' +
-    'URBANLEX - PROMPTS DA ESTRATEGIA HIBRIDA (4 passadas)\n' +
-    '====================================================================\n\n' +
-    '--- PASSADA 0: CATALOGACAO ---\n\n' + _gpPromptsEstrategia.p0 + '\n\n' +
-    '--- PASSADA 1: INVENTARIO ---\n\n' + _gpPromptsEstrategia.p1 + '\n\n' +
-    '--- PASSADA 2: POR ZONA (1 chamada por zona) ---\n\n' + _gpPromptsEstrategia.p2 + '\n\n' +
-    '--- PASSADA 3: VALIDACAO FINAL ---\n\n' + _gpPromptsEstrategia.p3 + '\n';
+  const sep = '====================================================================\n';
+  const txt = sep +
+    'URBANLEX - PROMPTS DA ARQUITETURA PDF-DRIVEN (6 etapas, dupla passagem)\n' +
+    sep + '\n' +
+    '--- PASSADA 0: CATALOGACAO AVANCADA (com revogacoes) ---\n\n' + (_gpPromptsEstrategia.p0||'') + '\n\n' +
+    '--- PASSADA 1: INVENTARIO DE ZONAS ---\n\n' + (_gpPromptsEstrategia.p1||'') + '\n\n' +
+    '--- PASSADA 1.5: MATRIZ DE VIGENCIA (sem IA) ---\n\n' + (_gpPromptsEstrategia.p15||'') + '\n\n' +
+    '--- PASSADA 2A: PREENCHIMENTO PDF-DRIVEN PRINCIPAL ---\n\n' + (_gpPromptsEstrategia.p2a||_gpPromptsEstrategia.p2||'') + '\n\n' +
+    '--- PASSADA 2B: VERIFICACAO DE OMISSOES ---\n\n' + (_gpPromptsEstrategia.p2b||'') + '\n\n' +
+    '--- PASSADA 3: VALIDACAO FINAL ---\n\n' + (_gpPromptsEstrategia.p3||'') + '\n';
   const blob = new Blob([txt], {type:'text/plain'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'urbanlex_prompts_estrategia_hibrida.txt';
+  a.download = 'urbanlex_prompts_pdf_driven.txt';
   a.click();
 }
 

@@ -5764,16 +5764,43 @@ def api_gerador_test_preencher():
         import traceback as _tb
         return jsonify({'success': False, 'error': str(e), 'trace': _tb.format_exc()[-500:]})
 
+@app.route('/api/gerador/conflitos/<job_id>')
+@login_required
+def api_gerador_conflitos(job_id):
+    """Lista conflitos detectados durante uma execucao do gerador."""
+    try:
+        rows = qry("""SELECT zona, coluna, lei_vencedora, valor_vencedor,
+                          lei_perdedora, valor_perdedor, motivo, detectado_em
+                   FROM gerador_conflitos_log
+                   WHERE job_id=%s
+                   ORDER BY detectado_em ASC""", (job_id,))
+        conflitos = []
+        for r in rows:
+            conflitos.append({
+                'zona': r.get('zona'),
+                'coluna': r.get('coluna'),
+                'lei_vencedora': r.get('lei_vencedora'),
+                'valor_vencedor': r.get('valor_vencedor'),
+                'lei_perdedora': r.get('lei_perdedora'),
+                'valor_perdedor': r.get('valor_perdedor'),
+                'motivo': r.get('motivo'),
+                'detectado_em': r.get('detectado_em').strftime('%d/%m/%Y %H:%M') if r.get('detectado_em') else ''
+            })
+        return jsonify({'success': True, 'job_id': job_id, 'conflitos': conflitos, 'total': len(conflitos)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/gerador/preview-prompts')
 @login_required
 def api_gerador_preview_prompts():
-    """Retorna os 4 prompts da estrategia hibrida ja com metadata do prompt selecionado aplicado."""
+    """Retorna os prompts da arquitetura PDF-driven (6 passadas) ja com metadata aplicado."""
     try:
         from modulos.gerador_hibrido import (
             DEFAULT_METADATA,
-            prompt_passada_0_catalogacao,
+            prompt_passada_0_catalogacao_avancada,
             prompt_passada_1_inventario,
-            prompt_passada_2_zona,
+            prompt_passada_2_pdf_driven_principal,
+            prompt_passada_2_pdf_driven_verificacao,
             prompt_passada_3_validacao,
             extrair_metadata_yaml
         )
@@ -5795,23 +5822,38 @@ def api_gerador_preview_prompts():
             except Exception: pass
         if not prompt_text:
             prompt_text = '[Conteudo do prompt selecionado pelo usuario]'
-        # Gerar os 4 prompts (placeholders para nomes/zonas/headers)
-        nomes_exemplo = ['LC_270_2024.pdf', 'LC_281_2025.pdf', '...']
-        zona_ex = '<NOME_DA_ZONA>'
-        ut_ex = '<UNIDADE_TERRITORIAL>'
-        headers_ex = ['<cabecalho_1>', '<cabecalho_2>', '<cabecalho_3>']
-        json_consol_ex = '<JSON_CONSOLIDADO_DAS_PASSADAS_ANTERIORES>'
-        zonas_ex = [{'nome_canonico': '<ZONA_1>', 'unidade_territorial': '<UT_1>'}]
-        p0 = prompt_passada_0_catalogacao(nomes_exemplo, meta)
+        # Placeholders
+        nomes_exemplo = ['LC_270_2024.pdf', 'LC_281_2025.pdf', 'Errata_LC_281.pdf', '...']
+        lei_id_ex = 'LC 281/2025'
+        zonas_ex = [{'nome_canonico': 'ZRM2', 'unidade_territorial': 'AP-2.1', 'leis_aplicaveis': ['LC 281/2025']}]
+        headers_ex = ['Pais', 'Estado', 'Municipio', 'Zona Urbana', 'Subzona Urbana', 'Area_Planejamento', '<...>']
+        instrucao_rev_ex = '\n=== INSTRUCAO DE REVOGACOES PARCIAIS ===\nA lei "LC 270/2024" sofreu as seguintes revogacoes parciais:\n  - Art. 47 revogado por LC 281/2025\n  - Tabela XV do Anexo II revogada por LC 281/2025 (apenas para AP-1, AP-2.1)\n'
+        estado_ex = {'AP-1||zrm2-a||a||||': ['Pais', 'Estado', 'Zona Urbana', 'Coeficiente de aproveitamento basico']}
+        json_consol_ex = '<JSON_CONSOLIDADO>'
+        # Gerar
+        p0 = prompt_passada_0_catalogacao_avancada(nomes_exemplo, meta)
         p1 = prompt_passada_1_inventario(prompt_text, meta)
-        p2 = prompt_passada_2_zona(prompt_text, zona_ex, ut_ex, headers_ex, meta)
+        p15_explicacao = (
+            'PASSADA 1.5 — MATRIZ DE VIGENCIA (sem chamada IA)\n\n'
+            'Backend Python que processa a saida da P0 e calcula:\n'
+            '1. Quais leis foram revogadas TOTALMENTE (filtradas)\n'
+            '2. Revogacoes PARCIAIS detectadas (escopo: dispositivo + geografia + uso)\n'
+            '3. Ordem de processamento dos PDFs (hierarquia: LC > LO > Decreto > Errata)\n'
+            '4. Para cada PDF, lista de revogacoes a aplicar antes de ler o conteudo\n\n'
+            'Esta passada nao consome tokens. Resultado e usado nas instrucoes da P2.'
+        )
+        p2a = prompt_passada_2_pdf_driven_principal(prompt_text, lei_id_ex, zonas_ex, headers_ex, instrucao_rev_ex, estado_ex, meta)
+        p2b = prompt_passada_2_pdf_driven_verificacao(prompt_text, lei_id_ex, {'linhas': []}, zonas_ex, headers_ex, instrucao_rev_ex, meta)
         p3 = prompt_passada_3_validacao(json_consol_ex, zonas_ex, meta)
         return jsonify({
             'success': True,
             'metadata_versao': meta.get('versao', 0),
+            'arquitetura': 'pdf-driven-dupla-passagem',
             'p0': p0,
             'p1': p1,
-            'p2': p2,
+            'p15': p15_explicacao,
+            'p2a': p2a,
+            'p2b': p2b,
             'p3': p3
         })
     except Exception as e:
