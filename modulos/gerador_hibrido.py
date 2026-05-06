@@ -365,6 +365,117 @@ def prompt_passada_1_inventario(prompt_usuario, metadata=None):
     )
 
 
+def prompt_passada_2_pdf_driven_principal(prompt_usuario, lei_identificacao, zonas_canonicas,
+                                            headers, instrucao_revogacao, estado_atual_resumo, metadata=None):
+    """
+    P2 PDF-driven (chamada principal): para cada PDF, preenche todas as celulas
+    que esta lei especifica define, em todas as zonas que ela cobre.
+    
+    Recebe:
+    - prompt_usuario: prompt v8 do usuario (regras gerais)
+    - lei_identificacao: ex "LC 281/2025"
+    - zonas_canonicas: lista das zonas identificadas na P1
+    - headers: nomes EXATOS dos cabecalhos da planilha
+    - instrucao_revogacao: texto de revogacoes ja aplicadas a esta lei (do vigencia.py)
+    - estado_atual_resumo: resumo do que ja foi preenchido (zona -> [colunas])
+    """
+    metadata = metadata or {}
+    chave_zona = metadata.get('chave_zona_individual', 'linhas')
+    campo_ni = metadata.get('campo_sem_info', 'NI')
+    
+    headers_lista = '\n'.join(f'  • "{h}"' for h in headers[:50])
+    if len(headers) > 50:
+        headers_lista += f'\n  ... e mais {len(headers)-50} colunas (use o nome EXATO de cada cabecalho)'
+    
+    zonas_str = '\n'.join(f'  • {z.get("nome_canonico","?")} (em {z.get("unidade_territorial","?")})'
+                          for z in zonas_canonicas[:50])
+    if len(zonas_canonicas) > 50:
+        zonas_str += f'\n  ... e mais {len(zonas_canonicas)-50} zonas'
+    
+    estado_str = '(planilha vazia, esta e a primeira lei)' if not estado_atual_resumo else \
+                 '\n'.join(f'  • {z}: {len(cols)} colunas ja preenchidas' for z, cols in list(estado_atual_resumo.items())[:30])
+    
+    return prompt_usuario + (
+        f'\n\n=== INSTRUCAO DESTA EXECUCAO — PASSADA 2 (PDF-DRIVEN PRINCIPAL) ===\n'
+        f'Esta e a Passada 2. Voce esta lendo APENAS a lei "{lei_identificacao}".\n\n'
+        f'TAREFA: Para CADA zona/unidade territorial cobertas POR ESTA LEI, preencha\n'
+        f'TODAS as colunas da planilha que esta lei especifica define.\n\n'
+        f'PRINCIPIO FUNDAMENTAL:\n'
+        f'• Preencha APENAS o que ESTA lei explicitamente define ou modifica.\n'
+        f'• NAO retorne colunas que esta lei NAO menciona (deixa para outra lei preencher).\n'
+        f'• NAO preencha zonas que esta lei NAO menciona explicitamente.\n'
+        f'• Para campos que esta lei NAO define, NAO inclua a chave no JSON (omita).\n\n'
+        f'{instrucao_revogacao}\n'
+        f'\n=== ZONAS CANONICAS DESTE MUNICIPIO ===\n{zonas_str}\n\n'
+        f'=== HEADERS EXATOS DA PLANILHA ===\n{headers_lista}\n\n'
+        f'=== ESTADO ATUAL DA PLANILHA (ja preenchido por leis anteriores) ===\n{estado_str}\n\n'
+        f'OBSERVACOES SOBRE O ESTADO ATUAL:\n'
+        f'• Voce PODE preencher colunas que ja estao preenchidas em zonas — o sistema decidira\n'
+        f'  por prioridade (lei mais recente vence).\n'
+        f'• Mas FOQUE em colunas que ainda nao foram preenchidas e que ESTA lei define.\n\n'
+        f'Retorne SOMENTE este JSON, sem markdown, sem comentarios:\n'
+        '{\n'
+        f'  "{chave_zona}": [\n'
+        '    {\n'
+        '      "Zona Urbana": "<nome canonico>",\n'
+        '      "Subzona Urbana": "<letra/codigo>",\n'
+        '      "Area_Planejamento": "<UT>",\n'
+        '      "<header_exato>": "<valor>",\n'
+        '      ...\n'
+        '    }\n'
+        '  ]\n'
+        '}\n\n'
+        f'Cada chave do dicionario deve ser EXATAMENTE um header da planilha listado acima.\n'
+        f'Para campos sem informacao na lei, OMITA a chave (nao use "{campo_ni}" aqui — omita).\n'
+        f'Para colunas calculadas (Parte 7 do prompt), OMITA tambem.\n'
+        f'Para granularidade fina (logradouros, faces de quadra), retorne MULTIPLAS linhas\n'
+        f'da mesma zona com Divisoes diferentes.'
+    )
+
+
+def prompt_passada_2_pdf_driven_verificacao(prompt_usuario, lei_identificacao, resultado_principal,
+                                             zonas_canonicas, headers, instrucao_revogacao, metadata=None):
+    """
+    P2 PDF-driven (chamada de verificacao): receba resultado da chamada principal
+    e identifique o que foi ESQUECIDO. So retorna omissoes.
+    """
+    metadata = metadata or {}
+    chave_zona = metadata.get('chave_zona_individual', 'linhas')
+    
+    import json as _json
+    resultado_str = _json.dumps(resultado_principal, ensure_ascii=False, indent=2)
+    if len(resultado_str) > 30000:
+        resultado_str = resultado_str[:30000] + '\n... (truncado)'
+    
+    headers_lista = '\n'.join(f'  • "{h}"' for h in headers[:50])
+    if len(headers) > 50:
+        headers_lista += f'\n  ... e mais {len(headers)-50}'
+    
+    return prompt_usuario + (
+        f'\n\n=== INSTRUCAO DESTA EXECUCAO — PASSADA 2 (VERIFICACAO DE OMISSOES) ===\n'
+        f'Esta e a Passada 2 (segunda chamada). Voce esta lendo APENAS a lei "{lei_identificacao}".\n\n'
+        f'A chamada anterior preencheu o seguinte (consulte abaixo). Sua tarefa AGORA e:\n'
+        f'1. Identificar TUDO que a lei "{lei_identificacao}" define mas nao foi preenchido na chamada anterior.\n'
+        f'2. Identificar zonas que a lei menciona mas nao apareceram no resultado.\n'
+        f'3. Identificar colunas que esta lei define para zonas que ja apareceram, mas nao foram preenchidas.\n\n'
+        f'{instrucao_revogacao}\n'
+        f'\n=== RESULTADO DA CHAMADA ANTERIOR ===\n{resultado_str}\n\n'
+        f'=== HEADERS EXATOS DA PLANILHA ===\n{headers_lista}\n\n'
+        f'Retorne SOMENTE as OMISSOES. Use o mesmo formato JSON da chamada anterior:\n'
+        '{\n'
+        f'  "{chave_zona}": [\n'
+        '    {\n'
+        '      "Zona Urbana": "<zona>",\n'
+        '      "Area_Planejamento": "<UT>",\n'
+        '      "<header_exato>": "<valor que foi esquecido>"\n'
+        '    }\n'
+        '  ]\n'
+        '}\n\n'
+        f'Se nada foi esquecido, retorne: {{"{chave_zona}": []}}\n'
+        f'Nao repita o que ja foi preenchido. So omissoes.'
+    )
+
+
 def prompt_passada_2_zona(prompt_usuario, zona_canonica, unidade_territorial, headers, metadata=None):
     metadata = metadata or DEFAULT_METADATA
     chave_zona = metadata.get('chave_zona_individual', 'linhas')
