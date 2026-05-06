@@ -6604,7 +6604,8 @@ def api_gerador_historico():
                 'arquivo_nome': r['arquivo_nome'], 'zonas_count': r['zonas_count'],
                 'criado_em': r['criado_em'].strftime('%d/%m/%Y às %H:%M') if r['criado_em'] else '',
                 'arquivo_url': '/static/downloads/' + r['arquivo_nome'] if r['arquivo_nome'] else None})
-        return jsonify({'success': True, 'planilhas': result})
+        stats = {'total': len(result), 'tokens_total': 0, 'custo_usd_total': 0.0, 'landly_enviadas': 0}
+        return jsonify({'success': True, 'planilhas': result, 'stats': stats})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
