@@ -16,6 +16,50 @@ import base64
 # ============================================================
 # Funcao util: chamar IA com streaming + heartbeat
 # ============================================================
+def chamar_ia_com_retry(client, provedor, modelo, prompt_text, pdf_anexos, job_logs, label='IA',
+                         max_tentativas=5, intervalo_base=15):
+    """
+    Wrapper de chamar_ia com retry automatico em erros transitorios.
+
+    Erros considerados transitorios e que serao reprocessados:
+    - 503 ServiceUnavailable (Gemini overload)
+    - 429 RateLimit
+    - 500/502/504 (server errors)
+    - timeout, connection reset, network errors
+
+    Erros NAO transitorios (propagam direto): JSON parse error, auth error, validation error.
+
+    Backoff: intervalo_base * tentativa (linear). Padrao: 15s, 30s, 45s, 60s, 75s.
+    """
+    import time as _t
+    erros_transitorios = ['503', '429', '500', '502', '504', 'overload',
+                          'high demand', 'rate limit', 'timeout', 'unavailable',
+                          'connection reset', 'network', 'temporarily',
+                          'try again', 'try later', 'deadline exceeded']
+    ultima_excecao = None
+    for tentativa in range(1, max_tentativas + 1):
+        try:
+            return chamar_ia(client, provedor, modelo, prompt_text, pdf_anexos, job_logs, label)
+        except Exception as e:
+            ultima_excecao = e
+            msg_erro = str(e).lower()
+            transitorio = any(t in msg_erro for t in erros_transitorios)
+            if not transitorio:
+                # Erro nao transitorio: propaga imediato
+                job_logs.append({'nivel':'erro','msg':f'❌ {label}: erro nao-transitorio, abortando: {str(e)[:200]}'})
+                raise
+            if tentativa >= max_tentativas:
+                # Esgotou tentativas
+                job_logs.append({'nivel':'erro','msg':f'❌ {label}: esgotou {max_tentativas} tentativas: {str(e)[:200]}'})
+                raise
+            espera = intervalo_base * tentativa
+            job_logs.append({'nivel':'aviso','msg':f'⚠ {label}: erro transitorio (tentativa {tentativa}/{max_tentativas}), aguardando {espera}s antes de retry: {str(e)[:150]}'})
+            _t.sleep(espera)
+    # Nao deveria chegar aqui
+    if ultima_excecao:
+        raise ultima_excecao
+
+
 def chamar_ia(client, provedor, modelo, prompt_text, pdf_anexos, job_logs, label='IA'):
     """
     Chama IA (Gemini ou Anthropic) com streaming e heartbeat de 15s.
