@@ -35,14 +35,14 @@ MODELOS = {
         'modelo': 'claude-sonnet-4-5',
         'janela_tokens': 200_000,
         'output_max_tokens': 8_192,
-        'tokens_por_pagina_pdf': 1_500,  # Anthropic processa mais rico, mais tokens/pg
+        'tokens_por_pagina_pdf': 2_300,  # Anthropic processa mais rico, mais tokens/pg
     },
     'claude-opus': {
         'provedor': 'anthropic',
         'modelo': 'claude-opus-4-7',
         'janela_tokens': 200_000,
         'output_max_tokens': 8_192,
-        'tokens_por_pagina_pdf': 1_500,
+        'tokens_por_pagina_pdf': 2_300,
     },
 }
 
@@ -98,46 +98,44 @@ def comprimir_pdf(pdf_bytes):
         return pdf_bytes
 
 
-def adequar_pdfs_para_janela(pdfs, ia_id, logs=None):
+def estimar_tokens_lista(pdfs, tpp):
+    """Estima total de tokens para uma lista de PDFs."""
+    import base64
+    total = 0
+    for p in pdfs:
+        try:
+            data = base64.b64decode(p['data_b64'])
+            total += estimar_tokens_pdf(data, tpp)
+        except Exception:
+            pass
+    return total
+
+
+def dividir_em_blocos(pdfs, ia_id, logs=None):
     """
-    Recebe lista de pdfs [{'title','data_b64','nome_arquivo'}] e a IA escolhida.
-    Retorna lista de pdfs que cabem na janela. Se nao couberem, comprime.
-    Se ainda nao couberem, retorna a lista original (chamador decide se divide).
-    
-    Se logs fornecido, registra o que foi feito.
+    Divide PDFs em blocos que cabem na janela da IA.
+    Tenta na ordem: 1) cabe direto, 2) comprime, 3) divide.
+    Sempre retorna LISTA DE BLOCOS (1+ listas de pdfs).
     """
     import base64
     info = info_modelo(ia_id)
     janela = info['janela_tokens']
     tpp = info['tokens_por_pagina_pdf']
+    limite = int(janela * 0.70)
     
-    # Reservar 15% da janela para prompt + resposta
-    limite = int(janela * 0.85)
-    
-    # Estimar tokens totais
-    total_estimado = 0
-    for p in pdfs:
-        try:
-            data = base64.b64decode(p['data_b64'])
-            total_estimado += estimar_tokens_pdf(data, tpp)
-        except Exception:
-            pass
-    
+    total = estimar_tokens_lista(pdfs, tpp)
     if logs is not None:
         logs.append({'nivel': 'info',
-                     'msg': f'  📊 Tokens estimados ({ia_id}): {total_estimado:,} / janela {janela:,}'})
+                     'msg': f'  📊 Tokens estimados ({ia_id}): {total:,} / janela {janela:,}'})
     
-    if total_estimado <= limite:
-        # Cabe sem mexer
-        return pdfs, False  # (lista, foi_comprimido)
+    if total <= limite:
+        return [pdfs]
     
-    # Tentar comprimir
     if logs is not None:
         logs.append({'nivel': 'aviso',
-                     'msg': f'  ⚠ Estourou janela. Comprimindo {len(pdfs)} PDF(s)...'})
+                     'msg': f'  ⚠ Estourou janela ({total:,} > {limite:,}). Comprimindo PDFs...'})
     
     pdfs_comp = []
-    novo_total = 0
     for p in pdfs:
         try:
             data = base64.b64decode(p['data_b64'])
@@ -147,16 +145,54 @@ def adequar_pdfs_para_janela(pdfs, ia_id, logs=None):
                 'data_b64': base64.standard_b64encode(data_comp).decode(),
                 'nome_arquivo': p.get('nome_arquivo', '?')
             })
-            novo_total += estimar_tokens_pdf(data_comp, tpp)
         except Exception:
             pdfs_comp.append(p)
     
+    total_c = estimar_tokens_lista(pdfs_comp, tpp)
     if logs is not None:
-        ratio = novo_total / total_estimado if total_estimado > 0 else 1.0
         logs.append({'nivel': 'info',
-                     'msg': f'  📦 Apos compressao: {novo_total:,} tokens ({ratio*100:.0f}% do original)'})
+                     'msg': f'  📦 Apos compressao: {total_c:,} tokens'})
     
-    return pdfs_comp, True
+    if total_c <= limite:
+        return [pdfs_comp]
+    
+    if logs is not None:
+        logs.append({'nivel': 'aviso',
+                     'msg': f'  ✂ Ainda nao cabe. Dividindo em blocos de ate {limite:,} tokens...'})
+    
+    blocos = []
+    bloco = []
+    t_bloco = 0
+    for p in pdfs_comp:
+        try:
+            data = base64.b64decode(p['data_b64'])
+            t_p = estimar_tokens_pdf(data, tpp)
+        except Exception:
+            t_p = limite // 4
+        if t_bloco + t_p > limite and bloco:
+            blocos.append(bloco)
+            bloco = [p]
+            t_bloco = t_p
+        else:
+            bloco.append(p)
+            t_bloco += t_p
+    if bloco:
+        blocos.append(bloco)
+    
+    if logs is not None:
+        logs.append({'nivel': 'info',
+                     'msg': f'  ✂ {len(blocos)} bloco(s) gerado(s)'})
+        for i, b in enumerate(blocos, 1):
+            tb = estimar_tokens_lista(b, tpp)
+            logs.append({'nivel': 'info', 'msg': f'    Bloco {i}: {len(b)} PDF(s), ~{tb:,} tokens'})
+    
+    return blocos
+
+
+def adequar_pdfs_para_janela(pdfs, ia_id, logs=None):
+    """Compat: retorna primeiro bloco + flag se foi comprimido/dividido."""
+    blocos = dividir_em_blocos(pdfs, ia_id, logs)
+    return blocos[0], (len(blocos) > 1)
 
 
 # ============================================================
@@ -315,3 +351,91 @@ def montar_client(ia_id):
             return genai.GenerativeModel(modelo)
         except Exception:
             return None
+
+def chamar_ia_com_blocos(client, ia_id, prompt_text, pdfs, logs, label='IA',
+                          chave_agregar=None, max_tentativas=5, intervalo_base=15):
+    """
+    Chama a IA dividindo automaticamente em blocos se necessario.
+    Faz N chamadas (1 por bloco) e agrega resultados.
+    
+    chave_agregar: chave do JSON de saida que contem a lista a agregar.
+                   Ex: 'arquivos' (P0), 'zonas_canonicas' (P1), 'linhas' (P3).
+                   Se None, retorna apenas o resultado do PRIMEIRO bloco (avisando).
+    
+    Retorna texto-JSON consolidado (string) que pode ser parseado normalmente.
+    """
+    import json as _json
+    blocos = dividir_em_blocos(pdfs, ia_id, logs)
+    
+    if len(blocos) == 1:
+        # Caso comum: um unico bloco
+        return chamar_ia(client, ia_id, prompt_text, blocos[0], logs, label,
+                         max_tentativas=max_tentativas, intervalo_base=intervalo_base)
+    
+    # Multiplos blocos: fazer N chamadas e agregar
+    if logs is not None:
+        logs.append({'nivel': 'aviso',
+                     'msg': f'⚙ {label} sera enviado em {len(blocos)} chamadas (PDFs nao cabem em uma unica janela).'})
+    
+    resultados = []
+    for i, bloco in enumerate(blocos, 1):
+        sub_label = f'{label}.{i}/{len(blocos)}'
+        if logs is not None:
+            logs.append({'nivel': 'info',
+                         'msg': f'  ▶ {sub_label}: {len(bloco)} PDF(s)'})
+        # Adicionar nota ao prompt sobre divisao
+        prompt_bloco = (prompt_text +
+                        f'\n\n[NOTA: Este e o BLOCO {i} de {len(blocos)} blocos de PDFs '
+                        f'enviados separadamente devido ao tamanho. Voce esta vendo apenas '
+                        f'os PDFs deste bloco. Outros blocos serao processados em chamadas '
+                        f'separadas e os resultados serao agregados pelo backend.]')
+        try:
+            r = chamar_ia(client, ia_id, prompt_bloco, bloco, logs, sub_label,
+                          max_tentativas=max_tentativas, intervalo_base=intervalo_base)
+            resultados.append(r)
+        except Exception as e:
+            if logs is not None:
+                logs.append({'nivel': 'erro',
+                             'msg': f'  ❌ {sub_label}: falhou: {str(e)[:200]}'})
+            # Continua os outros blocos mesmo se um falhar
+            continue
+    
+    if not resultados:
+        raise Exception(f'{label}: todos os blocos falharam')
+    
+    # Agregar JSONs
+    if chave_agregar is None:
+        # Sem chave: retornar apenas o primeiro bloco
+        if logs is not None:
+            logs.append({'nivel': 'aviso',
+                         'msg': f'⚠ {label}: chave_agregar=None, retornando apenas o 1o bloco'})
+        return resultados[0]
+    
+    # Parsear cada resultado e agregar a chave
+    items_agregados = []
+    alertas_agregados = []
+    for j, r in enumerate(resultados, 1):
+        try:
+            # Tentar parsear JSON (mesma logica que extrair_json)
+            from modulos.gerador_hibrido import extrair_json
+            obj = extrair_json(r)
+            if obj is None:
+                continue
+            if chave_agregar in obj and isinstance(obj[chave_agregar], list):
+                items_agregados.extend(obj[chave_agregar])
+            if 'alertas' in obj and isinstance(obj['alertas'], list):
+                alertas_agregados.extend(obj['alertas'])
+        except Exception as e:
+            if logs is not None:
+                logs.append({'nivel': 'aviso',
+                             'msg': f'  ⚠ Erro parseando bloco {j}: {str(e)[:100]}'})
+    
+    if logs is not None:
+        logs.append({'nivel': 'ok',
+                     'msg': f'✅ {label}: agregado de {len(blocos)} blocos -> {len(items_agregados)} {chave_agregar}'})
+    
+    # Retornar JSON consolidado
+    consolidado = {chave_agregar: items_agregados}
+    if alertas_agregados:
+        consolidado['alertas'] = alertas_agregados
+    return _json.dumps(consolidado, ensure_ascii=False)

@@ -6322,7 +6322,7 @@ def api_gerador_iniciar():
                 estado_para_resumo_para_prompt,
                 estado_para_planilha_final,
             )
-            from modulos.multi_ia import chamar_ia, montar_client, info_modelo, adequar_pdfs_para_janela
+            from modulos.multi_ia import chamar_ia, chamar_ia_com_blocos, montar_client, info_modelo, adequar_pdfs_para_janela
             from modulos.vigencia import (
                 ordenar_pdfs_por_prioridade,
                 calcular_matriz_vigencia,
@@ -6387,7 +6387,7 @@ def api_gerador_iniciar():
                 raise Exception('Nenhum PDF valido')
             _kb_total = sum(len(_b64.b64decode(a['data_b64'])) for a in todos_anexos) / 1024
             job['logs'].append({'nivel':'info','msg':f'Total: {len(todos_anexos)} arquivo(s), {_kb_total/1024:.1f}MB'})
-            todos_anexos, _ = adequar_pdfs_para_janela(todos_anexos, _ia, job['logs'])
+            # adequar_pdfs_para_janela agora e feito automaticamente dentro de chamar_ia_com_blocos
             wb = _xl.load_workbook(template_path)
             ws = wb.active
             _headers = []
@@ -6403,7 +6403,7 @@ def api_gerador_iniciar():
             catalogacao = []
             try:
                 _p0 = prompt_passada_0_catalogacao_avancada([a['nome_arquivo'] for a in todos_anexos], _metadata)
-                _r0 = chamar_ia(client, _ia, _p0, todos_anexos, job['logs'], 'P0')
+                _r0 = chamar_ia_com_blocos(client, _ia, _p0, todos_anexos, job['logs'], 'P0', chave_agregar='arquivos')
                 _j0 = extrair_json(_r0)
                 if _j0 and 'arquivos' in _j0:
                     catalogacao = _j0['arquivos']
@@ -6422,7 +6422,7 @@ def api_gerador_iniciar():
             zonas_canonicas = []
             try:
                 _p1 = prompt_passada_1_inventario(prompt, _metadata)
-                _r1 = chamar_ia(client, _ia, _p1, todos_anexos, job['logs'], 'P1')
+                _r1 = chamar_ia_com_blocos(client, _ia, _p1, todos_anexos, job['logs'], 'P1', chave_agregar=_metadata['chave_inventario'])
                 _j1 = extrair_json(_r1)
                 if _j1 and _metadata['chave_inventario'] in _j1:
                     zonas_canonicas = _j1[_metadata['chave_inventario']] or []
@@ -6479,7 +6479,7 @@ def api_gerador_iniciar():
                 linhas_finais = estado_para_planilha_final(estado_planilha)
                 _consolidado = _json3.dumps({'linhas': linhas_finais}, ensure_ascii=False, indent=2)[:50000]
                 _p3 = prompt_passada_3_validacao(_consolidado, zonas_canonicas, _metadata)
-                _r3 = chamar_ia(client, _ia, _p3, todos_anexos, job['logs'], 'P3')
+                _r3 = chamar_ia_com_blocos(client, _ia, _p3, todos_anexos, job['logs'], 'P3', chave_agregar=_metadata['chave_validacao'])
                 _j3 = extrair_json(_r3)
                 if _j3:
                     faltantes = _j3.get(_metadata['chave_validacao']) or []
