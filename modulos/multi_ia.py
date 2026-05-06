@@ -121,7 +121,7 @@ def dividir_em_blocos(pdfs, ia_id, logs=None):
     info = info_modelo(ia_id)
     janela = info['janela_tokens']
     tpp = info['tokens_por_pagina_pdf']
-    limite = int(janela * 0.70)
+    limite = int(janela * 0.50)
     
     total = estimar_tokens_lista(pdfs, tpp)
     if logs is not None:
@@ -353,7 +353,8 @@ def montar_client(ia_id):
             return None
 
 def chamar_ia_com_blocos(client, ia_id, prompt_text, pdfs, logs, label='IA',
-                          chave_agregar=None, max_tentativas=5, intervalo_base=15):
+                          chave_agregar=None, max_tentativas=5, intervalo_base=15,
+                          pausa_entre_blocos=60):
     """
     Chama a IA dividindo automaticamente em blocos se necessario.
     Faz N chamadas (1 por bloco) e agrega resultados.
@@ -397,8 +398,14 @@ def chamar_ia_com_blocos(client, ia_id, prompt_text, pdfs, logs, label='IA',
             if logs is not None:
                 logs.append({'nivel': 'erro',
                              'msg': f'  ❌ {sub_label}: falhou: {str(e)[:200]}'})
-            # Continua os outros blocos mesmo se um falhar
             continue
+        # Pausa entre blocos para respeitar rate limit (Anthropic Sonnet: 30k tokens/min)
+        if i < len(blocos) and pausa_entre_blocos > 0 and ia_id.startswith('claude'):
+            if logs is not None:
+                logs.append({'nivel': 'info',
+                             'msg': f'  ⏸ Aguardando {pausa_entre_blocos}s antes do proximo bloco (rate limit)...'})
+            import time as _tt
+            _tt.sleep(pausa_entre_blocos)
     
     if not resultados:
         raise Exception(f'{label}: todos os blocos falharam')
