@@ -116,7 +116,7 @@ def chamar_ia(client, provedor, modelo, prompt_text, pdf_anexos, job_logs, label
                     parts.append({'mime_type': 'application/pdf', 'data': data})
                 except Exception:
                     pass
-            stream = client.generate_content(parts, stream=True)
+            stream = client.generate_content(parts, stream=True, request_options={'timeout': 300})
             for chunk in stream:
                 try:
                     piece = chunk.text if hasattr(chunk, 'text') else ''
