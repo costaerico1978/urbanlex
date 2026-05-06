@@ -648,3 +648,140 @@ def remover_bloco_yaml(texto_prompt):
         '', cleaned
     )
     return cleaned.strip()
+
+# ============================================================
+# Merge nao-destrutivo de resultados
+# ============================================================
+def chave_zona_normalizada(linha, metadata=None):
+    """
+    Gera uma chave unica para a linha baseada em zona+UT+subzona+divisoes.
+    Usada para identificar a mesma linha em chamadas P2 sucessivas.
+    """
+    metadata = metadata or {}
+    estr = metadata.get('estrutura_inventario', {}) or {}
+    
+    # Tentar varios nomes possiveis
+    candidatos = {
+        'zona': ['Zona Urbana', estr.get('nome_canonico', 'nome_canonico'), 'zona'],
+        'subzona': ['Subzona Urbana', 'subzona'],
+        'ut': ['Area_Planejamento', estr.get('unidade_territorial', 'unidade_territorial'), 'unidade_territorial'],
+        'div1': ['Divisao Subzona Urbana 1', 'divisao_1'],
+        'div2': ['Divisao Subzona Urbana 2', 'divisao_2'],
+    }
+    
+    valores = {}
+    for k, possiveis in candidatos.items():
+        for cand in possiveis:
+            if cand in linha:
+                valores[k] = str(linha[cand]).strip().lower()
+                break
+        if k not in valores:
+            valores[k] = ''
+    
+    return f"{valores['ut']}||{valores['zona']}||{valores['subzona']}||{valores['div1']}||{valores['div2']}"
+
+
+def merge_resultado_no_estado(resultado_iaA, lei_origem, pdf_origem,
+                               estado_atual, conflitos_log, metadata=None):
+    """
+    Mescla resultado de uma chamada P2 (de uma lei especifica) no estado da planilha.
+    NAO SOBRESCREVE celulas ja preenchidas (lei mais recente venceu).
+    Loga conflitos.
+    
+    estado_atual: dict {chave_zona: {coluna: {valor, lei_origem, pdf_origem}}}
+    conflitos_log: lista que recebe novos conflitos detectados
+    
+    Modifica estado_atual in-place. Retorna numero de celulas adicionadas e conflitos.
+    """
+    metadata = metadata or {}
+    chave_zona_md = metadata.get('chave_zona_individual', 'linhas')
+    
+    if not isinstance(resultado_iaA, dict):
+        return 0, 0
+    
+    linhas = resultado_iaA.get(chave_zona_md) or resultado_iaA.get('linhas') or []
+    if not isinstance(linhas, list):
+        return 0, 0
+    
+    adicionadas = 0
+    conflitos = 0
+    
+    for linha in linhas:
+        if not isinstance(linha, dict):
+            continue
+        chave = chave_zona_normalizada(linha, metadata)
+        if not chave or chave == '||||||||':
+            continue
+        
+        if chave not in estado_atual:
+            estado_atual[chave] = {'_meta': dict(linha)}  # metadados (zona, ut, etc)
+        
+        for col, valor in linha.items():
+            if not col:
+                continue
+            # Pular colunas vazias
+            if valor is None or (isinstance(valor, str) and not valor.strip()):
+                continue
+            
+            existente = estado_atual[chave].get(col)
+            if existente is None or (isinstance(existente, dict) and existente.get('_eh_meta')):
+                # Celula vazia: preencher
+                estado_atual[chave][col] = {
+                    'valor': valor,
+                    'lei_origem': lei_origem,
+                    'pdf_origem': pdf_origem,
+                }
+                adicionadas += 1
+            else:
+                # Celula ja preenchida: conflito (lei anterior tinha precedencia)
+                if isinstance(existente, dict):
+                    val_anterior = existente.get('valor')
+                    lei_anterior = existente.get('lei_origem')
+                    if str(val_anterior).strip() != str(valor).strip():
+                        conflitos += 1
+                        conflitos_log.append({
+                            'chave_zona': chave,
+                            'coluna': col,
+                            'lei_vencedora': lei_anterior,
+                            'valor_vencedor': val_anterior,
+                            'lei_perdedora': lei_origem,
+                            'valor_perdedor': valor,
+                            'motivo': 'lei_anterior_tem_precedencia'
+                        })
+    
+    return adicionadas, conflitos
+
+
+def estado_para_resumo_para_prompt(estado_atual, max_zonas=30):
+    """
+    Converte estado_atual em dict simples {zona_chave: [colunas_preenchidas]}
+    para incluir no prompt da proxima chamada P2.
+    """
+    resumo = {}
+    for chave, dados in list(estado_atual.items())[:max_zonas]:
+        cols = [k for k in dados.keys() if k != '_meta' and isinstance(dados.get(k), dict)]
+        resumo[chave] = cols
+    return resumo
+
+
+def estado_para_planilha_final(estado_atual):
+    """
+    Converte estado_atual em lista de linhas planas {coluna: valor}
+    pronta para escrever na planilha (xlsx).
+    """
+    linhas_finais = []
+    for chave, dados in estado_atual.items():
+        linha = {}
+        # Recuperar metadados (zona, ut, etc) do _meta
+        meta = dados.get('_meta', {})
+        for k, v in meta.items():
+            if v is not None and (not isinstance(v, str) or v.strip()):
+                linha[k] = v
+        # Adicionar valores preenchidos
+        for col, info in dados.items():
+            if col == '_meta':
+                continue
+            if isinstance(info, dict) and 'valor' in info:
+                linha[col] = info['valor']
+        linhas_finais.append(linha)
+    return linhas_finais
