@@ -225,6 +225,84 @@ def filtrar_pdfs_para_zona(leis_aplicaveis, mapa_arquivos, todos_anexos):
 # ============================================================
 # Geradores de prompt para cada passada
 # ============================================================
+def prompt_passada_0_catalogacao_avancada(nomes_arquivos=None, metadata=None):
+    """
+    Versao avancada da P0 para a arquitetura PDF-driven.
+    Alem de identificar cada PDF, extrai:
+    - data de publicacao
+    - hierarquia juridica
+    - data de vigencia (inicio/fim)
+    - abrangencia (municipal/AP especifica)
+    - tipo de atuacao (principal/modificadora/regulamentadora/errata)
+    - leis modificadas com escopo detalhado
+    """
+    nomes_arquivos = nomes_arquivos or []
+    lista_nomes = '\n'.join(f'  {i+1}. {n}' for i, n in enumerate(nomes_arquivos))
+    return (
+        '\n\n=== INSTRUCAO DESTA EXECUCAO — PASSADA 0 (AVANCADA): CATALOGACAO ===\n'
+        'Esta e a Passada 0. NAO preencha a planilha.\n\n'
+        'Os PDFs anexados, NA ORDEM em que foram enviados, correspondem a estes nomes:\n\n'
+        + lista_nomes + '\n\n'
+        'Para cada PDF, leia cabecalho/ementa/preambulo + artigos finais (revogacao) e identifique:\n\n'
+        '1. IDENTIFICACAO BASICA:\n'
+        '   - tipo de ato (lei_complementar, lei_ordinaria, decreto, portaria, errata, retificacao)\n'
+        '   - identificacao formal: "LC NNN/AAAA", "Dec NNNNN/AAAA", "Errata LC NNN/AAAA"\n'
+        '   - municipio e estado\n'
+        '   - data de publicacao (formato YYYY-MM-DD se possivel)\n\n'
+        '2. HIERARQUIA E VIGENCIA:\n'
+        '   - hierarquia_juridica: 1=Constituicao, 2=LC, 3=LO, 4=Decreto, 5=Errata, 6=Portaria\n'
+        '   - data_vigencia_inicio: quando passou a valer (data publicacao + vacatio se houver)\n'
+        '   - data_vigencia_fim: null se ainda valida; data se foi revogada totalmente\n\n'
+        '3. ABRANGENCIA:\n'
+        '   - abrangencia: "municipal_total" | "ap_especifica" | "regiao" | "bairro" | "zona_especifica"\n'
+        '   - ap_atingidas: lista de APs/Regioes/Bairros se nao for municipal_total\n\n'
+        '4. TIPO DE ATUACAO:\n'
+        '   - "principal": lei autonoma que cria zoneamento ou parametros\n'
+        '   - "modificadora": lei que altera/revoga partes de outra\n'
+        '   - "regulamentadora": decreto que regulamenta lei superior\n'
+        '   - "errata": correcao formal de erro material\n\n'
+        '5. LEIS MODIFICADAS (CRITICO — revogacao parcial):\n'
+        '   Para cada lei que ESTA lei modifica/revoga, retornar:\n'
+        '   - alvo: identificacao da lei alvo (ex: "LC 270/2024")\n'
+        '   - tipo_modificacao: "revogacao_total" | "revogacao_parcial" | "alteracao" | "errata"\n'
+        '   - escopo: lista de partes especificamente afetadas, cada uma com:\n'
+        '     * dispositivo: "Art. NN", "Art. NN §M", "Tabela X do Anexo Y", "Anexo XV"\n'
+        '     * geografia: "todas" | "AP-X" | "RP-Y" | nome de bairro/regiao | nome de zona\n'
+        '     * uso: "todos" | "Residencial" | "Comercial" | etc\n\n'
+        'IMPORTANTE: detecte revogacao IMPLICITA tambem. Se a lei nova tem um Anexo XXI com\n'
+        'a mesma finalidade do Anexo XV de uma lei anterior, marque como substituicao\n'
+        '(tipo_modificacao: "revogacao_parcial" sobre o Anexo XV).\n\n'
+        'Use o nome de arquivo EXATO da lista acima (mesma posicao do PDF anexado).\n\n'
+        'Retorne SOMENTE este JSON, sem markdown, sem comentarios:\n'
+        '{\n'
+        '  "arquivos": [\n'
+        '    {\n'
+        '      "nome_arquivo": "LC_281_2025.pdf",\n'
+        '      "identificacao": "LC 281/2025",\n'
+        '      "tipo": "lei_complementar",\n'
+        '      "data": "2025-03-15",\n'
+        '      "hierarquia_juridica": 2,\n'
+        '      "data_vigencia_inicio": "2025-04-15",\n'
+        '      "data_vigencia_fim": null,\n'
+        '      "abrangencia": "municipal_total",\n'
+        '      "ap_atingidas": [],\n'
+        '      "tipo_atuacao": "modificadora",\n'
+        '      "leis_modificadas": [\n'
+        '        {\n'
+        '          "alvo": "LC 270/2024",\n'
+        '          "tipo_modificacao": "revogacao_parcial",\n'
+        '          "escopo": [\n'
+        '            {"dispositivo": "Art. 47", "geografia": "todas", "uso": "todos"},\n'
+        '            {"dispositivo": "Tabela XV do Anexo II", "geografia": "AP-1, AP-2.1", "uso": "todos"}\n'
+        '          ]\n'
+        '        }\n'
+        '      ]\n'
+        '    }\n'
+        '  ]\n'
+        '}'
+    )
+
+
 def prompt_passada_0_catalogacao(nomes_arquivos=None, metadata=None):
     metadata = metadata or DEFAULT_METADATA
     nomes_arquivos = nomes_arquivos or []
