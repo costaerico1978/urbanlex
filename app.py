@@ -6454,10 +6454,28 @@ def api_gerador_iniciar():
                 try:
                     _p2a = prompt_passada_2_pdf_driven_principal(prompt, lei_id, zonas_canonicas, _headers, instrucao_rev, resumo_estado, _metadata)
                     _r2a = chamar_ia(client, _ia, _p2a, [anexo_pdf], job['logs'], f'P2.{idx_pdf}a')
+                    # DEBUG: salvar resposta bruta para inspecao
+                    try:
+                        _dbg_dir = '/var/www/urbanlex/static/debug'
+                        _os_gp.makedirs(_dbg_dir, exist_ok=True)
+                        _dbg_path = f'{_dbg_dir}/{job_id}_P2.{idx_pdf}a_{nome_arq[:50]}.json'
+                        with open(_dbg_path, 'w') as _df:
+                            _df.write(_r2a)
+                        job['logs'].append({'nivel':'info','msg':f'  [DEBUG] resposta P2.{idx_pdf}a salva em /static/debug/'})
+                    except Exception as _ed:
+                        pass
                     _j2a = extrair_json(_r2a)
                     if _j2a:
+                        # Contar quantas chaves a IA retornou
+                        _key_count = 0
+                        try:
+                            _linhas_retornadas = _j2a.get(_metadata['chave_zona_individual'], _j2a.get('linhas', []))
+                            for _ln in _linhas_retornadas:
+                                if isinstance(_ln, dict):
+                                    _key_count += sum(1 for v in _ln.values() if v not in (None, '', 'NI'))
+                        except: pass
                         adic, conf = merge_resultado_no_estado(_j2a, lei_id, nome_arq, estado_planilha, conflitos_log, _metadata)
-                        job['logs'].append({'nivel':'ok','msg':f'  Principal: +{adic} celulas, {conf} conflitos'})
+                        job['logs'].append({'nivel':'ok','msg':f'  Principal: IA retornou {_key_count} valores util(eis), backend mesclou +{adic} celulas, {conf} conflitos'})
                     else:
                         continue
                 except Exception as _e2a:
@@ -6466,6 +6484,15 @@ def api_gerador_iniciar():
                 try:
                     _p2b = prompt_passada_2_pdf_driven_verificacao(prompt, lei_id, _j2a, zonas_canonicas, _headers, instrucao_rev, _metadata)
                     _r2b = chamar_ia(client, _ia, _p2b, [anexo_pdf], job['logs'], f'P2.{idx_pdf}b')
+                    # DEBUG: salvar resposta bruta
+                    try:
+                        _dbg_dir = '/var/www/urbanlex/static/debug'
+                        _os_gp.makedirs(_dbg_dir, exist_ok=True)
+                        _dbg_path = f'{_dbg_dir}/{job_id}_P2.{idx_pdf}b_{nome_arq[:50]}.json'
+                        with open(_dbg_path, 'w') as _df:
+                            _df.write(_r2b)
+                    except Exception as _ed:
+                        pass
                     _j2b = extrair_json(_r2b)
                     if _j2b:
                         adic_v, _ = merge_resultado_no_estado(_j2b, lei_id, nome_arq, estado_planilha, conflitos_log, _metadata)
