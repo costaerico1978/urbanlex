@@ -2958,7 +2958,8 @@ def navegar_com_cookies_flaresolverr(
     label: str = "",
     chamar_llm=None,
     executable_path: str = None,
-    max_passos: int = 20
+    max_passos: int = 20,
+    url_lei_pre_descoberta: str = None
 ) -> dict:
     import requests as _req
     from playwright.sync_api import sync_playwright
@@ -3128,15 +3129,20 @@ def navegar_com_cookies_flaresolverr(
                         pass
                 except Exception as e_login:
                     logs.append({'nivel': 'aviso', 'msg': f'{label}: Erro no login: {str(e_login)[:80]}'})
-            resultado = navegar_como_humano(
-                page=page,
-                frame=page,
-                legislacao=legislacao,
-                chamar_llm=llm_func,
-                logs=logs,
-                label=label,
-                max_passos=max_passos
-            )
+            if url_lei_pre_descoberta:
+                # Scraper ja descobriu a URL canonica — pula navegacao Gemini
+                logs.append({"nivel": "ok", "msg": f"{label}: usando URL pre-descoberta pelo scraper: {url_lei_pre_descoberta[:80]}"})
+                resultado = {"encontrada": True, "url": url_lei_pre_descoberta, "status": "scraper", "confirmacao": "via_scraper", "pdf_path": None}
+            else:
+                resultado = navegar_como_humano(
+                    page=page,
+                    frame=page,
+                    legislacao=legislacao,
+                    chamar_llm=llm_func,
+                    logs=logs,
+                    label=label,
+                    max_passos=max_passos
+                )
             if resultado.get('encontrada') and resultado.get('url'):
                 try:
                     import time as _t2
@@ -3385,12 +3391,43 @@ def navegar_com_cookies_flaresolverr(
                                                             _anexos_anx = []
                                                             _pdf_dir_anx = _os_anx.path.join(_os_anx.path.dirname(_os_anx.path.dirname(__file__)), 'static', 'downloads')
                                                             _os_anx.makedirs(_pdf_dir_anx, exist_ok=True)
-                                                            for _a_anx in _soup_anx.find_all('a', attrs={'data-s3-expires': True}):
-                                                                _exp_anx = int(_a_anx.get('data-s3-expires', 0))
+                                                            # Detectar anexos: 1) data-s3-expires, 2) href com /anexos/ ou /anexo-, 3) texto/href com 'anexo'/'tabela'/'quadro'/'mapa'
+                                                            _link_set_anx = set()  # evitar duplicatas
+                                                            _candidatos_anx = []
+                                                            # Padrao 1: data-s3-expires (S3 com expiracao)
+                                                            for _a_s3 in _soup_anx.find_all('a', attrs={'data-s3-expires': True}):
+                                                                try:
+                                                                    if int(_a_s3.get('data-s3-expires', 0)) > _now_anx:
+                                                                        _candidatos_anx.append(_a_s3)
+                                                                except: pass
+                                                            # Padrao 2: href contendo /anexos/, /anexo-, .pdf, .zip, .docx, .xlsx
+                                                            import re as _re_pad
+                                                            for _a_p2 in _soup_anx.find_all('a', href=True):
+                                                                _h = (_a_p2.get('href') or '').lower()
+                                                                if not _h: continue
+                                                                # Tem padrao de URL de anexo?
+                                                                _eh_anexo_url = (
+                                                                    '/anexos/' in _h or
+                                                                    '/anexo-' in _h or
+                                                                    _h.endswith('.zip') or
+                                                                    _re_pad.search(r'\.pdf(\?|$)', _h) or
+                                                                    _h.endswith('.docx') or
+                                                                    _h.endswith('.xlsx')
+                                                                )
+                                                                # Texto ou href contem palavra-chave?
+                                                                _txt_a = _a_p2.get_text().strip().lower()
+                                                                _eh_anexo_palavra = any(p in _txt_a for p in ['anexo', 'tabela', 'quadro', 'mapa', 'baixar', 'download'])
+                                                                if _eh_anexo_url or _eh_anexo_palavra:
+                                                                    _candidatos_anx.append(_a_p2)
+                                                            for _a_anx in _candidatos_anx:
                                                                 _href_anx = _a_anx.get('href', '')
                                                                 _txt_anx = _a_anx.get_text().strip() or 'Anexo'
-                                                                if not _href_anx or _exp_anx <= _now_anx:
+                                                                if not _href_anx or _href_anx in _link_set_anx:
                                                                     continue
+                                                                # Pular o link da propria lei principal (ex: lc-148-2023-xangrila-rs.docx em /originais/)
+                                                                if '/originais/' in _href_anx.lower() and 'anexo' not in _href_anx.lower():
+                                                                    continue
+                                                                _link_set_anx.add(_href_anx)
                                                                 _r_anx = _rq_anx.get(_href_anx, timeout=60)
                                                                 if _r_anx.status_code == 200:
                                                                     _ext_anx = '.zip' if 'zip' in _href_anx.lower() else '.pdf'
@@ -3533,12 +3570,35 @@ def navegar_com_cookies_flaresolverr(
                             _anexos_anx2 = []
                             _pdf_dir_anx2 = _os_anx2.path.join(_os_anx2.path.dirname(_os_anx2.path.dirname(__file__)), 'static', 'downloads')
                             _os_anx2.makedirs(_pdf_dir_anx2, exist_ok=True)
-                            for _a2 in _soup_anx2.find_all('a', attrs={'data-s3-expires': True}):
-                                _exp2 = int(_a2.get('data-s3-expires', 0))
+                            # Detector amplo: data-s3-expires + URLs com /anexos/ + texto/href com palavras-chave
+                            _link_set2 = set()
+                            _candidatos2 = []
+                            for _a_s3 in _soup_anx2.find_all('a', attrs={'data-s3-expires': True}):
+                                try:
+                                    if int(_a_s3.get('data-s3-expires', 0)) > _now_anx2:
+                                        _candidatos2.append(_a_s3)
+                                except: pass
+                            import re as _re_pad2
+                            for _a_p2 in _soup_anx2.find_all('a', href=True):
+                                _h2 = (_a_p2.get('href') or '').lower()
+                                if not _h2: continue
+                                _eh_anx_url2 = (
+                                    '/anexos/' in _h2 or '/anexo-' in _h2 or
+                                    _h2.endswith('.zip') or _re_pad2.search(r'\.pdf(\?|$)', _h2) or
+                                    _h2.endswith('.docx') or _h2.endswith('.xlsx')
+                                )
+                                _txt_a2 = _a_p2.get_text().strip().lower()
+                                _eh_anx_palavra2 = any(p in _txt_a2 for p in ['anexo', 'tabela', 'quadro', 'mapa', 'baixar', 'download'])
+                                if _eh_anx_url2 or _eh_anx_palavra2:
+                                    _candidatos2.append(_a_p2)
+                            for _a2 in _candidatos2:
                                 _href2 = _a2.get('href', '')
                                 _txt2 = _a2.get_text().strip() or 'Anexo'
-                                if not _href2 or _exp2 <= _now_anx2:
+                                if not _href2 or _href2 in _link_set2:
                                     continue
+                                if '/originais/' in _href2.lower() and 'anexo' not in _href2.lower():
+                                    continue
+                                _link_set2.add(_href2)
                                 _r2 = _rq_anx2.get(_href2, timeout=60)
                                 if _r2.status_code == 200:
                                     _ext2 = '.zip' if 'zip' in _href2.lower() else '.pdf'
