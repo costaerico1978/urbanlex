@@ -3177,7 +3177,7 @@ function _renderTabelaLegs() {
         tbl.innerHTML='<div style="font-size:11px;color:var(--muted);font-family:monospace;padding:10px;background:#0d1117;border:1px solid var(--border);border-radius:6px">📋 Aguardando identificação das legislações...</div>';
         return;
     }
-    const cols=["Estado","Município","Tipo","N°","Ano","Ementa","Pergunta","Status","Regulamenta/Altera","Regulamentado por","Revoga","Revogado por","Revoga parcialmente","Revogada parcialmente por?","Faz referência à legislação","Referenciada em","Link"];
+    const cols=["Estado","Município","Tipo","N°","Ano","Ementa","Status","Altera","Regulamenta","Alterada por","Regulamentada por","Revoga","Revogada por","Revoga parcialmente","Revogada parcialmente por","Faz referência à","Referenciada em","Link"];
     let h=`<div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:6px;font-family:monospace">📋 LEGISLAÇÕES IDENTIFICADAS (${rows.length})</div>`;
     h+=`<table style="width:100%;border-collapse:collapse;font-size:10px;font-family:monospace">`;
     h+=`<thead><tr>${cols.map(c=>`<th style="padding:4px 6px;background:#111418;border:1px solid var(--border);color:var(--muted);text-align:left;white-space:nowrap">${c}</th>`).join("")}</tr></thead><tbody>`;
@@ -3185,14 +3185,14 @@ function _renderTabelaLegs() {
     rows.forEach(r=>{
         const cor=sc[r.status]||"#6b7d8f";
         h+=`<tr>`;
-        h+=cel(r.estado)+cel(r.municipio)+cel(_abrevTipo(r.tipo))+cel(_fmtNumLeg(r.numero))+cel(r.ano)+cel(r.ementa||"")+cel(r.pergunta);
+        h+=cel(r.estado)+cel(r.municipio)+cel(_abrevTipo(r.tipo))+cel(_fmtNumLeg(r.numero))+cel(r.ano)+cel(r.ementa||"");
         h+=`<td style="padding:3px 6px;border:1px solid var(--border);color:${cor};font-weight:700;white-space:nowrap">${sl[r.status]||r.status}</td>`;
         if(r.status==="revogada"){
-            h+=`<td colspan="6" style="padding:3px 6px;border:1px solid var(--border);color:#ff4d6d;font-style:italic">Revogada por: ${(r.revogado_por||[]).join(", ")||"—"}</td>`;
+            h+=`<td colspan="10" style="padding:3px 6px;border:1px solid var(--border);color:#ff4d6d;font-style:italic">Revogada por: ${(r.revogado_por||[]).join(", ")||"—"}</td>`;
         } else {
             // Formatar revogação parcial como "Lei X: partes revogadas"
             const _fmtRp = arr => (arr||[]).map(o => typeof o==='object' ? `${_abrevTipo(o.lei||'')}${o.partes?'\n  └ '+o.partes:''}` : _abrevTipo(o)).join("\n");
-            h+=cel((r.altera||[]).map(_abrevTipo).join("\n"))+cel((r.alterado_por||[]).map(_abrevTipo).join("\n"))+cel((r.revoga||[]).map(_abrevTipo).join("\n"))+cel((r.revogado_por||[]).map(_abrevTipo).join("\n"))+cel(_fmtRp(r.revoga_parcialmente))+cel(_fmtRp(r.revogado_parcialmente_por))+cel((r.cita||[]).map(_abrevTipo).join("\n"))+cel((r.citado_em||[]).map(_abrevTipo).join("\n"));
+            h+=cel((r.altera||[]).map(_abrevTipo).join("\n"))+cel((r.regulamenta||[]).map(_abrevTipo).join("\n"))+cel((r.alterado_por||[]).map(_abrevTipo).join("\n"))+cel((r.regulamentado_por||[]).map(_abrevTipo).join("\n"))+cel((r.revoga||[]).map(_abrevTipo).join("\n"))+cel((r.revogado_por||[]).map(_abrevTipo).join("\n"))+cel(_fmtRp(r.revoga_parcialmente))+cel(_fmtRp(r.revogado_parcialmente_por))+cel((r.cita||[]).map(_abrevTipo).join("\n"))+cel((r.citado_em||[]).map(_abrevTipo).join("\n"));
         }
         h+=`<td style="padding:3px 6px;border:1px solid var(--border)">${r.link?`<a href="${r.link}" target="_blank" style="color:var(--accent)">🔗</a>`:"—"}</td>`;
         h+=`</tr>`;
@@ -3240,14 +3240,15 @@ function baixarTabelaPDF() {
         {key:'numero', label:'Nº'},
         {key:'ano', label:'Ano'},
         {key:'ementa', label:'Ementa'},
-        {key:'pergunta', label:'Pergunta'},
         {key:'status', label:'Status'},
-        {key:'altera', label:'Regulamenta/Altera'},
-        {key:'alterado_por', label:'Regulamentado por'},
+        {key:'altera', label:'Altera'},
+        {key:'regulamenta', label:'Regulamenta'},
+        {key:'alterado_por', label:'Alterada por'},
+        {key:'regulamentado_por', label:'Regulamentada por'},
         {key:'revoga', label:'Revoga'},
-        {key:'revogado_por', label:'Revogado por'},
+        {key:'revogado_por', label:'Revogada por'},
         {key:'revoga_parcialmente', label:'Revoga parcialmente'},
-        {key:'revogado_parcialmente_por', label:'Revogada parcialmente por?'},
+        {key:'revogado_parcialmente_por', label:'Revogada parcialmente por'},
         {key:'cita', label:'Faz referência à'},
         {key:'citado_em', label:'Referenciada em'},
         {key:'link', label:'Link'},
@@ -3371,12 +3372,26 @@ carregarFila();
 // Reconectar ao voltar para a aba
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
+        // Reconectar busca por municipio (Dossie Municipal)
         if (!window._nmReconectando) {
             window._nmReconectando = true;
             reconectarMunJob().finally(() => { window._nmReconectando = false; });
         } else {
             _nmAtualizarProgressoFila();
         }
+        // Reconectar busca especifica (legislacao manual) — re-rodar reconectarJob se URL tem ?job=
+        try {
+            const _jobUrl = new URLSearchParams(window.location.search).get('job');
+            if (_jobUrl && !window._reconectandoBuscaEspec) {
+                window._reconectandoBuscaEspec = true;
+                if (typeof reconectarJob === 'function') {
+                    reconectarJob().finally(() => { window._reconectandoBuscaEspec = false; });
+                } else {
+                    // reconectarJob e IIFE; recarregar e ele dispara
+                    location.reload();
+                }
+            }
+        } catch (e) { console.warn('Erro ao reconectar busca especifica:', e); }
     }
 });
 
@@ -3702,13 +3717,62 @@ function _espReconectar() {
     }, 1500);
 }
 setTimeout(function() {
-    var _jid = sessionStorage.getItem('esp_job_id');
-    if (!_jid) return;
-    fetch('/api/buscador/job/' + _jid + '?cursor=0')
-      .then(function(r){ return r.json(); })
-      .then(function(d){ if(!d.done){ _espReconectar(); } else { sessionStorage.removeItem('esp_job_id'); sessionStorage.removeItem('esp_cursor'); } })
-      .catch(function(){ sessionStorage.removeItem('esp_job_id'); });
+    // Reconexao automatica SO no painel principal (/buscador), nao em /buscador/historico ou /buscador/anexos
+    if (window.location.pathname !== '/buscador') return;
+    // Estado server-side: pergunta ao servidor se ha job ativo OU ultima concluida
+    fetch('/api/buscador/especifica/estado')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (!d.success) return;
+            if (d.modo === 'em_andamento') {
+                // Reconectar ao job rodando
+                sessionStorage.setItem('esp_job_id', d.job_id);
+                sessionStorage.setItem('esp_cursor', '0');
+                _espReconectar();
+            } else if (d.modo === 'ultima_concluida') {
+                // Restaurar resultado da ultima busca concluida (botoes + meta)
+                _espRestaurarUltima(d);
+            }
+        })
+        .catch(function(e) { console.warn('estado especifica:', e); });
 }, 1000);
+
+// Restaura visualmente a ultima busca especifica concluida
+function _espRestaurarUltima(d) {
+    // Esconder loading
+    var ld = document.getElementById('esp-loading');
+    if (ld) ld.style.display = 'none';
+    // Mostrar bloco de resultado com 3 botoes
+    var resBox = document.getElementById('esp-resultado');
+    if (resBox) {
+        resBox.style.display = 'block';
+        var links = document.getElementById('esp-resultado-links');
+        if (links) {
+            links.innerHTML = '';
+            if (d.zip_url) links.innerHTML += '<a href="' + d.zip_url + '" target="_blank" style="font-size:12px;color:var(--accent);text-decoration:none;">📦 Baixar ZIP</a>';
+            if (d.relatorio_url) links.innerHTML += '<a href="' + d.relatorio_url + '" target="_blank" style="font-size:12px;color:var(--muted);text-decoration:none;">📄 Relatório PDF</a>';
+            if (d.tabela_url) links.innerHTML += '<a href="' + d.tabela_url + '" target="_blank" style="font-size:12px;color:var(--muted);text-decoration:none;">📊 Tabela PDF</a>';
+        }
+    }
+    // Mostrar 3 botoes grandes
+    var dl = document.getElementById('esp-downloads');
+    if (dl) {
+        dl.style.display = 'flex';
+        dl.innerHTML = '';
+        if (d.zip_url) dl.innerHTML += '<a href="' + d.zip_url + '" target="_blank" class="btn btn-primary btn-sm">📦 Pacote Completo ZIP</a>';
+        if (d.relatorio_url) dl.innerHTML += '<a href="' + d.relatorio_url + '" target="_blank" class="btn btn-secondary btn-sm">📄 Relatório PDF</a>';
+        if (d.tabela_url) dl.innerHTML += '<a href="' + d.tabela_url + '" target="_blank" class="btn btn-secondary btn-sm">📊 Tabela PDF</a>';
+    }
+    // Mostrar info da legislacao
+    if (d.legislacao_tipo && d.legislacao_numero) {
+        var info = document.createElement('div');
+        info.style.cssText = 'font-size:11px;color:var(--muted);margin-bottom:8px;';
+        var dtIni = d.iniciado_em ? new Date(new Date(d.iniciado_em).getTime() - 3*60*60*1000).toLocaleString('pt-BR') : '';
+        var dtFim = d.concluido_em ? new Date(new Date(d.concluido_em).getTime() - 3*60*60*1000).toLocaleString('pt-BR') : '';
+        info.innerHTML = '<span style="color:var(--accent);font-weight:600">Última busca:</span> ' + d.legislacao_tipo + ' ' + d.legislacao_numero + '/' + d.legislacao_ano + ' — ' + d.municipio + '/' + d.estado + (dtFim ? ' · concluída em ' + dtFim : '');
+        if (dl && dl.parentNode) dl.parentNode.insertBefore(info, dl);
+    }
+}
 
 function _espAcMunicipio(val) {
     const list = document.getElementById('esp-ac-list');
@@ -3784,7 +3848,8 @@ async function iniciarBuscaEspecifica() {
                         if (l.nivel === 'tabela') { _atualizarTabelaLegs(l); return; }
                         const div = document.createElement('div');
                         div.style.color = l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'aviso' ? '#f0ad4e' : l.nivel === 'erro' ? '#e74c3c' : 'var(--muted)';
-                        div.innerHTML = l.msg || '';
+                        const _tsStr = l.ts || '';
+                        div.innerHTML = '<span style="color:var(--muted2);margin-right:6px;">'+_tsStr+'</span>'+(l.msg||'');
                         logLines.appendChild(div);
                     });
                     cursor = pd.cursor || cursor;
