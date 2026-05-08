@@ -583,13 +583,28 @@ def extrair_metadata_yaml(texto_prompt):
 
     yaml_text = None
 
-    # Formato 2: dentro de fence yaml com tag URBANLEX_METADATA
+    # Formato 0: bloco invertido (FIM ... METADATA:) — quando o docx foi
+    # montado com os marcadores e linhas em ordem reversa. Detectamos e
+    # revertemos as linhas para um YAML valido.
     m = _re.search(
-        r'```\s*yaml\s*URBANLEX_METADATA\s*\n(.*?)\n\s*```',
+        r'URBANLEX_METADATA_FIM\s*\n(.*?)\nURBANLEX_METADATA:',
         texto_prompt, _re.DOTALL | _re.IGNORECASE
     )
     if m:
-        yaml_text = m.group(1)
+        cap = m.group(1)
+        _lines = cap.split('\n')
+        while _lines and not _lines[0].strip(): _lines.pop(0)
+        while _lines and not _lines[-1].strip(): _lines.pop()
+        yaml_text = '\n'.join(reversed(_lines))
+
+    # Formato 2: dentro de fence yaml com tag URBANLEX_METADATA
+    if not yaml_text:
+        m = _re.search(
+            r'```\s*yaml\s*URBANLEX_METADATA\s*\n(.*?)\n\s*```',
+            texto_prompt, _re.DOTALL | _re.IGNORECASE
+        )
+        if m:
+            yaml_text = m.group(1)
 
     # Formato 1: blocos delimitados
     if not yaml_text:
