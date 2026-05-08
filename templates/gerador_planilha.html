@@ -170,8 +170,9 @@
   </div>
 
   <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;">
-    <button class="btn btn-ghost" onclick="gpLimpar()">Limpar</button>
-    <button class="btn btn-primary" onclick="gpIniciar()">🤖 Gerar Planilha</button>
+    <button class="btn btn-ghost" onclick="gpLimpar()" id="gp-btn-limpar">Limpar</button>
+    <button class="btn btn-primary" onclick="gpIniciar()" id="gp-btn-gerar">🤖 Gerar Planilha</button>
+    <button class="btn btn-danger" onclick="gpCancelar()" id="gp-btn-cancelar" style="display:none;">⏹ Cancelar</button>
   </div>
 
   <div id="gp-log-wrap" style="display:none;margin-top:14px;">
@@ -865,9 +866,35 @@ async function gpIniciar(){
     _gpJobId = d.job_id;
     _gpLogCursor = 0;
     document.getElementById('gp-log-body').innerHTML = '';
+    document.getElementById('gp-btn-gerar').style.display = 'none';
+    document.getElementById('gp-btn-cancelar').style.display = '';
     gpPolling();
   }catch(e){ gpToast('Erro: ' + e.message, true); }
 }
+
+async function gpCancelar(){
+  if(!_gpJobId){ return; }
+  if(!confirm('Cancelar o job em andamento?')) return;
+  const btn = document.getElementById('gp-btn-cancelar');
+  btn.disabled = true;
+  btn.textContent = 'Cancelando...';
+  try{
+    const r = await fetch('/api/gerador/cancelar/' + _gpJobId, {method:'POST'});
+    const d = await r.json();
+    if(d.success){
+      gpToast('Cancelamento solicitado. Aguardando finalizar...');
+    }else{
+      gpToast('Erro ao cancelar: ' + (d.error||'?'), true);
+      btn.disabled = false;
+      btn.textContent = '⏹ Cancelar';
+    }
+  }catch(e){
+    gpToast('Erro: ' + e.message, true);
+    btn.disabled = false;
+    btn.textContent = '⏹ Cancelar';
+  }
+}
+
 let _gpLogCursor = 0;
 async function gpPolling(){
   if(!_gpJobId) return;
@@ -887,6 +914,11 @@ async function gpPolling(){
       _gpLogCursor = d.cursor || (_gpLogCursor + d.logs.length);
     }
     if(d.done){
+      document.getElementById('gp-btn-gerar').style.display = '';
+      const _btnCanc = document.getElementById('gp-btn-cancelar');
+      _btnCanc.style.display = 'none';
+      _btnCanc.disabled = false;
+      _btnCanc.textContent = '⏹ Cancelar';
       if(d.result){
         document.getElementById('gp-resultado').style.display = 'block';
         document.getElementById('gp-resultado-info').innerHTML =
