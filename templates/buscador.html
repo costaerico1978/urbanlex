@@ -3553,8 +3553,8 @@ function _exibirBotoesDownload(r) {
 
 
 
-// Reconectar job ativo ao carregar a página
-(async function reconectarJob() {
+// Reconectar job ativo ao carregar a página (e quando volta de minimizacao)
+async function reconectarJob() {
     await new Promise(ok => setTimeout(ok, 300));
     let jobId = new URLSearchParams(window.location.search).get('job');
     // Ignorar se pertence à busca automática
@@ -3633,7 +3633,10 @@ function _exibirBotoesDownload(r) {
         const _bmLoad = document.getElementById('bm-loading'); if (_bmLoad) _bmLoad.style.display = 'none';
         document.getElementById('bm-resultados').style.display = 'block';
     } catch(e) {}
-})();
+}
+// Chamar uma vez ao carregar
+reconectarJob();
+
 
 // Auto-selecionar aba correta baseado na rota
 if (BUSCA_PAGINA === 'buscador-manual') {
