@@ -6363,6 +6363,29 @@ def api_gerador_iniciar():
             except Exception as _emm:
                 job['logs'].append({'nivel':'aviso','msg':f'Erro metadata: {_emm}'})
             todos_anexos = []
+            # Log resumo da configuracao do job (essencial pra diagnostico)
+            try:
+                _info_prompt = '?'
+                if prompt_id_form:
+                    _pn = qry("SELECT nome, length(conteudo) as bytes FROM prompts_salvos WHERE id=%s", (int(prompt_id_form),))
+                    if _pn:
+                        _info_prompt = f'{_pn[0]["nome"]} (id={prompt_id_form}, {_pn[0]["bytes"]/1024:.0f}KB, versao={_metadata.get("versao","?")})'
+                else:
+                    _info_prompt = f'inline ({len(prompt or "")} chars, versao={_metadata.get("versao","?")})'
+                _info_planilha = _os_gp.path.basename(template_path)
+                if planilha_base_id:
+                    _bn = qry("SELECT nome FROM planilhas_base WHERE id=%s", (int(planilha_base_id),))
+                    if _bn:
+                        _info_planilha = f'{_bn[0]["nome"]} (id={planilha_base_id})'
+                _info_comp = ', '.join([f'{c.get("municipio","?")}/{c.get("estado","??")}' for c in compilados])
+                job['logs'].append({'nivel':'info','msg':'=== CONFIGURACAO DO JOB ==='})
+                job['logs'].append({'nivel':'info','msg':f'  Prompt:    {_info_prompt}'})
+                job['logs'].append({'nivel':'info','msg':f'  Planilha:  {_info_planilha}'})
+                job['logs'].append({'nivel':'info','msg':f'  IA:        {_ia} ({info_ia["modelo"]})'})
+                job['logs'].append({'nivel':'info','msg':f'  Compilados: {len(compilados)} ({_info_comp})'})
+                job['logs'].append({'nivel':'info','msg':'==========================='})
+            except Exception as _einfo:
+                job['logs'].append({'nivel':'aviso','msg':f'Erro logando config: {_einfo}'})
             job['logs'].append({'nivel':'info','msg':'Iniciando arquitetura PDF-driven'})
             for comp in compilados:
                 mun = comp.get('municipio','?'); est = comp.get('estado','??')
