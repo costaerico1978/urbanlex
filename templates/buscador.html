@@ -3372,26 +3372,12 @@ carregarFila();
 // Reconectar ao voltar para a aba
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-        // Reconectar busca por municipio (Dossie Municipal)
-        if (!window._nmReconectando) {
-            window._nmReconectando = true;
-            reconectarMunJob().finally(() => { window._nmReconectando = false; });
-        } else {
-            _nmAtualizarProgressoFila();
+        // Chamar SOMENTE reconectarJob — ele consulta o servidor e decide a tab certa
+        // (manual/especifica/auto) baseado em check.tipo do job ativo
+        if (!window._reconectandoJob) {
+            window._reconectandoJob = true;
+            reconectarJob().finally(() => { window._reconectandoJob = false; });
         }
-        // Reconectar busca especifica (legislacao manual) — re-rodar reconectarJob se URL tem ?job=
-        try {
-            const _jobUrl = new URLSearchParams(window.location.search).get('job');
-            if (_jobUrl && !window._reconectandoBuscaEspec) {
-                window._reconectandoBuscaEspec = true;
-                if (typeof reconectarJob === 'function') {
-                    reconectarJob().finally(() => { window._reconectandoBuscaEspec = false; });
-                } else {
-                    // reconectarJob e IIFE; recarregar e ele dispara
-                    location.reload();
-                }
-            }
-        } catch (e) { console.warn('Erro ao reconectar busca especifica:', e); }
     }
 });
 
