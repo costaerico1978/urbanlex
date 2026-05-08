@@ -4111,7 +4111,16 @@ def api_buscador_job_poll(job_id):
                     if _r3: _ainda_rodando = _r3[0] == 'rodando'
                     _cu3.close(); _c3.close()
                 except: pass
-                return jsonify({'success':True,'logs':[{'nivel':l['nivel'],'msg':l['msg']} for l in _logs_db],'cursor':_cursor_req+len(_logs_db),'done': not _ainda_rodando,'hist_id':_hist_id_db,'result':None})
+                # Buscar tipo do job em buscas_historico
+                _tipo_job = None
+                try:
+                    _c4=get_db(); _cu4=_c4.cursor()
+                    _cu4.execute("SELECT tipo FROM buscas_historico WHERE job_id=%s LIMIT 1",(job_id,))
+                    _r4=_cu4.fetchone()
+                    if _r4: _tipo_job = _r4[0]
+                    _cu4.close(); _c4.close()
+                except: pass
+                return jsonify({'success':True,'logs':[{'nivel':l['nivel'],'msg':l['msg']} for l in _logs_db],'cursor':_cursor_req+len(_logs_db),'done': not _ainda_rodando,'hist_id':_hist_id_db,'result':None,'tipo':_tipo_job})
         except Exception as _edb: pass
         # Tentar recuperar logs do arquivo persistido
         import json as _json_rec
