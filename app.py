@@ -6420,12 +6420,15 @@ def api_gerador_iniciar():
                             qtd_zips_aninhados = 0
                             qtd_pdf_extraidos = 0
                             def _pasta_lei_de_path(p):
-                                parts = (p or '').split('/')
-                                if not parts: return ''
-                                parts = parts[:-1]
-                                if parts and parts[-1].lower() == 'anexos':
-                                    parts = parts[:-1]
-                                return '/'.join(parts)
+                                # Se o path passa por '/anexos/', pasta_lei e tudo ANTES.
+                                # Isso resiste a nomes de arquivo que contem '/' (ex.:
+                                # 'Lei Complementar No 148/2023 - Xangri-la-RS').
+                                if not p: return ''
+                                idx = p.lower().find('/anexos/')
+                                if idx >= 0:
+                                    return p[:idx]
+                                parts = p.split('/')
+                                return '/'.join(parts[:-1])
                             with _zf.ZipFile(zpath) as zf:
                                 for fname in zf.namelist():
                                     if fname.endswith('/') or fname.startswith('__MACOSX'): continue
@@ -6646,8 +6649,8 @@ def api_gerador_iniciar():
                             _v = _jcell.dumps(val, ensure_ascii=False)
                         else: _v = val
                         ws.cell(row=_start_row+i, column=col, value=_v)
-            from datetime import datetime as _dt
-            _now = _dt.now()
+            from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+            _now = _dt.now(_tz(_td(hours=-3)))  # America/Sao_Paulo (UTC-3)
             _ts = _now.strftime('%d%m%Y_%H%M')
             muns = list(set(c['municipio'] for c in compilados))
             _est = compilados[0]['estado'] if compilados else 'XX'
