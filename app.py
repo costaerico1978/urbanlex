@@ -6419,6 +6419,13 @@ def api_gerador_iniciar():
                         try:
                             qtd_zips_aninhados = 0
                             qtd_pdf_extraidos = 0
+                            def _pasta_lei_de_path(p):
+                                parts = (p or '').split('/')
+                                if not parts: return ''
+                                parts = parts[:-1]
+                                if parts and parts[-1].lower() == 'anexos':
+                                    parts = parts[:-1]
+                                return '/'.join(parts)
                             with _zf.ZipFile(zpath) as zf:
                                 for fname in zf.namelist():
                                     if fname.endswith('/') or fname.startswith('__MACOSX'): continue
@@ -6427,9 +6434,10 @@ def api_gerador_iniciar():
                                     except Exception: continue
                                     if len(data) < 100: continue
                                     if data.startswith(b'PK\x03\x04'): qtd_zips_aninhados += 1
+                                    pasta_lei_calc = _pasta_lei_de_path(fname)
                                     pdfs = _extrair_pdfs_rec(data, base)
                                     for nome_pdf, data_pdf in pdfs:
-                                        todos_anexos.append({'title': f'{mun}/{est}: {nome_pdf}', 'data_b64': _b64.standard_b64encode(data_pdf).decode(), 'nome_arquivo': nome_pdf})
+                                        todos_anexos.append({'title': f'{mun}/{est}: {nome_pdf}', 'data_b64': _b64.standard_b64encode(data_pdf).decode(), 'nome_arquivo': nome_pdf, 'pasta_lei': pasta_lei_calc, 'caminho_zip': fname})
                                         qtd_pdf_extraidos += 1
                             if qtd_zips_aninhados:
                                 job['logs'].append({'nivel':'info','msg':f'  Compilado {mun}/{est}: {qtd_pdf_extraidos} PDFs ({qtd_zips_aninhados} de ZIPs aninhados)'})
@@ -6499,6 +6507,13 @@ def api_gerador_iniciar():
             estado_planilha = {}
             conflitos_log = []
             mapa_nome_anexo = {a['nome_arquivo']: a for a in todos_anexos}
+            mapa_anexos_extras = {}
+            for _a in todos_anexos:
+                _cz = (_a.get('caminho_zip') or '').lower()
+                if '/anexos/' in _cz:
+                    _pl = _a.get('pasta_lei', '')
+                    if _pl:
+                        mapa_anexos_extras.setdefault(_pl, []).append(_a)
             for idx_pdf, item_cat in enumerate(cat_ordenada, 1):
                 if job.get('cancelled'):
                     job['logs'].append({'nivel':'aviso','msg':'Cancelado'})
@@ -6509,12 +6524,19 @@ def api_gerador_iniciar():
                 if not anexo_pdf:
                     job['logs'].append({'nivel':'aviso','msg':f'PDF {nome_arq} nao encontrado'})
                     continue
-                job['logs'].append({'nivel':'info','msg':f'--- {idx_pdf}/{len(cat_ordenada)}: {lei_id} ---'})
+                _pasta_da_lei = anexo_pdf.get('pasta_lei', '')
+                _anexos_extras = mapa_anexos_extras.get(_pasta_da_lei, [])
+                pdfs_para_ia = [anexo_pdf] + _anexos_extras
+                _chave_agreg = _metadata.get('chave_zona_individual', 'linhas')
+                if _anexos_extras:
+                    job['logs'].append({'nivel':'info','msg':f'--- {idx_pdf}/{len(cat_ordenada)}: {lei_id} (+ {len(_anexos_extras)} anexo(s) vinculado(s)) ---'})
+                else:
+                    job['logs'].append({'nivel':'info','msg':f'--- {idx_pdf}/{len(cat_ordenada)}: {lei_id} ---'})
                 instrucao_rev = gerar_instrucao_revogacao_para_pdf(lei_id, matriz)
                 resumo_estado = estado_para_resumo_para_prompt(estado_planilha)
                 try:
                     _p2a = prompt_passada_2_pdf_driven_principal(prompt, lei_id, zonas_canonicas, _headers, instrucao_rev, resumo_estado, _metadata)
-                    _r2a = chamar_ia(client, _ia, _p2a, [anexo_pdf], job['logs'], f'P2.{idx_pdf}a')
+                    _r2a = chamar_ia_com_blocos(client, _ia, _p2a, pdfs_para_ia, job['logs'], f'P2.{idx_pdf}a', chave_agregar=_chave_agreg)
                     # DEBUG: salvar resposta bruta para inspecao
                     try:
                         _dbg_dir = '/var/www/urbanlex/static/debug'
@@ -6544,7 +6566,7 @@ def api_gerador_iniciar():
                     continue
                 try:
                     _p2b = prompt_passada_2_pdf_driven_verificacao(prompt, lei_id, _j2a, zonas_canonicas, _headers, instrucao_rev, _metadata)
-                    _r2b = chamar_ia(client, _ia, _p2b, [anexo_pdf], job['logs'], f'P2.{idx_pdf}b')
+                    _r2b = chamar_ia_com_blocos(client, _ia, _p2b, pdfs_para_ia, job['logs'], f'P2.{idx_pdf}b', chave_agregar=_chave_agreg)
                     # DEBUG: salvar resposta bruta
                     try:
                         _dbg_dir = '/var/www/urbanlex/static/debug'
