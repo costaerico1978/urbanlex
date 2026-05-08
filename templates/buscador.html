@@ -3591,7 +3591,11 @@ async function reconectarJob() {
                 if (campos.ano && document.getElementById('bm-ano')) document.getElementById('bm-ano').value = campos.ano;
             } catch(e) {}
         }
-        mudarTab('manual');
+        const _tipoJob = check.tipo || 'manual';
+        let _tabAlvo = 'manual';
+        if (_tipoJob === 'especifica') _tabAlvo = 'especifica';
+        else if (_tipoJob === 'auto') _tabAlvo = 'auto';
+        mudarTab(_tabAlvo);
         logClear();
         logLine('🔄', 'Reconectando busca em andamento...', 'var(--accent)');
         document.getElementById('bm-loading').style.display = 'block';
