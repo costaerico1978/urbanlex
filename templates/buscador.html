@@ -3557,8 +3557,16 @@ function _exibirBotoesDownload(r) {
 async function reconectarJob() {
     await new Promise(ok => setTimeout(ok, 300));
     let jobId = new URLSearchParams(window.location.search).get('job');
-    // Ignorar se pertence à busca automática
-    if (!jobId) return;
+    // Se nao tem ?job= na URL, perguntar ao servidor (recuperacao apos fechar browser/aba)
+    if (!jobId) {
+        try {
+            const r = await api('GET', '/api/buscador/job-ativo');
+            if (r && r.ativo && r.job_id) {
+                jobId = r.job_id;
+                history.replaceState({jobId}, '', '?job=' + jobId);
+            }
+        } catch(e) {}
+    }
     if (!jobId) return;
     try {
         const check = await api('GET', `/api/buscador/job/${jobId}?cursor=0`);
