@@ -6370,17 +6370,46 @@ def api_gerador_iniciar():
                     zpath = comp['zip']
                     if zpath.startswith('/static/'): zpath = '/var/www/urbanlex' + zpath
                     if _os_gp.path.exists(zpath):
+                        # Extracao recursiva: detecta tipo por magic bytes (cobre arquivos
+                        # sem extensao e ZIPs aninhados, ex.: anexo do LeisMunicipais e' ZIP)
+                        import io as _io_gp_x, re as _re_gp_x
+                        def _saneia_nome(s):
+                            s = _re_gp_x.sub(r'[\\/:*?"<>|]+', '_', s.strip())
+                            return s.strip('_') or 'arquivo'
+                        def _extrair_pdfs_rec(blob, origem='arquivo', prof=0):
+                            achados = []
+                            if prof > 3 or len(blob) < 8: return achados
+                            if blob.startswith(b'%PDF'):
+                                nome = origem if origem.lower().endswith('.pdf') else origem + '.pdf'
+                                achados.append((nome, blob))
+                            elif blob.startswith(b'PK\x03\x04'):
+                                try:
+                                    with _zf.ZipFile(_io_gp_x.BytesIO(blob)) as inner:
+                                        for inner_n in inner.namelist():
+                                            if inner_n.endswith('/') or inner_n.startswith('__MACOSX'): continue
+                                            try: inner_d = inner.read(inner_n)
+                                            except Exception: continue
+                                            inner_base = _saneia_nome(_os_gp.path.basename(inner_n))
+                                            achados.extend(_extrair_pdfs_rec(inner_d, inner_base, prof+1))
+                                except Exception: pass
+                            return achados
                         try:
+                            qtd_zips_aninhados = 0
+                            qtd_pdf_extraidos = 0
                             with _zf.ZipFile(zpath) as zf:
                                 for fname in zf.namelist():
                                     if fname.endswith('/') or fname.startswith('__MACOSX'): continue
-                                    base = _os_gp.path.basename(fname)
-                                    if not base.lower().endswith('.pdf'): continue
-                                    try:
-                                        data = zf.read(fname)
-                                        if len(data) < 100 or not data.startswith(b'%PDF'): continue
-                                        todos_anexos.append({'title': f'{mun}/{est}: {base}', 'data_b64': _b64.standard_b64encode(data).decode(), 'nome_arquivo': base})
-                                    except Exception: pass
+                                    base = _saneia_nome(_os_gp.path.basename(fname))
+                                    try: data = zf.read(fname)
+                                    except Exception: continue
+                                    if len(data) < 100: continue
+                                    if data.startswith(b'PK\x03\x04'): qtd_zips_aninhados += 1
+                                    pdfs = _extrair_pdfs_rec(data, base)
+                                    for nome_pdf, data_pdf in pdfs:
+                                        todos_anexos.append({'title': f'{mun}/{est}: {nome_pdf}', 'data_b64': _b64.standard_b64encode(data_pdf).decode(), 'nome_arquivo': nome_pdf})
+                                        qtd_pdf_extraidos += 1
+                            if qtd_zips_aninhados:
+                                job['logs'].append({'nivel':'info','msg':f'  Compilado {mun}/{est}: {qtd_pdf_extraidos} PDFs ({qtd_zips_aninhados} de ZIPs aninhados)'})
                         except Exception as _ezi:
                             job['logs'].append({'nivel':'erro','msg':f'Erro ZIP: {_ezi}'})
                 if comp.get('tabela_on') and comp.get('tabela'):
