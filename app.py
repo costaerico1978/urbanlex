@@ -6588,13 +6588,22 @@ def api_gerador_iniciar():
                     if _texto_lei_cache['val'] is not None:
                         return _texto_lei_cache['val']
                     try:
-                        import base64, tempfile
-                        # _pdf_b64 e dict {'nome_arquivo': ..., 'data_b64': base64_str, ...}
+                        import base64, tempfile, subprocess
+                        # debug: tipo e estrutura
                         if isinstance(_pdf_b64, dict):
-                            _b64_str = _pdf_b64.get('data_b64') or _pdf_b64.get('data') or ''
+                            _ks = list(_pdf_b64.keys())
+                            job['logs'].append({'nivel':'info','msg':f'  [DEBUG_TXT] dict com keys={_ks}'})
+                            _b64_str = _pdf_b64.get('data_b64') or _pdf_b64.get('data') or _pdf_b64.get('content') or ''
+                        elif isinstance(_pdf_b64, bytes):
+                            job['logs'].append({'nivel':'info','msg':f'  [DEBUG_TXT] bytes ({len(_pdf_b64)} bytes), assumindo PDF binario'})
+                            _bin = _pdf_b64
+                            _b64_str = None  # sinaliza que ja esta binario
                         else:
+                            job['logs'].append({'nivel':'info','msg':f'  [DEBUG_TXT] tipo={type(_pdf_b64).__name__}, len={len(str(_pdf_b64))}'})
                             _b64_str = _pdf_b64
-                        _bin = base64.b64decode(_b64_str)
+                        if _b64_str is not None:
+                            _bin = base64.b64decode(_b64_str) if _b64_str else b''
+                        job['logs'].append({'nivel':'info','msg':f'  [DEBUG_TXT] _bin len={len(_bin)} bytes'})
                         with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as _tf:
                             _tf.write(_bin)
                             _tmp_path = _tf.name
