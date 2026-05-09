@@ -6575,6 +6575,30 @@ def api_gerador_iniciar():
                     job['logs'].append({'nivel':'info','msg':f'--- {idx_pdf}/{len(cat_ordenada)}: {lei_id} (lei {_mb_lei:.1f}MB, sem anexos) ---'})
                 instrucao_rev = gerar_instrucao_revogacao_para_pdf(lei_id, matriz)
                 resumo_estado = estado_para_resumo_para_prompt(estado_planilha)
+                # Helper: tenta enviar [lei] + anexos. Se 504, subdivide anexos pela metade.
+                # Recursivo ate caber. Retorna lista de JSONs (um por sub-batch que conseguiu).
+                def _chamar_com_subdivisao(_lei_pdf, _anexos_lista, _label_base, _prompt_para_ia, _profundidade=0):
+                    _resultados = []
+                    _pdfs_call = [_lei_pdf] + (_anexos_lista or [])
+                    try:
+                        _r = chamar_ia_com_blocos(client, _ia, _prompt_para_ia, _pdfs_call,
+                                                   job['logs'], _label_base, chave_agregar=_chave_agreg,
+                                                   max_tentativas=2)
+                        return [_r]
+                    except Exception as _e:
+                        _msg = str(_e).lower()
+                        _e_timeout = ('deadline' in _msg or '504' in _msg or 'timeout' in _msg)
+                        if _e_timeout and len(_anexos_lista) > 1 and _profundidade < 4:
+                            _meio = len(_anexos_lista) // 2
+                            _h1 = _anexos_lista[:_meio]
+                            _h2 = _anexos_lista[_meio:]
+                            job['logs'].append({'nivel':'aviso','msg':f'  {_label_base} estourou. Subdividindo {len(_anexos_lista)} anexos em {len(_h1)}+{len(_h2)} (prof. {_profundidade+1})'})
+                            _resultados.extend(_chamar_com_subdivisao(_lei_pdf, _h1, f'{_label_base}.sub1', _prompt_para_ia, _profundidade+1))
+                            _resultados.extend(_chamar_com_subdivisao(_lei_pdf, _h2, f'{_label_base}.sub2', _prompt_para_ia, _profundidade+1))
+                            return _resultados
+                        else:
+                            job['logs'].append({'nivel':'erro','msg':f'  {_label_base} falhou definitivamente: {str(_e)[:160]}'})
+                            return []
                 _j2a = None  # ultimo resultado, usado pela verificacao P2b
                 _ultimo_r2a = ''  # ultima resposta bruta, usada pelo prompt P2b
                 _total_principal = 0
@@ -6582,33 +6606,33 @@ def api_gerador_iniciar():
                     _p2a = prompt_passada_2_pdf_driven_principal(prompt, lei_id, zonas_canonicas, _headers, instrucao_rev, resumo_estado, _metadata)
                     for _bi, _batch_anexos in enumerate(_batches, 1):
                         if job.get('cancelled'): break
-                        _pdfs_para_ia = [anexo_pdf] + _batch_anexos
                         _label_batch = f'P2.{idx_pdf}a' if len(_batches) == 1 else f'P2.{idx_pdf}a.{_bi}/{len(_batches)}'
-                        _r2a = chamar_ia_com_blocos(client, _ia, _p2a, _pdfs_para_ia, job['logs'], _label_batch, chave_agregar=_chave_agreg)
-                        _ultimo_r2a = _r2a
-                        # DEBUG: salvar resposta bruta para inspecao
-                        try:
-                            _dbg_dir = '/var/www/urbanlex/static/debug'
-                            _os_gp.makedirs(_dbg_dir, exist_ok=True)
-                            _dbg_path = f'{_dbg_dir}/{job_id}_{_label_batch.replace("/","_")}_{nome_arq[:50]}.json'
-                            with open(_dbg_path, 'w') as _df:
-                                _df.write(_r2a)
-                            job['logs'].append({'nivel':'info','msg':f'  [DEBUG] resposta {_label_batch} salva em /static/debug/'})
-                        except Exception as _ed:
-                            pass
-                        _jb = extrair_json(_r2a)
-                        if _jb:
-                            _key_count_b = 0
+                        # Chama com auto-subdivisao em caso de 504
+                        _resultados_lista = _chamar_com_subdivisao(anexo_pdf, _batch_anexos, _label_batch, _p2a)
+                        for _ri, _r2a in enumerate(_resultados_lista):
+                            _ultimo_r2a = _r2a
+                            _label_real = _label_batch if len(_resultados_lista) == 1 else f'{_label_batch}.r{_ri+1}'
                             try:
-                                _linhas_b = _jb.get(_metadata['chave_zona_individual'], _jb.get('linhas', []))
-                                for _ln in _linhas_b:
-                                    if isinstance(_ln, dict):
-                                        _key_count_b += sum(1 for v in _ln.values() if v not in (None, '', 'NI'))
-                            except: pass
-                            _adic_b, _conf_b = merge_resultado_no_estado(_jb, lei_id, nome_arq, estado_planilha, conflitos_log, _metadata)
-                            _total_principal += _adic_b
-                            job['logs'].append({'nivel':'ok','msg':f'  {_label_batch}: IA retornou {_key_count_b} valores, +{_adic_b} celulas, {_conf_b} conflitos'})
-                            _j2a = _jb
+                                _dbg_dir = '/var/www/urbanlex/static/debug'
+                                _os_gp.makedirs(_dbg_dir, exist_ok=True)
+                                _dbg_path = f'{_dbg_dir}/{job_id}_{_label_real.replace("/","_")}_{nome_arq[:50]}.json'
+                                with open(_dbg_path, 'w') as _df:
+                                    _df.write(_r2a)
+                            except Exception:
+                                pass
+                            _jb = extrair_json(_r2a)
+                            if _jb:
+                                _key_count_b = 0
+                                try:
+                                    _linhas_b = _jb.get(_metadata['chave_zona_individual'], _jb.get('linhas', []))
+                                    for _ln in _linhas_b:
+                                        if isinstance(_ln, dict):
+                                            _key_count_b += sum(1 for v in _ln.values() if v not in (None, '', 'NI'))
+                                except: pass
+                                _adic_b, _conf_b = merge_resultado_no_estado(_jb, lei_id, nome_arq, estado_planilha, conflitos_log, _metadata)
+                                _total_principal += _adic_b
+                                job['logs'].append({'nivel':'ok','msg':f'  {_label_real}: IA retornou {_key_count_b} valores, +{_adic_b} celulas, {_conf_b} conflitos'})
+                                _j2a = _jb
                     _r2a = _ultimo_r2a
                     job['logs'].append({'nivel':'ok','msg':f'  Principal (total {len(_batches)} batch(es)): +{_total_principal} celulas'})
                     if _j2a:
@@ -6624,14 +6648,14 @@ def api_gerador_iniciar():
                     _total_verif = 0
                     for _bi, _batch_anexos in enumerate(_batches, 1):
                         if job.get('cancelled'): break
-                        _pdfs_para_ia_b = [anexo_pdf] + _batch_anexos
                         _label_b = f'P2.{idx_pdf}b' if len(_batches) == 1 else f'P2.{idx_pdf}b.{_bi}/{len(_batches)}'
-                        try:
-                            _r2b = chamar_ia_com_blocos(client, _ia, _p2b, _pdfs_para_ia_b, job['logs'], _label_b, chave_agregar=_chave_agreg)
+                        _resultados_b = _chamar_com_subdivisao(anexo_pdf, _batch_anexos, _label_b, _p2b)
+                        for _ri, _r2b in enumerate(_resultados_b):
+                            _label_real_b = _label_b if len(_resultados_b) == 1 else f'{_label_b}.r{_ri+1}'
                             try:
                                 _dbg_dir = '/var/www/urbanlex/static/debug'
                                 _os_gp.makedirs(_dbg_dir, exist_ok=True)
-                                _dbg_path = f'{_dbg_dir}/{job_id}_{_label_b.replace("/","_")}_{nome_arq[:50]}.json'
+                                _dbg_path = f'{_dbg_dir}/{job_id}_{_label_real_b.replace("/","_")}_{nome_arq[:50]}.json'
                                 with open(_dbg_path, 'w') as _df:
                                     _df.write(_r2b)
                             except Exception:
@@ -6641,10 +6665,7 @@ def api_gerador_iniciar():
                                 _adic_v, _ = merge_resultado_no_estado(_j2b, lei_id, nome_arq, estado_planilha, conflitos_log, _metadata)
                                 _total_verif += _adic_v
                                 if _adic_v > 0:
-                                    job['logs'].append({'nivel':'ok','msg':f'  {_label_b}: +{_adic_v}'})
-                        except Exception as _e2bb:
-                            job['logs'].append({'nivel':'aviso','msg':f'  {_label_b} falhou: {str(_e2bb)[:120]}'})
-                            continue
+                                    job['logs'].append({'nivel':'ok','msg':f'  {_label_real_b}: +{_adic_v}'})
                     if len(_batches) > 1:
                         job['logs'].append({'nivel':'ok','msg':f'  Verificacao (total {len(_batches)} batch(es)): +{_total_verif} celulas'})
                 except Exception as _e2b:
