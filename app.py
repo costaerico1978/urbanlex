@@ -6580,6 +6580,7 @@ def api_gerador_iniciar():
                 # Estrategia condicional por modelo (gemini=pdf_nativo, claude=texto_lei_principal)
                 from modulos.multi_ia import info_modelo as _info_modelo_strat
                 _estrat = _info_modelo_strat(_ia).get('estrategia_pdf', 'pdf_nativo')
+                job['logs'].append({'nivel':'info','msg':f'  [DEBUG] estrategia ativa: {_estrat} (ia={_ia})'})
                 _texto_lei_cache = {'val': None}  # cache do texto extraido (1 por loop)
 
                 def _extrair_texto_lei(_pdf_b64):
@@ -6588,7 +6589,12 @@ def api_gerador_iniciar():
                         return _texto_lei_cache['val']
                     try:
                         import base64, tempfile
-                        _bin = base64.b64decode(_pdf_b64)
+                        # _pdf_b64 e dict {'nome_arquivo': ..., 'data_b64': base64_str, ...}
+                        if isinstance(_pdf_b64, dict):
+                            _b64_str = _pdf_b64.get('data_b64') or _pdf_b64.get('data') or ''
+                        else:
+                            _b64_str = _pdf_b64
+                        _bin = base64.b64decode(_b64_str)
                         with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as _tf:
                             _tf.write(_bin)
                             _tmp_path = _tf.name
