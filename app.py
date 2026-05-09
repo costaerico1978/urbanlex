@@ -6542,8 +6542,8 @@ def api_gerador_iniciar():
                 # Batching D (refinado): dividir anexos por TAMANHO (MB) e quantidade.
                 # Cap de seguranca: ~8MB e <=40 PDFs por batch (folga vs Gemini 5min).
                 # Se a lei principal sozinha for grande, chamar_ia_com_blocos comprime/divide.
-                _BATCH_BYTES = 8 * 1024 * 1024
-                _BATCH_QTD   = 40
+                _BATCH_BYTES = 6 * 1024 * 1024
+                _BATCH_QTD   = 24
                 def _tam_pdf_b64(_p):
                     try: return len(_b64.b64decode(_p['data_b64']))
                     except Exception: return 1024 * 100
