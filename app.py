@@ -6539,18 +6539,40 @@ def api_gerador_iniciar():
                 _pasta_da_lei = anexo_pdf.get('pasta_lei', '')
                 _anexos_extras = mapa_anexos_extras.get(_pasta_da_lei, [])
                 _chave_agreg = _metadata.get('chave_zona_individual', 'linhas')
-                # Batching D: quando ha muitos anexos, dividir em batches de 30
-                # PDFs para evitar 504 Deadline Exceeded do Gemini API (5min/req).
-                _BATCH_TAM = 30
-                if len(_anexos_extras) > _BATCH_TAM:
-                    _batches = [_anexos_extras[i:i+_BATCH_TAM] for i in range(0, len(_anexos_extras), _BATCH_TAM)]
-                    job['logs'].append({'nivel':'info','msg':f'--- {idx_pdf}/{len(cat_ordenada)}: {lei_id} (+ {len(_anexos_extras)} anexos divididos em {len(_batches)} batches de ate {_BATCH_TAM}) ---'})
+                # Batching D (refinado): dividir anexos por TAMANHO (MB) e quantidade.
+                # Cap de seguranca: ~8MB e <=40 PDFs por batch (folga vs Gemini 5min).
+                # Se a lei principal sozinha for grande, chamar_ia_com_blocos comprime/divide.
+                _BATCH_BYTES = 8 * 1024 * 1024
+                _BATCH_QTD   = 40
+                def _tam_pdf_b64(_p):
+                    try: return len(_b64.b64decode(_p['data_b64']))
+                    except Exception: return 1024 * 100
+                _tam_lei = _tam_pdf_b64(anexo_pdf)
+                _batches = []
+                if not _anexos_extras:
+                    _batches = [[]]
                 else:
-                    _batches = [_anexos_extras] if _anexos_extras else [[]]
-                    if _anexos_extras:
-                        job['logs'].append({'nivel':'info','msg':f'--- {idx_pdf}/{len(cat_ordenada)}: {lei_id} (+ {len(_anexos_extras)} anexo(s) vinculado(s)) ---'})
-                    else:
-                        job['logs'].append({'nivel':'info','msg':f'--- {idx_pdf}/{len(cat_ordenada)}: {lei_id} ---'})
+                    _atual = []
+                    _atual_bytes = 0
+                    for _ax in _anexos_extras:
+                        _t = _tam_pdf_b64(_ax)
+                        # se nao cabe e ja tem algo no batch, fecha o batch atual
+                        if _atual and (_atual_bytes + _t > _BATCH_BYTES or len(_atual) >= _BATCH_QTD):
+                            _batches.append(_atual)
+                            _atual = []
+                            _atual_bytes = 0
+                        _atual.append(_ax)
+                        _atual_bytes += _t
+                    if _atual: _batches.append(_atual)
+                _qt_anexos = len(_anexos_extras)
+                _mb_lei = _tam_lei / (1024*1024)
+                _mb_anexos = sum(_tam_pdf_b64(a) for ax in _batches for a in ax) / (1024*1024)
+                if len(_batches) > 1:
+                    job['logs'].append({'nivel':'info','msg':f'--- {idx_pdf}/{len(cat_ordenada)}: {lei_id} (lei {_mb_lei:.1f}MB + {_qt_anexos} anexos {_mb_anexos:.1f}MB divididos em {len(_batches)} batches) ---'})
+                elif _qt_anexos:
+                    job['logs'].append({'nivel':'info','msg':f'--- {idx_pdf}/{len(cat_ordenada)}: {lei_id} (lei {_mb_lei:.1f}MB + {_qt_anexos} anexo(s) {_mb_anexos:.1f}MB) ---'})
+                else:
+                    job['logs'].append({'nivel':'info','msg':f'--- {idx_pdf}/{len(cat_ordenada)}: {lei_id} (lei {_mb_lei:.1f}MB, sem anexos) ---'})
                 instrucao_rev = gerar_instrucao_revogacao_para_pdf(lei_id, matriz)
                 resumo_estado = estado_para_resumo_para_prompt(estado_planilha)
                 _j2a = None  # ultimo resultado, usado pela verificacao P2b
