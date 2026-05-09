@@ -22,6 +22,7 @@ MODELOS = {
         'janela_tokens': 1_000_000,
         'output_max_tokens': 65_535,
         'tokens_por_pagina_pdf': 258,
+        'estrategia_pdf': 'pdf_nativo',
     },
     'gemini-pro': {
         'provedor': 'gemini',
@@ -29,6 +30,7 @@ MODELOS = {
         'janela_tokens': 2_000_000,
         'output_max_tokens': 65_535,
         'tokens_por_pagina_pdf': 258,
+        'estrategia_pdf': 'pdf_nativo',
     },
     'claude-sonnet': {
         'provedor': 'anthropic',
@@ -36,6 +38,7 @@ MODELOS = {
         'janela_tokens': 200_000,
         'output_max_tokens': 8_192,
         'tokens_por_pagina_pdf': 2_300,  # Anthropic processa mais rico, mais tokens/pg
+        'estrategia_pdf': 'texto_lei_principal',
     },
     'claude-opus': {
         'provedor': 'anthropic',
@@ -43,6 +46,7 @@ MODELOS = {
         'janela_tokens': 200_000,
         'output_max_tokens': 8_192,
         'tokens_por_pagina_pdf': 2_300,
+        'estrategia_pdf': 'texto_lei_principal',
     },
 }
 

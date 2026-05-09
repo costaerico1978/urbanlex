@@ -6577,11 +6577,52 @@ def api_gerador_iniciar():
                 resumo_estado = estado_para_resumo_para_prompt(estado_planilha)
                 # Helper: tenta enviar [lei] + anexos. Se 504, subdivide anexos pela metade.
                 # Recursivo ate caber. Retorna lista de JSONs (um por sub-batch que conseguiu).
+                # Estrategia condicional por modelo (gemini=pdf_nativo, claude=texto_lei_principal)
+                from modulos.multi_ia import info_modelo as _info_modelo_strat
+                _estrat = _info_modelo_strat(_ia).get('estrategia_pdf', 'pdf_nativo')
+                _texto_lei_cache = {'val': None}  # cache do texto extraido (1 por loop)
+
+                def _extrair_texto_lei(_pdf_b64):
+                    """Extrai texto da lei via pdftotext. Retorna '' se PDF escaneado/falhar."""
+                    if _texto_lei_cache['val'] is not None:
+                        return _texto_lei_cache['val']
+                    try:
+                        import base64, tempfile
+                        _bin = base64.b64decode(_pdf_b64)
+                        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as _tf:
+                            _tf.write(_bin)
+                            _tmp_path = _tf.name
+                        _r = subprocess.run(['pdftotext', '-layout', _tmp_path, '-'],
+                                            capture_output=True, timeout=60)
+                        os.unlink(_tmp_path)
+                        _txt = _r.stdout.decode('utf-8', errors='replace')
+                        _texto_lei_cache['val'] = _txt
+                        return _txt
+                    except Exception as _exe:
+                        job['logs'].append({'nivel':'aviso','msg':f'  pdftotext falhou: {str(_exe)[:120]}'})
+                        _texto_lei_cache['val'] = ''
+                        return ''
+
                 def _chamar_com_subdivisao(_lei_pdf, _anexos_lista, _label_base, _prompt_para_ia, _profundidade=0):
                     _resultados = []
-                    _pdfs_call = [_lei_pdf] + (_anexos_lista or [])
+                    # Aplica estrategia
+                    if _estrat == 'texto_lei_principal':
+                        _texto = _extrair_texto_lei(_lei_pdf)
+                        if _texto and len(_texto) >= 1000:
+                            # Lei tem texto extraivel: prepende ao prompt, manda so anexos como PDF
+                            _pdfs_call = list(_anexos_lista or [])
+                            _prompt_efetivo = f'=== TEXTO DA LEI PRINCIPAL ===\n{_texto}\n=== FIM DO TEXTO DA LEI ===\n\n' + _prompt_para_ia
+                        else:
+                            # Lei escaneada/sem texto: fallback para PDF nativo
+                            job['logs'].append({'nivel':'info','msg':f'  {_label_base}: lei sem texto extraivel ({len(_texto)} chars), usando PDF nativo'})
+                            _pdfs_call = [_lei_pdf] + (_anexos_lista or [])
+                            _prompt_efetivo = _prompt_para_ia
+                    else:
+                        # pdf_nativo (Gemini): comportamento original
+                        _pdfs_call = [_lei_pdf] + (_anexos_lista or [])
+                        _prompt_efetivo = _prompt_para_ia
                     try:
-                        _r = chamar_ia_com_blocos(client, _ia, _prompt_para_ia, _pdfs_call,
+                        _r = chamar_ia_com_blocos(client, _ia, _prompt_efetivo, _pdfs_call,
                                                    job['logs'], _label_base, chave_agregar=_chave_agreg,
                                                    max_tentativas=2)
                         return [_r]
