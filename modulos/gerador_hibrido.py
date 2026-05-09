@@ -383,9 +383,10 @@ def prompt_passada_2_pdf_driven_principal(prompt_usuario, lei_identificacao, zon
     chave_zona = metadata.get('chave_zona_individual', 'linhas')
     campo_ni = metadata.get('campo_sem_info', 'NI')
     
-    headers_lista = '\n'.join(f'  • "{h}"' for h in headers[:50])
-    if len(headers) > 50:
-        headers_lista += f'\n  ... e mais {len(headers)-50} colunas (use o nome EXATO de cada cabecalho)'
+    # Envia TODOS os headers (planilha tem ~300 colunas, ainda cabe na janela
+    # de 2M tokens). Limitar a 50 fazia a IA inventar nomes para os usos
+    # nao listados (Comercial, Industrial...) -> backend descartava no merge.
+    headers_lista = '\n'.join(f'  • "{h}"' for h in headers)
     
     zonas_str = '\n'.join(f'  • {z.get("nome_canonico","?")} (em {z.get("unidade_territorial","?")})'
                           for z in zonas_canonicas[:50])
@@ -482,9 +483,7 @@ def prompt_passada_2_pdf_driven_verificacao(prompt_usuario, lei_identificacao, r
     if len(resultado_str) > 30000:
         resultado_str = resultado_str[:30000] + '\n... (truncado)'
     
-    headers_lista = '\n'.join(f'  • "{h}"' for h in headers[:50])
-    if len(headers) > 50:
-        headers_lista += f'\n  ... e mais {len(headers)-50}'
+    headers_lista = '\n'.join(f'  • "{h}"' for h in headers)
     
     return prompt_usuario + (
         f'\n\n=== INSTRUCAO DESTA EXECUCAO — PASSADA 2 (VERIFICACAO DE OMISSOES) ===\n'
