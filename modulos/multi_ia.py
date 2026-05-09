@@ -287,6 +287,7 @@ def _executar_chamada(client, provedor, modelo, prompt_text, pdfs, logs, label):
             with client.messages.stream(
                 model=modelo,
                 max_tokens=8192,
+                temperature=0.3,
                 messages=[{'role': 'user', 'content': content}]
             ) as stream:
                 for text in stream.text_stream:
@@ -305,6 +306,7 @@ def _executar_chamada(client, provedor, modelo, prompt_text, pdfs, logs, label):
                     pass
             
             stream = client.generate_content(parts, stream=True,
+                                             generation_config={'temperature': 0.3},
                                              request_options={'timeout': 300})
             for chunk in stream:
                 try:
