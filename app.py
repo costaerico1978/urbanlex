@@ -6639,10 +6639,13 @@ def api_gerador_iniciar():
                     if _usa_ocr:
                         try:
                             from modulos.ocr_tabelas import processar_pdf as _ocr_pdf
-                            import base64 as _b64ocr, tempfile as _tmpocr, os as _osocr
+                            import base64 as _b64ocr, tempfile as _tmpocr, os as _osocr, json as _json_ocr
                             _markdown_anexos = []
                             _falhas_ocr = 0
+                            _diagnostico_batch = []  # diagnostico detalhado por anexo
                             for _ai, _ax in enumerate(_anexos_lista or [], 1):
+                                _nome_anexo = _ax.get('nome_arquivo') or _ax.get('title') or f'anexo_{_ai}'
+                                _diag_anexo = {'idx': _ai, 'nome': _nome_anexo}
                                 try:
                                     # Salva PDF temporariamente para processar
                                     with _tmpocr.NamedTemporaryFile(suffix='.pdf', delete=False) as _tf:
@@ -6650,14 +6653,58 @@ def api_gerador_iniciar():
                                         _tf_path = _tf.name
                                     _r_ocr = _ocr_pdf(_tf_path)
                                     _osocr.unlink(_tf_path)
+                                    # Captura diagnostico rico
+                                    _diag_anexo.update({
+                                        'metodo': _r_ocr.get('metodo'),
+                                        'overall': _r_ocr.get('overall'),
+                                        'chars': _r_ocr.get('chars', 0),
+                                        'paginas_total': _r_ocr.get('paginas_total', 0),
+                                        'paginas_ok': _r_ocr.get('paginas_ok', 0),
+                                        'paginas_falhou': _r_ocr.get('paginas_falhou', 0),
+                                        'tempo_ms': _r_ocr.get('tempo_ms', 0),
+                                        'erro_geral': _r_ocr.get('erro_geral'),
+                                        'tamanho_bytes': _r_ocr.get('tamanho_bytes', 0),
+                                        'paginas_detalhe': _r_ocr.get('paginas_detalhe', []),
+                                    })
                                     _conteudo = _r_ocr.get('conteudo_md', '') or ''
                                     if _conteudo and len(_conteudo) >= 100:
-                                        _nome_anexo = _ax.get('nome_arquivo') or _ax.get('title') or f'anexo_{_ai}'
                                         _markdown_anexos.append(f'\n=== ANEXO: {_nome_anexo} (metodo: {_r_ocr.get("metodo")}) ===\n{_conteudo}\n=== FIM ANEXO ===\n')
+                                        _diag_anexo['usado_no_prompt'] = True
                                     else:
                                         _falhas_ocr += 1
+                                        _diag_anexo['usado_no_prompt'] = False
                                 except Exception as _eocr:
                                     _falhas_ocr += 1
+                                    _diag_anexo.update({
+                                        'metodo': 'exception',
+                                        'overall': 'falhou',
+                                        'erro_geral': f'{type(_eocr).__name__}: {str(_eocr)[:200]}',
+                                        'usado_no_prompt': False,
+                                    })
+                                _diagnostico_batch.append(_diag_anexo)
+                            # Persiste diagnostico do batch em JSON
+                            try:
+                                _dbg_dir_ocr = '/var/www/urbanlex/static/debug/ocr'
+                                _osocr.makedirs(_dbg_dir_ocr, exist_ok=True)
+                                _dbg_label_safe = _label_base.replace('/', '_').replace('.', '_')
+                                _dbg_file = f'{_dbg_dir_ocr}/{job_id}_{_dbg_label_safe}.json'
+                                with open(_dbg_file, 'w') as _df_ocr:
+                                    _json_ocr.dump({
+                                        'job_id': job_id,
+                                        'label': _label_base,
+                                        'total_anexos': len(_anexos_lista or []),
+                                        'sucesso': len(_markdown_anexos),
+                                        'falhou': _falhas_ocr,
+                                        'anexos': _diagnostico_batch,
+                                    }, _df_ocr, indent=2, ensure_ascii=False)
+                            except Exception:
+                                pass
+                            # Log detalhado: lista PDFs problematicos com motivo
+                            _falhas_resumo = []
+                            for _d in _diagnostico_batch:
+                                if not _d.get('usado_no_prompt'):
+                                    _motivo = _d.get('erro_geral') or _d.get('overall', '?')
+                                    _falhas_resumo.append(f"{_d.get('nome', '?')[:40]}: {_motivo[:80]}")
                             if _markdown_anexos:
                                 # Lei via texto + anexos via Markdown estruturado, sem PDF binario
                                 _texto_lei = _extrair_texto_lei(_lei_pdf) if _estrat == 'texto_lei_principal' else ''
@@ -6665,9 +6712,17 @@ def api_gerador_iniciar():
                                 _prompt_efetivo = (_prefixo_lei + ''.join(_markdown_anexos) + '\n\n' + _prompt_para_ia)
                                 _pdfs_call = [] if _texto_lei and len(_texto_lei) >= 1000 else [_lei_pdf]
                                 job['logs'].append({'nivel':'info','msg':f'  {_label_base}: OCR processou {len(_markdown_anexos)}/{len(_anexos_lista)} anexos como Markdown ({_falhas_ocr} falharam)'})
+                                # Detalhe das falhas (ate 5 primeiras para nao poluir log)
+                                if _falhas_resumo:
+                                    for _fr in _falhas_resumo[:5]:
+                                        job['logs'].append({'nivel':'aviso','msg':f'    OCR FALHOU: {_fr}'})
+                                    if len(_falhas_resumo) > 5:
+                                        job['logs'].append({'nivel':'aviso','msg':f'    ... +{len(_falhas_resumo)-5} outras falhas (ver JSON: {job_id}_{_dbg_label_safe}.json)'})
                             else:
-                                # Todos os anexos falharam no OCR -> fallback para comportamento normal
-                                job['logs'].append({'nivel':'aviso','msg':f'  {_label_base}: OCR falhou em todos os anexos, fallback para PDF nativo'})
+                                # Todos falharam -> fallback para PDF nativo
+                                job['logs'].append({'nivel':'aviso','msg':f'  {_label_base}: OCR falhou em todos os {len(_anexos_lista)} anexos, fallback para PDF nativo'})
+                                for _fr in _falhas_resumo[:3]:
+                                    job['logs'].append({'nivel':'aviso','msg':f'    OCR FALHOU: {_fr}'})
                                 _usa_ocr = False
                         except Exception as _e_setup_ocr:
                             job['logs'].append({'nivel':'aviso','msg':f'  {_label_base}: erro setup OCR ({_e_setup_ocr}), usando PDF nativo'})
