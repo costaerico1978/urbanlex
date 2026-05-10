@@ -5967,6 +5967,7 @@ def api_api_keys():
         servicos = [
             ('gemini-flash', 'GEMINI_API_KEY', 'Gemini 2.5 Flash'),
             ('gemini-pro', 'GEMINI_API_KEY', 'Gemini 2.5 Pro'),
+            ('gemini-hibrido', 'GEMINI_API_KEY', 'Gemini Hibrido (Pro+Flash)'),
             ('claude-sonnet', 'ANTHROPIC_API_KEY', 'Claude Sonnet 4.5'),
             ('claude-opus', 'ANTHROPIC_API_KEY', 'Claude Opus 4.7'),
         ]
@@ -6331,7 +6332,7 @@ def api_gerador_iniciar():
                 estado_para_resumo_para_prompt,
                 estado_para_planilha_final,
             )
-            from modulos.multi_ia import chamar_ia, chamar_ia_com_blocos, montar_client, info_modelo, adequar_pdfs_para_janela
+            from modulos.multi_ia import chamar_ia, chamar_ia_com_blocos, montar_client, info_modelo, adequar_pdfs_para_janela, resolver_ia_para_fase
             from modulos.vigencia import (
                 ordenar_pdfs_por_prioridade,
                 calcular_matriz_vigencia,
@@ -6342,6 +6343,14 @@ def api_gerador_iniciar():
             info_ia = info_modelo(_ia)
             job['logs'].append({'nivel':'info','msg':f'IA: {_ia} ({info_ia["modelo"]})'})
             client = montar_client(_ia)
+            # Cache de clients para modo hibrido (cada fase pode usar modelo diferente)
+            _clients_cache = {_ia: client}
+            def _resolver_ia_e_client(_label_fase):
+                _ia_resolvido = resolver_ia_para_fase(_ia, _label_fase)
+                if _ia_resolvido not in _clients_cache:
+                    _clients_cache[_ia_resolvido] = montar_client(_ia_resolvido)
+                    job['logs'].append({'nivel':'info','msg':f'  [hibrido] criando client {_ia_resolvido} para fase {_label_fase}'})
+                return _ia_resolvido, _clients_cache[_ia_resolvido]
             if client is None:
                 raise Exception(f'IA {_ia} sem chave configurada')
             _metadata = dict(DEFAULT_METADATA)
@@ -6484,7 +6493,8 @@ def api_gerador_iniciar():
             catalogacao = []
             try:
                 _p0 = prompt_passada_0_catalogacao_avancada([a['nome_arquivo'] for a in anexos_principais], _metadata)
-                _r0 = chamar_ia_com_blocos(client, _ia, _p0, anexos_principais, job['logs'], 'P0', chave_agregar='arquivos')
+                _ia_f, _cli_f = _resolver_ia_e_client('P0')
+                _r0 = chamar_ia_com_blocos(_cli_f, _ia_f, _p0, anexos_principais, job['logs'], 'P0', chave_agregar='arquivos')
                 _j0 = extrair_json(_r0)
                 if _j0 and 'arquivos' in _j0:
                     catalogacao = _j0['arquivos']
@@ -6503,7 +6513,8 @@ def api_gerador_iniciar():
             zonas_canonicas = []
             try:
                 _p1 = prompt_passada_1_inventario(prompt, _metadata)
-                _r1 = chamar_ia_com_blocos(client, _ia, _p1, anexos_principais, job['logs'], 'P1', chave_agregar=_metadata['chave_inventario'])
+                _ia_f, _cli_f = _resolver_ia_e_client('P1')
+                _r1 = chamar_ia_com_blocos(_cli_f, _ia_f, _p1, anexos_principais, job['logs'], 'P1', chave_agregar=_metadata['chave_inventario'])
                 _j1 = extrair_json(_r1)
                 if _j1 and _metadata['chave_inventario'] in _j1:
                     zonas_canonicas = _j1[_metadata['chave_inventario']] or []
@@ -6637,7 +6648,8 @@ def api_gerador_iniciar():
                         _pdfs_call = [_lei_pdf] + (_anexos_lista or [])
                         _prompt_efetivo = _prompt_para_ia
                     try:
-                        _r = chamar_ia_com_blocos(client, _ia, _prompt_efetivo, _pdfs_call,
+                        _ia_f_p2, _cli_f_p2 = _resolver_ia_e_client(_label_base)
+                        _r = chamar_ia_com_blocos(_cli_f_p2, _ia_f_p2, _prompt_efetivo, _pdfs_call,
                                                    job['logs'], _label_base, chave_agregar=_chave_agreg,
                                                    max_tentativas=2)
                         return [_r]
@@ -6732,7 +6744,8 @@ def api_gerador_iniciar():
                 linhas_finais = estado_para_planilha_final(estado_planilha)
                 _consolidado = _json3.dumps({'linhas': linhas_finais}, ensure_ascii=False, indent=2)[:50000]
                 _p3 = prompt_passada_3_validacao(_consolidado, zonas_canonicas, _metadata)
-                _r3 = chamar_ia_com_blocos(client, _ia, _p3, anexos_principais, job['logs'], 'P3', chave_agregar=_metadata['chave_validacao'])
+                _ia_f, _cli_f = _resolver_ia_e_client('P3')
+                _r3 = chamar_ia_com_blocos(_cli_f, _ia_f, _p3, anexos_principais, job['logs'], 'P3', chave_agregar=_metadata['chave_validacao'])
                 _j3 = extrair_json(_r3)
                 if _j3:
                     faltantes = _j3.get(_metadata['chave_validacao']) or []

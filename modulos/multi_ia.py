@@ -48,7 +48,43 @@ MODELOS = {
         'tokens_por_pagina_pdf': 2_300,
         'estrategia_pdf': 'texto_lei_principal',
     },
+    # Modo hibrido: usa modelos diferentes por fase do pipeline.
+    # Resolvido em tempo de execucao via roteamento abaixo.
+    'gemini-hibrido': {
+        'provedor': 'gemini',
+        'modelo': 'gemini-2.5-pro',  # default se fase nao listada no roteamento
+        'janela_tokens': 2_000_000,  # janela do modelo mais capaz
+        'output_max_tokens': 65_535,
+        'tokens_por_pagina_pdf': 258,
+        'estrategia_pdf': 'pdf_nativo',
+        'tipo': 'hibrido',
+        'descricao': 'Pro em P2.1a/P2.2a (tabelas), Flash nas demais. ~50% custo Pro, ~95% qualidade.',
+        'roteamento': {
+            'P0': 'gemini-flash',
+            'P1': 'gemini-flash',
+            'P2.1a': 'gemini-pro',
+            'P2.1b': 'gemini-flash',
+            'P2.2a': 'gemini-pro',
+            'P2.2b': 'gemini-flash',
+            'P3': 'gemini-flash',
+        },
+    },
 }
+
+def resolver_ia_para_fase(ia_id, fase_label):
+    """Para meta-modelos hibridos, retorna o modelo real para a fase.
+    Para modelos diretos, retorna o proprio ia_id."""
+    cfg = MODELOS.get(ia_id, {})
+    if cfg.get('tipo') == 'hibrido':
+        roteamento = cfg.get('roteamento', {})
+        # Match exato primeiro, depois prefixo (P2.1a.1/9 -> P2.1a)
+        if fase_label in roteamento:
+            return roteamento[fase_label]
+        for prefixo, modelo_real in roteamento.items():
+            if fase_label.startswith(prefixo):
+                return modelo_real
+        return ia_id  # fallback
+    return ia_id
 
 
 def info_modelo(ia_id):
