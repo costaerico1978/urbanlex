@@ -6632,22 +6632,59 @@ def api_gerador_iniciar():
 
                 def _chamar_com_subdivisao(_lei_pdf, _anexos_lista, _label_base, _prompt_para_ia, _profundidade=0):
                     _resultados = []
-                    # Aplica estrategia
-                    if _estrat == 'texto_lei_principal':
-                        _texto = _extrair_texto_lei(_lei_pdf)
-                        if _texto and len(_texto) >= 1000:
-                            # Lei tem texto extraivel: prepende ao prompt, manda so anexos como PDF
-                            _pdfs_call = list(_anexos_lista or [])
-                            _prompt_efetivo = f'=== TEXTO DA LEI PRINCIPAL ===\n{_texto}\n=== FIM DO TEXTO DA LEI ===\n\n' + _prompt_para_ia
+                    # Modo OCR: extrai texto/tabelas estruturadas dos anexos antes de mandar para IA
+                    _info_modelo_atual = info_modelo(_ia)
+                    _usa_ocr = _info_modelo_atual.get('pre_processamento') == 'ocr_tabelas'
+                    if _usa_ocr:
+                        try:
+                            from modulos.ocr_tabelas import processar_pdf as _ocr_pdf
+                            import base64 as _b64ocr, tempfile as _tmpocr, os as _osocr
+                            _markdown_anexos = []
+                            _falhas_ocr = 0
+                            for _ai, _ax in enumerate(_anexos_lista or [], 1):
+                                try:
+                                    # Salva PDF temporariamente para processar
+                                    with _tmpocr.NamedTemporaryFile(suffix='.pdf', delete=False) as _tf:
+                                        _tf.write(_b64ocr.b64decode(_ax['data_b64']))
+                                        _tf_path = _tf.name
+                                    _r_ocr = _ocr_pdf(_tf_path)
+                                    _osocr.unlink(_tf_path)
+                                    _conteudo = _r_ocr.get('conteudo_md', '') or ''
+                                    if _conteudo and len(_conteudo) >= 100:
+                                        _nome_anexo = _ax.get('nome_arquivo') or _ax.get('title') or f'anexo_{_ai}'
+                                        _markdown_anexos.append(f'\n=== ANEXO: {_nome_anexo} (metodo: {_r_ocr.get("metodo")}) ===\n{_conteudo}\n=== FIM ANEXO ===\n')
+                                    else:
+                                        _falhas_ocr += 1
+                                except Exception as _eocr:
+                                    _falhas_ocr += 1
+                            if _markdown_anexos:
+                                # Lei via texto + anexos via Markdown estruturado, sem PDF binario
+                                _texto_lei = _extrair_texto_lei(_lei_pdf) if _estrat == 'texto_lei_principal' else ''
+                                _prefixo_lei = (f'=== TEXTO DA LEI PRINCIPAL ===\n{_texto_lei}\n=== FIM DO TEXTO DA LEI ===\n\n' if _texto_lei and len(_texto_lei) >= 1000 else '')
+                                _prompt_efetivo = (_prefixo_lei + ''.join(_markdown_anexos) + '\n\n' + _prompt_para_ia)
+                                _pdfs_call = [] if _texto_lei and len(_texto_lei) >= 1000 else [_lei_pdf]
+                                job['logs'].append({'nivel':'info','msg':f'  {_label_base}: OCR processou {len(_markdown_anexos)}/{len(_anexos_lista)} anexos como Markdown ({_falhas_ocr} falharam)'})
+                            else:
+                                # Todos os anexos falharam no OCR -> fallback para comportamento normal
+                                job['logs'].append({'nivel':'aviso','msg':f'  {_label_base}: OCR falhou em todos os anexos, fallback para PDF nativo'})
+                                _usa_ocr = False
+                        except Exception as _e_setup_ocr:
+                            job['logs'].append({'nivel':'aviso','msg':f'  {_label_base}: erro setup OCR ({_e_setup_ocr}), usando PDF nativo'})
+                            _usa_ocr = False
+                    if not _usa_ocr:
+                        # Fluxo original (sem OCR)
+                        if _estrat == 'texto_lei_principal':
+                            _texto = _extrair_texto_lei(_lei_pdf)
+                            if _texto and len(_texto) >= 1000:
+                                _pdfs_call = list(_anexos_lista or [])
+                                _prompt_efetivo = f'=== TEXTO DA LEI PRINCIPAL ===\n{_texto}\n=== FIM DO TEXTO DA LEI ===\n\n' + _prompt_para_ia
+                            else:
+                                job['logs'].append({'nivel':'info','msg':f'  {_label_base}: lei sem texto extraivel ({len(_texto)} chars), usando PDF nativo'})
+                                _pdfs_call = [_lei_pdf] + (_anexos_lista or [])
+                                _prompt_efetivo = _prompt_para_ia
                         else:
-                            # Lei escaneada/sem texto: fallback para PDF nativo
-                            job['logs'].append({'nivel':'info','msg':f'  {_label_base}: lei sem texto extraivel ({len(_texto)} chars), usando PDF nativo'})
                             _pdfs_call = [_lei_pdf] + (_anexos_lista or [])
                             _prompt_efetivo = _prompt_para_ia
-                    else:
-                        # pdf_nativo (Gemini): comportamento original
-                        _pdfs_call = [_lei_pdf] + (_anexos_lista or [])
-                        _prompt_efetivo = _prompt_para_ia
                     try:
                         _ia_f_p2, _cli_f_p2 = _resolver_ia_e_client(_label_base)
                         _r = chamar_ia_com_blocos(_cli_f_p2, _ia_f_p2, _prompt_efetivo, _pdfs_call,
