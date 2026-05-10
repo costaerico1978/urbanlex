@@ -69,6 +69,20 @@ MODELOS = {
             'P3': 'gemini-flash',
         },
     },
+    # OCR + Gemini Pro: pipeline com pre-processamento OCR estruturado
+    # dos anexos (Tesseract+Camelot/img2table) antes de mandar para Pro.
+    # Atualmente comporta-se como Pro normal (placeholder); OCR real e
+    # validacao serao adicionados em commits subsequentes.
+    'gemini-pro-ocr': {
+        'provedor': 'gemini',
+        'modelo': 'gemini-2.5-pro',
+        'janela_tokens': 2_000_000,
+        'output_max_tokens': 65_535,
+        'tokens_por_pagina_pdf': 258,
+        'estrategia_pdf': 'pdf_nativo',
+        'descricao': 'Gemini Pro com pre-processamento OCR estruturado dos anexos. Maxima precisao.',
+        'pre_processamento': 'ocr_tabelas',
+    },
 }
 
 def resolver_ia_para_fase(ia_id, fase_label):

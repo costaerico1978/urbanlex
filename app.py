@@ -5968,6 +5968,7 @@ def api_api_keys():
             ('gemini-flash', 'GEMINI_API_KEY', 'Gemini 2.5 Flash'),
             ('gemini-pro', 'GEMINI_API_KEY', 'Gemini 2.5 Pro'),
             ('gemini-hibrido', 'GEMINI_API_KEY', 'Gemini Hibrido (Pro+Flash)'),
+            ('gemini-pro-ocr', 'GEMINI_API_KEY', 'OCR + Gemini Pro'),
             ('claude-sonnet', 'ANTHROPIC_API_KEY', 'Claude Sonnet 4.5'),
             ('claude-opus', 'ANTHROPIC_API_KEY', 'Claude Opus 4.7'),
         ]
