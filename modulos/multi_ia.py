@@ -83,6 +83,24 @@ MODELOS = {
         'descricao': 'Gemini Pro com pre-processamento OCR estruturado dos anexos. Maxima precisao.',
         'pre_processamento': 'ocr_tabelas',
     },
+    # Plano Y: pipeline em 4 niveis com triagem + OCR + Pro + Sonnet
+    # 1. Flash triagem: classifica paginas por tipo (ZONAS/PARAMETROS/TEXTO/IGNORAR)
+    # 2. OCR estruturado: extrai tabelas dos anexos com parametros
+    # 3. Pro: extracao principal usando markdown estruturado
+    # 4. Sonnet: fallback cirurgico para paginas onde OCR falhou
+    # ATUALMENTE PLACEHOLDER - comporta-se como gemini-pro-ocr ate Componente 1 (logging)
+    # ser implementado. Sera ativado progressivamente em commits subsequentes.
+    'triagem-ocr-pro-sonnet': {
+        'provedor': 'gemini',
+        'modelo': 'gemini-2.5-pro',
+        'janela_tokens': 2_000_000,
+        'output_max_tokens': 65_535,
+        'tokens_por_pagina_pdf': 258,
+        'estrategia_pdf': 'pdf_nativo',
+        'descricao': 'Pipeline completo: Flash triagem + OCR + Pro extracao + Sonnet cirurgico.',
+        'pre_processamento': 'ocr_tabelas',
+        'pipeline': 'triagem_ocr_pro_sonnet',  # flag para roteamento futuro
+    },
 }
 
 def resolver_ia_para_fase(ia_id, fase_label):
