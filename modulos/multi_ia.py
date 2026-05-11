@@ -79,7 +79,7 @@ MODELOS = {
         'janela_tokens': 2_000_000,
         'output_max_tokens': 65_535,
         'tokens_por_pagina_pdf': 258,
-        'estrategia_pdf': 'pdf_nativo',
+        'estrategia_pdf': 'texto_lei_principal',
         'descricao': 'Gemini Pro com pre-processamento OCR estruturado dos anexos. Maxima precisao.',
         'pre_processamento': 'ocr_tabelas',
     },
@@ -96,7 +96,7 @@ MODELOS = {
         'janela_tokens': 2_000_000,
         'output_max_tokens': 65_535,
         'tokens_por_pagina_pdf': 258,
-        'estrategia_pdf': 'pdf_nativo',
+        'estrategia_pdf': 'texto_lei_principal',
         'descricao': 'Pipeline completo: Flash triagem + OCR + Pro extracao + Sonnet cirurgico.',
         'pre_processamento': 'ocr_tabelas',
         'pipeline': 'triagem_ocr_pro_sonnet',  # flag para roteamento futuro
