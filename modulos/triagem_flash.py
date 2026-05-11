@@ -198,34 +198,12 @@ def _filtrar_paginas_relevantes(paginas: list) -> list:
 
 def _dividir_em_batches(pdfs_list: list, max_mb: float = None) -> list:
     """
-    Divide PDFs em batches respeitando MAX_BATCH_MB de tamanho total.
+    Estrategia ATUAL: 1 PDF por batch para garantir match de nome.
+    A Flash nao consegue saber o nome do arquivo no payload, entao
+    enviamos 1 PDF por chamada e o _corrigir_nomes_pdf atribui
+    automaticamente o nome real (caso especial 'len == 1').
     """
-    if max_mb is None:
-        max_mb = MAX_BATCH_MB
-    max_bytes = max_mb * 1024 * 1024
-    
-    batches = []
-    batch_atual = []
-    bytes_atual = 0
-    
-    for p in pdfs_list:
-        try:
-            tamanho = len(base64.b64decode(p['data_b64']))
-        except Exception:
-            tamanho = 0
-        
-        if batch_atual and (bytes_atual + tamanho) > max_bytes:
-            batches.append(batch_atual)
-            batch_atual = [p]
-            bytes_atual = tamanho
-        else:
-            batch_atual.append(p)
-            bytes_atual += tamanho
-    
-    if batch_atual:
-        batches.append(batch_atual)
-    
-    return batches
+    return [[p] for p in pdfs_list]
 
 
 def triagem_anexos(pdfs_list: list, client, ia_id: str, logs: list, persistir_em: str = None) -> dict:
@@ -256,66 +234,82 @@ def triagem_anexos(pdfs_list: list, client, ia_id: str, logs: list, persistir_em
     
     logs.append({'nivel': 'info', 'msg': f'Classificando {len(pdfs_list)} PDFs ({tamanho_total_mb:.1f}MB) em {len(batches)} batch(es)...'})
     
-    # Itera batches, agregando resultados
+    # Itera batches em PARALELO com ThreadPoolExecutor
     paginas = []
     falhas_batch = 0
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    import threading
     
-    try:
-        for bi, batch in enumerate(batches, 1):
-            t_batch = time.time()
-            batch_mb = sum(len(base64.b64decode(p['data_b64'])) for p in batch) / (1024 * 1024)
+    lock_logs = threading.Lock()
+    lock_paginas = threading.Lock()
+    contador_concluidos = [0]
+    
+    def _processar_batch(bi, batch):
+        nonlocal falhas_batch
+        t_batch = time.time()
+        try:
+            resp = chamar_ia(
+                client=client,
+                ia_id=ia_id,
+                prompt_text=PROMPT_TRIAGEM_FLASH,
+                pdfs=batch,
+                logs=[],  # logs silenciosos por chamada (muito ruido)
+                label=f'TRIAGEM.{bi}',
+            )
+            
+            if isinstance(resp, dict):
+                texto_resp = resp.get('texto') or resp.get('content') or ''
+            else:
+                texto_resp = str(resp)
+            
+            texto_limpo = texto_resp.strip()
+            if texto_limpo.startswith('```'):
+                linhas = texto_limpo.split('\n')
+                linhas = [l for l in linhas if not l.startswith('```')]
+                texto_limpo = '\n'.join(linhas)
             
             try:
-                resp = chamar_ia(
-                    client=client,
-                    ia_id=ia_id,
-                    prompt_text=PROMPT_TRIAGEM_FLASH,
-                    pdfs=batch,
-                    logs=logs,
-                    label=f'TRIAGEM.{bi}/{len(batches)}',
-                )
-                
-                # Parsing
-                if isinstance(resp, dict):
-                    texto_resp = resp.get('texto') or resp.get('content') or ''
-                else:
-                    texto_resp = str(resp)
-                
-                # Limpa markdown
-                texto_limpo = texto_resp.strip()
-                if texto_limpo.startswith('```'):
-                    linhas = texto_limpo.split('\n')
-                    linhas = [l for l in linhas if not l.startswith('```')]
-                    texto_limpo = '\n'.join(linhas)
-                
-                # Parse JSON
-                try:
-                    dados = json.loads(texto_limpo)
-                except json.JSONDecodeError:
-                    logs.append({'nivel': 'aviso', 'msg': f'  Batch {bi}: JSON invalido, brace-counting fallback'})
-                    dados = _parse_json_brace_counting(texto_limpo)
-                
-                paginas_batch = dados.get('paginas') or []
-                
-                # POS-PROCESSAMENTO: corrige nomes 'nome_do_arquivo.pdf' (placeholder do exemplo)
-                # mapeando para os nomes reais dos PDFs do batch
-                nomes_reais_batch = [p.get('nome_arquivo', '') for p in batch]
-                paginas_batch = _corrigir_nomes_pdf(paginas_batch, nomes_reais_batch)
-                
+                dados = json.loads(texto_limpo)
+            except json.JSONDecodeError:
+                dados = _parse_json_brace_counting(texto_limpo)
+            
+            paginas_batch = dados.get('paginas') or []
+            nomes_reais_batch = [p.get('nome_arquivo', '') for p in batch]
+            paginas_batch = _corrigir_nomes_pdf(paginas_batch, nomes_reais_batch)
+            
+            with lock_paginas:
                 paginas.extend(paginas_batch)
-                
+                contador_concluidos[0] += 1
+                concluidos = contador_concluidos[0]
+            
+            # Log a cada 20 batches concluidos
+            if concluidos % 20 == 0 or concluidos == len(batches) or concluidos == 1:
                 dt_batch = int(time.time() - t_batch)
-                logs.append({
-                    'nivel': 'info',
-                    'msg': f'  Batch {bi}/{len(batches)}: {len(batch)} PDFs ({batch_mb:.1f}MB) -> {len(paginas_batch)} paginas em {dt_batch}s'
-                })
-                
-            except Exception as e_batch:
+                with lock_logs:
+                    logs.append({
+                        'nivel': 'info',
+                        'msg': f'  Progresso: {concluidos}/{len(batches)} batches ({concluidos*100//len(batches)}%), ultimo em {dt_batch}s'
+                    })
+            
+            return True
+        except Exception as e_batch:
+            with lock_logs:
                 falhas_batch += 1
                 logs.append({
                     'nivel': 'aviso',
-                    'msg': f'  Batch {bi}/{len(batches)} FALHOU: {type(e_batch).__name__}: {str(e_batch)[:200]}'
+                    'msg': f'  Batch {bi}/{len(batches)} FALHOU: {type(e_batch).__name__}: {str(e_batch)[:100]}'
                 })
+            return False
+    
+    try:
+        # Paralelismo: 8 chamadas Flash simultaneas (limite de rate eh ~15 req/s)
+        MAX_PARALELO = 8
+        logs.append({'nivel': 'info', 'msg': f'  Processando em paralelo (max {MAX_PARALELO} chamadas simultaneas)...'})
+        
+        with ThreadPoolExecutor(max_workers=MAX_PARALELO) as executor:
+            futures = [executor.submit(_processar_batch, bi, b) for bi, b in enumerate(batches, 1)]
+            for f in as_completed(futures):
+                f.result()  # garante propagacao de excecoes
         
         if not paginas:
             raise Exception(f'Triagem retornou 0 paginas em todos os {len(batches)} batches')
