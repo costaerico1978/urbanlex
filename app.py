@@ -6470,6 +6470,64 @@ def api_gerador_iniciar():
                 raise Exception('Nenhum PDF valido')
             _kb_total = sum(len(_b64.b64decode(a['data_b64'])) for a in todos_anexos) / 1024
             job['logs'].append({'nivel':'info','msg':f'Total: {len(todos_anexos)} arquivo(s), {_kb_total/1024:.1f}MB'})
+
+            # ====== PRE-PASSAGEM: NORMALIZACAO PDF (Plano Y v2 - Etapa 1) ======
+            # Se IA selecionada usa pipeline 'triagem_ocr_pro_sonnet',
+            # normaliza PDFs com OCRmyPDF para garantir texto extraivel
+            # mantendo layout visual original (PDF searchable).
+            _info_ia_pre = info_modelo(_ia)
+            if _info_ia_pre.get('pipeline') == 'triagem_ocr_pro_sonnet':
+                job['logs'].append({'nivel':'info','msg':'======= PRE-PASSAGEM: NORMALIZACAO PDF ======='})
+                try:
+                    from modulos.pdf_normalizador import normalizar_pdf as _norm_pdf
+                    import tempfile as _tmpnorm, base64 as _b64norm
+                    _pre_aplicado = 0
+                    _pre_skip = 0
+                    _pre_falhou = 0
+                    _pre_t0 = time.time()
+                    for _pi, _pdf_item in enumerate(todos_anexos, 1):
+                        try:
+                            _nome_pdf = _pdf_item.get('nome_arquivo') or f'pdf_{_pi}'
+                            with _tmpnorm.NamedTemporaryFile(suffix='.pdf', delete=False, prefix='urb_norm_') as _tf_norm:
+                                _tf_norm.write(_b64norm.b64decode(_pdf_item['data_b64']))
+                                _tf_norm_path = _tf_norm.name
+                            _norm_res = _norm_pdf(_tf_norm_path)
+                            if _norm_res.get('ocr_aplicado'):
+                                _new_path = _norm_res['path_final']
+                                with open(_new_path, 'rb') as _f_new:
+                                    _new_data = _f_new.read()
+                                _pdf_item['data_b64'] = _b64norm.standard_b64encode(_new_data).decode()
+                                _ocr_res = _norm_res.get('ocr_resultado') or {}
+                                _diag = _norm_res.get('diagnostico') or {}
+                                _pre_aplicado += 1
+                                job['logs'].append({
+                                    'nivel': 'info',
+                                    'msg': f'  {_nome_pdf[:50]}: OCR aplicado ({_diag.get("paginas_imagem", "?")} pag-img de {_diag.get("total_paginas", "?")} | {_ocr_res.get("tempo_ms", 0)}ms)'
+                                })
+                            elif _norm_res.get('erro'):
+                                _pre_falhou += 1
+                                job['logs'].append({
+                                    'nivel': 'aviso',
+                                    'msg': f'  {_nome_pdf[:50]}: falha normalizacao - {_norm_res["erro"][:100]}'
+                                })
+                            else:
+                                _pre_skip += 1
+                        except Exception as _e_pre:
+                            _pre_falhou += 1
+                            job['logs'].append({
+                                'nivel': 'aviso',
+                                'msg': f'  Erro normalizando PDF {_pi}: {type(_e_pre).__name__}: {str(_e_pre)[:100]}'
+                            })
+                    _pre_dt = int(time.time() - _pre_t0)
+                    job['logs'].append({
+                        'nivel': 'info',
+                        'msg': f'Pre-passagem concluida em {_pre_dt}s: {_pre_aplicado} OCR aplicado, {_pre_skip} ja searchable, {_pre_falhou} falhas'
+                    })
+                except Exception as _e_pre_setup:
+                    job['logs'].append({
+                        'nivel': 'aviso',
+                        'msg': f'Pre-passagem falhou no setup: {type(_e_pre_setup).__name__}: {str(_e_pre_setup)[:200]} - continuando sem normalizacao'
+                    })
             # Para P0/P1/P3 (catalogacao, inventario, validacao) usar SO os PDFs
             # principais (corpo das leis), NAO os anexos volumosos. Os anexos
             # ainda vao pra P2 vinculados a sua lei via mapa_anexos_extras.
