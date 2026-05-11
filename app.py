@@ -6528,6 +6528,52 @@ def api_gerador_iniciar():
                         'nivel': 'aviso',
                         'msg': f'Pre-passagem falhou no setup: {type(_e_pre_setup).__name__}: {str(_e_pre_setup)[:200]} - continuando sem normalizacao'
                     })
+
+                # ====== TRIAGEM FLASH (Plano Y v2 - Etapa 3) ======
+                # 1a passada: classifica paginas por tipo e mapeia zonas->paginas.
+                # Resultado fica em job['triagem'] para uso pela 2a passada (Pro filtrada).
+                try:
+                    from modulos.triagem_flash import triagem_anexos as _triagem_anexos
+                    from modulos.triagem_flash import filtrar_anexos_por_zonas as _filtrar_por_zonas
+                    _ia_flash = 'gemini-flash'
+                    _cli_flash = montar_client(_ia_flash)
+                    _job_id_safe = str(job.get('id') or job.get('job_id') or 'unknown').replace('/', '_')
+                    _triagem_persist = f'/var/www/urbanlex/static/debug/triagem/{_job_id_safe}.json'
+                    _triagem_res = _triagem_anexos(
+                        pdfs_list=todos_anexos,
+                        client=_cli_flash,
+                        ia_id=_ia_flash,
+                        logs=job['logs'],
+                        persistir_em=_triagem_persist,
+                    )
+                    job['triagem'] = _triagem_res
+                    
+                    # ====== MODO DEV: filtrar zonas via URBANLEX_DEV_ZONAS ======
+                    import os as _os_dev
+                    _dev_zonas_str = (_os_dev.environ.get('URBANLEX_DEV_ZONAS') or '').strip()
+                    if _dev_zonas_str:
+                        _dev_zonas = [z.strip().upper() for z in _dev_zonas_str.split(',') if z.strip()]
+                        if _dev_zonas:
+                            _antes = len(todos_anexos)
+                            _filtrados = _filtrar_por_zonas(todos_anexos, _dev_zonas, _triagem_res.get('indice_zona_paginas', {}))
+                            if _filtrados and len(_filtrados) < _antes:
+                                todos_anexos = _filtrados
+                                # Reconstroi anexos_principais ainda nao foi feito, vai ser recalculado abaixo
+                                job['logs'].append({
+                                    'nivel': 'info',
+                                    'msg': f'  [MODO DEV] URBANLEX_DEV_ZONAS={_dev_zonas}: filtrado de {_antes} para {len(todos_anexos)} PDFs'
+                                })
+                            else:
+                                job['logs'].append({
+                                    'nivel': 'aviso',
+                                    'msg': f'  [MODO DEV] URBANLEX_DEV_ZONAS={_dev_zonas} nao encontrou PDFs relevantes; usando todos'
+                                })
+                except Exception as _e_triagem:
+                    job['logs'].append({
+                        'nivel': 'aviso',
+                        'msg': f'Triagem falhou: {type(_e_triagem).__name__}: {str(_e_triagem)[:200]} - continuando sem triagem'
+                    })
+                    job['triagem'] = None
             # Para P0/P1/P3 (catalogacao, inventario, validacao) usar SO os PDFs
             # principais (corpo das leis), NAO os anexos volumosos. Os anexos
             # ainda vao pra P2 vinculados a sua lei via mapa_anexos_extras.
