@@ -97,9 +97,11 @@ MODELOS = {
         'output_max_tokens': 65_535,
         'tokens_por_pagina_pdf': 258,
         'estrategia_pdf': 'pdf_nativo',
-        'descricao': 'Pipeline completo: Flash triagem + OCR + Pro extracao + Sonnet cirurgico.',
-        'pre_processamento': 'ocr_tabelas',
-        'pipeline': 'triagem_ocr_pro_sonnet',  # flag para roteamento futuro
+        'descricao': 'Pipeline completo: PDF normalizador + Flash triagem + Pro + Sonnet.',
+        # pre_processamento removido propositalmente: o pipeline novo (Plano Y v2)
+        # NAO usa markdown linear. Em vez disso, normaliza PDF via OCRmyPDF na
+        # pre-passagem e manda PDF searchable inteiro pra IA (preserva layout visual).
+        'pipeline': 'triagem_ocr_pro_sonnet',
     },
 }
 
