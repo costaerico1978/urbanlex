@@ -110,7 +110,7 @@ FORMATO DE RESPOSTA (JSON estrito, sem markdown):
 {
   "paginas": [
     {
-      "pdf": "nome_do_arquivo.pdf",
+      "pdf": "<USE O NOME EXATO DO ARQUIVO PDF QUE VOCE RECEBEU>",
       "pagina": 1,
       "tipo": "TABELA_ZONA",
       "confianca": 95,
@@ -118,6 +118,12 @@ FORMATO DE RESPOSTA (JSON estrito, sem markdown):
     }
   ]
 }
+
+CRITICO: O campo "pdf" DEVE ser o NOME EXATO do arquivo PDF que voce esta
+analisando. NUNCA escreva placeholders como 'nome_do_arquivo.pdf' ou
+'arquivo.pdf'. Use SEMPRE o filename real do PDF (ex: 'LC 148.pdf',
+'Anexo 02.4.pdf', 'PDDUA-186.pdf'). Se um PDF tem multiplas paginas,
+use o MESMO nome de arquivo em todas as entradas dele.
 
 IMPORTANTE: Retorne SOMENTE o JSON, sem comentarios ou markdown."""
 
@@ -290,6 +296,12 @@ def triagem_anexos(pdfs_list: list, client, ia_id: str, logs: list, persistir_em
                     dados = _parse_json_brace_counting(texto_limpo)
                 
                 paginas_batch = dados.get('paginas') or []
+                
+                # POS-PROCESSAMENTO: corrige nomes 'nome_do_arquivo.pdf' (placeholder do exemplo)
+                # mapeando para os nomes reais dos PDFs do batch
+                nomes_reais_batch = [p.get('nome_arquivo', '') for p in batch]
+                paginas_batch = _corrigir_nomes_pdf(paginas_batch, nomes_reais_batch)
+                
                 paginas.extend(paginas_batch)
                 
                 dt_batch = int(time.time() - t_batch)
@@ -416,6 +428,48 @@ def _parse_json_brace_counting(texto: str) -> dict:
     except Exception:
         return {'paginas': []}
 
+
+
+
+def _corrigir_nomes_pdf(paginas_lista: list, nomes_reais_batch: list) -> list:
+    """
+    Corrige campo 'pdf' de paginas classificadas pela IA.
+    Se a IA retornou placeholder generico ou nome que nao bate com PDFs
+    do batch, tenta mapear pelo nome mais proximo. Se o batch tem so 1
+    PDF, todas as paginas vao para ele.
+    """
+    PLACEHOLDERS = {'nome_do_arquivo.pdf', 'arquivo.pdf', 'documento.pdf', 'pdf.pdf', ''}
+    nomes_set = set(nomes_reais_batch)
+    
+    if len(nomes_reais_batch) == 1:
+        for p in paginas_lista:
+            p['pdf'] = nomes_reais_batch[0]
+        return paginas_lista
+    
+    for p in paginas_lista:
+        pdf_nome = (p.get('pdf') or '').strip()
+        
+        if pdf_nome in nomes_set:
+            continue
+        
+        if pdf_nome.lower() in PLACEHOLDERS:
+            p['pdf'] = '__AMBIGUO__'
+            continue
+        
+        match_parcial = None
+        for nome_real in nomes_reais_batch:
+            base_retornado = pdf_nome.replace('.pdf', '').lower()
+            base_real = nome_real.replace('.pdf', '').lower()
+            if base_retornado and (base_retornado in base_real or base_real.startswith(base_retornado[:20])):
+                match_parcial = nome_real
+                break
+        
+        if match_parcial:
+            p['pdf'] = match_parcial
+        else:
+            p['pdf'] = '__AMBIGUO__'
+    
+    return paginas_lista
 
 def filtrar_anexos_por_zonas(anexos: list, zonas_dev: list, indice_triagem: dict) -> list:
     """
