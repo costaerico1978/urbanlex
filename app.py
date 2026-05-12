@@ -4405,6 +4405,9 @@ def api_buscador_historico():
                 'legislacao_link': r['legislacao_link'],
                 'pdf_path': r['pdf_path'],
                 'anexos_paths': r['anexos_paths'],
+                'relatorio_path': r['relatorio_path'],
+                'tabela_path': r['tabela_path'],
+                'zip_path': r['zip_path'],
             })
         return jsonify({'success': True, 'data': data})
     except Exception as e:
