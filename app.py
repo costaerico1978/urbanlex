@@ -3735,6 +3735,66 @@ def api_reiniciar_worker():
     threading.Thread(target=_restart, daemon=True).start()
     return jsonify({'success': True, 'msg': 'Worker reiniciando em 1s...'})
 
+@app.route('/api/buscador/especifica/estado')
+@login_required
+def api_buscador_especifica_estado():
+    """Retorna estado da ultima busca especifica - server-side, sem sessionStorage."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        # 1. Tem busca especifica EM ANDAMENTO?
+        cur.execute("""SELECT job_id, municipio, estado, legislacao_tipo,
+                              legislacao_numero, legislacao_ano, iniciado_em
+                       FROM buscas_historico
+                       WHERE tipo='especifica' AND job_id IS NOT NULL
+                         AND concluido_em IS NULL
+                       ORDER BY iniciado_em DESC LIMIT 1""")
+        rodando = cur.fetchone()
+        if rodando:
+            cur.close(); conn.close()
+            return jsonify({
+                'success': True, 'modo': 'em_andamento',
+                'job_id': rodando['job_id'],
+                'municipio': rodando['municipio'], 'estado': rodando['estado'],
+                'legislacao_tipo': rodando['legislacao_tipo'],
+                'legislacao_numero': rodando['legislacao_numero'],
+                'legislacao_ano': rodando['legislacao_ano'],
+            })
+        # 2. Tem ULTIMA busca CONCLUIDA recente (ultimas 24h)?
+        cur.execute("""SELECT id, job_id, municipio, estado, legislacao_tipo,
+                              legislacao_numero, legislacao_ano,
+                              iniciado_em, concluido_em,
+                              zip_path, relatorio_path, tabela_path
+                       FROM buscas_historico
+                       WHERE tipo='especifica' AND concluido_em IS NOT NULL
+                         AND concluido_em > NOW() - INTERVAL '24 hours'
+                       ORDER BY concluido_em DESC LIMIT 1""")
+        ultima = cur.fetchone()
+        cur.close(); conn.close()
+        if ultima:
+            def _to_url(p):
+                if not p: return None
+                # Path no banco pode estar como 'static/...' ou '/static/...'
+                p = str(p).lstrip('/')
+                return '/' + p if not p.startswith('http') else p
+            return jsonify({
+                'success': True, 'modo': 'ultima_concluida',
+                'id': ultima['id'], 'job_id': ultima['job_id'],
+                'municipio': ultima['municipio'], 'estado': ultima['estado'],
+                'legislacao_tipo': ultima['legislacao_tipo'],
+                'legislacao_numero': ultima['legislacao_numero'],
+                'legislacao_ano': ultima['legislacao_ano'],
+                'iniciado_em': ultima['iniciado_em'].isoformat() if ultima['iniciado_em'] else None,
+                'concluido_em': ultima['concluido_em'].isoformat() if ultima['concluido_em'] else None,
+                'zip_url': _to_url(ultima['zip_path']),
+                'relatorio_url': _to_url(ultima['relatorio_path']),
+                'tabela_url': _to_url(ultima['tabela_path']),
+            })
+        return jsonify({'success': True, 'modo': None})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)[:200]})
+
+
 @app.route('/api/buscador/job-ativo')
 @login_required
 def api_buscador_job_ativo():
