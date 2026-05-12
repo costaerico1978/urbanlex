@@ -3581,14 +3581,26 @@ async function reconectarJob() {
         // Antes: tipo null/undefined -> defaultava pra 'manual' (bug, jogava log na aba errada)
         // Agora: tipo null/undefined -> mantem aba atual (nao mexe)
         const _tipoJob = check.tipo;
+        
+        // RAMIFICACAO POR TIPO: cada tipo de busca tem seu proprio log
         if (_tipoJob === 'especifica') {
             mudarTab('especifica');
+            // Reconectar usando o log da especifica (esp-log)
+            window._espJobId = jobId;
+            window._buscadorJobId = jobId;
+            history.replaceState({jobId}, '', '?job=' + jobId);
+            await reconectarEspecificaJob(jobId, check.logs || [], check.done, check.result);
+            return;
         } else if (_tipoJob === 'auto') {
             mudarTab('auto');
-        } else if (_tipoJob === 'manual') {
-            mudarTab('manual');
+            // Reconectar no log da auto (log-municipio) — ja existe reconectarMunJob
+            history.replaceState({jobId}, '', '?job=' + jobId);
+            // O reconectarMunJob ja eh acionado por _nmAtualizarProgressoFila
+            return;
         }
-        // Se _tipoJob for null/undefined/outro: NAO troca de tab
+        // Tipo 'manual' ou nao identificado: usa bm-log (logica original)
+        if (_tipoJob === 'manual') mudarTab('manual');
+        // Se tipo for null/undefined: mantem aba atual
         logClear();
         logLine('🔄', 'Reconectando busca em andamento...', 'var(--accent)');
         document.getElementById('bm-loading').style.display = 'block';
@@ -3807,6 +3819,85 @@ function _espAcMunicipio(val) {
 // ═══════════════════════════════════════
 // LEI ESPECÍFICA
 // ═══════════════════════════════════════
+async function reconectarEspecificaJob(jobId, srvLogs, isDone, resultado) {
+    // Reconecta uma busca especifica em andamento, escrevendo no esp-log
+    document.getElementById('esp-log').style.display = 'block';
+    const logLines = document.getElementById('esp-log-lines');
+    if (!logLines) return;
+    logLines.innerHTML = '';
+    
+    // Renderizar logs ja existentes do servidor
+    (srvLogs || []).forEach(l => {
+        if (l.nivel === 'token') return;
+        if (l.nivel === 'tabela') { try { _atualizarTabelaLegs(l); } catch(e) {} return; }
+        const div = document.createElement('div');
+        div.style.color = l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'aviso' ? '#f0ad4e' : l.nivel === 'erro' ? '#e74c3c' : 'var(--muted)';
+        const _tsStr = l.ts || '';
+        div.innerHTML = '<span style="color:var(--muted2);margin-right:6px;">'+_tsStr+'</span>'+(l.msg||'');
+        logLines.appendChild(div);
+    });
+    logLines.scrollTop = logLines.scrollHeight;
+    
+    let cursor = (srvLogs || []).length;
+    
+    // Se ja terminou, so renderiza resultado
+    if (isDone) {
+        const _espLd = document.getElementById('esp-loading'); 
+        if (_espLd) _espLd.style.display = 'none';
+        if (resultado) {
+            document.getElementById('esp-resultado').style.display = 'block';
+            const dlDiv = document.getElementById('esp-downloads');
+            if (dlDiv) {
+                dlDiv.style.display = 'flex';
+                dlDiv.innerHTML = '';
+                if (resultado.zip_url) dlDiv.innerHTML += `<a href="${resultado.zip_url}" target="_blank" class="btn btn-primary btn-sm">📦 Pacote Completo ZIP</a>`;
+                if (resultado.relatorio_url) dlDiv.innerHTML += `<a href="${resultado.relatorio_url}" target="_blank" class="btn btn-secondary btn-sm">📄 Relatório PDF</a>`;
+                if (resultado.tabela_url) dlDiv.innerHTML += `<a href="${resultado.tabela_url}" target="_blank" class="btn btn-secondary btn-sm">📊 Tabela PDF</a>`;
+            }
+        }
+        return;
+    }
+    
+    // Mostra loading
+    document.getElementById('esp-loading').style.display = 'block';
+    
+    // Polling
+    const poll = setInterval(async () => {
+        try {
+            const p = await fetch('/api/buscador/job/' + jobId + '?cursor=' + cursor);
+            const pd = await p.json();
+            if (pd.logs) {
+                pd.logs.forEach(l => {
+                    if (l.nivel === 'token') return;
+                    if (l.nivel === 'tabela') { try { _atualizarTabelaLegs(l); } catch(e) {} return; }
+                    const div = document.createElement('div');
+                    div.style.color = l.nivel === 'ok' ? 'var(--accent)' : l.nivel === 'aviso' ? '#f0ad4e' : l.nivel === 'erro' ? '#e74c3c' : 'var(--muted)';
+                    const _tsStr = l.ts || '';
+                    div.innerHTML = '<span style="color:var(--muted2);margin-right:6px;">'+_tsStr+'</span>'+(l.msg||'');
+                    logLines.appendChild(div);
+                });
+                cursor = pd.cursor || cursor;
+                logLines.scrollTop = logLines.scrollHeight;
+            }
+            if (pd.done) {
+                clearInterval(poll);
+                document.getElementById('esp-loading').style.display = 'none';
+                if (pd.result) {
+                    document.getElementById('esp-resultado').style.display = 'block';
+                    const dlDiv = document.getElementById('esp-downloads');
+                    if (dlDiv) {
+                        dlDiv.style.display = 'flex';
+                        dlDiv.innerHTML = '';
+                        if (pd.result.zip_url) dlDiv.innerHTML += `<a href="${pd.result.zip_url}" target="_blank" class="btn btn-primary btn-sm">📦 Pacote Completo ZIP</a>`;
+                        if (pd.result.relatorio_url) dlDiv.innerHTML += `<a href="${pd.result.relatorio_url}" target="_blank" class="btn btn-secondary btn-sm">📄 Relatório PDF</a>`;
+                        if (pd.result.tabela_url) dlDiv.innerHTML += `<a href="${pd.result.tabela_url}" target="_blank" class="btn btn-secondary btn-sm">📊 Tabela PDF</a>`;
+                    }
+                }
+            }
+        } catch(e) {}
+    }, 1500);
+}
+
 async function iniciarBuscaEspecifica() {
     const mun = (document.getElementById('esp-municipio').value || '').trim();
     const est = (document.getElementById('esp-estado').value || '').trim().toUpperCase();
