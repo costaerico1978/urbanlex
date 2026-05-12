@@ -3767,7 +3767,7 @@ def api_buscador_especifica_estado():
                               zip_path, relatorio_path, tabela_path
                        FROM buscas_historico
                        WHERE tipo='especifica' AND concluido_em IS NOT NULL
-                         AND concluido_em > NOW() - INTERVAL '24 hours'
+                         AND sucesso = true
                        ORDER BY concluido_em DESC LIMIT 1""")
         ultima = cur.fetchone()
         cur.close(); conn.close()

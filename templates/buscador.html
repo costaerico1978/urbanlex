@@ -3881,6 +3881,8 @@ async function iniciarBuscaEspecifica() {
     document.getElementById('esp-downloads').style.display = 'none';
     document.getElementById('tabela-legs-esp').innerHTML = '';
     const _btnEspC=document.getElementById('btn-baixar-tabela-esp'); if(_btnEspC) _btnEspC.style.display='none';
+    // Limpar cards de download da busca anterior (so somem quando nova busca comeca)
+    _limparBotoesDownloadEsp();
     document.getElementById('esp-loading-msg').textContent = 'Iniciando análise de ' + tipo + ' ' + num + '/' + ano + '...';
     try {
         const resp = await fetch('/api/buscador/lei-especifica', {
