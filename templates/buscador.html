@@ -3577,11 +3577,18 @@ async function reconectarJob() {
                 if (campos.ano && document.getElementById('bm-ano')) document.getElementById('bm-ano').value = campos.ano;
             } catch(e) {}
         }
-        const _tipoJob = check.tipo || 'manual';
-        let _tabAlvo = 'manual';
-        if (_tipoJob === 'especifica') _tabAlvo = 'especifica';
-        else if (_tipoJob === 'auto') _tabAlvo = 'auto';
-        mudarTab(_tabAlvo);
+        // FIX bug 12/05: so muda de tab se backend retornou tipo EXPLICITO
+        // Antes: tipo null/undefined -> defaultava pra 'manual' (bug, jogava log na aba errada)
+        // Agora: tipo null/undefined -> mantem aba atual (nao mexe)
+        const _tipoJob = check.tipo;
+        if (_tipoJob === 'especifica') {
+            mudarTab('especifica');
+        } else if (_tipoJob === 'auto') {
+            mudarTab('auto');
+        } else if (_tipoJob === 'manual') {
+            mudarTab('manual');
+        }
+        // Se _tipoJob for null/undefined/outro: NAO troca de tab
         logClear();
         logLine('🔄', 'Reconectando busca em andamento...', 'var(--accent)');
         document.getElementById('bm-loading').style.display = 'block';

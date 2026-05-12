@@ -3742,7 +3742,7 @@ def api_buscador_job_ativo():
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("""SELECT job_id, municipio, estado, iniciado_em
+        cur.execute("""SELECT job_id, municipio, estado, iniciado_em, tipo
                        FROM buscas_historico
                        WHERE job_id IS NOT NULL AND concluido_em IS NULL
                        ORDER BY iniciado_em DESC LIMIT 1""")
@@ -3763,7 +3763,12 @@ def api_buscador_job_ativo():
                     cu2b.execute("SELECT id FROM buscas_historico WHERE job_id=%s LIMIT 1",(job_id,))
                     h2=cu2b.fetchone(); cu2b.close(); c2b.close()
                 except: pass
-                return jsonify({'ativo': True, 'job_id': job_id, 'municipio': rf['municipio'], 'estado': rf['estado'], 'hist_id': h2['id'] if h2 else None})
+                _tipo_fila = None
+                if job and isinstance(job, dict):
+                    _tipo_fila = job.get('tipo')
+                if not _tipo_fila:
+                    _tipo_fila = 'auto'  # jobs da fila do worker sao do tipo 'auto'
+                return jsonify({'ativo': True, 'job_id': job_id, 'municipio': rf['municipio'], 'estado': rf['estado'], 'hist_id': h2['id'] if h2 else None, 'tipo': _tipo_fila})
             return jsonify({'ativo': False})
         job_id = r['job_id']
         job = _buscador_jobs.get(job_id)
@@ -3778,7 +3783,8 @@ def api_buscador_job_ativo():
                     # Verificar se a ultima linha indica conclusao
                     _last = _logs_at[-1] if _logs_at else {}
                     if not _last.get('msg','').startswith('CONCLUIDO'):
-                        return jsonify({'ativo': True, 'job_id': job_id, 'municipio': r['municipio'], 'estado': r['estado'], 'hist_id': None, 'recuperado': True})
+                        _tipo_rec = r.get('tipo') or 'manual'
+                        return jsonify({'ativo': True, 'job_id': job_id, 'municipio': r['municipio'], 'estado': r['estado'], 'hist_id': None, 'recuperado': True, 'tipo': _tipo_rec})
                 except Exception:
                     pass
             return jsonify({'ativo': False})
@@ -3789,12 +3795,19 @@ def api_buscador_job_ativo():
         h = cur2.fetchone()
         cur2.close()
         conn2.close()
+        # Pegar tipo: prioridade memoria > banco > fallback
+        _tipo_resp = None
+        if job and isinstance(job, dict):
+            _tipo_resp = job.get('tipo')
+        if not _tipo_resp:
+            _tipo_resp = r.get('tipo') or 'manual'
         return jsonify({
             'ativo': True,
             'job_id': job_id,
             'municipio': r['municipio'],
             'estado': r['estado'],
-            'hist_id': h['id'] if h else None
+            'hist_id': h['id'] if h else None,
+            'tipo': _tipo_resp
         })
     except Exception as e:
         return jsonify({'ativo': False})
