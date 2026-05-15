@@ -1388,3 +1388,265 @@ def processar_municipio(zip_path, municipio, estado, output_dir=None,
     _log("="*80, log_callback)
     
     return {'sucesso': True, 'resultado': estado_final, 'metricas': metricas}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PARTE 6 — PERSISTÊNCIA EM POSTGRESQL
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# 3 funções pra integrar com o banco:
+#   - salvar_processamento(): INSERT em legislacao_processamentos
+#   - consolidar_municipio_db(): aplica todas leis em ordem cronológica
+#   - buscar_consolidado(): SELECT do estado atual
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import psycopg2
+from psycopg2.extras import Json, RealDictCursor
+
+
+def _conectar_db():
+    """Conecta no banco usando credentials do .env."""
+    db_host = os.environ.get('DB_HOST', 'localhost')
+    db_name = os.environ.get('DB_NAME', 'urbanlex')
+    db_user = os.environ.get('DB_USER', 'urbanlex')
+    db_pass = os.environ.get('DB_PASS', 'urbanlex123')
+    return psycopg2.connect(host=db_host, database=db_name,
+                             user=db_user, password=db_pass)
+
+
+def salvar_processamento(resultado_pipeline, legislacao_id=None,
+                         processado_por=None, log_callback=None):
+    """
+    Salva o resultado do pipeline em legislacao_processamentos.
+    
+    Args:
+        resultado_pipeline: dict retornado por processar_municipio()
+        legislacao_id:      FK para legislacoes (opcional)
+        processado_por:     FK para users (opcional)
+        log_callback:       função(msg) opcional
+    
+    Retorna:
+        id do registro criado, ou None se falhou
+    """
+    _log("Salvando processamento no banco...", log_callback)
+    
+    if not isinstance(resultado_pipeline, dict):
+        _log("  ERRO: resultado_pipeline deve ser dict", log_callback)
+        return None
+    
+    sucesso = resultado_pipeline.get('sucesso', False)
+    metricas = resultado_pipeline.get('metricas', {})
+    
+    # Determina municipio/estado a partir de metricas ou resultado
+    if sucesso:
+        estado_extr = resultado_pipeline.get('resultado', {})
+        leg = estado_extr.get('legislacao') or {}
+        municipio = leg.get('municipio') or metricas.get('municipio')
+        estado_uf = leg.get('estado') or metricas.get('estado')
+    else:
+        rp = resultado_pipeline.get('resultado_parcial', {}) or {}
+        leg = rp.get('legislacao') or {}
+        municipio = leg.get('municipio')
+        estado_uf = leg.get('estado')
+    
+    if not municipio or not estado_uf:
+        _log("  ERRO: municipio ou estado não identificados no resultado", log_callback)
+        return None
+    
+    resultado_json = (resultado_pipeline.get('resultado')
+                      if sucesso else resultado_pipeline.get('resultado_parcial'))
+    
+    try:
+        conn = _conectar_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO legislacao_processamentos
+                (legislacao_id, municipio, estado, resultado_json, metricas,
+                 pipeline_versao, prompt_versao, sucesso, erro_etapa, erro_msg,
+                 zip_path, output_dir, processado_por)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            legislacao_id, municipio, estado_uf,
+            Json(resultado_json), Json(metricas),
+            '1.0', 'v13',
+            sucesso,
+            resultado_pipeline.get('erro_etapa'),
+            resultado_pipeline.get('erro_msg'),
+            metricas.get('zip_path'),
+            metricas.get('output_dir'),
+            processado_por,
+        ))
+        novo_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        _log(f"  Salvo em legislacao_processamentos.id={novo_id}", log_callback)
+        return novo_id
+    except Exception as e:
+        _log(f"  ERRO ao salvar: {e}", log_callback)
+        logger.error(f"salvar_processamento falhou: {e}\n{traceback.format_exc()}")
+        return None
+
+
+def consolidar_municipio_db(municipio, estado_uf, consolidado_por=None,
+                            log_callback=None):
+    """
+    Consolida TODAS as leis processadas de um município em ordem cronológica.
+    
+    Lógica:
+    1. SELECT todos legislacao_processamentos (sucesso=true) do município
+    2. Ordena por data_publicacao da legislacao (mais antiga primeiro)
+    3. Aplica merge sequencial: lei mais recente sobrepõe campos
+    4. Gera audit_log: pra cada zona, lista quais leis a afetaram
+    5. UPSERT em municipios_consolidado
+    
+    Retorna:
+        dict com {sucesso, zonas, total_zonas, total_modificacoes, leis_aplicadas}
+    """
+    _log(f"Consolidando {municipio}/{estado_uf}...", log_callback)
+    
+    try:
+        conn = _conectar_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Busca TODOS processamentos do municipio (com data da legislacao se houver)
+        cur.execute("""
+            SELECT lp.id, lp.legislacao_id, lp.resultado_json, lp.processado_em,
+                   l.data_publicacao, l.ano
+            FROM legislacao_processamentos lp
+            LEFT JOIN legislacoes l ON lp.legislacao_id = l.id
+            WHERE lp.municipio = %s AND lp.estado = %s AND lp.sucesso = TRUE
+            ORDER BY COALESCE(l.data_publicacao, lp.processado_em::date) ASC,
+                     lp.processado_em ASC
+        """, (municipio, estado_uf))
+        
+        processamentos = cur.fetchall()
+        if not processamentos:
+            _log(f"  Nenhum processamento encontrado para {municipio}/{estado_uf}", log_callback)
+            cur.close()
+            conn.close()
+            return {'sucesso': False, 'msg': 'sem processamentos'}
+        
+        _log(f"  Processamentos encontrados: {len(processamentos)}", log_callback)
+        
+        # Estado consolidado
+        zonas_consolidadas = {}
+        audit_log = {}  # {sigla: {campo: [leis_que_afetaram]}}
+        legislacoes_aplicadas = []
+        total_modificacoes = 0
+        
+        for p in processamentos:
+            leg_id = p.get('legislacao_id')
+            data_pub = p.get('data_publicacao') or p.get('processado_em')
+            resultado = p.get('resultado_json') or {}
+            
+            if leg_id:
+                legislacoes_aplicadas.append(leg_id)
+            
+            # Identifica a lei (pra audit_log)
+            leg_info = resultado.get('legislacao') or {}
+            label_lei = (f"{leg_info.get('tipo', 'Lei')} "
+                         f"{leg_info.get('numero', '?')}/{leg_info.get('ano', '?')}")
+            
+            # Aplica cada zona
+            for sigla, zona_nova in (resultado.get('zonas') or {}).items():
+                if not isinstance(zona_nova, dict):
+                    continue
+                if sigla not in zonas_consolidadas:
+                    zonas_consolidadas[sigla] = copy.deepcopy(zona_nova)
+                    audit_log[sigla] = {'origem': label_lei}
+                else:
+                    # Merge profundo: lei mais recente sobrepõe
+                    zona_atual = zonas_consolidadas[sigla]
+                    for campo in ['usos_permitidos', 'parametros_gerais',
+                                  'parametros_por_uso', 'variacoes',
+                                  'acrescimos_extraordinarios', 'hierarquia',
+                                  'metodologia_area_computavel',
+                                  'afastamentos_crescentes']:
+                        if zona_nova.get(campo) is not None:
+                            # Lei mais recente: SOBREPÕE (não merge inteligente, sobrepõe direto)
+                            zona_atual[campo] = zona_nova[campo]
+                            # Registra no audit
+                            audit_log.setdefault(sigla, {}).setdefault('alteracoes', []).append({
+                                'lei': label_lei, 'campo': campo
+                            })
+            
+            total_modificacoes += len(resultado.get('modificacoes') or [])
+        
+        # UPSERT em municipios_consolidado
+        cur.execute("""
+            INSERT INTO municipios_consolidado
+                (municipio, estado, zonas_consolidadas, legislacoes_aplicadas,
+                 audit_log, total_zonas, total_modificacoes, consolidado_por)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (municipio, estado) DO UPDATE SET
+                zonas_consolidadas = EXCLUDED.zonas_consolidadas,
+                legislacoes_aplicadas = EXCLUDED.legislacoes_aplicadas,
+                audit_log = EXCLUDED.audit_log,
+                total_zonas = EXCLUDED.total_zonas,
+                total_modificacoes = EXCLUDED.total_modificacoes,
+                consolidado_em = NOW(),
+                consolidado_por = EXCLUDED.consolidado_por
+            RETURNING id
+        """, (
+            municipio, estado_uf,
+            Json(zonas_consolidadas),
+            legislacoes_aplicadas or None,
+            Json(audit_log),
+            len(zonas_consolidadas),
+            total_modificacoes,
+            consolidado_por,
+        ))
+        
+        mc_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        _log(f"  Consolidado salvo (id={mc_id})", log_callback)
+        _log(f"  Zonas: {len(zonas_consolidadas)} | Modificações: {total_modificacoes}", log_callback)
+        _log(f"  Leis aplicadas: {len(legislacoes_aplicadas)}", log_callback)
+        
+        return {
+            'sucesso': True,
+            'consolidado_id': mc_id,
+            'zonas': zonas_consolidadas,
+            'total_zonas': len(zonas_consolidadas),
+            'total_modificacoes': total_modificacoes,
+            'leis_aplicadas': legislacoes_aplicadas,
+            'audit_log': audit_log,
+        }
+    except Exception as e:
+        _log(f"  ERRO ao consolidar: {e}", log_callback)
+        logger.error(f"consolidar_municipio_db falhou: {e}\n{traceback.format_exc()}")
+        return {'sucesso': False, 'msg': str(e)}
+
+
+def buscar_consolidado(municipio, estado_uf):
+    """
+    Busca o estado consolidado de um município.
+    
+    Retorna:
+        dict com {zonas, audit_log, total_zonas, ...} ou None se não existir
+    """
+    try:
+        conn = _conectar_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT id, municipio, estado, zonas_consolidadas,
+                   legislacoes_aplicadas, audit_log,
+                   total_zonas, total_modificacoes,
+                   consolidado_em
+            FROM municipios_consolidado
+            WHERE municipio = %s AND estado = %s
+            LIMIT 1
+        """, (municipio, estado_uf))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if not row:
+            return None
+        return dict(row)
+    except Exception as e:
+        logger.error(f"buscar_consolidado falhou: {e}")
+        return None
