@@ -1,12 +1,22 @@
+# Ambiente
 .env
-static/downloads/
 __pycache__/
+*.pyc
 modulos/__pycache__/
-.env
+
+# Static (gerados/baixados, não vão pro repo)
 static/downloads/
-__pycache__/
-modulos/__pycache__/
-.env
-static/downloads/
-__pycache__/
-modulos/__pycache__/
+static/pipelines/
+static/debug/
+static/temp_download/
+static/planilhas_base/
+
+# Backups locais
+*.bak
+*.bak_*
+*.bak.*
+*.bkp
+nohup.out
+
+# Logs locais
+*.log
