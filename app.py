@@ -5530,7 +5530,8 @@ def api_dossie_municipio_dossies(mun_id):
 @login_required
 def api_prompts_salvos_listar():
     try:
-        rows = qry("SELECT id, nome, arquivo_origem, tamanho_bytes, criado_em FROM prompts_salvos ORDER BY criado_em DESC")
+        # Filtra apenas o prompt ativo do pipeline end-to-end
+        rows = qry("SELECT id, nome, arquivo_origem, tamanho_bytes, criado_em FROM prompts_salvos WHERE nome='prompt end-to-end V0' ORDER BY criado_em DESC")
         for r in rows:
             if r.get('criado_em'):
                 r['criado_em'] = r['criado_em'].strftime('%d/%m/%Y %H:%M') if hasattr(r['criado_em'], 'strftime') else str(r['criado_em'])
@@ -5635,8 +5636,9 @@ def api_prompts_salvos_excluir():
 def api_planilhas_base_listar():
     try:
         from datetime import timedelta as _td
+        # Filtra apenas a planilha base mais recente (v3.1)
         rows = qry("""SELECT id, nome, tamanho_bytes, criado_em, criado_por_nome
-                       FROM planilhas_base ORDER BY criado_em DESC""")
+                       FROM planilhas_base ORDER BY criado_em DESC LIMIT 1""")
         for r in rows:
             if r.get('criado_em') and hasattr(r['criado_em'], 'strftime'):
                 r['criado_em'] = (r['criado_em'] - _td(hours=3)).strftime('%d/%m/%Y %H:%M')
@@ -7567,6 +7569,65 @@ def api_consolidado_municipio(municipio, estado):
         if cons.get('consolidado_em'):
             cons['consolidado_em'] = cons['consolidado_em'].isoformat()
         return jsonify({'success': True, 'consolidado': cons})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/gerador/extrair-dados', methods=['POST'])
+@login_required
+def api_gerador_extrair_dados():
+    """
+    Nova rota: substitui /api/gerador/iniciar para usar o pipeline end-to-end.
+    Body: compilados=[{municipio,estado,zip_path,...}, ...]
+    Enfileira 1 item de extracao por compilado.
+    """
+    try:
+        compilados_raw = request.form.get('compilados') or '[]'
+        try:
+            compilados = json.loads(compilados_raw)
+        except Exception:
+            return jsonify({'success': False, 'error': 'compilados JSON invalido'}), 400
+        
+        if not isinstance(compilados, list) or not compilados:
+            return jsonify({'success': False, 'error': 'nenhum compilado selecionado'}), 400
+        
+        # Toggle: se True, ignora cache MD5 e força reprocessamento
+        forcar_repr = (request.form.get('forcar_reprocessamento') or '').strip() in ('1', 'true', 'on', 'yes')
+        
+        ids_enfileirados = []
+        erros = []
+        for c in compilados:
+            municipio = (c.get('municipio') or '').strip()
+            estado = (c.get('estado') or '').strip()
+            zip_path = (c.get('zip_path') or '').strip()
+            
+            if not municipio or not estado or not zip_path:
+                erros.append({'municipio': municipio, 'erro': 'campos obrigatorios faltando'})
+                continue
+            
+            if not os.path.exists(zip_path):
+                erros.append({'municipio': municipio, 'erro': f'ZIP nao encontrado: {zip_path}'})
+                continue
+            
+            item_id = _enfileirar_extracao(
+                zip_path=zip_path,
+                municipio=municipio,
+                estado_uf=estado,
+                usar_cache=(not forcar_repr),
+                consolidar_apos=True,
+                criado_por=session.get('user_id'),
+            )
+            if item_id:
+                ids_enfileirados.append({'municipio': municipio, 'estado': estado, 'fila_id': item_id})
+            else:
+                erros.append({'municipio': municipio, 'erro': 'falhou ao enfileirar'})
+        
+        return jsonify({
+            'success': True,
+            'enfileirados': ids_enfileirados,
+            'erros': erros,
+            'total_enfileirados': len(ids_enfileirados),
+        })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

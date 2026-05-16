@@ -98,8 +98,13 @@ def _processar_item(item, get_db):
     
     # ───────────────────────────────────────────────────────────
     # CACHE INTELIGENTE: checa MD5 antes de rodar o pipeline
+    # (pulado se item.usar_cache=False — operador forçou reprocessamento)
     # ───────────────────────────────────────────────────────────
     try:
+        if not item.get('usar_cache', True):
+            logger.info(f"[{job_id}] Cache desabilitado (forçar_reprocessamento). Pulando verificação MD5.")
+            _atualizar_progresso(get_db, item_id, 'Cache desabilitado (forçando reprocessamento)')
+            raise StopIteration  # sai do try, vai pro pipeline normal
         _atualizar_progresso(get_db, item_id, 'Verificando cache (MD5)...')
         zip_md5 = calcular_md5_zip(item['zip_path'])
         if zip_md5:
@@ -133,6 +138,8 @@ def _processar_item(item, get_db):
                     )
                 logger.info(f"[{job_id}] CONCLUÍDO via cache (0s, $0)")
                 return
+    except StopIteration:
+        pass  # cache desabilitado pelo operador, continua sem cache
     except Exception as e:
         logger.warning(f"[{job_id}] Erro ao verificar cache: {e} (continua sem cache)")
     

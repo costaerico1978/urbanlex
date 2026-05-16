@@ -114,38 +114,14 @@
   </div>
 
   <div class="gp-card">
-    <div class="gp-card-title"><span class="num">2</span> Planilha Base</div>
-    <div class="gp-help">Arquivo .xlsx que será preenchido pela IA.</div>
-    <div style="display:flex;gap:6px;margin-bottom:8px;">
-      <button class="btn btn-secondary" id="gp-pb-tab-lista" onclick="gpPbModo('lista')" style="flex:1;font-size:12px;">📂 Usar da lista</button>
-      <button class="btn btn-secondary" id="gp-pb-tab-novo" onclick="gpPbModo('novo')" style="flex:1;font-size:12px;">📎 Subir nova</button>
-    </div>
-    <div id="gp-pb-novo" style="display:none;">
-      <div class="gp-upload" id="gp-upload-area">
-        <input type="file" id="gp-template-file" accept=".xlsx,.xls,.xlsm" onchange="gpTemplateSelected(this)">
-        <div id="gp-upload-inner">
-          <div style="font-size:24px;margin-bottom:6px;">📂</div>
-          <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Clique para selecionar planilha</div>
-          <div style="font-size:11px;color:var(--muted);">Arquivo .xlsx</div>
-        </div>
-      </div>
-    </div>
-    <div id="gp-pb-lista">
-      <div id="gp-pb-list" style="border:1px solid var(--border);border-radius:8px;background:var(--surface2);max-height:280px;overflow-y:auto;">
-        <div style="padding:14px;text-align:center;font-size:12px;color:var(--muted);">Carregando...</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="gp-card">
-    <div class="gp-card-title" style="display:flex;align-items:center;justify-content:space-between;"><div><span class="num">3</span> IA que vai preencher</div><button class="btn btn-secondary" onclick="gpAbrirModalEstrategia()" style="font-size:11px;padding:5px 10px;">📋 Ver estrategia</button></div>
+    <div class="gp-card-title" style="display:flex;align-items:center;justify-content:space-between;"><div><span class="num">2</span> Pipeline de Análise</div><button class="btn btn-secondary" onclick="gpAbrirModalEstrategia()" style="font-size:11px;padding:5px 10px;">📋 Ver estrategia</button></div>
     <div class="gp-ia-list" id="gp-ia-list">
       <div style="padding:14px;text-align:center;font-size:12px;color:var(--muted);">Carregando...</div>
     </div>
   </div>
 
   <div class="gp-card">
-    <div class="gp-card-title"><span class="num">4</span> Prompt da Análise</div>
+    <div class="gp-card-title"><span class="num">3</span> Prompt da Análise</div>
     <div class="gp-help">Use o campo de texto OU selecione um prompt salvo.</div>
     <div class="gp-source-toggle">
       <div class="gp-source-tab active" onclick="gpAlternarFonte('texto',this)">✍️ Digitar prompt</div>
@@ -169,10 +145,16 @@
     </div>
   </div>
 
-  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;">
-    <button class="btn btn-ghost" onclick="gpLimpar()" id="gp-btn-limpar">Limpar</button>
-    <button class="btn btn-primary" onclick="gpIniciar()" id="gp-btn-gerar">🤖 Gerar Planilha</button>
-    <button class="btn btn-danger" onclick="gpCancelar()" id="gp-btn-cancelar" style="display:none;">⏹ Cancelar</button>
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;flex-wrap:wrap;">
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);cursor:pointer;user-select:none;">
+      <input type="checkbox" id="gp-forcar-reprocessamento" style="accent-color:var(--accent);width:16px;height:16px;cursor:pointer;">
+      <span>Forçar reprocessamento (ignorar cache)</span>
+    </label>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" onclick="gpLimpar()" id="gp-btn-limpar">Limpar</button>
+      <button class="btn btn-primary" onclick="gpIniciar()" id="gp-btn-gerar">📥 Extrair Dados</button>
+      <button class="btn btn-danger" onclick="gpCancelar()" id="gp-btn-cancelar" style="display:none;">⏹ Cancelar</button>
+    </div>
   </div>
 
   <div id="gp-log-wrap" style="display:none;margin-top:14px;">
@@ -485,6 +467,16 @@ function gpTrocarTab(tab, btn){
 }
 
 async function gpCarregarIAs(){
+  // Pipeline fixo: substitui as IAs antigas por 1 card único.
+  _gpIaSelecionada = 'pipeline_urbanlex';
+  document.getElementById('gp-ia-list').innerHTML =
+    '<div class="gp-ia-row selected" data-ia="pipeline_urbanlex" style="background:rgba(0,224,160,0.08);border:1px solid var(--accent);padding:10px;border-radius:8px;">' +
+      '<input type="radio" name="gp-ia" checked style="accent-color:var(--accent);">' +
+      '<div class="gp-ia-name" style="flex:1;"><strong>Pipeline UrbanLex</strong><div style="font-size:11px;color:var(--muted);margin-top:2px;">Haiku 4.5 (catalogação) + Sonnet 4.6 (extração) — pipeline validado end-to-end</div></div>' +
+      '<span class="gp-ia-key">✓ ativo</span>' +
+    '</div>';
+  return;
+  // Código antigo abaixo (não executa por causa do return acima)
   try{
     const r = await fetch('/api/api-keys');
     const d = await r.json();
@@ -823,51 +815,60 @@ function gpBaixarLog(){
 }
 
 async function gpIniciar(){
-  if(!_gpTemplateFile && !_gpPlanilhaBaseId){ gpToast('Selecione a planilha base', true); return; }
-  // Construir lista de compilados selecionados (1 entrada por municipio)
+  // PIPELINE END-TO-END: extrai dados via /api/gerador/extrair-dados
+  // (não usa mais planilha base / IA selecionada / prompt — todos fixos no backend)
+  
+  // Constrói lista de compilados selecionados (1 entrada por município)
   const _selecionados = [];
   for (const g of _gpCompilados) {
     if (typeof g._selIdx !== 'number' || !g.entradas || !g.entradas[g._selIdx]) continue;
     const e = g.entradas[g._selIdx];
+    if (!e.zip_path) continue;  // pipeline precisa do ZIP
     _selecionados.push({
-      municipio: g.municipio, estado: g.estado,
-      zip: e.zip_path, tabela: e.tabela_path,
-      zip_on: !!e.zip_path, tabela_on: !!e.tabela_path
+      municipio: g.municipio, 
+      estado: g.estado,
+      zip_path: e.zip_path,
     });
   }
-  if (!_selecionados.length){ gpToast('Selecione um compilado em cada municipio', true); return; }
-  if(!_gpIaSelecionada){ gpToast('Escolha uma IA', true); return; }
-  let prompt = '';
-  if(_gpFonteAtiva === 'texto'){
-    prompt = document.getElementById('gp-prompt').value.trim();
-  } else {
-    if(!_gpPromptIdSelecionado){ gpToast('Selecione um prompt da lista', true); return; }
-    try{
-      const pr = await fetch('/api/prompts-salvos/' + _gpPromptIdSelecionado);
-      const pd = await pr.json();
-      prompt = pd.success ? ((pd.data && pd.data.conteudo) || '') : '';
-    }catch(e){ gpToast('Erro ao carregar prompt', true); return; }
+  if (!_selecionados.length){ 
+    gpToast('Selecione um compilado com ZIP em cada município', true); 
+    return; 
   }
-  if(!prompt){ gpToast('Prompt vazio', true); return; }
+  
   document.getElementById('gp-log-wrap').style.display = 'block';
-  document.getElementById('gp-log-body').innerHTML = '';
+  document.getElementById('gp-log-body').innerHTML = '<div style="padding:10px;color:var(--muted);">Enfileirando ' + _selecionados.length + ' município(s) para extração...</div>';
   document.getElementById('gp-resultado').style.display = 'none';
+  
   const fd = new FormData();
-  if(_gpTemplateFile) fd.append('template', _gpTemplateFile);
-  if(_gpPlanilhaBaseId) fd.append('planilha_base_id', _gpPlanilhaBaseId);
   fd.append('compilados', JSON.stringify(_selecionados));
-  fd.append('prompt', prompt);
-  if (_gpPromptIdSelecionado) fd.append('prompt_id', _gpPromptIdSelecionado);
-  fd.append('ia_provider', _gpIaSelecionada);
+  
+  // Toggle: forçar reprocessamento (ignora cache MD5)
+  const forcarRepr = document.getElementById('gp-forcar-reprocessamento');
+  if (forcarRepr && forcarRepr.checked) {
+    fd.append('forcar_reprocessamento', '1');
+  }
+  
   try{
-    const r = await fetch('/api/gerador/iniciar', {method:'POST', body: fd});
+    const r = await fetch('/api/gerador/extrair-dados', {method:'POST', body: fd});
     const d = await r.json();
     if(!d.success){ gpToast('Erro: ' + d.error, true); return; }
-    _gpJobId = d.job_id;
-    _gpLogCursor = 0;
-    document.getElementById('gp-log-body').innerHTML = '';
-    document.getElementById('gp-btn-gerar').style.display = 'none';
-    document.getElementById('gp-btn-cancelar').style.display = '';
+    
+    // Resposta nova: { enfileirados: [{municipio, estado, fila_id}, ...], erros: [...] }
+    let html = '<div style="padding:10px;">';
+    html += '<div style="font-weight:600;color:var(--accent);margin-bottom:8px;">✅ ' + d.total_enfileirados + ' município(s) enfileirado(s)</div>';
+    for (const it of (d.enfileirados || [])){
+      html += '<div style="font-size:13px;margin:4px 0;">▸ ' + it.municipio + '/' + it.estado + ' (fila #' + it.fila_id + ')</div>';
+    }
+    for (const err of (d.erros || [])){
+      html += '<div style="font-size:13px;margin:4px 0;color:#ff6b6b;">✗ ' + err.municipio + ': ' + err.erro + '</div>';
+    }
+    html += '<div style="margin-top:12px;font-size:12px;color:var(--muted);">A extração roda em background. Acompanhe pelo dashboard ou recarregue a página.</div>';
+    html += '</div>';
+    document.getElementById('gp-log-body').innerHTML = html;
+    
+    gpToast('Extração enfileirada com sucesso!');
+    
+    // Não esconde o botão (pode enfileirar mais municípios)
     gpPolling();
   }catch(e){ gpToast('Erro: ' + e.message, true); }
 }
