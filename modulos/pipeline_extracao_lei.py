@@ -1413,6 +1413,56 @@ def _conectar_db():
                              user=db_user, password=db_pass)
 
 
+def calcular_md5_zip(zip_path):
+    """
+    Calcula MD5 de um arquivo ZIP. Usado pra cache inteligente.
+    
+    Retorna: string hexa de 32 chars, ou None se erro.
+    """
+    if not os.path.exists(zip_path):
+        return None
+    try:
+        h = hashlib.md5()
+        with open(zip_path, 'rb') as f:
+            for chunk in iter(lambda: f.read(65536), b''):
+                h.update(chunk)
+        return h.hexdigest()
+    except Exception as e:
+        logger.error(f"calcular_md5_zip falhou: {e}")
+        return None
+
+
+def buscar_processamento_por_md5(municipio, estado_uf, zip_md5):
+    """
+    Busca processamento anterior com mesmo município E mesmo MD5.
+    
+    Retorna: dict do processamento (id, resultado_json, ...) ou None.
+    """
+    if not zip_md5:
+        return None
+    try:
+        conn = _conectar_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT id, municipio, estado, resultado_json, metricas,
+                   processado_em, sucesso, zip_md5
+            FROM legislacao_processamentos
+            WHERE municipio = %s 
+              AND estado = %s 
+              AND zip_md5 = %s
+              AND sucesso = TRUE
+            ORDER BY processado_em DESC
+            LIMIT 1
+        """, (municipio, estado_uf, zip_md5))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        return dict(row) if row else None
+    except Exception as e:
+        logger.error(f"buscar_processamento_por_md5 falhou: {e}")
+        return None
+
+
 def salvar_processamento(resultado_pipeline, legislacao_id=None,
                          processado_por=None, log_callback=None):
     """
@@ -1455,6 +1505,10 @@ def salvar_processamento(resultado_pipeline, legislacao_id=None,
     resultado_json = (resultado_pipeline.get('resultado')
                       if sucesso else resultado_pipeline.get('resultado_parcial'))
     
+    # Calcula MD5 do ZIP se temos o path
+    zip_path_local = metricas.get('zip_path')
+    zip_md5 = calcular_md5_zip(zip_path_local) if zip_path_local else None
+    
     try:
         conn = _conectar_db()
         cur = conn.cursor()
@@ -1462,8 +1516,8 @@ def salvar_processamento(resultado_pipeline, legislacao_id=None,
             INSERT INTO legislacao_processamentos
                 (legislacao_id, municipio, estado, resultado_json, metricas,
                  pipeline_versao, prompt_versao, sucesso, erro_etapa, erro_msg,
-                 zip_path, output_dir, processado_por)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 zip_path, zip_md5, output_dir, processado_por)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """, (
             legislacao_id, municipio, estado_uf,
@@ -1472,7 +1526,8 @@ def salvar_processamento(resultado_pipeline, legislacao_id=None,
             sucesso,
             resultado_pipeline.get('erro_etapa'),
             resultado_pipeline.get('erro_msg'),
-            metricas.get('zip_path'),
+            zip_path_local,
+            zip_md5,
             metricas.get('output_dir'),
             processado_por,
         ))

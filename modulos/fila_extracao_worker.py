@@ -74,6 +74,8 @@ def _processar_item(item, get_db):
         processar_municipio,
         salvar_processamento,
         consolidar_municipio_db,
+        calcular_md5_zip,
+        buscar_processamento_por_md5,
     )
     
     item_id = item['id']
@@ -93,6 +95,46 @@ def _processar_item(item, get_db):
     conn.close()
     
     logger.info(f"[{job_id}] Iniciando extração: {item['municipio']}/{item['estado']}")
+    
+    # ───────────────────────────────────────────────────────────
+    # CACHE INTELIGENTE: checa MD5 antes de rodar o pipeline
+    # ───────────────────────────────────────────────────────────
+    try:
+        _atualizar_progresso(get_db, item_id, 'Verificando cache (MD5)...')
+        zip_md5 = calcular_md5_zip(item['zip_path'])
+        if zip_md5:
+            cached = buscar_processamento_por_md5(
+                item['municipio'], item['estado'], zip_md5
+            )
+            if cached:
+                logger.info(f"[{job_id}] CACHE HIT: reaproveitando processamento "
+                           f"id={cached['id']} (md5={zip_md5[:8]}...)")
+                # Marca como concluido reaproveitando processamento anterior
+                conn = get_db()
+                cur = conn.cursor()
+                cur.execute("""
+                    UPDATE fila_extracao 
+                    SET status='concluido', concluido_em=NOW(),
+                        processamento_id=%s,
+                        progresso_atual='Cache HIT (ZIP idêntico já processado)'
+                    WHERE id=%s
+                """, (cached['id'], item_id))
+                conn.commit()
+                cur.close()
+                conn.close()
+                
+                # Re-consolida se solicitado
+                if item.get('consolidar_apos', True):
+                    consolidar_municipio_db(
+                        municipio=item['municipio'],
+                        estado_uf=item['estado'],
+                        consolidado_por=item.get('criado_por'),
+                        log_callback=lambda m: logger.info(f"[{job_id}] {m}"),
+                    )
+                logger.info(f"[{job_id}] CONCLUÍDO via cache (0s, $0)")
+                return
+    except Exception as e:
+        logger.warning(f"[{job_id}] Erro ao verificar cache: {e} (continua sem cache)")
     
     try:
         # Callback de log atualiza progresso_atual
