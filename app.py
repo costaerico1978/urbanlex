@@ -3635,6 +3635,8 @@ threading.Thread(target=_carregar_ibge, daemon=True).start()
 _buscador_jobs = {}  # job_id -> {'logs': _LogList(job_id, get_db), 'result': None, 'done': False, 'ts': time.time()}
 _fila_pausada = False  # pausar worker apos cancelamento
 from modulos.fila_worker import iniciar_worker as _iniciar_fila_worker
+from modulos.fila_extracao_worker import iniciar_worker_extracao as _iniciar_fila_extracao_worker
+from modulos.pipeline_extracao_lei import enfileirar_extracao as _enfileirar_extracao, buscar_consolidado as _buscar_consolidado
 from modulos.log_persistente import LogList as _LogList
 
 def _cleanup_old_jobs():
@@ -7440,7 +7442,137 @@ def api_fila_cancelar_rodando():
     except Exception as e:
         return jsonify({'success':False,'error':str(e)}),500
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# ROTAS REST — FILA DE EXTRAÇÃO (pipeline_extracao_lei)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/fila_extracao/adicionar', methods=['POST'])
+@login_required
+def api_fila_extracao_adicionar():
+    """Adiciona item na fila_extracao. Body: {zip_path, municipio, estado, ...}"""
+    data = request.get_json() or {}
+    zip_path = (data.get('zip_path') or '').strip()
+    municipio = (data.get('municipio') or '').strip()
+    estado = (data.get('estado') or '').strip()
+    
+    if not zip_path or not municipio or not estado:
+        return jsonify({'success': False, 'error': 'zip_path, municipio e estado obrigatorios'}), 400
+    
+    if not os.path.exists(zip_path):
+        return jsonify({'success': False, 'error': f'ZIP nao encontrado: {zip_path}'}), 400
+    
+    try:
+        item_id = _enfileirar_extracao(
+            zip_path=zip_path,
+            municipio=municipio,
+            estado_uf=estado,
+            legislacao_id=data.get('legislacao_id'),
+            usar_cache=data.get('usar_cache', True),
+            consolidar_apos=data.get('consolidar_apos', True),
+            ordem=data.get('ordem', 0),
+            criado_por=session.get('user_id'),
+        )
+        if item_id:
+            return jsonify({'success': True, 'id': item_id})
+        return jsonify({'success': False, 'error': 'falhou ao enfileirar'}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/fila_extracao/listar')
+@login_required
+def api_fila_extracao_listar():
+    """Lista itens da fila_extracao com status atual."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT id, municipio, estado, zip_path, legislacao_id,
+                   usar_cache, consolidar_apos, status, job_id, ordem,
+                   processamento_id, progresso_atual, erro_etapa, erro_msg,
+                   criado_em, iniciado_em, concluido_em
+            FROM fila_extracao
+            ORDER BY ordem ASC, criado_em DESC
+            LIMIT 100
+        """)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        result = []
+        for r in rows:
+            item = dict(r)
+            for k in ['criado_em', 'iniciado_em', 'concluido_em']:
+                if item.get(k):
+                    item[k] = item[k].isoformat()
+            result.append(item)
+        return jsonify({'success': True, 'fila': result})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/fila_extracao/<int:item_id>')
+@login_required
+def api_fila_extracao_detalhe(item_id):
+    """Retorna detalhe de 1 item da fila."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT * FROM fila_extracao WHERE id=%s", (item_id,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if not row:
+            return jsonify({'success': False, 'error': 'nao encontrado'}), 404
+        item = dict(row)
+        for k in ['criado_em', 'iniciado_em', 'concluido_em']:
+            if item.get(k):
+                item[k] = item[k].isoformat()
+        return jsonify({'success': True, 'item': item})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/fila_extracao/<int:item_id>', methods=['DELETE'])
+@login_required
+def api_fila_extracao_remover(item_id):
+    """Remove item da fila (apenas se status != 'rodando')."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT status FROM fila_extracao WHERE id=%s", (item_id,))
+        row = cur.fetchone()
+        if not row:
+            cur.close(); conn.close()
+            return jsonify({'success': False, 'error': 'nao encontrado'}), 404
+        if row[0] == 'rodando':
+            cur.close(); conn.close()
+            return jsonify({'success': False, 'error': 'item esta rodando'}), 400
+        cur.execute("DELETE FROM fila_extracao WHERE id=%s", (item_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/consolidado/<municipio>/<estado>')
+@login_required
+def api_consolidado_municipio(municipio, estado):
+    """Busca estado consolidado de um municipio."""
+    try:
+        cons = _buscar_consolidado(municipio, estado)
+        if not cons:
+            return jsonify({'success': False, 'error': 'nao consolidado'}), 404
+        if cons.get('consolidado_em'):
+            cons['consolidado_em'] = cons['consolidado_em'].isoformat()
+        return jsonify({'success': True, 'consolidado': cons})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 _iniciar_fila_worker(app, get_db, _buscador_jobs)
+_iniciar_fila_extracao_worker(app, get_db)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT',5000)), debug=os.getenv('FLASK_ENV')!='production')

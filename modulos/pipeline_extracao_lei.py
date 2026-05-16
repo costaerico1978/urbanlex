@@ -1650,3 +1650,56 @@ def buscar_consolidado(municipio, estado_uf):
     except Exception as e:
         logger.error(f"buscar_consolidado falhou: {e}")
         return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PARTE 7 — FILA DE EXTRAÇÃO (enfileiramento)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Função pra adicionar items na fila_extracao.
+# O processamento em background é feito por fila_extracao_worker.py
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def enfileirar_extracao(zip_path, municipio, estado_uf, legislacao_id=None,
+                        usar_cache=True, consolidar_apos=True, ordem=0,
+                        criado_por=None):
+    """
+    Adiciona um item na fila_extracao para processamento em background.
+    
+    Args:
+        zip_path:         caminho absoluto do ZIP com PDFs
+        municipio:        nome do município
+        estado_uf:        UF (2 letras)
+        legislacao_id:    FK para legislacoes (opcional)
+        usar_cache:       reaproveitar TXTs salvos
+        consolidar_apos:  consolidar municipios_consolidado depois
+        ordem:            prioridade (menor = mais cedo)
+        criado_por:       FK users (opcional)
+    
+    Retorna:
+        id do item criado, ou None se erro
+    """
+    if not os.path.exists(zip_path):
+        logger.error(f"enfileirar_extracao: ZIP não existe: {zip_path}")
+        return None
+    
+    try:
+        conn = _conectar_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO fila_extracao
+                (municipio, estado, zip_path, legislacao_id,
+                 usar_cache, consolidar_apos, ordem, criado_por)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (municipio, estado_uf, zip_path, legislacao_id,
+              usar_cache, consolidar_apos, ordem, criado_por))
+        novo_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        logger.info(f"Item enfileirado: id={novo_id} ({municipio}/{estado_uf})")
+        return novo_id
+    except Exception as e:
+        logger.error(f"enfileirar_extracao falhou: {e}")
+        return None
