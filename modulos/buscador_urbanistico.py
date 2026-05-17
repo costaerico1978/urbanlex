@@ -12,7 +12,8 @@ def _brt_now():
 def _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta="", status="analisando",
                    altera=None, alterado_por=None, revoga=None, revogado_por=None,
                    cita=None, citado_em=None, link=None,
-                   revoga_parcialmente=None, revogado_parcialmente_por=None, ementa=None):
+                   revoga_parcialmente=None, revogado_parcialmente_por=None, ementa=None,
+                   regulamenta=None, regulamentado_por=None):
     """Emite evento estruturado para atualizar a tabela de legislacoes em tempo real."""
     import json as _j
     dados = {
@@ -20,6 +21,7 @@ def _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta="", stat
         "tipo": tipo, "numero": numero, "ano": ano,
         "pergunta": pergunta, "status": status,
         "altera": altera or [], "alterado_por": alterado_por or [],
+        "regulamenta": regulamenta or [], "regulamentado_por": regulamentado_por or [],
         "revoga": revoga or [], "revogado_por": revogado_por or [],
         "revoga_parcialmente": revoga_parcialmente or [],
         "revogado_parcialmente_por": revogado_parcialmente_por or [],
@@ -28,6 +30,36 @@ def _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta="", stat
         "ementa": ementa or ""
     }
     logs.append({"nivel": "tabela", "msg": _j.dumps(dados, ensure_ascii=False)})
+
+
+
+# ── FILTRO DE LEIS VALIDAS ──
+import re as _re_lei
+_REGEX_LEI_VALIDA = _re_lei.compile(
+    r'^\s*(Lei|Lei\s+Complementar|Lei\s+Federal|Lei\s+Estadual|Lei\s+Municipal|'
+    r'Lei\s+Org[aâ]nica|Decreto|Decreto-Lei|Decreto\s+Federal|Decreto\s+Rio|'
+    r'Portaria|Resolu[cç][aã]o|Medida\s+Provis[oó]ria|Emenda|Constitui[cç][aã]o)'
+    r'\s+n?[ºo°]?\s*[\d\.]+\s*/\s*\d{4}',
+    _re_lei.IGNORECASE
+)
+
+def _filtrar_leis_validas(itens, logs=None, contexto=""):
+    """Filtra lista de strings, mantendo so as que tem formato 'Tipo Numero/Ano'.
+    Descarta siglas (ZRU, ZOE), nomes de zonas (Subzona A-1), programas, etc."""
+    if not itens:
+        return []
+    validos = []
+    for _item in itens:
+        if isinstance(_item, dict):
+            _lei_str = _item.get("lei", "")
+        else:
+            _lei_str = str(_item)
+        if _REGEX_LEI_VALIDA.match(_lei_str.strip()):
+            validos.append(_item)
+        elif logs is not None:
+            logs.append({"nivel": "info", "msg": f"  [FILTRO_LEI] {contexto} descartado: {_lei_str[:60]}"})
+    return validos
+
 
 def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallback_url=None, max_legislacoes=None, _legs_override=None):
     resultado = {"encontradas": [], "nao_encontrada": False}
@@ -471,7 +503,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
             enc['_revogado_parcialmente_por_enc'] = _revogado_parcialmente_por_enc
             enc['_regulamenta_enc'] = _regulamenta_enc
             enc['_regulamentado_por_enc'] = _regulamentado_por_enc
-            enc['_cita_enc'] = list(set(_regulamenta_enc + _cita_enc))
+            enc['_cita_enc'] = list(set(_cita_enc))
             resultado["encontradas"].append(enc)
 
             # Verificar via IA se esta legislacao revoga outras da lista
@@ -727,7 +759,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                     f'  "tachado_por": ["Lei X/ano"],\n'
                     f'  "redacao_dada_por": ["Lei X/ano"]\n'
                     f'}}\n\n'
-                    f"Para o campo 'cita': liste APENAS leis citadas em contexto de definicao de zoneamento, zonas, subzonas, parametros de parcelamento do solo, uso e ocupacao do solo. Ignore citacoes em contexto de competencia, procedimento ou referencia generica.\n\n"
+                    f"Para o campo 'cita': liste APENAS LEGISLACOES no formato 'Tipo Numero/Ano' (ex: 'Lei Complementar 270/2024', 'Decreto 3046/1981', 'Lei Federal 10257/2001'). NUNCA inclua: siglas de zonas (ZRU, ZOE, ZOC, ZRM, etc), nomes de subzonas (A-1, A-20, B-3, etc), nomes de macrozonas, programas urbanos (Reviver Centro, Porto Maravilha), areas de planejamento, classificacoes urbanisticas ou termos genericos. Cada item DEVE comecar com 'Lei', 'Decreto', 'Portaria', 'Resolucao', 'Medida Provisoria' ou 'Lei Complementar'. Se nao for uma legislacao com numero e ano, IGNORE. Em caso de duvida, NAO inclua.\n\n"
                     f"TEXTO:\n{texto_enc[:6000]}"
                 )
                 # Processar texto em blocos de 30000 chars
@@ -759,8 +791,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                                 if _d_rl == 0: _e_rl = _i_rl + 1; break
                         if _s_rl < 0: raise ValueError("sem JSON na resposta Gemini")
                         dados_rel = _json.loads(resp_rel_c[_s_rl:_e_rl])
-                        _altera_enc = list(set(_altera_enc + dados_rel.get("altera", [])))
-                        _revoga_enc = list(set(_revoga_enc + dados_rel.get("revoga", [])))
+                        _altera_enc = list(set(_altera_enc + _filtrar_leis_validas(dados_rel.get("altera", []), logs, "altera")))
+                        _revoga_enc = list(set(_revoga_enc + _filtrar_leis_validas(dados_rel.get("revoga", []), logs, "revoga")))
                         # Revogação parcial — lista de objetos {lei, partes}
                         _new_rp = dados_rel.get("revoga_parcialmente", [])
                         if isinstance(_new_rp, list):
@@ -768,13 +800,13 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                             for _rp in _new_rp:
                                 if isinstance(_rp, dict) and _rp.get('lei','') not in _chaves_rp:
                                     _revoga_parcialmente_enc.append(_rp)
-                        _regulamenta_enc = list(set(_regulamenta_enc + dados_rel.get("regulamenta", [])))
+                        _regulamenta_enc = list(set(_regulamenta_enc + _filtrar_leis_validas(dados_rel.get("regulamenta", []), logs, "regulamenta")))
                         _ap_raw = dados_rel.get("alterado_por", [])
                         import re as _re_ano3
                         _ap_filtrado = []
                         for _ap_item in _ap_raw:
                             _m_ano3 = _re_ano3.search(r'/(\d{4})', _ap_item)
-                            if _m_ano3 and int(_m_ano3.group(1)) <= int(ano):
+                            if _m_ano3 and int(_m_ano3.group(1)) < int(ano):
                                 logs.append({"nivel": "aviso", "msg": f"  [FILTRO] Ignorando alterado_por {_ap_item} — ano <= {ano} (impossivel)"})
                             else:
                                 _ap_filtrado.append(_ap_item)
@@ -784,7 +816,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                         _rp_filtrado = []
                         for _rp_item in _rp_raw:
                             _m_ano = _re_ano.search(r'/(\d{4})', _rp_item)
-                            if _m_ano and int(_m_ano.group(1)) <= int(ano):
+                            if _m_ano and int(_m_ano.group(1)) < int(ano):
                                 logs.append({"nivel": "aviso", "msg": f"  [FILTRO] Ignorando revogado_por {_rp_item} — ano <= {ano} (impossivel)"})
                             else:
                                 _rp_filtrado.append(_rp_item)
@@ -798,7 +830,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                                 if not isinstance(_rpb, dict): continue
                                 _rpb_lei = _rpb.get('lei','')
                                 _m_rpb = _re_rpb.search(r'/(\d{4})', _rpb_lei)
-                                if _m_rpb and int(_m_rpb.group(1)) <= int(ano):
+                                if _m_rpb and int(_m_rpb.group(1)) < int(ano):
                                     logs.append({"nivel": "aviso", "msg": f"  [FILTRO] Ignorando revogado_parcialmente_por {_rpb_lei} — ano <= {ano} (impossivel)"})
                                     continue
                                 if _rpb_lei not in _chaves_rpb:
@@ -808,12 +840,12 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                         _rp2_filtrado = []
                         for _rp2_item in _rp2_raw:
                             _m_ano2 = _re_ano2.search(r'/(\d{4})', _rp2_item)
-                            if _m_ano2 and int(_m_ano2.group(1)) <= int(ano):
+                            if _m_ano2 and int(_m_ano2.group(1)) < int(ano):
                                 logs.append({"nivel": "aviso", "msg": f"  [FILTRO] Ignorando regulamentado_por {_rp2_item} — ano <= {ano} (impossivel)"})
                             else:
                                 _rp2_filtrado.append(_rp2_item)
                         _regulamentado_por_enc = list(set(_regulamentado_por_enc + _rp2_filtrado))
-                        _cita_enc = list(set(_cita_enc + dados_rel.get("cita", [])))
+                        _cita_enc = list(set(_cita_enc + _filtrar_leis_validas(dados_rel.get("cita", []), logs, "cita")))
                         _tachado_por = dados_rel.get("tachado_por", [])
                         if _tachado_por:
                             logs.append({"nivel": "aviso", "msg": f"  [TACHADO] Trechos riscados identificados — revogado parcialmente por: {_tachado_por}"})
@@ -841,6 +873,17 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
             _regulamentado_por_enc = []
             _revoga_parcialmente_enc = []
             _revogado_parcialmente_por_enc = []
+        # Sincroniza enc[] com listas finais (sem isto, encontradas[] mantem listas antigas)
+        if enc:
+            enc['_altera_enc'] = _altera_enc
+            enc['_alterado_por_enc'] = _alterado_por_enc
+            enc['_revoga_enc'] = _revoga_enc
+            enc['_revogado_por_enc'] = _revogado_por_enc
+            enc['_revoga_parcialmente_enc'] = _revoga_parcialmente_enc
+            enc['_revogado_parcialmente_por_enc'] = _revogado_parcialmente_por_enc
+            enc['_regulamenta_enc'] = _regulamenta_enc
+            enc['_regulamentado_por_enc'] = _regulamentado_por_enc
+            enc['_cita_enc'] = list(set(_cita_enc))
         # Emitir evento final com todos os relacionamentos
         if not enc:
             _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=_pergunta_origem, status='nao_encontrada')
@@ -852,7 +895,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
             revoga=_revoga_enc, revogado_por=_revogado_por_enc,
             revoga_parcialmente=_revoga_parcialmente_enc,
             revogado_parcialmente_por=_revogado_parcialmente_por_enc,
-            cita=list(set(_regulamenta_enc + _cita_enc)), citado_em=_regulamentado_por_enc,
+            cita=list(set(_cita_enc)), citado_em=_regulamentado_por_enc,
+            regulamenta=_regulamenta_enc, regulamentado_por=_regulamentado_por_enc,
             link=enc.get('link',''),
             ementa=enc.get('ementa','') or leg.get('descricao','') or '')
         # Verificar limite apos analise completa da lei
@@ -1081,6 +1125,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
     if resultado.get("encontradas"):
         try:
             import zipfile, json as _json_zip, os as _os_zip
+            import io as _io_zip
             import unicodedata as _ud, re as _re_zip
 
             def _slug(s):
@@ -1119,6 +1164,8 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
             zip_path = f"/var/www/urbanlex/static/downloads/{zip_nome}"
 
             legs_json = []
+            # FORMATO v2 (16/05/2026): ZIP principal contem 1 ZIP por legislação na raiz
+            # Estrutura: ZIP/{LC_X_Y.zip/{LC_X_Y.pdf, Anexos.zip/{anexo1, anexo2}}, legislacoes.json}
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
                 for leg in resultado["encontradas"]:
                     tipo = leg.get('tipo','')
@@ -1126,38 +1173,69 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                     ano  = leg.get('ano','')
                     desc = leg.get('descricao') or leg.get('ementa') or ''
                     cat  = _cat(leg)
-                    pasta = PASTAS[cat]
                     _tipo_abrev = tipo.replace('Lei Complementar','LC').replace('Decreto-Lei','DL').replace('Decreto Lei','DL').replace('Decreto','Dec').replace('Lei Ordinaria','Lei').replace('Lei Orgânica','LO').replace('Resolucao','Res').replace('Portaria','Port')
                     leg_slug = _slug(f"{_tipo_abrev}_{num}_{ano}")
-                    base = f"{pasta}/{leg_slug}/"
+                    leg_zip_nome = f"{leg_slug}.zip"
 
-                    # PDF principal
-                    pdf = leg.get('pdf_path') or leg.get('caminho_pdf') or ''
-                    if pdf and pdf.startswith('/static'):
-                        pdf = '/var/www/urbanlex' + pdf
-                    if pdf and _os_zip.path.exists(pdf):
-                        ext_p = _os_zip.path.splitext(pdf)[1] or '.pdf'
-                        zf.write(pdf, base + leg_slug + ext_p)
+                    # Monta o ZIP da legislação em memória
+                    leg_buf = _io_zip.BytesIO()
+                    anexos_validos = []
+                    with zipfile.ZipFile(leg_buf, 'w', zipfile.ZIP_DEFLATED) as leg_zf:
+                        # 1) Corpo da lei (1 arquivo PDF principal)
+                        pdf = leg.get('pdf_path') or leg.get('caminho_pdf') or ''
+                        if pdf and pdf.startswith('/static'):
+                            pdf = '/var/www/urbanlex' + pdf
+                        if pdf and _os_zip.path.exists(pdf):
+                            ext_p = _os_zip.path.splitext(pdf)[1] or '.pdf'
+                            leg_zf.write(pdf, leg_slug + ext_p)
+                        # Corpo extra (suporta caso futuro: 'pdfs_extras': [{path, nome}])
+                        for pdf_extra in (leg.get('pdfs_extras') or []):
+                            pe_path = pdf_extra.get('path') or pdf_extra.get('caminho') or ''
+                            pe_nome = pdf_extra.get('nome') or _os_zip.path.basename(pe_path)
+                            if pe_path and _os_zip.path.exists(pe_path):
+                                leg_zf.write(pe_path, pe_nome)
 
-                    # Anexos (suporta 'anexos' e 'anexos_lm')
-                    for anx in (leg.get('anexos') or leg.get('anexos_lm') or []):
-                        ap = anx.get('path') or anx.get('caminho') or ''
-                        an = anx.get('nome') or _os_zip.path.basename(ap)
-                        if ap and _os_zip.path.exists(ap):
-                            zf.write(ap, base + 'anexos/' + an)
+                        # 2) Anexos vão num ZIP aninhado "Anexos.zip" (só se houver)
+                        for anx in (leg.get('anexos') or leg.get('anexos_lm') or []):
+                            ap = anx.get('path') or anx.get('caminho') or ''
+                            if ap and _os_zip.path.exists(ap):
+                                anexos_validos.append({
+                                    'path': ap,
+                                    'nome': anx.get('nome') or _os_zip.path.basename(ap),
+                                })
+                        if anexos_validos:
+                            anx_buf = _io_zip.BytesIO()
+                            with zipfile.ZipFile(anx_buf, 'w', zipfile.ZIP_DEFLATED) as anx_zf:
+                                _nomes_usados = set()
+                                for anx in anexos_validos:
+                                    nome_final = anx['nome']
+                                    base_nome, ext_nome = _os_zip.path.splitext(nome_final)
+                                    _contador = 1
+                                    while nome_final in _nomes_usados:
+                                        nome_final = f"{base_nome}_{_contador}{ext_nome}"
+                                        _contador += 1
+                                    _nomes_usados.add(nome_final)
+                                    anx_zf.write(anx['path'], nome_final)
+                            leg_zf.writestr('Anexos.zip', anx_buf.getvalue())
+
+                    # Grava o ZIP da legislação na raiz do ZIP principal
+                    zf.writestr(leg_zip_nome, leg_buf.getvalue())
 
                     legs_json.append({
                         'tipo': tipo, 'numero': num, 'ano': ano,
                         'descricao': desc, 'categoria': cat,
                         'status': 'vigente',
                         'link': leg.get('link') or leg.get('url') or '',
-                        'pasta_zip': base,
+                        'arquivo_zip': leg_zip_nome,
+                        'tem_anexos': bool(anexos_validos),
+                        'qtd_anexos': len(anexos_validos),
                     })
 
-                # JSON consolidado dentro do ZIP
+                # JSON consolidado na raiz do ZIP principal
                 zf.writestr('legislacoes.json', _json_zip.dumps({
                     'municipio': municipio, 'estado': estado,
-                    'total': len(legs_json), 'legislacoes': legs_json
+                    'total': len(legs_json), 'legislacoes': legs_json,
+                    'formato_versao': 2,
                 }, ensure_ascii=False, indent=2))
 
             resultado['zip_url']  = f"/static/downloads/{zip_nome}"
@@ -1561,8 +1639,21 @@ def _buscar_leismunicipais(municipio, estado, tipo, numero, ano, logs, chamar_ll
             logs.append({"nivel": "aviso", "msg": f"FlareSolverr renovacao falhou: {str(_ef)[:60]}"})
         url_fs = "https://leismunicipais.com.br"
         leg_dict = {"tipo": tipo, "numero": numero, "ano": ano, "municipio": municipio, "estado": estado}
+        # ━━━━━ SCRAPER DETERMINISTICO: descobre URL canonica em ~6s ━━━━━
+        _url_pre = None
+        try:
+            from modulos.scraper_leismunicipais import buscar_lei_LM
+            _scraper_res = buscar_lei_LM(tipo, numero, ano, municipio, estado, logs)
+            if _scraper_res.get("encontrada"):
+                _url_pre = _scraper_res["url"]
+                logs.append({"nivel": "ok", "msg": f"  ScraperLM achou URL em {_scraper_res['tempo_s']}s — pulando navegacao Gemini"})
+            else:
+                logs.append({"nivel": "info", "msg": f"  ScraperLM nao achou ({_scraper_res.get('motivo_falha','?')}) — usando Gemini Vision"})
+        except Exception as _ex_sc:
+            logs.append({"nivel": "aviso", "msg": f"  ScraperLM exception: {type(_ex_sc).__name__}: {str(_ex_sc)[:80]} — usando Gemini Vision"})
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         logs.append({"nivel": "info", "msg": f"  Buscando {tipo} {numero}/{ano} no LeisMunicipais via FlareSolverr..."})
-        fs_result = navegar_com_cookies_flaresolverr(url_fs, leg_dict, logs, label=f"LM {tipo} {numero}", chamar_llm=chamar_llm)
+        fs_result = navegar_com_cookies_flaresolverr(url_fs, leg_dict, logs, label=f"LM {tipo} {numero}", chamar_llm=chamar_llm, url_lei_pre_descoberta=_url_pre)
         if fs_result.get("site_fora_do_ar"):
             logs.append({"nivel": "erro", "msg": "  LeisMunicipais esta fora do ar — encerrando busca"})
             return None
