@@ -132,6 +132,62 @@ def disparar_organizador_async(municipio, estado, zip_url, get_db, origem='manua
                 except Exception as e:
                     logger.error(f"[trigger dossie {dossie_id}] erro salvando {leg['label']}: {e}")
             
+            # ETAPA 4.5: Detecta anexos citados (chamada Haiku ~$0.05-0.30 por legislacao)
+            logger.info(f"[trigger dossie {dossie_id}] iniciando Etapa 4.5 (anexos citados)...")
+            try:
+                from modulos.etapa_45 import detectar_anexos_citados
+                
+                for leg in resultado.get('legislacoes', []):
+                    if not leg.get('pdf_concatenado'):
+                        continue
+                    
+                    # Filtra apenas os anexos (não corpo) pros dados de baixados
+                    arquivos = leg.get('arquivos_originais', [])
+                    label_lower = leg['label'].lower()
+                    anexos_baixados = [
+                        a for a in arquivos
+                        if not (a.get('nome', '').lower().startswith(label_lower) and a.get('tipo_detectado') == 'pdf')
+                    ]
+                    
+                    res_e45 = detectar_anexos_citados(
+                        leg['label'],
+                        leg['pdf_concatenado'],
+                        anexos_baixados,
+                        log_callback=lambda msg, _d=dossie_id, _l=leg['label']: logger.info(f"[trigger dossie {_d}] [{_l}] {msg}")
+                    )
+                    
+                    if res_e45.get('sucesso'):
+                        # Salva no banco
+                        try:
+                            c = get_db()
+                            cu = c.cursor()
+                            cu.execute("""
+                                UPDATE dossie_legislacoes_pasta 
+                                SET anexos_citados = %s::jsonb,
+                                    anexos_faltantes = %s::jsonb,
+                                    atualizado_em = NOW()
+                                WHERE dossie_id = %s AND legislacao_label = %s
+                            """, (
+                                json.dumps(res_e45.get('anexos_citados', [])),
+                                json.dumps(res_e45.get('anexos_faltantes', [])),
+                                dossie_id,
+                                leg['label'],
+                            ))
+                            c.commit(); cu.close(); c.close()
+                            logger.info(
+                                f"[trigger dossie {dossie_id}] [{leg['label']}] Etapa 4.5 OK: "
+                                f"{len(res_e45.get('anexos_citados', []))} citados, "
+                                f"{len(res_e45.get('anexos_faltantes', []))} faltantes, "
+                                f"custo ${res_e45.get('custo_estimado', 0):.4f}"
+                            )
+                        except Exception as e:
+                            logger.error(f"[trigger dossie {dossie_id}] erro salvando E4.5: {e}")
+                    else:
+                        logger.error(f"[trigger dossie {dossie_id}] [{leg['label']}] Etapa 4.5 FALHOU: {res_e45.get('erro')}")
+            except Exception as e:
+                import traceback
+                logger.error(f"[trigger dossie {dossie_id}] EXCECAO Etapa 4.5: {e} -- {traceback.format_exc()[-300:]}")
+            
             logger.info(f"[trigger dossie {dossie_id}] CONCLUIDO — {len(resultado.get('legislacoes', []))} legislacao(oes)")
         
         except Exception as e:

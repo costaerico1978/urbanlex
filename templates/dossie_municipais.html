@@ -623,10 +623,31 @@ function dossieRenderArquivosDaLeg(leg) {
     html += falhas.map(a => '<div style="display:flex;align-items:center;gap:8px;padding:6px 14px 6px 38px;font-size:11px;color:#f0ad4e"><span>❌</span><div style="flex:1">' + _escHtml(a.nome) + '</div><div style="font-size:10px">' + (a.motivo || 'erro') + '</div></div>').join('');
   }
   
-  // Anexos citados mas faltantes (Etapa 4.5 — ainda nao implementada, fica vazio)
-  if (leg.anexos_faltantes && leg.anexos_faltantes.length) {
-    html += '<div style="padding:10px 14px 4px 38px;font-size:10px;color:#e74c3c;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-top:6px">⚠️ Citados no corpo MAS não baixados</div>';
-    html += leg.anexos_faltantes.map(a => '<div style="padding:6px 14px 6px 38px;font-size:11px;color:#e74c3c">' + _escHtml(typeof a === 'string' ? a : (a.nome || a)) + '</div>').join('');
+  // Etapa 4.5: anexos citados pelo Haiku + faltantes
+  const totalCitados = (leg.anexos_citados || []).length;
+  const totalFaltantes = (leg.anexos_faltantes || []).length;
+  
+  if (totalCitados > 0) {
+    // Resumo da Etapa 4.5
+    if (totalFaltantes === 0) {
+      html += '<div style="padding:10px 14px 6px 38px;font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-top:6px">✓ Anexos detectados pelo Haiku — todos baixados (' + totalCitados + ')</div>';
+      html += '<div style="padding:0 14px 4px 38px;font-size:10px;color:var(--muted);font-style:italic">' + (leg.anexos_citados.map(a => a.nome_citado).join(' · ')) + '</div>';
+    } else {
+      html += '<div style="padding:10px 14px 4px 38px;font-size:10px;color:#f0ad4e;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-top:6px">⚠️ Anexos detectados pelo Haiku (' + totalCitados + ' citados, ' + (totalCitados - totalFaltantes) + ' baixados)</div>';
+    }
+  }
+  
+  // Anexos faltantes (citados pelo Haiku mas não encontrados no PDF)
+  if (totalFaltantes > 0) {
+    html += '<div style="padding:10px 14px 4px 38px;font-size:10px;color:#e74c3c;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-top:6px">⚠️ Citados na lei MAS não baixados (' + totalFaltantes + ')</div>';
+    html += leg.anexos_faltantes.map(a => {
+      const nome = typeof a === 'string' ? a : (a.nome_citado || a.nome || '?');
+      const contexto = typeof a === 'object' ? (a.contexto || '') : '';
+      return '<div style="padding:6px 14px 6px 38px;font-size:11px;color:#e74c3c">'
+        + '<div style="font-weight:600">📎 ' + _escHtml(nome) + '</div>'
+        + (contexto ? '<div style="font-size:10px;color:var(--muted);font-style:italic;margin-top:2px">contexto: ' + _escHtml(contexto.substring(0, 150)) + '</div>' : '')
+        + '</div>';
+    }).join('');
   }
   
   html += '<div style="padding:10px 14px;text-align:right;font-size:10px;color:var(--muted)">Atualizado: ' + (leg.atualizado_em || leg.criado_em || '?') + '</div>';
