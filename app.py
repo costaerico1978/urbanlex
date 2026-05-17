@@ -5542,6 +5542,81 @@ def api_dossie_municipio_dossies(mun_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/dossie/legislacoes-do-municipio/<int:mun_id>')
+@login_required
+def api_dossie_legislacoes_do_municipio(mun_id):
+    """Lista legislacoes organizadas (pastas em /static/dossies/) de um municipio."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT id, dossie_id, legislacao_label, legislacao_meta, categoria,
+                   pasta_path, pdf_concatenado_path, n_paginas, total_arquivos,
+                   arquivos_originais, arquivos_falhas, duplicados_removidos,
+                   anexos_citados, anexos_faltantes,
+                   criado_em, atualizado_em
+            FROM dossie_legislacoes_pasta
+            WHERE dossie_id=%s
+            ORDER BY criado_em DESC, legislacao_label
+        """, (mun_id,))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        
+        legislacoes = []
+        for r in rows:
+            meta = r['legislacao_meta'] or {}
+            arquivos = r['arquivos_originais'] or []
+            falhas = r['arquivos_falhas'] or []
+            
+            # Detecta corpo da lei pelos arquivos (primeiro PDF que casa com o label)
+            label_lower = (r['legislacao_label'] or '').lower()
+            arquivos_marcados = []
+            for arq in arquivos:
+                nome = arq.get('nome', '')
+                # Classifica: 'corpo' se nome bate com o label, 'anexo' caso contrario
+                eh_corpo = nome.lower().startswith(label_lower) and arq.get('tipo_detectado') == 'pdf'
+                arquivos_marcados.append({
+                    'nome': nome,
+                    'tipo_detectado': arq.get('tipo_detectado'),
+                    'tamanho': arq.get('tamanho', 0),
+                    'conversao_ok': arq.get('conversao_ok', False),
+                    'foi_convertido': arq.get('foi_convertido', False),
+                    'motivo': arq.get('motivo'),
+                    'classificacao': 'corpo' if eh_corpo else 'anexo',
+                })
+            
+            # PDF disponivel para download (URL relativa)
+            pdf_url = None
+            if r['pdf_concatenado_path']:
+                pdf_url = r['pdf_concatenado_path'].replace('/var/www/urbanlex', '')
+            
+            legislacoes.append({
+                'id': r['id'],
+                'label': r['legislacao_label'],
+                'categoria': r['categoria'] or '',
+                'tipo': meta.get('tipo', ''),
+                'numero': meta.get('numero', ''),
+                'ano': meta.get('ano', ''),
+                'descricao': meta.get('descricao', ''),
+                'link': meta.get('link', ''),
+                'n_paginas': r['n_paginas'] or 0,
+                'total_arquivos': r['total_arquivos'] or 0,
+                'duplicados_removidos': r['duplicados_removidos'] or 0,
+                'pdf_url': pdf_url,
+                'arquivos': arquivos_marcados,
+                'falhas': falhas,
+                'anexos_citados': r['anexos_citados'] or [],
+                'anexos_faltantes': r['anexos_faltantes'] or [],
+                'criado_em': r['criado_em'].strftime('%d/%m/%Y %H:%M') if r['criado_em'] else None,
+                'atualizado_em': r['atualizado_em'].strftime('%d/%m/%Y %H:%M') if r['atualizado_em'] else None,
+            })
+        
+        return jsonify({'success': True, 'legislacoes': legislacoes})
+    except Exception as e:
+        import traceback
+        return jsonify({'success': False, 'error': str(e), 'traceback': traceback.format_exc()[-500:]})
+
+
 @app.route('/api/prompts-salvos')
 @login_required
 def api_prompts_salvos_listar():

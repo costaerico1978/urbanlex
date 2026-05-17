@@ -204,7 +204,9 @@ async function dossieToggleAccordion(munId) {
       div.innerHTML = '<div style="padding:14px;color:var(--muted)">Nenhum dossiê para este município.</div>';
       return;
     }
-    div.innerHTML = '<div style="padding:8px 14px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700">Dossiês (' + r.dossies.length + ')</div>' + r.dossies.map(d => {
+    div.innerHTML = '<div style="padding:8px 14px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700">Dossiês (' + r.dossies.length + ')</div>' +
+      '<div id="legs-orgs-' + munId + '" style="border-top:1px solid var(--border)"><div onclick="dossieToggleLegsOrgs(' + munId + ')" style="padding:10px 14px;cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700;display:flex;align-items:center;gap:6px"><span id="caret-legs-' + munId + '">▸</span> 📚 Legislações Organizadas</div><div id="legs-orgs-content-' + munId + '" style="display:none"></div></div>' +
+      '<div style="padding:8px 14px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700;border-top:1px solid var(--border);margin-top:8px">Dossiês originais</div>' + r.dossies.map(d => {
       const status = d.sucesso === true ? '<span style="font-size:10px;padding:2px 7px;border-radius:6px;background:rgba(0,229,160,.1);color:var(--accent)">✓ Concluído</span>'
         : (d.sucesso === false && d.concluido_em ? '<span style="font-size:10px;padding:2px 7px;border-radius:6px;background:rgba(231,76,60,.1);color:#e74c3c">✗ Erro</span>'
         : '<span style="font-size:10px;padding:2px 7px;border-radius:6px;background:rgba(240,173,78,.1);color:#f0ad4e">⏳ Em andamento</span>');
@@ -485,5 +487,164 @@ async function dossieConfirmarExcluir(m) {
 function dossieCloseAC() { document.getElementById('dossie-ac').style.display = 'none'; }
 document.addEventListener('keydown', e => { if(e.key==='Escape') dossieCloseDrawer(); });
 document.addEventListener('DOMContentLoaded', dossieCarregar);
+
+// ═════════════════════════════════════════════════════════════════
+// NÍVEL 3 e 4: Legislações organizadas + arquivos
+// ═════════════════════════════════════════════════════════════════
+const _legsOrgsOpen = {};
+
+async function dossieToggleLegsOrgs(munId) {
+  const content = document.getElementById('legs-orgs-content-' + munId);
+  const caret = document.getElementById('caret-legs-' + munId);
+  if (!content) return;
+  
+  if (_legsOrgsOpen[munId]) {
+    content.style.display = 'none';
+    caret.textContent = '▸';
+    _legsOrgsOpen[munId] = false;
+    return;
+  }
+  
+  content.style.display = 'block';
+  caret.textContent = '▾';
+  _legsOrgsOpen[munId] = true;
+  content.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:12px">Carregando legislações organizadas...</div>';
+  
+  try {
+    const r = await api('GET', '/api/dossie/legislacoes-do-municipio/' + munId);
+    if (!r.success) {
+      content.innerHTML = '<div style="padding:14px;color:#e74c3c">Erro: ' + (r.error || '?') + '</div>';
+      return;
+    }
+    if (!r.legislacoes || r.legislacoes.length === 0) {
+      content.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:12px">⏳  Nenhuma legislação organizada ainda. Aguarde o trigger automático terminar após uma busca, ou rode o organizador manualmente.</div>';
+      return;
+    }
+    
+    content.innerHTML = r.legislacoes.map(leg => {
+      const totalAnexos = leg.arquivos.filter(a => a.classificacao === 'anexo').length;
+      const totalFalhas = leg.arquivos.filter(a => !a.conversao_ok).length;
+      const corpos = leg.arquivos.filter(a => a.classificacao === 'corpo');
+      const statusBadge = totalFalhas > 0
+        ? '<span style="font-size:10px;padding:2px 6px;border-radius:6px;background:rgba(240,173,78,.12);color:#f0ad4e">⚠️ ' + totalFalhas + ' falha(s)</span>'
+        : '<span style="font-size:10px;padding:2px 6px;border-radius:6px;background:rgba(0,229,160,.1);color:var(--accent)">✓ Tudo OK</span>';
+      const pdfBtn = leg.pdf_url
+        ? '<a href="' + leg.pdf_url + '" download style="font-size:11px;color:var(--accent);text-decoration:none;border:1px solid var(--accent);padding:3px 8px;border-radius:5px" onclick="event.stopPropagation()">📄 PDF (' + leg.n_paginas + 'p)</a>'
+        : '';
+      return '<div style="border-top:1px solid var(--border)">'
+        + '<div onclick="dossieToggleLegArquivos(' + leg.id + ')" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer">'
+        +   '<span id="caret-leg-' + leg.id + '" style="font-size:11px;color:var(--muted)">▸</span>'
+        +   '<div style="flex:1">'
+        +     '<div style="font-size:13px;font-weight:600">⚖️ ' + (leg.tipo || '') + ' ' + (leg.numero || '') + '/' + (leg.ano || '') + '</div>'
+        +     '<div style="font-size:10px;color:var(--muted);margin-top:2px">' + (leg.descricao || '').substring(0, 100) + '</div>'
+        +     '<div style="font-size:10px;color:var(--muted);margin-top:4px">'
+        +       '<span style="margin-right:10px">📄 ' + corpos.length + ' corpo · 📎 ' + totalAnexos + ' anexos · ' + leg.n_paginas + ' pgs</span>'
+        +       statusBadge
+        +     '</div>'
+        +   '</div>'
+        +   pdfBtn
+        + '</div>'
+        + '<div id="leg-arquivos-' + leg.id + '" style="display:none;background:rgba(255,255,255,.02)"></div>'
+        + '</div>';
+    }).join('');
+  } catch(e) {
+    content.innerHTML = '<div style="padding:14px;color:#e74c3c">Erro: ' + e.message + '</div>';
+  }
+}
+
+const _legArqOpen = {};
+
+async function dossieToggleLegArquivos(legId) {
+  const div = document.getElementById('leg-arquivos-' + legId);
+  const caret = document.getElementById('caret-leg-' + legId);
+  if (!div) return;
+  
+  if (_legArqOpen[legId]) {
+    div.style.display = 'none';
+    caret.textContent = '▸';
+    _legArqOpen[legId] = false;
+    return;
+  }
+  
+  div.style.display = 'block';
+  caret.textContent = '▾';
+  _legArqOpen[legId] = true;
+  
+  // Os dados ja vieram. Re-busco a legislacao no cache do click do nivel 3
+  // Solucao simples: re-puxa o endpoint e filtra pelo id
+  if (!div.innerHTML.trim()) {
+    div.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:11px">Carregando arquivos...</div>';
+    
+    // Pega munId do ancestral
+    let mun_div = div;
+    while (mun_div && !mun_div.id?.startsWith('acc-')) mun_div = mun_div.parentElement;
+    if (!mun_div) {
+      div.innerHTML = '<div style="padding:14px;color:#e74c3c">Erro: não consegui identificar o município</div>';
+      return;
+    }
+    const munId = parseInt(mun_div.id.replace('acc-', ''));
+    
+    try {
+      const r = await api('GET', '/api/dossie/legislacoes-do-municipio/' + munId);
+      const leg = (r.legislacoes || []).find(l => l.id === legId);
+      if (!leg) {
+        div.innerHTML = '<div style="padding:14px;color:#e74c3c">Legislação não encontrada</div>';
+        return;
+      }
+      div.innerHTML = dossieRenderArquivosDaLeg(leg);
+    } catch(e) {
+      div.innerHTML = '<div style="padding:14px;color:#e74c3c">Erro: ' + e.message + '</div>';
+    }
+  }
+}
+
+function dossieRenderArquivosDaLeg(leg) {
+  const corpos = leg.arquivos.filter(a => a.classificacao === 'corpo');
+  const anexos = leg.arquivos.filter(a => a.classificacao === 'anexo');
+  const falhas = leg.arquivos.filter(a => !a.conversao_ok);
+  
+  let html = '';
+  
+  // Bloco: Corpos
+  if (corpos.length) {
+    html += '<div style="padding:8px 14px 4px 38px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700">📄 Corpo da Lei</div>';
+    html += corpos.map(a => _dossieRenderArqRow(a, '#00e5a0')).join('');
+  }
+  
+  // Bloco: Anexos
+  if (anexos.length) {
+    html += '<div style="padding:8px 14px 4px 38px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-top:6px">📎 Anexos (' + anexos.length + ')</div>';
+    html += anexos.map(a => _dossieRenderArqRow(a, '#9b8ed7')).join('');
+  }
+  
+  // Bloco: Falhas (so se tiver)
+  if (falhas.length) {
+    html += '<div style="padding:10px 14px 4px 38px;font-size:10px;color:#f0ad4e;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-top:6px">⚠️ Arquivos com falha (' + falhas.length + ')</div>';
+    html += falhas.map(a => '<div style="display:flex;align-items:center;gap:8px;padding:6px 14px 6px 38px;font-size:11px;color:#f0ad4e"><span>❌</span><div style="flex:1">' + _escHtml(a.nome) + '</div><div style="font-size:10px">' + (a.motivo || 'erro') + '</div></div>').join('');
+  }
+  
+  // Anexos citados mas faltantes (Etapa 4.5 — ainda nao implementada, fica vazio)
+  if (leg.anexos_faltantes && leg.anexos_faltantes.length) {
+    html += '<div style="padding:10px 14px 4px 38px;font-size:10px;color:#e74c3c;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-top:6px">⚠️ Citados no corpo MAS não baixados</div>';
+    html += leg.anexos_faltantes.map(a => '<div style="padding:6px 14px 6px 38px;font-size:11px;color:#e74c3c">' + _escHtml(typeof a === 'string' ? a : (a.nome || a)) + '</div>').join('');
+  }
+  
+  html += '<div style="padding:10px 14px;text-align:right;font-size:10px;color:var(--muted)">Atualizado: ' + (leg.atualizado_em || leg.criado_em || '?') + '</div>';
+  
+  return html;
+}
+
+function _dossieRenderArqRow(a, cor) {
+  const tamMB = (a.tamanho / 1024 / 1024).toFixed(2);
+  const flag = a.conversao_ok ? '✅' : '❌';
+  const corFlag = a.conversao_ok ? cor : '#e74c3c';
+  const tag = a.foi_convertido ? '<span style="font-size:9px;padding:1px 5px;border-radius:4px;background:rgba(155,142,215,.15);color:#9b8ed7;margin-left:4px">convertido</span>' : '';
+  return '<div style="display:flex;align-items:center;gap:8px;padding:5px 14px 5px 38px;font-size:11px"><span style="color:' + corFlag + '">' + flag + '</span><div style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + _escHtml(a.nome) + '">' + _escHtml(a.nome) + tag + '</div><div style="font-size:10px;color:var(--muted)">' + tamMB + 'MB · ' + (a.tipo_detectado || '?') + '</div></div>';
+}
+
+function _escHtml(s) {
+  return (s || '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
 </script>
 {% endblock %}

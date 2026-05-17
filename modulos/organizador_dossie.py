@@ -442,7 +442,9 @@ def processar_zip_para_dossie(zip_path, dossie_id, log_callback=None):
                     'n_paginas': n_paginas,
                     'total_arquivos': len(arquivos_originais),
                     'total_pdfs_ok': len(pdfs_pra_concatenar),
+                    'arquivos_originais': arquivos_originais,
                     'falhas': falhas,
+                    'duplicados_removidos': len(duplicados),
                 })
     
     _log("")
