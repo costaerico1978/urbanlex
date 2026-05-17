@@ -3449,7 +3449,7 @@ def api_buscador_municipio():
                 _zip_url_fim = r.get("zip_url", "")
                 if _zip_url_fim:
                     from modulos.dossie_trigger import disparar_organizador_async
-                    disparar_organizador_async(mun, est, _zip_url_fim, get_db, origem='manual')
+                    disparar_organizador_async(mun, est, _zip_url_fim, get_db, origem='manual', busca_id=hist_id)
             except Exception as _e_trig:
                 job["logs"].append({"nivel": "aviso", "msg": f"Trigger dossie nao disparado: {str(_e_trig)[:150]}"})
         except Exception as e:
@@ -3546,7 +3546,7 @@ def api_buscador_lei_especifica():
                 _zip_url_fim = r.get("zip_url", "")
                 if _zip_url_fim:
                     from modulos.dossie_trigger import disparar_organizador_async
-                    disparar_organizador_async(mun, est, _zip_url_fim, get_db, origem='manual')
+                    disparar_organizador_async(mun, est, _zip_url_fim, get_db, origem='manual', busca_id=hist_id)
             except Exception as _e_trig:
                 job["logs"].append({"nivel": "aviso", "msg": f"Trigger dossie nao disparado: {str(_e_trig)[:150]}"})
         except Exception as e:
@@ -5615,6 +5615,470 @@ def api_dossie_legislacoes_do_municipio(mun_id):
     except Exception as e:
         import traceback
         return jsonify({'success': False, 'error': str(e), 'traceback': traceback.format_exc()[-500:]})
+
+
+@app.route('/api/dossie/legislacoes-do-dossie/<int:busca_id>')
+@login_required
+def api_dossie_legislacoes_do_dossie(busca_id):
+    """Lista legislacoes organizadas de UMA BUSCA específica (dossie)."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT id, dossie_id, busca_historico_id, legislacao_label, legislacao_meta, categoria,
+                   pasta_path, pdf_concatenado_path, n_paginas, total_arquivos,
+                   arquivos_originais, arquivos_falhas, duplicados_removidos,
+                   anexos_citados, anexos_faltantes,
+                   criado_em, atualizado_em
+            FROM dossie_legislacoes_pasta
+            WHERE busca_historico_id=%s
+            ORDER BY criado_em DESC, legislacao_label
+        """, (busca_id,))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        
+        legislacoes = []
+        for r in rows:
+            meta = r['legislacao_meta'] or {}
+            arquivos = r['arquivos_originais'] or []
+            falhas = r['arquivos_falhas'] or []
+            
+            label_lower = (r['legislacao_label'] or '').lower()
+            arquivos_marcados = []
+            for arq in arquivos:
+                nome = arq.get('nome', '')
+                eh_corpo = nome.lower().startswith(label_lower) and arq.get('tipo_detectado') == 'pdf'
+                arquivos_marcados.append({
+                    'nome': nome,
+                    'tipo_detectado': arq.get('tipo_detectado'),
+                    'tamanho': arq.get('tamanho', 0),
+                    'conversao_ok': arq.get('conversao_ok', False),
+                    'foi_convertido': arq.get('foi_convertido', False),
+                    'motivo': arq.get('motivo'),
+                    'classificacao': 'corpo' if eh_corpo else 'anexo',
+                    'origem': arq.get('origem', 'busca'),
+                })
+            
+            pdf_url = None
+            if r['pdf_concatenado_path']:
+                pdf_url = r['pdf_concatenado_path'].replace('/var/www/urbanlex', '')
+            
+            legislacoes.append({
+                'id': r['id'],
+                'dossie_id_municipio': r['dossie_id'],
+                'busca_historico_id': r['busca_historico_id'],
+                'label': r['legislacao_label'],
+                'categoria': r['categoria'] or '',
+                'tipo': meta.get('tipo', ''),
+                'numero': meta.get('numero', ''),
+                'ano': meta.get('ano', ''),
+                'descricao': meta.get('descricao', ''),
+                'link': meta.get('link', ''),
+                'n_paginas': r['n_paginas'] or 0,
+                'total_arquivos': r['total_arquivos'] or 0,
+                'duplicados_removidos': r['duplicados_removidos'] or 0,
+                'pdf_url': pdf_url,
+                'arquivos': arquivos_marcados,
+                'falhas': falhas,
+                'anexos_citados': r['anexos_citados'] or [],
+                'anexos_faltantes': r['anexos_faltantes'] or [],
+                'criado_em': r['criado_em'].strftime('%d/%m/%Y %H:%M') if r['criado_em'] else None,
+                'atualizado_em': r['atualizado_em'].strftime('%d/%m/%Y %H:%M') if r['atualizado_em'] else None,
+            })
+        
+        return jsonify({'success': True, 'busca_id': busca_id, 'legislacoes': legislacoes})
+    except Exception as e:
+        import traceback
+        return jsonify({'success': False, 'error': str(e), 'traceback': traceback.format_exc()[-500:]})
+
+
+@app.route('/api/dossie/anexo/upload', methods=['POST'])
+@editor_required
+def api_dossie_anexo_upload():
+    """Recebe upload manual de anexo faltante. Salva em pasta upload_pendente/."""
+    try:
+        dossie_id = request.form.get('dossie_id', '').strip()
+        legislacao_label = request.form.get('legislacao_label', '').strip()
+        refere_a = (request.form.get('refere_a') or '').strip()  # opcional: "Anexo 1.4"
+        arquivo = request.files.get('arquivo')
+        
+        if not dossie_id or not legislacao_label or not arquivo:
+            return jsonify({'success': False, 'error': 'dossie_id, legislacao_label e arquivo obrigatorios'}), 400
+        
+        try:
+            dossie_id = int(dossie_id)
+        except:
+            return jsonify({'success': False, 'error': 'dossie_id invalido'}), 400
+        
+        # Sanitiza
+        from werkzeug.utils import secure_filename
+        nome_seguro = secure_filename(arquivo.filename) or 'upload.bin'
+        if not nome_seguro:
+            return jsonify({'success': False, 'error': 'nome de arquivo invalido'}), 400
+        
+        # Cria pasta upload_pendente
+        import os as _os_u, hashlib as _h_u
+        pasta = f'/var/www/urbanlex/static/dossies/{dossie_id}/{legislacao_label}/upload_pendente'
+        _os_u.makedirs(pasta, exist_ok=True)
+        
+        # Salva arquivo (evita colisao)
+        destino = _os_u.path.join(pasta, nome_seguro)
+        if _os_u.path.exists(destino):
+            base, ext = _os_u.path.splitext(nome_seguro)
+            i = 1
+            while _os_u.path.exists(_os_u.path.join(pasta, f'{base}_{i}{ext}')):
+                i += 1
+            nome_seguro = f'{base}_{i}{ext}'
+            destino = _os_u.path.join(pasta, nome_seguro)
+        
+        arquivo.save(destino)
+        
+        # Calcula MD5
+        h = _h_u.md5()
+        with open(destino, 'rb') as f:
+            for chunk in iter(lambda: f.read(65536), b''):
+                h.update(chunk)
+        md5_hash = h.hexdigest()
+        tamanho = _os_u.path.getsize(destino)
+        
+        # Insere no banco
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO dossie_anexos_uploads 
+              (dossie_id, legislacao_label, arquivo_path, nome_original, refere_a, 
+               tamanho_bytes, md5_hash, aplicado, criado_por)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, FALSE, %s)
+            RETURNING id
+        """, (dossie_id, legislacao_label, destino, arquivo.filename, refere_a or None,
+              tamanho, md5_hash, session.get('user_id')))
+        upload_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        
+        return jsonify({
+            'success': True,
+            'upload_id': upload_id,
+            'nome_arquivo': nome_seguro,
+            'tamanho': tamanho,
+            'refere_a': refere_a,
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({'success': False, 'error': str(e), 'trace': traceback.format_exc()[-300:]}), 500
+
+
+@app.route('/api/dossie/anexo/uploads-pendentes/<int:dossie_id>/<legislacao_label>')
+@login_required
+def api_dossie_anexo_uploads_pendentes(dossie_id, legislacao_label):
+    """Lista uploads pendentes (aplicado=FALSE) de uma legislacao."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT id, nome_original, refere_a, tamanho_bytes, criado_em
+            FROM dossie_anexos_uploads
+            WHERE dossie_id=%s AND legislacao_label=%s AND aplicado=FALSE
+            ORDER BY criado_em DESC
+        """, (dossie_id, legislacao_label))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        
+        pendentes = [{
+            'id': r['id'],
+            'nome_original': r['nome_original'],
+            'refere_a': r['refere_a'] or '',
+            'tamanho': r['tamanho_bytes'] or 0,
+            'criado_em': r['criado_em'].strftime('%d/%m/%Y %H:%M') if r['criado_em'] else None,
+        } for r in rows]
+        
+        return jsonify({'success': True, 'pendentes': pendentes})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/dossie/anexo/upload-remover/<int:upload_id>', methods=['DELETE'])
+@editor_required
+def api_dossie_anexo_upload_remover(upload_id):
+    """Remove um upload pendente (antes de aplicar)."""
+    try:
+        import os as _os_d
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT arquivo_path, aplicado FROM dossie_anexos_uploads WHERE id=%s", (upload_id,))
+        row = cur.fetchone()
+        if not row:
+            cur.close(); conn.close()
+            return jsonify({'success': False, 'error': 'nao encontrado'}), 404
+        if row['aplicado']:
+            cur.close(); conn.close()
+            return jsonify({'success': False, 'error': 'upload ja aplicado, nao pode ser removido'}), 400
+        
+        # Remove arquivo
+        try:
+            if _os_d.path.exists(row['arquivo_path']):
+                _os_d.remove(row['arquivo_path'])
+        except Exception:
+            pass
+        
+        # Remove do banco
+        cur.execute("DELETE FROM dossie_anexos_uploads WHERE id=%s", (upload_id,))
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/dossie/anexo/aplicar-uploads', methods=['POST'])
+@editor_required
+def api_dossie_anexo_aplicar_uploads():
+    """
+    Aplica os uploads pendentes de uma legislacao:
+      1. Pega o ZIP original do dossie (buscas_historico)
+      2. Cria ZIP TEMPORARIO com anexos extras (uploads pendentes)
+      3. Re-roda organizador + Etapa 4.5 com novo ZIP
+      4. Marca uploads como aplicado=TRUE
+    """
+    try:
+        d = request.json or {}
+        dossie_id = d.get('dossie_id')
+        legislacao_label = d.get('legislacao_label', '').strip()
+        
+        if not dossie_id or not legislacao_label:
+            return jsonify({'success': False, 'error': 'dossie_id e legislacao_label obrigatorios'}), 400
+        
+        # Pega uploads pendentes
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT id, arquivo_path, nome_original
+            FROM dossie_anexos_uploads
+            WHERE dossie_id=%s AND legislacao_label=%s AND aplicado=FALSE
+        """, (dossie_id, legislacao_label))
+        pendentes = cur.fetchall()
+        
+        if not pendentes:
+            cur.close(); conn.close()
+            return jsonify({'success': False, 'error': 'nenhum upload pendente'}), 400
+        
+        # Pega o ZIP original do dossie (mais recente)
+        cur.execute("""
+            SELECT bh.zip_path
+            FROM buscas_historico bh
+            JOIN dossie_municipios dm ON LOWER(bh.municipio)=LOWER(dm.municipio) AND LOWER(bh.estado)=LOWER(dm.estado)
+            WHERE dm.id=%s AND bh.sucesso=TRUE AND bh.zip_path IS NOT NULL AND bh.zip_path != ''
+            ORDER BY bh.iniciado_em DESC LIMIT 1
+        """, (dossie_id,))
+        zip_row = cur.fetchone()
+        cur.close()
+        
+        if not zip_row or not zip_row['zip_path']:
+            conn.close()
+            return jsonify({'success': False, 'error': 'ZIP original do dossie nao encontrado'}), 404
+        
+        zip_orig_url = zip_row['zip_path']
+        zip_orig_path = '/var/www/urbanlex' + zip_orig_url if zip_orig_url.startswith('/static') else zip_orig_url
+        
+        if not os.path.exists(zip_orig_path):
+            conn.close()
+            return jsonify({'success': False, 'error': f'ZIP nao existe no disco: {zip_orig_path}'}), 404
+        
+        # Dispara em thread separada (nao bloqueia a UI)
+        import threading as _th_u
+        def _run_aplicar():
+            try:
+                _aplicar_uploads_worker(dossie_id, legislacao_label, zip_orig_path, pendentes)
+            except Exception as e:
+                import traceback
+                logger.error(f"[aplicar uploads dossie {dossie_id}] EXCECAO: {e}\n{traceback.format_exc()[-500:]}")
+        
+        _th_u.Thread(target=_run_aplicar, daemon=True, name=f'aplicar-uploads-{dossie_id}-{legislacao_label}').start()
+        
+        conn.close()
+        return jsonify({
+            'success': True,
+            'message': f'{len(pendentes)} upload(s) sendo aplicado(s) em background. Aguarde alguns minutos e recarregue a pagina.',
+            'pendentes': len(pendentes),
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({'success': False, 'error': str(e), 'trace': traceback.format_exc()[-300:]}), 500
+
+
+def _aplicar_uploads_worker(dossie_id, legislacao_label, zip_orig_path, pendentes):
+    """
+    Worker que aplica uploads pendentes:
+      1. Adiciona arquivos extras ao /static/dossies/<id>/<label>/ (concatena junto)
+      2. Re-roda organizador + Etapa 4.5
+      3. Marca uploads como aplicado=TRUE
+    
+    Estratégia simples: copia os arquivos pra pasta da legislação (extras/),
+    depois re-roda o organizador que ja lida com ZIPs recursivos. O organizador
+    nao le essa pasta extras/ ainda — pra simplificar agora, vou faz inline:
+      a) Copia uploads pra uma pasta temporaria
+      b) Combina com pdf_concatenado.pdf atual
+      c) Atualiza o pdf_concatenado.pdf
+      d) Re-roda Etapa 4.5 sobre o PDF novo
+    """
+    import os as _os_w, shutil as _sh_w, logging as _log_w
+    logger_w = _log_w.getLogger(__name__)
+    logger_w.info(f"[aplicar dossie {dossie_id} {legislacao_label}] iniciando ({len(pendentes)} pendente(s))")
+    
+    leg_dir = f'/var/www/urbanlex/static/dossies/{dossie_id}/{legislacao_label}'
+    if not _os_w.path.exists(leg_dir):
+        logger_w.error(f"[aplicar dossie {dossie_id}] pasta nao existe: {leg_dir}")
+        return
+    
+    pdf_atual = _os_w.path.join(leg_dir, 'pdf_concatenado.pdf')
+    if not _os_w.path.exists(pdf_atual):
+        logger_w.error(f"[aplicar dossie {dossie_id}] PDF concatenado nao existe: {pdf_atual}")
+        return
+    
+    # Converte cada upload pra PDF
+    from modulos.conversor_pdf import converter_para_pdf, concatenar_pdfs, identificar_tipo
+    
+    tmp_dir = _os_w.path.join(leg_dir, '_tmp_aplicar')
+    _os_w.makedirs(tmp_dir, exist_ok=True)
+    
+    novos_pdfs = []
+    arquivos_aplicados = []
+    falhas_aplicar = []
+    
+    for p in pendentes:
+        arquivo_path = p['arquivo_path']
+        nome_orig = p['nome_original']
+        if not _os_w.path.exists(arquivo_path):
+            falhas_aplicar.append({'id': p['id'], 'nome': nome_orig, 'motivo': 'arquivo nao existe no disco'})
+            continue
+        tipo = identificar_tipo(arquivo_path)
+        pdf_gerado = converter_para_pdf(arquivo_path, tmp_dir)
+        if pdf_gerado:
+            novos_pdfs.append(pdf_gerado)
+            arquivos_aplicados.append({'id': p['id'], 'nome': nome_orig, 'tipo': tipo})
+        else:
+            falhas_aplicar.append({'id': p['id'], 'nome': nome_orig, 'motivo': f'falha conversao ({tipo})'})
+    
+    if not novos_pdfs:
+        logger_w.error(f"[aplicar dossie {dossie_id}] nenhum PDF gerado dos uploads")
+        # Limpa tmp
+        try:
+            _sh_w.rmtree(tmp_dir, ignore_errors=True)
+        except: pass
+        return
+    
+    # Concatena PDF atual + novos PDFs
+    pdf_novo = _os_w.path.join(tmp_dir, 'pdf_concatenado_novo.pdf')
+    lista_pra_concat = [pdf_atual] + novos_pdfs
+    ok = concatenar_pdfs(lista_pra_concat, pdf_novo)
+    
+    if not ok or not _os_w.path.exists(pdf_novo):
+        logger_w.error(f"[aplicar dossie {dossie_id}] falha concatenando")
+        try:
+            _sh_w.rmtree(tmp_dir, ignore_errors=True)
+        except: pass
+        return
+    
+    # Substitui o pdf_concatenado.pdf
+    try:
+        _sh_w.copy2(pdf_novo, pdf_atual)
+        logger_w.info(f"[aplicar dossie {dossie_id}] PDF atualizado: {pdf_atual}")
+    except Exception as e:
+        logger_w.error(f"[aplicar dossie {dossie_id}] erro substituindo PDF: {e}")
+        try:
+            _sh_w.rmtree(tmp_dir, ignore_errors=True)
+        except: pass
+        return
+    
+    # Atualiza metadados no banco
+    try:
+        import pypdf, json as _json_w
+        n_paginas = len(pypdf.PdfReader(pdf_atual).pages)
+        
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        # Pega arquivos_originais atual e adiciona os novos
+        cur.execute("""
+            SELECT arquivos_originais FROM dossie_legislacoes_pasta 
+            WHERE dossie_id=%s AND legislacao_label=%s
+        """, (dossie_id, legislacao_label))
+        row = cur.fetchone()
+        arq_atual = (row['arquivos_originais'] or []) if row else []
+        
+        for a in arquivos_aplicados:
+            arq_atual.append({
+                'nome': a['nome'],
+                'tipo_detectado': a['tipo'],
+                'tamanho': 0,
+                'conversao_ok': True,
+                'foi_convertido': (a['tipo'] != 'pdf'),
+                'origem': 'upload_manual',
+            })
+        
+        cur.execute("""
+            UPDATE dossie_legislacoes_pasta
+            SET n_paginas=%s, 
+                total_arquivos=%s,
+                arquivos_originais=%s::jsonb,
+                atualizado_em=NOW()
+            WHERE dossie_id=%s AND legislacao_label=%s
+        """, (n_paginas, len(arq_atual), _json_w.dumps(arq_atual), dossie_id, legislacao_label))
+        
+        # Marca uploads como aplicado
+        for a in arquivos_aplicados:
+            cur.execute("UPDATE dossie_anexos_uploads SET aplicado=TRUE, aplicado_em=NOW() WHERE id=%s", (a['id'],))
+        
+        conn.commit(); cur.close(); conn.close()
+        logger_w.info(f"[aplicar dossie {dossie_id}] banco atualizado ({n_paginas} pgs, {len(arq_atual)} arquivos)")
+    except Exception as e:
+        import traceback
+        logger_w.error(f"[aplicar dossie {dossie_id}] erro atualizando banco: {e}\n{traceback.format_exc()[-300:]}")
+    
+    # Re-roda Etapa 4.5 com o PDF atualizado
+    try:
+        from modulos.etapa_45 import detectar_anexos_citados
+        import json as _json_w2
+        
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT arquivos_originais FROM dossie_legislacoes_pasta 
+            WHERE dossie_id=%s AND legislacao_label=%s
+        """, (dossie_id, legislacao_label))
+        row = cur.fetchone()
+        cur.close()
+        arquivos = (row['arquivos_originais'] or []) if row else []
+        label_lower = legislacao_label.lower()
+        anexos_baixados = [a for a in arquivos if not (a.get('nome', '').lower().startswith(label_lower) and a.get('tipo_detectado') == 'pdf')]
+        
+        logger_w.info(f"[aplicar dossie {dossie_id}] re-rodando Etapa 4.5...")
+        res = detectar_anexos_citados(legislacao_label, pdf_atual, anexos_baixados)
+        
+        if res.get('sucesso'):
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE dossie_legislacoes_pasta
+                SET anexos_citados=%s::jsonb,
+                    anexos_faltantes=%s::jsonb,
+                    atualizado_em=NOW()
+                WHERE dossie_id=%s AND legislacao_label=%s
+            """, (
+                _json_w2.dumps(res.get('anexos_citados', [])),
+                _json_w2.dumps(res.get('anexos_faltantes', [])),
+                dossie_id, legislacao_label
+            ))
+            conn.commit(); cur.close()
+            logger_w.info(f"[aplicar dossie {dossie_id}] Etapa 4.5 atualizada: {len(res.get('anexos_faltantes', []))} faltantes")
+        conn.close()
+    except Exception as e:
+        import traceback
+        logger_w.error(f"[aplicar dossie {dossie_id}] erro Etapa 4.5: {e}\n{traceback.format_exc()[-300:]}")
+    
+    # Limpa tmp
+    try:
+        _sh_w.rmtree(tmp_dir, ignore_errors=True)
+    except: pass
+    
+    logger_w.info(f"[aplicar dossie {dossie_id} {legislacao_label}] CONCLUIDO")
 
 
 @app.route('/api/prompts-salvos')

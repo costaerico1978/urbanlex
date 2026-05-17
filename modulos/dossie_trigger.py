@@ -23,7 +23,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def disparar_organizador_async(municipio, estado, zip_url, get_db, origem='manual'):
+def disparar_organizador_async(municipio, estado, zip_url, get_db, origem='manual', busca_id=None):
     """
     Em background:
       1. Cria/recupera dossie_id em dossie_municipios
@@ -86,7 +86,7 @@ def disparar_organizador_async(municipio, estado, zip_url, get_db, origem='manua
             def _log_cb(msg):
                 logger.info(f"[trigger dossie {dossie_id}] {msg}")
             
-            resultado = processar_zip_para_dossie(zip_path, dossie_id, log_callback=_log_cb)
+            resultado = processar_zip_para_dossie(zip_path, dossie_id, log_callback=_log_cb, busca_id=busca_id)
             
             if not resultado.get('sucesso'):
                 logger.error(f"[trigger dossie {dossie_id}] FALHOU: {resultado.get('erro')}")
@@ -99,11 +99,11 @@ def disparar_organizador_async(municipio, estado, zip_url, get_db, origem='manua
                     cu = c.cursor()
                     cu.execute("""
                         INSERT INTO dossie_legislacoes_pasta 
-                        (dossie_id, legislacao_label, legislacao_meta, categoria,
+                        (dossie_id, busca_historico_id, legislacao_label, legislacao_meta, categoria,
                          pasta_path, pdf_concatenado_path, n_paginas, total_arquivos,
                          arquivos_originais, arquivos_falhas, duplicados_removidos)
-                        VALUES (%s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s)
-                        ON CONFLICT (dossie_id, legislacao_label) DO UPDATE SET
+                        VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s)
+                        ON CONFLICT (busca_historico_id, legislacao_label) DO UPDATE SET
                             legislacao_meta = EXCLUDED.legislacao_meta,
                             categoria = EXCLUDED.categoria,
                             pasta_path = EXCLUDED.pasta_path,
@@ -116,6 +116,7 @@ def disparar_organizador_async(municipio, estado, zip_url, get_db, origem='manua
                             atualizado_em = NOW()
                     """, (
                         dossie_id,
+                        busca_id,
                         leg['label'],
                         json.dumps(leg.get('metadados', {})),
                         leg.get('categoria', ''),
@@ -166,11 +167,11 @@ def disparar_organizador_async(municipio, estado, zip_url, get_db, origem='manua
                                 SET anexos_citados = %s::jsonb,
                                     anexos_faltantes = %s::jsonb,
                                     atualizado_em = NOW()
-                                WHERE dossie_id = %s AND legislacao_label = %s
+                                WHERE busca_historico_id = %s AND legislacao_label = %s
                             """, (
                                 json.dumps(res_e45.get('anexos_citados', [])),
                                 json.dumps(res_e45.get('anexos_faltantes', [])),
-                                dossie_id,
+                                busca_id,
                                 leg['label'],
                             ))
                             c.commit(); cu.close(); c.close()

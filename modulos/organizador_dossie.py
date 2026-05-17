@@ -157,7 +157,7 @@ def _gerar_label_da_legislacao(leg):
     return _slug(f"{tipo_abrev}_{numero}_{ano}") or 'sem_label'
 
 
-def processar_zip_para_dossie(zip_path, dossie_id, log_callback=None):
+def processar_zip_para_dossie(zip_path, dossie_id, log_callback=None, busca_id=None):
     """
     Função principal. Processa o ZIP do dossiê e organiza em /static/dossies/<id>/.
     
@@ -196,7 +196,12 @@ def processar_zip_para_dossie(zip_path, dossie_id, log_callback=None):
     _log(f"Tamanho: {os.path.getsize(zip_path):,} bytes")
     
     # PASSO 1: Cria pasta do dossiê
-    dossie_dir = os.path.join(DOSSIES_BASE_DIR, str(dossie_id))
+    # Se busca_id fornecido: /static/dossies/<mun_id>/busca_<bh_id>/
+    # Senao (legacy):        /static/dossies/<mun_id>/
+    if busca_id:
+        dossie_dir = os.path.join(DOSSIES_BASE_DIR, str(dossie_id), f'busca_{busca_id}')
+    else:
+        dossie_dir = os.path.join(DOSSIES_BASE_DIR, str(dossie_id))
     os.makedirs(dossie_dir, exist_ok=True)
     _log(f"Output dir: {dossie_dir}")
     

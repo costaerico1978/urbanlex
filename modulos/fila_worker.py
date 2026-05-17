@@ -92,7 +92,7 @@ def iniciar_worker(app, get_db, buscador_jobs):
                         try:
                             zip_url_rel = r.get('zip_url') or ''
                             if zip_url_rel:
-                                _disparar_trigger(item['municipio'], item['estado'], zip_url_rel, get_db, origem=item.get('origem','manual'))
+                                _disparar_trigger(item['municipio'], item['estado'], zip_url_rel, get_db, origem=item.get('origem','manual'), busca_id=buscador_jobs[job_id].get('hist_id'))
                         except Exception as _e_org:
                             print(f"[FILA WORKER] Erro disparando organizador: {_e_org}", flush=True)
                         

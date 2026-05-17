@@ -204,16 +204,20 @@ async function dossieToggleAccordion(munId) {
       div.innerHTML = '<div style="padding:14px;color:var(--muted)">Nenhum dossiê para este município.</div>';
       return;
     }
-    div.innerHTML = '<div style="padding:8px 14px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700">Dossiês (' + r.dossies.length + ')</div>' +
-      '<div id="legs-orgs-' + munId + '" style="border-top:1px solid var(--border)"><div onclick="dossieToggleLegsOrgs(' + munId + ')" style="padding:10px 14px;cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700;display:flex;align-items:center;gap:6px"><span id="caret-legs-' + munId + '">▸</span> 📚 Legislações Organizadas</div><div id="legs-orgs-content-' + munId + '" style="display:none"></div></div>' +
-      '<div style="padding:8px 14px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700;border-top:1px solid var(--border);margin-top:8px">Dossiês originais</div>' + r.dossies.map(d => {
+    div.innerHTML = '<div style="padding:8px 14px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700">Dossiês (' + r.dossies.length + ')</div>' + r.dossies.map(d => {
       const status = d.sucesso === true ? '<span style="font-size:10px;padding:2px 7px;border-radius:6px;background:rgba(0,229,160,.1);color:var(--accent)">✓ Concluído</span>'
         : (d.sucesso === false && d.concluido_em ? '<span style="font-size:10px;padding:2px 7px;border-radius:6px;background:rgba(231,76,60,.1);color:#e74c3c">✗ Erro</span>'
         : '<span style="font-size:10px;padding:2px 7px;border-radius:6px;background:rgba(240,173,78,.1);color:#f0ad4e">⏳ Em andamento</span>');
-      return '<div onclick="dossieOpenDossieDrawer(' + d.id + ')" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--border);cursor:pointer">'
-        + '<input type="checkbox" onclick="event.stopPropagation();dossieToggleDossieSel(' + d.id + ')" ' + (_dossiesSel.has(d.id)?'checked':'') + ' style="accent-color:var(--accent);width:14px;height:14px">'
-        + '<div style="flex:1"><div style="font-size:12px;font-weight:600">📄 ' + (d.iniciado_em||'—') + '</div>'
-        + '<div style="font-size:10px;color:var(--muted);margin-top:2px">' + (d.tipo==='manual'?'🖱 Manual':'🤖 Automática') + ' · ' + d.total_legislacoes + ' lei(s) · ' + status + '</div></div>'
+      return '<div style="border-top:1px solid var(--border)">'
+        + '<div onclick="dossieToggleDossieLegs(' + d.id + ', ' + munId + ')" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer">'
+        +   '<input type="checkbox" onclick="event.stopPropagation();dossieToggleDossieSel(' + d.id + ')" ' + (_dossiesSel.has(d.id)?'checked':'') + ' style="accent-color:var(--accent);width:14px;height:14px">'
+        +   '<span id="caret-dossie-' + d.id + '" style="font-size:11px;color:var(--muted)">▸</span>'
+        +   '<div style="flex:1"><div style="font-size:12px;font-weight:600">📄 ' + (d.iniciado_em||'—') + '</div>'
+        +     '<div style="font-size:10px;color:var(--muted);margin-top:2px">' + (d.tipo==='manual'?'🖱 Manual':'🤖 Automática') + ' · ' + d.total_legislacoes + ' lei(s) · ' + status + '</div>'
+        +   '</div>'
+        +   '<button onclick="event.stopPropagation();dossieOpenDossieDrawer(' + d.id + ')" style="font-size:10px;color:var(--muted);background:transparent;border:1px solid var(--border);padding:3px 8px;border-radius:5px;cursor:pointer">ℹ️ detalhes</button>'
+        + '</div>'
+        + '<div id="dossie-legs-' + d.id + '" style="display:none;background:rgba(255,255,255,.02);border-top:1px solid var(--border)"></div>'
         + '</div>';
     }).join('');
     dossieAtualizarToolbarDossies();
@@ -489,35 +493,35 @@ document.addEventListener('keydown', e => { if(e.key==='Escape') dossieCloseDraw
 document.addEventListener('DOMContentLoaded', dossieCarregar);
 
 // ═════════════════════════════════════════════════════════════════
-// NÍVEL 3 e 4: Legislações organizadas + arquivos
+// NÍVEL 3 e 4: Legislações DE UM DOSSIÊ + arquivos
 // ═════════════════════════════════════════════════════════════════
-const _legsOrgsOpen = {};
+const _dossieLegsOpen = {};
 
-async function dossieToggleLegsOrgs(munId) {
-  const content = document.getElementById('legs-orgs-content-' + munId);
-  const caret = document.getElementById('caret-legs-' + munId);
+async function dossieToggleDossieLegs(buscaId, munId) {
+  const content = document.getElementById('dossie-legs-' + buscaId);
+  const caret = document.getElementById('caret-dossie-' + buscaId);
   if (!content) return;
   
-  if (_legsOrgsOpen[munId]) {
+  if (_dossieLegsOpen[buscaId]) {
     content.style.display = 'none';
-    caret.textContent = '▸';
-    _legsOrgsOpen[munId] = false;
+    if (caret) caret.textContent = '▸';
+    _dossieLegsOpen[buscaId] = false;
     return;
   }
   
   content.style.display = 'block';
-  caret.textContent = '▾';
-  _legsOrgsOpen[munId] = true;
-  content.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:12px">Carregando legislações organizadas...</div>';
+  if (caret) caret.textContent = '▾';
+  _dossieLegsOpen[buscaId] = true;
+  content.innerHTML = '<div style="padding:14px 14px 14px 38px;color:var(--muted);font-size:11px">Carregando legislações...</div>';
   
   try {
-    const r = await api('GET', '/api/dossie/legislacoes-do-municipio/' + munId);
+    const r = await api('GET', '/api/dossie/legislacoes-do-dossie/' + buscaId);
     if (!r.success) {
-      content.innerHTML = '<div style="padding:14px;color:#e74c3c">Erro: ' + (r.error || '?') + '</div>';
+      content.innerHTML = '<div style="padding:14px 14px 14px 38px;color:#e74c3c;font-size:11px">Erro: ' + (r.error || '?') + '</div>';
       return;
     }
     if (!r.legislacoes || r.legislacoes.length === 0) {
-      content.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:12px">⏳  Nenhuma legislação organizada ainda. Aguarde o trigger automático terminar após uma busca, ou rode o organizador manualmente.</div>';
+      content.innerHTML = '<div style="padding:14px 14px 14px 38px;color:var(--muted);font-size:11px;font-style:italic">⏳  Nenhuma legislação organizada para este dossiê. Aguarde o organizador terminar (~30-90s após a busca).</div>';
       return;
     }
     
@@ -575,23 +579,27 @@ async function dossieToggleLegArquivos(legId) {
   if (!div.innerHTML.trim()) {
     div.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:11px">Carregando arquivos...</div>';
     
-    // Pega munId do ancestral
-    let mun_div = div;
-    while (mun_div && !mun_div.id?.startsWith('acc-')) mun_div = mun_div.parentElement;
-    if (!mun_div) {
-      div.innerHTML = '<div style="padding:14px;color:#e74c3c">Erro: não consegui identificar o município</div>';
+    // Pega busca_id do ancestral
+    let busca_div = div;
+    while (busca_div && !busca_div.id?.startsWith('dossie-legs-')) busca_div = busca_div.parentElement;
+    if (!busca_div) {
+      div.innerHTML = '<div style="padding:14px;color:#e74c3c">Erro: não consegui identificar o dossiê</div>';
       return;
     }
-    const munId = parseInt(mun_div.id.replace('acc-', ''));
+    const buscaId = parseInt(busca_div.id.replace('dossie-legs-', ''));
     
     try {
-      const r = await api('GET', '/api/dossie/legislacoes-do-municipio/' + munId);
+      const r = await api('GET', '/api/dossie/legislacoes-do-dossie/' + buscaId);
       const leg = (r.legislacoes || []).find(l => l.id === legId);
       if (!leg) {
         div.innerHTML = '<div style="padding:14px;color:#e74c3c">Legislação não encontrada</div>';
         return;
       }
+      // Injeta dossie_id_real (do MUNICIPIO, pra uploads continuarem funcionando)
+      leg.dossie_id_real = leg.dossie_id_municipio;
       div.innerHTML = dossieRenderArquivosDaLeg(leg);
+      // Carrega pendentes (se houver)
+      dossieCarregarPendentes(leg.id, leg.dossie_id_municipio, leg.label);
     } catch(e) {
       div.innerHTML = '<div style="padding:14px;color:#e74c3c">Erro: ' + e.message + '</div>';
     }
@@ -650,9 +658,132 @@ function dossieRenderArquivosDaLeg(leg) {
     }).join('');
   }
   
+  // ========== SEÇÃO DE UPLOADS MANUAIS ==========
+  // 1. Anexos faltantes c/ botão de upload individual
+  if (totalFaltantes > 0) {
+    html += '<div style="padding:10px 14px 4px 38px;font-size:10px;color:#e74c3c;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-top:6px">📤 Upload de anexos faltantes</div>';
+    html += leg.anexos_faltantes.map(a => {
+      const nome = typeof a === 'string' ? a : (a.nome_citado || a.nome || '?');
+      const safeId = nome.replace(/[^a-z0-9]/gi, '_');
+      return '<div style="padding:8px 14px 8px 38px;display:flex;align-items:center;gap:10px;border-top:1px solid var(--border)">'
+        + '<div style="flex:1;font-size:11px;color:#e74c3c">📎 ' + _escHtml(nome) + '</div>'
+        + '<input type="file" id="up-' + leg.id + '-' + safeId + '" style="display:none" onchange="dossieUploadAnexo(' + leg.id + ', ' + leg.dossie_id_real + ', \'' + leg.label + '\', this.files[0], \'' + _escAttr(nome) + '\')">'
+        + '<button onclick="document.getElementById(\'up-' + leg.id + '-' + safeId + '\').click()" style="font-size:11px;color:var(--accent);background:rgba(0,229,160,.1);border:1px solid var(--accent);padding:4px 10px;border-radius:6px;cursor:pointer">📤 Upload</button>'
+        + '</div>';
+    }).join('');
+  }
+  
+  // 2. Botão "Adicionar outro anexo" (sempre disponível)
+  html += '<div style="padding:10px 14px 8px 38px;border-top:1px solid var(--border);margin-top:8px">'
+    + '<input type="file" id="up-extra-' + leg.id + '" style="display:none" onchange="dossieUploadAnexo(' + leg.id + ', ' + leg.dossie_id_real + ', \'' + leg.label + '\', this.files[0], \'\')">'
+    + '<button onclick="document.getElementById(\'up-extra-' + leg.id + '\').click()" style="font-size:11px;color:#9b8ed7;background:transparent;border:1px dashed #9b8ed7;padding:6px 12px;border-radius:6px;cursor:pointer">+ Adicionar outro anexo</button>'
+    + '</div>';
+  
+  // 3. Lista de uploads pendentes (carregada via JS depois)
+  html += '<div id="pendentes-' + leg.id + '"></div>';
+  
+  // Aviso de atualizado
   html += '<div style="padding:10px 14px;text-align:right;font-size:10px;color:var(--muted)">Atualizado: ' + (leg.atualizado_em || leg.criado_em || '?') + '</div>';
   
   return html;
+}
+
+// Helper pra escapar valor em atributo HTML
+function _escAttr(s) {
+  return (s || '').toString().replace(/[\\'"]/g, c => ({'\\':'\\\\','\'':'\\\'','"':'\\"'}[c]));
+}
+
+// ═════════════════════════════════════════════════════════════════
+// UPLOAD MANUAL DE ANEXOS
+// ═════════════════════════════════════════════════════════════════
+
+async function dossieUploadAnexo(legPastaId, dossieId, label, file, refereA) {
+  if (!file) return;
+  
+  const fd = new FormData();
+  fd.append('dossie_id', dossieId);
+  fd.append('legislacao_label', label);
+  fd.append('arquivo', file);
+  if (refereA) fd.append('refere_a', refereA);
+  
+  try {
+    const r = await fetch('/api/dossie/anexo/upload', {method: 'POST', body: fd});
+    const j = await r.json();
+    if (j.success) {
+      // Recarrega a lista de pendentes
+      dossieCarregarPendentes(legPastaId, dossieId, label);
+    } else {
+      alert('Erro no upload: ' + (j.error || '?'));
+    }
+  } catch(e) {
+    alert('Erro no upload: ' + e.message);
+  }
+}
+
+async function dossieCarregarPendentes(legPastaId, dossieId, label) {
+  const div = document.getElementById('pendentes-' + legPastaId);
+  if (!div) return;
+  
+  try {
+    const r = await api('GET', '/api/dossie/anexo/uploads-pendentes/' + dossieId + '/' + encodeURIComponent(label));
+    if (!r.success) { div.innerHTML = ''; return; }
+    
+    const pendentes = r.pendentes || [];
+    if (pendentes.length === 0) { div.innerHTML = ''; return; }
+    
+    div.innerHTML = '<div style="padding:10px 14px 4px 38px;font-size:10px;color:#9b8ed7;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-top:6px">⏳  Uploads pendentes (' + pendentes.length + ')</div>'
+      + pendentes.map(p => {
+        const tamMB = (p.tamanho / 1024 / 1024).toFixed(2);
+        return '<div style="display:flex;align-items:center;gap:8px;padding:6px 14px 6px 38px;font-size:11px;color:#9b8ed7">'
+          + '<span>✓</span>'
+          + '<div style="flex:1">' + _escHtml(p.nome_original) + (p.refere_a ? ' <span style="font-size:10px;color:var(--muted)">(' + _escHtml(p.refere_a) + ')</span>' : '') + '</div>'
+          + '<div style="font-size:10px;color:var(--muted)">' + tamMB + 'MB</div>'
+          + '<button onclick="dossieRemoverPendente(' + p.id + ', ' + legPastaId + ', ' + dossieId + ', \'' + _escAttr(label) + '\')" style="font-size:10px;color:#e74c3c;background:transparent;border:1px solid #e74c3c;padding:2px 6px;border-radius:4px;cursor:pointer">✕</button>'
+          + '</div>';
+      }).join('')
+      + '<div style="padding:10px 14px 10px 38px;text-align:center">'
+      +   '<button onclick="dossieAplicarUploads(' + dossieId + ', \'' + _escAttr(label) + '\')" style="font-size:12px;font-weight:600;color:#000;background:var(--accent);border:none;padding:8px 18px;border-radius:6px;cursor:pointer">🔄 Adicionar arquivos e atualizar catalogação</button>'
+      + '</div>';
+  } catch(e) {
+    div.innerHTML = '<div style="padding:10px 14px;color:#e74c3c">Erro carregando pendentes: ' + e.message + '</div>';
+  }
+}
+
+async function dossieRemoverPendente(uploadId, legPastaId, dossieId, label) {
+  if (!confirm('Remover este upload pendente?')) return;
+  try {
+    const r = await fetch('/api/dossie/anexo/upload-remover/' + uploadId, {method: 'DELETE'});
+    const j = await r.json();
+    if (j.success) {
+      dossieCarregarPendentes(legPastaId, dossieId, label);
+    } else {
+      alert('Erro: ' + (j.error || '?'));
+    }
+  } catch(e) {
+    alert('Erro: ' + e.message);
+  }
+}
+
+async function dossieAplicarUploads(dossieId, label) {
+  if (!confirm('Aplicar uploads pendentes e re-catalogar?\n\nIsso pode levar 1-2 minutos. A página será recarregada após o início.')) return;
+  
+  try {
+    const r = await fetch('/api/dossie/anexo/aplicar-uploads', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({dossie_id: dossieId, legislacao_label: label})
+    });
+    const j = await r.json();
+    if (j.success) {
+      alert('✅  ' + j.message);
+      // Recarrega depois de 2s
+      setTimeout(() => window.location.reload(), 2000);
+    } else {
+      alert('Erro: ' + (j.error || '?'));
+    }
+  } catch(e) {
+    alert('Erro: ' + e.message);
+  }
 }
 
 function _dossieRenderArqRow(a, cor) {
