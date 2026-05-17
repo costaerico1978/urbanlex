@@ -38,69 +38,96 @@ MAX_CARACTERES_CORPO = 2_000_000
 
 def detectar_anexos_citados(legislacao_label, pdf_path, anexos_baixados, log_callback=None):
     """
-    Detecta quais anexos são CITADOS no corpo da lei e identifica os FALTANTES.
+    Detecta anexos citados no corpo da lei + identifica os FALTANTES.
     
-    ALGORITMO DE MATCH (v2):
-      Pra cada anexo citado pelo Haiku (ex: "Anexo 1.4"):
-        1. Busca o texto "Anexo 1.4" DENTRO do pdf_concatenado completo
-        2. Se encontrou → marca como BAIXADO ✓
-        3. Senão → checa nomes dos arquivos baixados (heurística antiga)
-        4. Se nada bater → FALTANTE ⚠️
+    ALGORITMO NOVO (v3):
+      1. Usa etapa2_detectar_fim_corpo + etapa3_quebrar_pdf do pipeline
+         pra separar pdf_concatenado em corpo.pdf + anexos.pdf
+      2. Haiku CHAMADA 1: detecta anexos APENAS no corpo.pdf
+         (mais barato, texto menor)
+      3. Pra cada anexo citado:
+         - Match A: aparece como ARQUIVO baixado/uploaded? -> ENCONTRADO
+         - Match B: aparece como SECAO no anexos.pdf? (regex) -> ENCONTRADO
+         - Senao -> FALTANTE
+      
+      Sem Haiku validacao (era confuso).
     
     Args:
-        legislacao_label:    'LC_148_2023' (pra logging)
-        pdf_path:            path do pdf_concatenado.pdf (corpo + anexos juntos)
-        anexos_baixados:     lista de dicts vinda do organizador
-        log_callback:        função(msg) opcional
+        legislacao_label:    'LC_148_2023'
+        pdf_path:            path do pdf_concatenado.pdf
+        anexos_baixados:     lista de dicts (sem o corpo)
+        log_callback:        opcional
     
-    Retorna:
-        {
-            'sucesso': bool,
-            'anexos_citados':    [{nome_citado, contexto_no_corpo}],  # do Haiku
-            'anexos_encontrados': [{nome_citado, onde}],
-            'anexos_faltantes':  [{nome_citado, contexto, motivo}],
-            'custo_estimado':    float,
-            'tokens_input':      int,
-            'tokens_output':     int,
-            'erro':              str (se falhou)
-        }
+    Retorna dict com 'sucesso', 'anexos_citados', 'anexos_encontrados',
+    'anexos_faltantes', 'custo_estimado', 'tokens_input', 'tokens_output'.
     """
     def _log(msg):
         logger.info(f"[etapa4.5 {legislacao_label}] {msg}")
         if log_callback:
             log_callback(msg)
     
-    # ───────────────────────────────────────────────────────────────
-    # 1. Extrai texto COMPLETO do PDF (sem limite)
-    # ───────────────────────────────────────────────────────────────
     if not pdf_path or not os.path.exists(pdf_path):
         return {'sucesso': False, 'erro': f'PDF nao encontrado: {pdf_path}'}
     
-    _log(f"Extraindo texto de {pdf_path}")
+    # ───────────────────────────────────────────────────────────────
+    # 1. Separa corpo.pdf e anexos.pdf usando o pipeline existente
+    # ───────────────────────────────────────────────────────────────
+    _log(f"Separando corpo + anexos do PDF...")
+    try:
+        import pypdf
+        from modulos.pipeline_extracao_lei import etapa2_detectar_fim_corpo, etapa3_quebrar_pdf
+        
+        reader = pypdf.PdfReader(pdf_path)
+        n_paginas = len(reader.pages)
+        
+        # Etapa 2: detecta fim do corpo
+        res_e2 = etapa2_detectar_fim_corpo(pdf_path, n_paginas, log_callback=_log)
+        fim_corpo = res_e2.get('fim_corpo', 0)
+        
+        if fim_corpo == 0:
+            # Nao identificou artigos numerados (PDF estranho?)
+            _log("AVISO: nao detectou fim do corpo. Tratando PDF inteiro como corpo.")
+            fim_corpo = n_paginas
+        
+        # Etapa 3: quebra em corpo.pdf + anexos.pdf
+        work_dir = os.path.dirname(pdf_path)
+        res_e3 = etapa3_quebrar_pdf(pdf_path, fim_corpo, n_paginas, work_dir, log_callback=_log)
+        corpo_pdf_path = res_e3['corpo_pdf']
+        anexos_pdf_path = res_e3.get('anexos_pdf')
+        
+        _log(f"Corpo: pg 1-{fim_corpo} ({fim_corpo} pgs)")
+        _log(f"Anexos no PDF: pg {fim_corpo+1}-{n_paginas} ({n_paginas-fim_corpo} pgs)")
+    except Exception as e:
+        import traceback
+        _log(f"ERRO separando corpo/anexos: {e}")
+        logger.error(traceback.format_exc())
+        return {'sucesso': False, 'erro': f'falha separando: {str(e)[:200]}'}
     
-    texto_corpo = _extrair_texto_completo(pdf_path)
+    # ───────────────────────────────────────────────────────────────
+    # 2. Extrai texto APENAS do corpo (mais barato)
+    # ───────────────────────────────────────────────────────────────
+    texto_corpo = _extrair_texto_completo(corpo_pdf_path)
     if not texto_corpo:
-        return {'sucesso': False, 'erro': 'falha ao extrair texto do PDF'}
+        return {'sucesso': False, 'erro': 'falha extraindo texto do corpo'}
     
-    # Limite de seguranca (PDFs muito grandes)
-    if len(texto_corpo) > MAX_TOTAL_CHARS:
-        texto_corpo = texto_corpo[:MAX_TOTAL_CHARS]
-        _log(f"Texto truncado em {MAX_TOTAL_CHARS} chars (limite seguranca)")
-    
-    # Normaliza espacos: "Anexo      G01" -> "Anexo G01"
+    # Normaliza espacos
     import re as _re_norm
     texto_corpo = _re_norm.sub(r'[ \t]+', ' ', texto_corpo)
     
-    _log(f"Texto extraído: {len(texto_corpo):,} chars (apos normalizacao)")
+    if len(texto_corpo) > MAX_TOTAL_CHARS:
+        texto_corpo = texto_corpo[:MAX_TOTAL_CHARS]
+        _log(f"Texto corpo truncado em {MAX_TOTAL_CHARS} chars (seguranca)")
+    
+    _log(f"Texto corpo: {len(texto_corpo):,} chars")
     
     # ───────────────────────────────────────────────────────────────
-    # 2. Divide em chunks se necessario + chama Haiku em cada
+    # 3. Detecta anexos citados no CORPO (com chunking)
     # ───────────────────────────────────────────────────────────────
     chunks = _dividir_em_chunks(texto_corpo, CHUNK_SIZE_CHARS, CHUNK_OVERLAP_CHARS)
-    _log(f"Texto dividido em {len(chunks)} chunk(s) (chunk={CHUNK_SIZE_CHARS:,} chars, overlap={CHUNK_OVERLAP_CHARS:,})")
+    _log(f"Corpo dividido em {len(chunks)} chunk(s)")
     
     anexos_citados = []
-    nomes_vistos = set()  # dedup
+    nomes_vistos = set()
     custo = 0.0
     tokens_in = 0
     tokens_out = 0
@@ -110,143 +137,460 @@ def detectar_anexos_citados(legislacao_label, pdf_path, anexos_baixados, log_cal
         try:
             anexos_chunk, c2, ti, to = _chamar_haiku_detectar(chunk, log_callback=_log)
         except Exception as e:
-            _log(f"AVISO: chunk {i} falhou ({e}). Pulando este chunk.")
+            _log(f"AVISO: chunk {i} falhou ({e}). Pulando.")
             continue
         
         custo += c2
         tokens_in += ti
         tokens_out += to
         
-        # Dedup: pra cada anexo do chunk, se ainda nao foi visto, adiciona
         for a in anexos_chunk:
             nome = a.get('nome_citado', '').strip()
             nome_norm = _normalizar_nome_anexo(nome)
             if nome_norm and nome_norm not in nomes_vistos:
                 nomes_vistos.add(nome_norm)
                 anexos_citados.append(a)
-        
-        _log(f"  -> {len(anexos_chunk)} anexo(s) no chunk, {len(anexos_citados)} total acumulado")
     
-    _log(f"Haiku detectou {len(anexos_citados)} anexo(s) citado(s) unicos (custo total ${custo:.4f})")
+    _log(f"Haiku detectou {len(anexos_citados)} anexo(s) citado(s) unicos (custo ${custo:.4f})")
     
     # ───────────────────────────────────────────────────────────────
-    # 3. Extrai texto COMPLETO do PDF (corpo + anexos) pra busca
+    # 4. Cataloga anexos no anexos.pdf E faz match com lista de citados
+    #    (Haiku ve PDF visual + recebe lista de citados, retorna blocos com 'citado_como')
     # ───────────────────────────────────────────────────────────────
-    _log("Extraindo texto COMPLETO do PDF (sem limite de paginas) pra match...")
-    texto_completo = _extrair_texto_completo(pdf_path)
-    if not texto_completo:
-        # Fallback: usa o texto do corpo
-        texto_completo = texto_corpo
-    _log(f"Texto completo: {len(texto_completo):,} chars")
+    catalogo_anexos = []
+    custo_catalogo = 0.0
+    if anexos_pdf_path and os.path.exists(anexos_pdf_path):
+        try:
+            lista_citados_str = [a.get('nome_citado', '') for a in anexos_citados if a.get('nome_citado')]
+            _log(f"Catalogando + matchando {len(lista_citados_str)} citados no anexos.pdf...")
+            res_cat = _catalogar_com_match(
+                anexos_pdf_path, fim_corpo, work_dir, lista_citados_str,
+                log_callback=_log
+            )
+            catalogo_anexos = res_cat.get('blocos', [])
+            custo_catalogo = res_cat.get('custo', 0.0)
+            
+            # Filtra apenas tipo=anexo (descarta errata, encerramento)
+            catalogo_anexos = [b for b in catalogo_anexos if b.get('tipo') == 'anexo']
+            
+            _log(f"Catalogo: {len(catalogo_anexos)} anexo(s) identificado(s) no PDF")
+            for b in catalogo_anexos[:15]:
+                cit = b.get('citado_como') or '(nao citado no corpo)'
+                _log(f"  - {b.get('titulo', '?')[:60]} (pg {b.get('inicio')}-{b.get('fim')}) -> citado: {cit}")
+            
+            custo += custo_catalogo
+        except Exception as e:
+            import traceback
+            _log(f"AVISO: catalogacao falhou: {str(e)[:200]}")
+            logger.error(traceback.format_exc())
+            catalogo_anexos = []
+    else:
+        _log("Sem anexos.pdf (PDF so tem corpo)")
     
-    # Normaliza pra busca (case-insensitive, sem acentos)
-    texto_completo_norm = _normalizar_texto_busca(texto_completo)
-    
-    # Normaliza nomes dos baixados pra fallback
+    # Normaliza nomes dos arquivos baixados/uploaded pra match
     nomes_baixados_norm = set()
     for arq in anexos_baixados:
         nome = arq.get('nome') or ''
         nomes_baixados_norm.add(_normalizar_nome_anexo(nome))
     
     # ───────────────────────────────────────────────────────────────
-    # 4. Pra cada anexo citado, monta candidatos:
-    #    - MATCH 1 (nome do arquivo): encontrado direto
-    #    - MATCH 2 (texto): precisa validar com Haiku se eh CONTEUDO ou MENCAO
+    # 5. Classifica cada anexo citado: ENCONTRADO ou FALTANTE
     # ───────────────────────────────────────────────────────────────
     encontrados = []
     faltantes = []
-    candidatos_validar_haiku = []   # anexos que aparecem no texto - precisam de validacao
     
     for citado in anexos_citados:
         nome_c = citado.get('nome_citado') or ''
         if not nome_c:
             continue
         
-        # MATCH 1: nome bate com algum arquivo baixado? (mais confiavel)
         nome_c_norm = _normalizar_nome_anexo(nome_c)
-        encontrou_por_nome = False
+        
+        # MATCH A: nome casa com algum arquivo baixado/uploaded?
+        encontrou_por_arquivo = False
         for nome_b in nomes_baixados_norm:
             if not nome_b or not nome_c_norm:
                 continue
-            if nome_c_norm in nome_b or nome_b in nome_c_norm:
-                encontrou_por_nome = True
-                break
-            if _match_anexo_referencia(nome_c, nome_b):
-                encontrou_por_nome = True
+            # Match restrito: precisa ter palavras-chave significativas
+            if _match_nome_arquivo_restrito(nome_c, nome_b):
+                encontrou_por_arquivo = True
                 break
         
-        if encontrou_por_nome:
+        if encontrou_por_arquivo:
             encontrados.append({
                 'nome_citado': nome_c,
-                'onde': 'nome_arquivo',
+                'onde': 'arquivo_baixado',
                 'contexto_citacao': citado.get('contexto', '')[:200],
             })
             continue
         
-        # MATCH 2: aparece literalmente no texto do PDF?
-        onde_encontrou = _buscar_no_texto(nome_c, texto_completo_norm)
-        if onde_encontrou:
-            # Precisa validar: eh CONTEUDO do anexo ou apenas MENCAO?
-            candidatos_validar_haiku.append({
+        # MATCH B: algum bloco do catalogo relacionou este citado em 'citado_como'?
+        bloco_relacionado = None
+        for b in catalogo_anexos:
+            cit = b.get('citado_como')
+            if cit and cit.strip().lower() == nome_c.strip().lower():
+                bloco_relacionado = b
+                break
+        
+        if bloco_relacionado:
+            encontrados.append({
                 'nome_citado': nome_c,
-                'onde': onde_encontrou,
+                'onde': f"catalogo: \"{bloco_relacionado.get('titulo', '')[:80]}\" (pg {bloco_relacionado.get('inicio')}-{bloco_relacionado.get('fim')})",
                 'contexto_citacao': citado.get('contexto', '')[:200],
             })
-        else:
-            faltantes.append({
-                'nome_citado': nome_c,
-                'contexto': citado.get('contexto', '')[:200],
-                'motivo': 'nao encontrado no texto do PDF nem nos nomes dos arquivos',
+            continue
+        
+        # Sem match -> FALTANTE
+        faltantes.append({
+            'nome_citado': nome_c,
+            'contexto': citado.get('contexto', '')[:200],
+            'motivo': 'nao encontrado entre arquivos baixados nem como secao em anexos.pdf',
+        })
+    
+    # ───────────────────────────────────────────────────────────────
+    # 6. Identifica EXTRAS: blocos no catalogo nao relacionados a citados
+    # ───────────────────────────────────────────────────────────────
+    extras = []
+    for bloco in catalogo_anexos:
+        if not bloco.get('citado_como'):
+            extras.append({
+                'titulo': bloco.get('titulo', bloco.get('nome', '?')),
+                'paginas': f"pg {bloco.get('inicio')}-{bloco.get('fim')}",
+                'observacao': 'presente no PDF mas nao citado no corpo da lei',
             })
     
-    # Se ha candidatos no texto, valida em lote com Haiku
-    if candidatos_validar_haiku:
-        _log(f"Validando {len(candidatos_validar_haiku)} candidato(s) com Haiku (conteudo vs mencao)...")
-        try:
-            validacoes, custo2, tin2, tout2 = _validar_conteudo_vs_mencao(
-                candidatos_validar_haiku, texto_completo, log_callback=_log
-            )
-            custo += custo2
-            tokens_in += tin2
-            tokens_out += tout2
-            
-            for cand in candidatos_validar_haiku:
-                nome_c = cand['nome_citado']
-                veredicto = validacoes.get(nome_c, 'incerto')
-                if veredicto == 'conteudo':
-                    encontrados.append({
-                        'nome_citado': nome_c,
-                        'onde': cand['onde'] + ' (validado: conteudo presente)',
-                        'contexto_citacao': cand['contexto_citacao'],
-                    })
-                else:
-                    # 'mencao' ou 'incerto' -> trata como faltante
-                    faltantes.append({
-                        'nome_citado': nome_c,
-                        'contexto': cand['contexto_citacao'],
-                        'motivo': f'citado mas conteudo ausente (Haiku: {veredicto})',
-                    })
-        except Exception as e:
-            _log(f"AVISO: validacao Haiku falhou ({e}). Tratando candidatos como encontrados.")
-            # Fallback conservador: marca como encontrado (comportamento antigo)
-            for cand in candidatos_validar_haiku:
-                encontrados.append({
-                    'nome_citado': cand['nome_citado'],
-                    'onde': cand['onde'] + ' (validacao haiku falhou)',
-                    'contexto_citacao': cand['contexto_citacao'],
-                })
-    
-    _log(f"Encontrados: {len(encontrados)}/{len(anexos_citados)} | Faltantes: {len(faltantes)}")
+    _log(f"Encontrados: {len(encontrados)}/{len(anexos_citados)} | Faltantes: {len(faltantes)} | Extras: {len(extras)}")
     
     return {
         'sucesso': True,
         'anexos_citados': anexos_citados,
         'anexos_encontrados': encontrados,
         'anexos_faltantes': faltantes,
+        'anexos_extras': extras,
         'custo_estimado': custo,
         'tokens_input': tokens_in,
         'tokens_output': tokens_out,
     }
+
+
+def _match_nome_arquivo_restrito(nome_citado, nome_arquivo_norm):
+    """
+    Match RESTRITIVO entre nome citado (ex: 'Anexo G01', 'Tabela E01') 
+    e nome de arquivo normalizado (ex: 'g01_glossario', 'e01_estacionamentos').
+    
+    Regras:
+      - Extrai o identificador especifico (ex: 'G01', 'E01', '1.4')
+      - Identificador DEVE aparecer no nome do arquivo
+      - Tipo (Anexo, Tabela, Mapa) NAO precisa bater (PDFs nem sempre tem)
+      - Mas SE o tipo aparecer no nome do arquivo, precisa bater
+    """
+    import re as _re_m
+    
+    nome_c_norm = _normalizar_nome_anexo(nome_citado)
+    
+    # Extrai identificador (numero/codigo) do citado
+    # ex: 'anexo_g01' -> 'g01', 'tabela_e01' -> 'e01', 'anexo_1_4' -> '1_4'
+    m = _re_m.search(r'([a-z]?\d+(?:[._]\d+)*)', nome_c_norm)
+    if not m:
+        return False
+    identificador = m.group(1)
+    
+    # Identificador tem que aparecer no nome do arquivo
+    if identificador not in nome_arquivo_norm:
+        return False
+    
+    # Se o identificador casa, o match e valido.
+    # NAO rejeitamos por tipo diferente porque o nome do arquivo pode ter palavras
+    # descritivas (ex: 'F01_TABELA_Limites_*.pdf' eh o anexo F01, nao a tabela F01)
+    return True
+
+
+def _match_no_catalogo(nome_citado, catalogo_anexos):
+    """
+    Procura se o nome_citado (ex: 'Anexo G01', 'Anexo 1.1') casa com algum
+    bloco no catalogo retornado pela etapa4_catalogar_anexos.
+    
+    Cada bloco tem: {nome: 'anexo_1.1', titulo: 'Anexo 1.1 - ...', inicio, fim, tipo}
+    
+    Match: identificador do citado (G01, 1.1, E01) aparece no 'nome' ou 'titulo'
+    do bloco do catalogo.
+    
+    Retorna string descrevendo onde, ou None.
+    """
+    import re as _re_c
+    
+    nome_c_norm = _normalizar_nome_anexo(nome_citado)
+    
+    # Extrai identificador do citado (G01, 1.1, E01, etc)
+    m = _re_c.search(r'([a-z]?\d+(?:[._\s-]\d+)*)', nome_c_norm)
+    if not m:
+        return None
+    identificador = m.group(1).replace('_', '.').replace(' ', '.').replace('-', '.')
+    
+    # Procura no catalogo
+    for bloco in catalogo_anexos:
+        nome_bloco = _normalizar_nome_anexo(bloco.get('nome', ''))
+        titulo_bloco = _normalizar_nome_anexo(bloco.get('titulo', ''))
+        
+        # Gera variantes do identificador (leading zero + separadores)
+        variantes = set()
+        # Normaliza identificador pra partes numericas
+        partes = _re_c.split(r'[._\s-]', identificador)
+        partes = [p for p in partes if p]
+        
+        if all(p.isdigit() or (p and p[0].isalpha() and p[1:].isdigit()) for p in partes):
+            # Versoes com e sem leading zero
+            partes_normal = list(partes)
+            partes_zero = [p.zfill(2) if p.isdigit() and len(p) == 1 else p for p in partes]
+            
+            # Gera com separadores: '.', '_', ' '
+            for sep in ['.', '_', ' ']:
+                variantes.add(sep.join(partes_normal))
+                variantes.add(sep.join(partes_zero))
+            # Tambem grudado
+            variantes.add(''.join(partes_normal))
+            variantes.add(''.join(partes_zero))
+        else:
+            variantes.add(identificador)
+        
+        # Pra cada variante, busca como subtexto no nome/titulo do bloco
+        for var in variantes:
+            if not var:
+                continue
+            # Match: precisa estar como subtexto delimitado (nao parte de numero maior)
+            # Usa lookahead/lookbehind: precedido por nao-alfanumerico e seguido por nao-digito
+            pattern = _re_c.compile(rf'(?:^|[^a-z0-9]){_re_c.escape(var)}(?:[^0-9]|$)')
+            if pattern.search(nome_bloco) or pattern.search(titulo_bloco):
+                return f"catalogo: \"{bloco.get('titulo', bloco.get('nome', ''))[:80]}\" (pg {bloco.get('inicio')}-{bloco.get('fim')})"
+    
+    return None
+
+
+def _catalogar_com_match(anexos_pdf_path, fim_corpo, work_dir, lista_citados, log_callback=None):
+    """
+    Cataloga anexos do anexos.pdf E relaciona cada bloco com a lista de citados no corpo.
+    
+    Args:
+        anexos_pdf_path: path do anexos.pdf
+        fim_corpo: numero de paginas do corpo (pra ajustar paginacao)
+        work_dir: diretorio de trabalho
+        lista_citados: lista de strings ["Anexo 1.1", "Anexo G01", ...]
+        log_callback: opcional
+    
+    Retorna: dict com 'blocos' (lista de blocos catalogados com 'citado_como'), 
+             'custo', 'tokens_in', 'tokens_out'.
+    """
+    import subprocess, base64, anthropic, os as _os_c
+    from modulos.pipeline_extracao_lei import MODELO_HAIKU, calcular_custo, parse_json_robusto
+    
+    # Pega n_paginas
+    r = subprocess.run(['pdfinfo', anexos_pdf_path], capture_output=True, text=True, timeout=30)
+    n_pg_anexos = 0
+    for linha in r.stdout.split('\n'):
+        if linha.startswith('Pages:'):
+            n_pg_anexos = int(linha.split(':')[1].strip())
+            break
+    if n_pg_anexos == 0:
+        raise RuntimeError("Nao consegui ler n_paginas do anexos.pdf")
+    
+    # Texto -layout pagina por pagina
+    texto_anexos = ""
+    for pg in range(1, n_pg_anexos + 1):
+        try:
+            r = subprocess.run(
+                ['pdftotext', '-layout', '-f', str(pg), '-l', str(pg), anexos_pdf_path, '-'],
+                capture_output=True, text=True, errors='replace', timeout=15
+            )
+            texto_anexos += f"\n=== PAGINA {pg} ===\n{r.stdout}"
+        except Exception:
+            pass
+    
+    # Se anexos > 100 pgs, manda so as 100 primeiras
+    if n_pg_anexos > 100:
+        if log_callback:
+            log_callback(f"Anexos tem {n_pg_anexos} pgs (>100), pegando as 100 primeiras")
+        import pypdf
+        anexos_pdf_uso = _os_c.path.join(work_dir, "anexos_100.pdf")
+        reader = pypdf.PdfReader(anexos_pdf_path)
+        writer = pypdf.PdfWriter()
+        for i in range(100):
+            writer.add_page(reader.pages[i])
+        with open(anexos_pdf_uso, 'wb') as f:
+            writer.write(f)
+    else:
+        anexos_pdf_uso = anexos_pdf_path
+    
+    # PDF em base64
+    with open(anexos_pdf_uso, 'rb') as f:
+        pdf_b64 = base64.b64encode(f.read()).decode('ascii')
+    
+    # Prompt expandido com lista_citados
+    lista_str = '\n'.join(f'  - "{c}"' for c in lista_citados)
+    
+    prompt = f"""Voce vai analisar este PDF (anexos de uma lei municipal) e fazer DOIS trabalhos:
+
+═══ TRABALHO 1: CATALOGAR CADA BLOCO ═══
+
+Cada bloco eh uma secao logica: Anexo 1.1, Anexo 1.2, Anexo 2.1, etc.
+Pra cada bloco, retorne:
+  - nome: chave curta (ex: "anexo_1.1", "anexo_g01", "errata")
+  - titulo: titulo completo conforme aparece no PDF
+  - inicio: pagina onde COMECA (1-indexado, contando do anexos.pdf)
+  - fim: pagina onde TERMINA
+  - tipo: "anexo" | "errata" | "encerramento" | "indefinido"
+
+═══ TRABALHO 2: RELACIONAR COM CITADOS ═══
+
+A lei principal CITA os seguintes anexos:
+{lista_str}
+
+Pra CADA bloco que voce catalogar, indique tambem:
+  - citado_como: qual item da lista acima corresponde a este bloco
+    (use exatamente o texto da lista, com aspas)
+    Se NENHUM item da lista corresponder, use null
+
+Exemplos de match:
+  - Bloco "Anexo 1.3 - Gravames" pode corresponder a "Anexo 1.3" da lista
+  - Bloco "GLOSSARIO - ANEXO G01" pode corresponder a "Anexo G01"
+  - Bloco "Errata" provavelmente nao corresponde a nenhum (citado_como: null)
+
+═══ FORMATO DE RESPOSTA (JSON estrito) ═══
+
+{{
+  "blocos": [
+    {{
+      "nome": "anexo_1.1",
+      "titulo": "Anexo 1.1 - Mapa de Zoneamento",
+      "inicio": 1,
+      "fim": 2,
+      "tipo": "anexo",
+      "citado_como": "Anexo 1.1"
+    }},
+    ...
+  ]
+}}
+
+ATENCAO: paginas que voce ve no PDF comecam em 1. Retorne APENAS o JSON.
+
+=== TEXTO -LAYOUT (referencia) ===
+{texto_anexos[:50000]}"""
+    
+    client = anthropic.Anthropic(api_key=_os_c.environ['ANTHROPIC_API_KEY'])
+    
+    if log_callback:
+        log_callback(f"Chamando Haiku 4.5 (catalogacao + match com {len(lista_citados)} citados)...")
+    
+    resposta = ""
+    with client.messages.stream(
+        model=MODELO_HAIKU,
+        max_tokens=8000,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "document", "source": {
+                    "type": "base64", "media_type": "application/pdf", "data": pdf_b64
+                }, "title": "anexos.pdf"},
+                {"type": "text", "text": prompt},
+            ]
+        }]
+    ) as stream:
+        for delta in stream.text_stream:
+            resposta += delta
+        final = stream.get_final_message()
+    
+    tokens_in = final.usage.input_tokens
+    tokens_out = final.usage.output_tokens
+    custo = calcular_custo(tokens_in, tokens_out, 'haiku')
+    
+    if log_callback:
+        log_callback(f"  tokens {tokens_in}->{tokens_out}, ${custo:.4f}")
+    
+    parsed = parse_json_robusto(resposta)
+    if not parsed or 'blocos' not in parsed:
+        raise RuntimeError(f"Haiku retornou JSON invalido: {resposta[:300]}")
+    
+    blocos_raw = parsed['blocos']
+    
+    # Soma fim_corpo nas paginas pra ficar consistente com PDF concatenado
+    blocos = []
+    for b in blocos_raw:
+        if not isinstance(b, dict):
+            continue
+        ini = b.get('inicio')
+        fim = b.get('fim')
+        if not isinstance(ini, int) or not isinstance(fim, int):
+            continue
+        blocos.append({
+            'nome': b.get('nome', f'bloco_{len(blocos)}'),
+            'titulo': b.get('titulo', ''),
+            'inicio': ini + fim_corpo,
+            'fim': fim + fim_corpo,
+            'tipo': b.get('tipo', 'indefinido'),
+            'citado_como': b.get('citado_como'),  # NOVO!
+        })
+    
+    return {
+        'blocos': blocos,
+        'custo': custo,
+        'tokens_in': tokens_in,
+        'tokens_out': tokens_out,
+    }
+
+
+def _buscar_secao_anexo(nome_citado, texto_anexos):
+    """
+    Busca se o anexo aparece como SECAO/TITULO no texto de anexos.pdf.
+    
+    Padrao tipico: 
+      'ANEXO G01' no inicio de linha (apos quebra de pagina)
+      'ANEXO G01 - Titulo da Secao'
+      'Anexo G01\nGlossario'
+    
+    Retorna string descrevendo onde achou, ou None.
+    """
+    import re as _re_b
+    
+    if not nome_citado or not texto_anexos:
+        return None
+    
+    # Normaliza o texto (lower, sem acento, espacos compactados)
+    texto_norm = _normalizar_texto_busca(texto_anexos)
+    nome_norm = _normalizar_texto_busca(nome_citado)
+    
+    # Extrai identificador (G01, E01, 1.4, etc) do nome citado
+    nums = _re_b.findall(r'\b([a-z]?\d+(?:[.\-_\s]\d+)*)', nome_norm)
+    if not nums:
+        return None
+    
+    # Pra cada identificador, busca padroes de SECAO no texto
+    # Padrao 1: 'anexo X' OU 'tabela X' OU 'mapa X' apos quebra de linha
+    for num in nums:
+        # Variantes do identificador
+        num_clean = num.replace('_', ' ').replace('-', ' ')
+        
+        # Tipo do citado (anexo/tabela/mapa) - usa se houver
+        tipo = None
+        for t in ('anexo', 'tabela', 'mapa', 'quadro'):
+            if t in nome_norm:
+                tipo = t
+                break
+        
+        # Padroes a procurar (no inicio de linha, com possivel - depois do numero)
+        padroes = []
+        if tipo:
+            # Padrao especifico do tipo: "anexo g01" / "tabela e01"
+            padroes.append(_re_b.compile(rf'\n\s*{tipo}\s+{_re_b.escape(num_clean)}\b'))
+            padroes.append(_re_b.compile(rf'\n\s*{tipo}\s+{_re_b.escape(num_clean.replace(" ", "."))}\b'))
+        else:
+            # Generico: "anexo X" ou "tabela X" ou "mapa X"
+            padroes.append(_re_b.compile(rf'\n\s*(?:anexo|tabela|mapa|quadro)\s+{_re_b.escape(num_clean)}\b'))
+        
+        for pat in padroes:
+            m = pat.search(texto_norm)
+            if m:
+                return f'secao no anexos.pdf: "{m.group(0).strip()}"'
+    
+    return None
 
 
 def _extrair_texto_corpo(pdf_path, max_paginas=80):
@@ -647,37 +991,56 @@ def _validar_em_um_chunk(candidatos, chunk_texto, log_callback, num_chunk, total
     
     lista_anexos = "\n".join(f'- "{c["nome_citado"]}"' for c in candidatos)
     
-    prompt = f"""Voce esta validando se um trecho de PDF contem o CONTEUDO de certos anexos
-ou apenas MENCIONA esses anexos.
+    prompt = f"""Voce esta validando RIGOROSAMENTE se um trecho de PDF contem o CONTEUDO 
+COMPLETO de certos anexos OU apenas MENCIONA esses anexos.
 
-DEFINICOES:
-- "conteudo" = o trecho tem o ANEXO DESENVOLVIDO (titulo + tabelas/listas/mapas dentro)
-- "mencao" = o trecho apenas FAZ REFERENCIA ao anexo (ex: "conforme Anexo X"), sem desenvolver
-- "incerto" = nao foi possivel determinar com certeza
+═══ DEFINICOES PRECISAS ═══
 
-ANEXOS A VALIDAR (chunk {num_chunk}/{total_chunks} do PDF):
+"conteudo" = Voce DEVE encontrar TODAS essas evidencias juntas:
+   1. Um TITULO DE SECAO claro, como "ANEXO X" ou "ANEXO X - TITULO" iniciando uma pagina/secao
+   2. Conteudo DESENVOLVIDO logo apos: tabelas completas, listas numeradas, mapas, 
+      glossarios, especificacoes tecnicas
+   3. Volume substancial: pelo menos algumas linhas de conteudo proprio do anexo
+
+"mencao" = Apenas REFERENCIAS ao anexo no corpo da lei, exemplos:
+   - "conforme Anexo X"
+   - "definido no Anexo X"  
+   - "ver Anexo X"
+   - "Anexo X integrante desta Lei"
+   - SEM o anexo desenvolvido em si
+
+"incerto" = Nao encontrou NEM o titulo da secao NEM referencias claras no chunk
+   (pode estar em outro chunk)
+
+═══ REGRA CRITICA ═══
+
+VOCE NAO PODE INFERIR que um anexo esta presente apenas porque outros anexos estao.
+CADA ANEXO deve ser avaliado INDIVIDUALMENTE.
+
+Se a lei MENCIONA "Anexo C14" mas voce nao encontra a SECAO "ANEXO C14" desenvolvida 
+no texto -> "mencao" (NAO "conteudo").
+
+Se voce ve "ANEXO G01 - GLOSSARIO" seguido de termos definidos -> "conteudo" PARA G01.
+Isso NAO significa que "Anexo C14" tambem esta presente. C14 precisa de PROVA propria.
+
+═══ ANEXOS A VALIDAR (chunk {num_chunk}/{total_chunks}) ═══
 {lista_anexos}
 
-PARA CADA ANEXO ACIMA, busque no texto abaixo:
-- Procure SECAO/TITULO comecando com o nome do anexo (ex: "ANEXO X - Titulo", seguido de conteudo)
-- Verifique se o texto desenvolve aquele anexo (tabelas, listas, definicoes)
+═══ TEXTO DO PDF (chunk {num_chunk}/{total_chunks}) ═══
+{chunk_texto}
 
-Se voce encontrar apenas "conforme Anexo X" sem desenvolvimento -> "mencao"
-Se voce encontrar a SECAO do Anexo X com seu conteudo -> "conteudo"
-Se o anexo NAO aparece neste chunk -> "incerto" (pode estar em outro chunk)
+═══ FORMATO DE RESPOSTA (JSON estrito) ═══
 
-FORMATO DE RESPOSTA (JSON estrito):
+Para CADA anexo da lista acima, retorne UMA das tres opcoes:
 {{
   "validacoes": {{
     "Anexo X": "conteudo",
-    "Anexo Y": "mencao"
+    "Anexo Y": "mencao",
+    "Anexo Z": "incerto"
   }}
 }}
 
-TEXTO DO PDF (chunk {num_chunk}/{total_chunks}):
-{chunk_texto}
-
-Retorne APENAS o JSON, sem comentarios."""
+Retorne APENAS o JSON, sem comentarios. Seja CONSERVADOR: na duvida, prefira "mencao" sobre "conteudo"."""
     
     cliente = Anthropic()
     
