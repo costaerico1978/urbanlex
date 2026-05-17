@@ -3444,6 +3444,14 @@ def api_buscador_municipio():
                     _hconn2.close()
                 except Exception as _he2:
                     job["logs"].append({"nivel": "aviso", "msg": f"Erro ao salvar historico: {str(_he2)[:100]}"})
+            # Trigger automatico: organizador de dossie em background
+            try:
+                _zip_url_fim = r.get("zip_url", "")
+                if _zip_url_fim:
+                    from modulos.dossie_trigger import disparar_organizador_async
+                    disparar_organizador_async(mun, est, _zip_url_fim, get_db, origem='manual')
+            except Exception as _e_trig:
+                job["logs"].append({"nivel": "aviso", "msg": f"Trigger dossie nao disparado: {str(_e_trig)[:150]}"})
         except Exception as e:
             job["logs"].append({"nivel": "erro", "msg": f"Erro: {str(e)[:200]}"})
         finally:
@@ -3533,6 +3541,14 @@ def api_buscador_lei_especifica():
                          r.get("zip_url",""), r.get("relatorio_url",""), r.get("tabela_url",""), hist_id))
                     _hconn2.commit(); _hcur2.close(); _hconn2.close()
                 except Exception: pass
+            # Trigger automatico: organizador de dossie em background
+            try:
+                _zip_url_fim = r.get("zip_url", "")
+                if _zip_url_fim:
+                    from modulos.dossie_trigger import disparar_organizador_async
+                    disparar_organizador_async(mun, est, _zip_url_fim, get_db, origem='manual')
+            except Exception as _e_trig:
+                job["logs"].append({"nivel": "aviso", "msg": f"Trigger dossie nao disparado: {str(_e_trig)[:150]}"})
         except Exception as e:
             job["logs"].append({"nivel": "erro", "msg": f"Erro: {str(e)[:200]}"})
         finally:

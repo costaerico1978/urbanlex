@@ -2,6 +2,10 @@ _fila_pausada = False
 
 import threading, time, uuid, psycopg2, psycopg2.extras
 
+import os as _os_fw
+from modulos.dossie_trigger import disparar_organizador_async as _disparar_trigger
+
+
 def iniciar_worker(app, get_db, buscador_jobs):
     def worker():
         time.sleep(30)  # Aguardar Gunicorn estar totalmente pronto
@@ -59,12 +63,39 @@ def iniciar_worker(app, get_db, buscador_jobs):
                             c4.commit(); cu4.close(); c4.close()
                         except: pass
                         c5=get_db(); cu5=c5.cursor()
-                        # Adicionar ao dossie_municipios
+                        # Adicionar ao dossie_municipios E disparar organizador automatico
+                        dossie_id = None
+                        zip_path_full = None
                         try:
                             c_d=get_db(); cu_d=c_d.cursor()
+                            # Cria dossie (ou pega existente)
                             cu_d.execute("INSERT INTO dossie_municipios (municipio, estado, origem) VALUES (%s,%s,%s) ON CONFLICT (municipio, estado) DO NOTHING",(item['municipio'],item['estado'],item.get('origem','manual')))
+                            cu_d.execute("SELECT id FROM dossie_municipios WHERE municipio=%s AND estado=%s",(item['municipio'],item['estado']))
+                            row_d = cu_d.fetchone()
+                            if row_d:
+                                dossie_id = row_d[0]
                             c_d.commit(); cu_d.close(); c_d.close()
-                        except: pass
+                        except Exception as _e_dossie:
+                            print(f"[FILA WORKER] Erro criando dossie: {_e_dossie}", flush=True)
+                        
+                        # Identifica zip_path absoluto pra passar pro organizador
+                        try:
+                            zip_url_rel = r.get('zip_url') or ''  # tipo "/static/downloads/X.zip"
+                            if zip_url_rel and zip_url_rel.startswith('/static'):
+                                zip_path_full = '/var/www/urbanlex' + zip_url_rel
+                            if zip_path_full and not _os_fw.path.exists(zip_path_full):
+                                zip_path_full = None
+                        except Exception:
+                            zip_path_full = None
+                        
+                        # Dispara organizador em thread separada (nao bloqueia a fila)
+                        try:
+                            zip_url_rel = r.get('zip_url') or ''
+                            if zip_url_rel:
+                                _disparar_trigger(item['municipio'], item['estado'], zip_url_rel, get_db, origem=item.get('origem','manual'))
+                        except Exception as _e_org:
+                            print(f"[FILA WORKER] Erro disparando organizador: {_e_org}", flush=True)
+                        
                         cu5.execute("UPDATE fila_buscas SET status='concluido',concluido_em=NOW() WHERE id=%s",(item['id'],))
                         c5.commit(); cu5.close(); c5.close()
                 except Exception as eb:
