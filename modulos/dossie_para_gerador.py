@@ -147,18 +147,16 @@ def preparar_work_dir_pipeline(dossie_id: int, busca_historico_id: int,
         _log(f"  AVISO: corpo.pdf ou anexos.pdf faltando - pipeline rodara Etapa 3")
     
     # ───────────────────────────────────────────────────────────────
-    # 5. Cria cache JSON da Etapa 4 a partir de anexos_citados
-    #    (formato: {blocos: [{nome, titulo, inicio, fim, tipo}]})
+    # 5. Copia cache da Etapa 4 (catalogo dos anexos)
+    #    A etapa_45 salva esse JSON apos catalogar com Haiku.
     # ───────────────────────────────────────────────────────────────
-    # NOTA: a etapa_45 nao salva o catalogo completo no banco hoje.
-    # O catalogo eh gerado dinamicamente cada vez que chama Haiku.
-    # Pra reusar, vamos DEIXAR o pipeline rodar a Etapa 4 normalmente
-    # (custo $0.20). Em iteracao futura, salvaremos o catalogo da etapa_45.
-    
-    # Cache Etapa 4 (futuro): work_dir/etapa4_catalogacao.json
-    # Por ora, NAO criamos esse cache. Pipeline rodara Etapa 4 do zero.
-    
-    _log(f"  AVISO: Etapa 4 nao tem cache do dossie ainda (rodara normalmente, custo ~USD 0.20)")
+    src_cat = os.path.join(pasta_dossie, 'etapa4_catalogacao.json')
+    dst_cat = os.path.join(work_dir, 'etapa4_catalogacao.json')
+    if os.path.exists(src_cat):
+        shutil.copy2(src_cat, dst_cat)
+        _log(f"  ✓ etapa4_catalogacao.json copiado (Etapa 4 dara CACHE HIT - economiza ~USD 0.20 + 25s)")
+    else:
+        _log(f"  AVISO: etapa4_catalogacao.json nao existe no dossie. Etapa 4 rodara do zero.")
     
     # ───────────────────────────────────────────────────────────────
     # 6. Retorna work_dir preparado

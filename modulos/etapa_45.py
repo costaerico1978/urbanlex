@@ -170,6 +170,34 @@ def detectar_anexos_citados(legislacao_label, pdf_path, anexos_baixados, log_cal
             catalogo_anexos = res_cat.get('blocos', [])
             custo_catalogo = res_cat.get('custo', 0.0)
             
+            # ─── SALVA catalogo em formato compativel com Etapa 4 do pipeline ───
+            # IMPORTANTE: incluir bloco 'corpo_lei' no inicio - a Etapa 5 espera isso
+            try:
+                import json as _j_e4
+                blocos_pipeline = [{
+                    'nome': 'corpo_lei',
+                    'titulo': 'Corpo da Lei',
+                    'inicio': 1,
+                    'fim': fim_corpo,
+                    'tipo': 'corpo',
+                }]
+                # Adiciona os blocos catalogados pelo Haiku (anexos/erratas)
+                # As paginas ja vieram em referencia ao PDF concatenado
+                for _b in res_cat.get('blocos', []):
+                    if isinstance(_b, dict):
+                        blocos_pipeline.append(_b)
+                cache_e4_path = os.path.join(work_dir, 'etapa4_catalogacao.json')
+                with open(cache_e4_path, 'w') as _f_e4:
+                    _j_e4.dump({
+                        'blocos': blocos_pipeline,
+                        'tokens_in': res_cat.get('tokens_in', 0),
+                        'tokens_out': res_cat.get('tokens_out', 0),
+                        'custo': res_cat.get('custo', 0.0),
+                    }, _f_e4, ensure_ascii=False, indent=2)
+                _log(f"Catalogo salvo em {cache_e4_path} ({len(blocos_pipeline)} blocos: 1 corpo + {len(blocos_pipeline)-1} anexos)")
+            except Exception as _e_save_e4:
+                _log(f"AVISO: nao salvou etapa4_catalogacao.json: {_e_save_e4}")
+            
             # Filtra apenas tipo=anexo (descarta errata, encerramento)
             catalogo_anexos = [b for b in catalogo_anexos if b.get('tipo') == 'anexo']
             
