@@ -1360,7 +1360,15 @@ def processar_municipio(zip_path, municipio, estado, output_dir=None,
     
     t_inicio = time.time()
     if output_dir is None:
-        output_dir = os.path.join(PIPELINES_BASE_DIR, _slug_municipio(municipio, estado))
+        # Cache por LEGISLACAO: /static/pipelines/<Municipio>_<UF>/leg_<md5short>/
+        _slug = _slug_municipio(municipio, estado)
+        _md5_zip = calcular_md5_zip(zip_path)
+        if _md5_zip:
+            _leg_dir = f"leg_{_md5_zip[:12]}"
+        else:
+            # fallback: usa basename do zip se md5 falhar
+            _leg_dir = "leg_" + (os.path.basename(zip_path or 'sem_zip')[:30].replace('.', '_').replace(' ', '_'))
+        output_dir = os.path.join(PIPELINES_BASE_DIR, _slug, _leg_dir)
     os.makedirs(output_dir, exist_ok=True)
     _log(f"Output dir: {output_dir}", log_callback)
     

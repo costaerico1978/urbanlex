@@ -6566,7 +6566,7 @@ def api_gerador_compilados_excluir(cid):
             return jsonify({'success': False, 'error': 'apenas admin pode excluir'}), 403
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT municipio, estado FROM gerador_compilados WHERE id=%s", (cid,))
+        cur.execute("SELECT municipio, estado, zip_path FROM gerador_compilados WHERE id=%s", (cid,))
         row = cur.fetchone()
         if not row:
             cur.close(); conn.close()
@@ -6576,18 +6576,32 @@ def api_gerador_compilados_excluir(cid):
         cur.execute("DELETE FROM gerador_compilados WHERE id=%s", (cid,))
         cur.execute("SELECT COUNT(*) as n FROM gerador_compilados WHERE municipio=%s AND estado=%s", (municipio, estado))
         outros = cur.fetchone()['n']
+        # Apaga cache /pipelines/Slug_UF/leg_<md5>/ da legislacao deste compilado
         cache_apagado = False
-        if outros == 0:
-            cur.execute("SELECT COUNT(*) as n FROM buscas_historico WHERE municipio=%s AND estado=%s", (municipio, estado))
-            dossies = cur.fetchone()['n']
-            if dossies == 0:
-                import os as _os_c, shutil as _sh_c
-                from modulos.pipeline_extracao_lei import _slug_municipio, PIPELINES_BASE_DIR
-                slug = _slug_municipio(municipio, estado)
-                cache_dir = _os_c.path.join(PIPELINES_BASE_DIR, slug)
-                if _os_c.path.isdir(cache_dir):
-                    try: _sh_c.rmtree(cache_dir); cache_apagado = True
-                    except Exception as e_c: logger.warning(f"falha apagando cache {cache_dir}: {e_c}")
+        try:
+            import os as _os_c, shutil as _sh_c
+            from modulos.pipeline_extracao_lei import _slug_municipio, PIPELINES_BASE_DIR, calcular_md5_zip
+            slug = _slug_municipio(municipio, estado)
+            mun_dir = _os_c.path.join(PIPELINES_BASE_DIR, slug)
+            zip_path_comp = row.get('zip_path')
+            if zip_path_comp:
+                md5 = calcular_md5_zip(zip_path_comp)
+                if md5:
+                    leg_dir = _os_c.path.join(mun_dir, f"leg_{md5[:12]}")
+                    if _os_c.path.isdir(leg_dir):
+                        try: _sh_c.rmtree(leg_dir); cache_apagado = True
+                        except Exception as e_c: logger.warning(f"falha apagando {leg_dir}: {e_c}")
+            # Remove pasta-mae do municipio se ficou vazia (sem compilados e sem dossies)
+            if outros == 0:
+                cur.execute("SELECT COUNT(*) as n FROM buscas_historico WHERE municipio=%s AND estado=%s", (municipio, estado))
+                dossies = cur.fetchone()['n']
+                if dossies == 0 and _os_c.path.isdir(mun_dir):
+                    try:
+                        if not _os_c.listdir(mun_dir):
+                            _os_c.rmdir(mun_dir)
+                    except Exception: pass
+        except Exception as e_pipe:
+            logger.warning(f"erro limpando pipeline: {e_pipe}")
         conn.commit(); cur.close(); conn.close()
         return jsonify({'success': True, 'cache_pipeline_apagado': cache_apagado, 'outros_compilados': outros})
     except Exception as e:
