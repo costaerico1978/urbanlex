@@ -6560,16 +6560,38 @@ def api_gerador_compilados_adicionar():
 @app.route('/api/gerador/compilados/<int:cid>', methods=['DELETE'])
 @login_required
 def api_gerador_compilados_excluir(cid):
-    """Apenas admin pode excluir."""
+    """Exclui compilado + apaga cache do pipeline se for o ultimo do municipio."""
     try:
         if session.get('role') != 'admin':
             return jsonify({'success': False, 'error': 'apenas admin pode excluir'}), 403
-        conn = get_db(); cur = conn.cursor()
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT municipio, estado FROM gerador_compilados WHERE id=%s", (cid,))
+        row = cur.fetchone()
+        if not row:
+            cur.close(); conn.close()
+            return jsonify({'success': False, 'error': 'nao encontrado'}), 404
+        municipio = row['municipio']
+        estado = row['estado']
         cur.execute("DELETE FROM gerador_compilados WHERE id=%s", (cid,))
+        cur.execute("SELECT COUNT(*) as n FROM gerador_compilados WHERE municipio=%s AND estado=%s", (municipio, estado))
+        outros = cur.fetchone()['n']
+        cache_apagado = False
+        if outros == 0:
+            cur.execute("SELECT COUNT(*) as n FROM buscas_historico WHERE municipio=%s AND estado=%s", (municipio, estado))
+            dossies = cur.fetchone()['n']
+            if dossies == 0:
+                import os as _os_c, shutil as _sh_c
+                from modulos.pipeline_extracao_lei import _slug_municipio, PIPELINES_BASE_DIR
+                slug = _slug_municipio(municipio, estado)
+                cache_dir = _os_c.path.join(PIPELINES_BASE_DIR, slug)
+                if _os_c.path.isdir(cache_dir):
+                    try: _sh_c.rmtree(cache_dir); cache_apagado = True
+                    except Exception as e_c: logger.warning(f"falha apagando cache {cache_dir}: {e_c}")
         conn.commit(); cur.close(); conn.close()
-        return jsonify({'success': True})
+        return jsonify({'success': True, 'cache_pipeline_apagado': cache_apagado, 'outros_compilados': outros})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({'success': False, 'error': str(e)[:300]})
 
 @app.route('/api/gerador/test-preencher', methods=['GET'])
 @login_required
@@ -6893,29 +6915,61 @@ def api_dossie_dossie_detalhe(dossie_id):
 @app.route('/api/dossie/dossie/<int:dossie_id>', methods=['DELETE'])
 @login_required
 def api_dossie_apagar_dossie(dossie_id):
-    """Apaga um dossie individual e seus arquivos."""
+    """Apaga dossie + arquivos + pastas /static/dossies + cache /static/pipelines."""
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT job_id, zip_path, relatorio_path, tabela_path FROM buscas_historico WHERE id=%s", (dossie_id,))
+        cur.execute("SELECT job_id, zip_path, relatorio_path, tabela_path, municipio, estado FROM buscas_historico WHERE id=%s", (dossie_id,))
         row = cur.fetchone()
         if not row:
             cur.close(); conn.close()
             return jsonify({'success': False, 'error': 'nao encontrado'}), 404
-        import os as _os_d
+        municipio = row['municipio']
+        estado = row['estado']
+        import os as _os_d, shutil as _sh_d
+        # 1. Apaga arquivos individuais
         for _p in (row['zip_path'], row['relatorio_path'], row['tabela_path']):
             if _p:
                 _full = _p.lstrip('/')
                 if not _full.startswith('var/www'): _full = '/var/www/urbanlex/' + _full
                 try: _os_d.unlink(_full)
                 except: pass
+        # 2. Apaga pastas /static/dossies/<mun>/busca_<id>/<label>/ via dossie_legislacoes_pasta
+        try:
+            cur.execute("SELECT pasta_path FROM dossie_legislacoes_pasta WHERE busca_historico_id=%s", (dossie_id,))
+            for p in cur.fetchall():
+                if p['pasta_path'] and _os_d.path.isdir(p['pasta_path']):
+                    try: _sh_d.rmtree(p['pasta_path'])
+                    except Exception as e_p: logger.warning(f"falha apagando {p['pasta_path']}: {e_p}")
+            cur.execute("DELETE FROM dossie_legislacoes_pasta WHERE busca_historico_id=%s", (dossie_id,))
+        except Exception as e_dlp:
+            logger.warning(f"sem dossie_legislacoes_pasta ou erro: {e_dlp}")
+        # 3. Verifica se ainda tem outros dossies pro mesmo municipio
+        cur.execute("SELECT COUNT(*) as n FROM buscas_historico WHERE municipio=%s AND estado=%s AND id != %s", (municipio, estado, dossie_id))
+        outros = cur.fetchone()['n']
+        # 4. Se for o ultimo dossie -> apaga cache do pipeline + gerador_compilados
+        cache_apagado = False
+        if outros == 0:
+            try:
+                from modulos.pipeline_extracao_lei import _slug_municipio, PIPELINES_BASE_DIR
+                slug = _slug_municipio(municipio, estado)
+                cache_dir = _os_d.path.join(PIPELINES_BASE_DIR, slug)
+                if _os_d.path.isdir(cache_dir):
+                    try: _sh_d.rmtree(cache_dir); cache_apagado = True
+                    except Exception as e_c: logger.warning(f"falha apagando cache {cache_dir}: {e_c}")
+                cur.execute("DELETE FROM gerador_compilados WHERE municipio=%s AND estado=%s", (municipio, estado))
+            except Exception as e_pipe:
+                logger.warning(f"erro limpando pipeline: {e_pipe}")
+        # 5. Apaga logs e buscas_historico
         if row['job_id']:
             cur.execute("DELETE FROM buscas_logs WHERE job_id=%s", (row['job_id'],))
         cur.execute("DELETE FROM buscas_historico WHERE id=%s", (dossie_id,))
         conn.commit(); cur.close(); conn.close()
-        return jsonify({'success': True})
+        return jsonify({'success': True, 'cache_pipeline_apagado': cache_apagado, 'outros_dossies_municipio': outros})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        import traceback
+        logger.error(f"erro apagar dossie {dossie_id}: {traceback.format_exc()[:1000]}")
+        return jsonify({'success': False, 'error': str(e)[:300]})
 
 @app.route('/api/dossie/municipio/<municipio>/<estado>')
 @login_required
@@ -8371,6 +8425,65 @@ def api_fila_extracao_log(fila_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)[:200]}), 500
 
+
+
+@app.route('/api/fila_extracao/resultado/<int:fila_id>')
+@login_required
+def api_fila_extracao_resultado(fila_id):
+    """Retorna o resultado_final.json do job + caminho dos arquivos."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT id, municipio, estado, status, job_id FROM fila_extracao WHERE id=%s", (fila_id,))
+        item = cur.fetchone()
+        cur.close(); conn.close()
+        if not item:
+            return jsonify({'success': False, 'error': 'item nao encontrado'}), 404
+        if item['status'] != 'concluido':
+            return jsonify({'success': False, 'error': f'job nao concluido (status={item["status"]})'}), 400
+        
+        # Determina work_dir do pipeline
+        from modulos.pipeline_extracao_lei import _slug_municipio, PIPELINES_BASE_DIR
+        slug = _slug_municipio(item['municipio'], item['estado'])
+        work_dir = os.path.join(PIPELINES_BASE_DIR, slug)
+        
+        if not os.path.isdir(work_dir):
+            return jsonify({'success': False, 'error': f'work_dir nao existe: {work_dir}'}), 404
+        
+        # Le resultado_final.json
+        resultado_path = os.path.join(work_dir, 'resultado_final.json')
+        resultado = None
+        if os.path.exists(resultado_path):
+            try:
+                with open(resultado_path) as f:
+                    resultado = json.load(f)
+            except Exception as e:
+                resultado = {'erro': f'falha lendo: {e}'}
+        
+        # Lista outros arquivos relevantes
+        arquivos = []
+        if os.path.isdir(work_dir):
+            for f in sorted(os.listdir(work_dir)):
+                if f.endswith('.json') or f.endswith('.txt') or f.endswith('.pdf'):
+                    full = os.path.join(work_dir, f)
+                    arquivos.append({
+                        'nome': f,
+                        'tamanho': os.path.getsize(full),
+                        'url': f.replace('/var/www/urbanlex', '') if '/var/www/urbanlex' in full else '/static/pipelines/' + slug + '/' + f,
+                    })
+        
+        return jsonify({
+            'success': True,
+            'fila_id': fila_id,
+            'municipio': item['municipio'],
+            'estado': item['estado'],
+            'work_dir_url': '/static/pipelines/' + slug,
+            'resultado': resultado,
+            'resultado_url': '/static/pipelines/' + slug + '/resultado_final.json' if os.path.exists(resultado_path) else None,
+            'arquivos': arquivos,
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)[:200]}), 500
 
 
 @app.route('/api/fila_extracao/cancelar/<int:fila_id>', methods=['POST'])
