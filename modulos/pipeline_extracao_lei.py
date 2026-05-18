@@ -1145,13 +1145,23 @@ def etapa6_reconsolidar(estado_run, work_dir, zonas_validas=None, log_callback=N
     if zonas_validas is None:
         zonas_validas = ZONAS_VALIDAS_DEFAULT
     
-    ordem = ['corpo']
-    for nome in ['anexo_2_1','anexo_2_2','anexo_2_3','anexo_2_4',
-                 'anexo_2_5','anexo_2_6','anexo_2_7',
-                 'anexo_1_1','anexo_1_2','anexo_1_3','anexo_1_4',
-                 'anexo_1_5','anexo_1_6','anexo_1_7','anexo_1_8',
-                 'errata']:
-        ordem.append(nome)
+    # FIX: ler TODOS os etapa5_*.txt da pasta dinamicamente
+    # (antes era lista hardcoded com nomes antigos do Xangri-La,
+    #  causando perda de zonas quando blocos tinham outros nomes)
+    ordem = []
+    # 'corpo' SEMPRE primeiro pra garantir prioridade no merge
+    if os.path.exists(os.path.join(work_dir, 'etapa5_corpo.txt')):
+        ordem.append('corpo')
+    # Adiciona TODOS os outros etapa5_*.txt em ordem alfabetica
+    try:
+        for arq in sorted(os.listdir(work_dir)):
+            if arq.startswith('etapa5_') and arq.endswith('.txt'):
+                nome_bloco = arq[len('etapa5_'):-len('.txt')]
+                if nome_bloco != 'corpo' and nome_bloco not in ordem:
+                    ordem.append(nome_bloco)
+    except Exception as _e_ls:
+        _log(f"  WARN listdir work_dir: {_e_ls}", log_callback)
+    _log(f"  Etapa 6 processando {len(ordem)} blocos: {ordem}", log_callback)
     
     estado = {'legislacao': None, 'zonas': {}, 'modificacoes': [], 'refs_externas': []}
     descartados = set()
