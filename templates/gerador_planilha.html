@@ -100,7 +100,7 @@
 
 <div class="gp-tabs">
   <button class="gp-tab-btn active" onclick="gpTrocarTab('gerador',this)">⚙️ Gerador</button>
-  <button class="gp-tab-btn" onclick="gpTrocarTab('historico',this)">🕐 Histórico</button>
+  <button class="gp-tab-btn" onclick="gpTrocarTab('historico',this)">📦 JSON Gerados</button>
 </div>
 
 <div class="gp-panel active" id="gp-tab-gerador">
@@ -173,7 +173,18 @@
 </div>
 
 <div class="gp-panel" id="gp-tab-historico">
-  <div class="gp-stats-bar" id="gp-stats">
+  <div style="margin-bottom:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <h3 style="margin:0;font-size:14px;color:var(--accent);">📦 JSONs Gerados pelo Pipeline</h3>
+      <button class="gp-mini" onclick="gpCarregarJsonsGerados()" style="font-size:11px;">🔄 Atualizar</button>
+    </div>
+    <div id="gp-jsons-lista">
+      <div style="padding:14px;text-align:center;font-size:12px;color:var(--muted);">Carregando...</div>
+    </div>
+  </div>
+  <details style="margin-top:20px;">
+    <summary style="cursor:pointer;font-size:12px;color:var(--muted);padding:8px 0;">📄 Historico antigo de planilhas xlsx (legado)</summary>
+  <div class="gp-stats-bar" id="gp-stats" style="margin-top:10px;">
     <div class="gp-stat"><span class="gp-stat-label">Total</span><span class="gp-stat-value" id="gp-stat-total">—</span></div>
     <div class="gp-stat"><span class="gp-stat-label">Tokens</span><span class="gp-stat-value" id="gp-stat-tokens">—</span></div>
     <div class="gp-stat"><span class="gp-stat-label">Custo total</span><span class="gp-stat-value cost" id="gp-stat-custo">—</span></div>
@@ -190,6 +201,7 @@
       <button class="gp-mini" style="background:rgba(59,130,246,.12);color:#3b82f6;border-color:rgba(59,130,246,.3);font-weight:600;" onclick="gpAbrirModalLandly()">📤 Enviar Landly</button>
     </div>
   </div>
+  </details>
 </div>
 
 <div class="gp-modal-bg" id="gp-modal-key">
@@ -463,7 +475,10 @@ function gpTrocarTab(tab, btn){
   document.querySelectorAll('.gp-panel').forEach(p => p.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('gp-tab-' + tab).classList.add('active');
-  if(tab === 'historico') gpCarregarHistorico();
+  if(tab === 'historico') {
+    gpCarregarHistorico();
+    gpCarregarJsonsGerados();
+  }
 }
 
 async function gpCarregarIAs(){
@@ -612,12 +627,16 @@ function gpRenderCompilados(){
   const isAdmin = (window._gpUserRole === 'admin');
   el.innerHTML = _gpCompilados.map((g, gi) => {
     const entradas = (g.entradas||[]).map((e, ei) => {
-      const sel = (g._selIdx === ei) ? 'background:rgba(0,229,160,.15);' : '';
+      if (!Array.isArray(g._selIdxs)) {
+        g._selIdxs = (typeof g._selIdx === 'number') ? [g._selIdx] : [];
+      }
+      const isSel = g._selIdxs.includes(ei);
+      const sel = isSel ? 'background:rgba(0,229,160,.15);' : '';
       const dataCriado = e.criado_em || '';
       const autor = e.criado_por_nome || '';
       const btnDel = isAdmin ? '<button class="gp-mini" onclick="gpExcluirEntrada(event,' + e.id + ')" style="margin-left:8px;color:#e74c3c;">🗑</button>' : '';
-      return '<div onclick="gpSelEntrada(' + gi + ',' + ei + ')" style="cursor:pointer;padding:6px 10px;border:1px solid var(--border);border-radius:4px;margin-top:4px;font-size:11px;display:flex;align-items:center;gap:6px;' + sel + '">' +
-        '<input type="radio" name="gpsel_' + gi + '" ' + (g._selIdx===ei?'checked':'') + ' style="accent-color:var(--accent);">' +
+      return '<div onclick="gpToggleEntrada(' + gi + ',' + ei + ')" style="cursor:pointer;padding:6px 10px;border:1px solid var(--border);border-radius:4px;margin-top:4px;font-size:11px;display:flex;align-items:center;gap:6px;' + sel + '">' +
+        '<input type="checkbox" ' + (isSel?'checked':'') + ' style="accent-color:var(--accent);">' +
         '<span style="color:var(--muted);">' + dataCriado + '</span>' +
         (autor ? '<span style="color:var(--muted);">· ' + autor + '</span>' : '') +
         (e.zip_path ? '<span style="color:#7c6af7;">📦</span>' : '') +
@@ -629,14 +648,32 @@ function gpRenderCompilados(){
       '<div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="gpToggleAcc(' + gi + ')">' +
         '<span id="gpacc-arrow-' + gi + '" style="font-size:11px;">' + (g._aberto ? '▼' : '▶') + '</span>' +
         '<strong>🏙️ ' + g.municipio + ' / ' + g.estado + '</strong>' +
+        (g._selIdxs && g._selIdxs.length ? '<span style="font-size:10px;padding:2px 7px;border-radius:5px;background:rgba(0,229,160,.15);color:var(--accent);font-weight:600;">' + g._selIdxs.length + ' selecionado(s)</span>' : '') +
         '<span style="margin-left:auto;font-size:11px;color:var(--muted);">' + (g.entradas||[]).length + ' compilado(s)</span>' +
+        ((g.entradas||[]).length > 1 ? '<button onclick="event.stopPropagation();gpToggleTodos(' + gi + ')" style="margin-left:8px;font-size:10px;padding:3px 8px;background:rgba(0,229,160,.12);color:var(--accent);border:1px solid rgba(0,229,160,.3);border-radius:4px;cursor:pointer;">' + ((g._selIdxs && g._selIdxs.length === (g.entradas||[]).length) ? '☐ Desmarcar todos' : '☑ Selecionar todos') + '</button>' : '') +
       '</div>' +
       '<div id="gpacc-' + gi + '" style="display:' + (g._aberto?'block':'none') + ';">' + entradas + '</div>' +
     '</div>';
   }).join('');
 }
 function gpToggleAcc(gi){ _gpCompilados[gi]._aberto = !_gpCompilados[gi]._aberto; gpRenderCompilados(); }
-function gpSelEntrada(gi, ei){ _gpCompilados[gi]._selIdx = ei; gpRenderCompilados(); }
+function gpToggleEntrada(gi, ei){
+  const g = _gpCompilados[gi];
+  if (!Array.isArray(g._selIdxs)) g._selIdxs = [];
+  const idx = g._selIdxs.indexOf(ei);
+  if (idx >= 0) g._selIdxs.splice(idx, 1);
+  else g._selIdxs.push(ei);
+  gpRenderCompilados();
+}
+function gpToggleTodos(gi){
+  const g = _gpCompilados[gi];
+  if (!Array.isArray(g._selIdxs)) g._selIdxs = [];
+  const total = (g.entradas||[]).length;
+  if (g._selIdxs.length === total) g._selIdxs = [];
+  else g._selIdxs = Array.from({length: total}, (_, i) => i);
+  gpRenderCompilados();
+}
+function gpSelEntrada(gi, ei){ gpToggleEntrada(gi, ei); }
 async function gpExcluirEntrada(ev, id){
   ev.stopPropagation();
   if(!confirm('Excluir este compilado?')) return;
@@ -1170,6 +1207,45 @@ function gpLimpar(){
   document.getElementById('gp-upload-inner').innerHTML = '<div style="font-size:24px;margin-bottom:6px;">📂</div><div style="font-size:13px;font-weight:600;">Clique para selecionar planilha</div><div style="font-size:11px;color:var(--muted);">Arquivo .xlsx</div>';
   document.getElementById('gp-log-wrap').style.display = 'none';
   document.getElementById('gp-resultado').style.display = 'none';
+}
+
+async function gpCarregarJsonsGerados() {
+  const el = document.getElementById('gp-jsons-lista'); if (!el) return;
+  try {
+    const r = await fetch('/api/gerador/jsons-gerados');
+    const d = await r.json();
+    if (!d.success) { el.innerHTML = '<div style="padding:14px;color:#e74c3c;font-size:12px;">Erro: ' + d.error + '</div>'; return; }
+    if (!d.grupos || !d.grupos.length) { el.innerHTML = '<div style="padding:14px;text-align:center;font-size:12px;color:var(--muted);">Nenhum JSON gerado ainda. Rode um pipeline pra gerar o primeiro.</div>'; return; }
+    let html = '<div style="font-size:11px;color:var(--muted);margin-bottom:10px;">' + d.total + ' JSON(s) em ' + d.grupos.length + ' municipio(s)</div>';
+    d.grupos.forEach((g, gi) => {
+      html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:6px;">';
+      html += '<div onclick="gpToggleJsonGrupo(' + gi + ')" style="display:flex;align-items:center;gap:8px;cursor:pointer;">';
+      html += '<span id="gpj-arrow-' + gi + '" style="font-size:11px;">▶</span>';
+      html += '<strong>🏙️ ' + g.municipio + ' / ' + g.estado + '</strong>';
+      html += '<span style="margin-left:auto;font-size:11px;color:var(--muted);">' + g.jsons.length + ' json(s)</span></div>';
+      html += '<div id="gpj-content-' + gi + '" style="display:none;margin-top:8px;">';
+      g.jsons.forEach(j => {
+        html += '<div style="padding:8px 10px;border:1px solid var(--border);border-radius:4px;margin-top:4px;font-size:11px;background:rgba(255,255,255,0.02);">';
+        html += '<div style="font-family:monospace;color:var(--accent);word-break:break-all;margin-bottom:5px;">' + j.filename + '</div>';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--muted);gap:6px;flex-wrap:wrap;">';
+        html += '<span>' + j.processado_em + ' · custo $' + (j.custo_total||0).toFixed(2) + ' · ' + Math.round(j.tempo_total) + 's</span>';
+        html += '<div style="display:flex;gap:4px;">';
+        if (j.web_url) {
+          html += '<a href="' + j.web_url + '" download="' + j.filename + '" style="padding:3px 8px;border-radius:4px;background:rgba(0,229,160,.15);color:var(--accent);border:1px solid rgba(0,229,160,.3);text-decoration:none;">⬇ Baixar</a>';
+          html += '<a href="' + j.web_url + '" target="_blank" style="padding:3px 8px;border-radius:4px;background:rgba(155,89,182,.12);color:#9b8ed7;border:1px solid rgba(155,89,182,.3);text-decoration:none;">👁 Ver</a>';
+        } else { html += '<span style="color:#e74c3c;">arquivo nao encontrado</span>'; }
+        html += '</div></div></div>';
+      });
+      html += '</div></div>';
+    });
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<div style="padding:14px;color:#e74c3c;font-size:12px;">Erro: ' + e.message + '</div>'; }
+}
+function gpToggleJsonGrupo(gi) {
+  const c = document.getElementById('gpj-content-' + gi);
+  const a = document.getElementById('gpj-arrow-' + gi);
+  if (c.style.display === 'none') { c.style.display = 'block'; if (a) a.textContent = '▼'; }
+  else { c.style.display = 'none'; if (a) a.textContent = '▶'; }
 }
 
 async function gpCarregarHistorico(){

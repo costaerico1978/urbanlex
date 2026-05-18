@@ -7984,6 +7984,80 @@ def api_gerador_cancelar(job_id):
     if job: job['done'] = True; job['cancelled'] = True
     return jsonify({'success': True})
 
+@app.route('/api/gerador/jsons-gerados')
+@login_required
+def api_gerador_jsons_gerados():
+    """Lista JSONs gerados pelo pipeline, agrupados por municipio."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT lp.id, lp.municipio, lp.estado, lp.processado_em,
+                   lp.legislacao_id, lp.legislacao_label, lp.output_dir,
+                   lp.sucesso, lp.metricas, lp.zip_md5,
+                   l.tipo_nome, l.numero as lei_numero, l.ano as lei_ano
+            FROM legislacao_processamentos lp
+            LEFT JOIN legislacoes l ON l.id = lp.legislacao_id
+            WHERE lp.sucesso = TRUE
+            ORDER BY lp.municipio ASC, lp.estado ASC, lp.processado_em DESC
+        """)
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        
+        # Agrupa por municipio
+        grupos = {}
+        for r in rows:
+            key = f"{r['municipio']}|{r['estado']}"
+            if key not in grupos:
+                grupos[key] = {'municipio': r['municipio'], 'estado': r['estado'], 'jsons': []}
+            
+            # Monta nome do arquivo
+            tipo = (r.get('tipo_nome') or 'Lei').replace(' ', '')
+            numero = (r.get('lei_numero') or '?').replace('/', '-')
+            ano = r.get('lei_ano') or '?'
+            
+            # Se nao tem dados de legislacao, tenta tirar do label
+            if (not r.get('tipo_nome') or not r.get('lei_numero')) and r.get('legislacao_label'):
+                tipo = r['legislacao_label']
+            
+            mun_safe = (r['municipio'] or '').replace(' ', '-').replace('/', '-')
+            estado = r['estado'] or '?'
+            
+            dt = r['processado_em']
+            data_str = dt.strftime('%d%m%Y_%H%M') if dt else '?'
+            
+            filename = f"Extracao_{estado}_{mun_safe}_{tipo}_{numero}_{ano}_{data_str}.json"
+            
+            # URL do resultado_final.json
+            output_dir = r.get('output_dir') or ''
+            web_url = None
+            if output_dir and '/static/' in output_dir:
+                web_url = output_dir[output_dir.index('/static/'):] + '/resultado_final.json'
+            
+            metricas = r.get('metricas') or {}
+            grupos[key]['jsons'].append({
+                'id': r['id'],
+                'filename': filename,
+                'tipo_nome': r.get('tipo_nome'),
+                'numero': r.get('lei_numero'),
+                'ano': r.get('lei_ano'),
+                'legislacao_label': r.get('legislacao_label'),
+                'processado_em': dt.strftime('%d/%m/%Y %H:%M') if dt else None,
+                'web_url': web_url,
+                'custo_total': metricas.get('custo_total', 0),
+                'tempo_total': metricas.get('tempo_total', 0),
+                'tokens_in': metricas.get('tokens_in', 0),
+                'tokens_out': metricas.get('tokens_out', 0),
+                'zip_md5_short': (r.get('zip_md5') or '')[:12],
+            })
+        
+        # Ordena por municipio
+        lista = sorted(grupos.values(), key=lambda g: (g['municipio'] or '').lower())
+        return jsonify({'success': True, 'grupos': lista, 'total': sum(len(g['jsons']) for g in lista)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)[:300]}), 500
+
+
 @app.route('/api/gerador/historico')
 @login_required
 def api_gerador_historico():
