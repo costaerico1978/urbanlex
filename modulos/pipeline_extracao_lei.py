@@ -369,15 +369,39 @@ def carregar_prompt_v13():
 # ETAPA 1 — EXTRAÇÃO E CONCATENAÇÃO
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def etapa1_extrair_e_concatenar(zip_path, work_dir, log_callback=None):
+def etapa1_extrair_e_concatenar(zip_path, work_dir, log_callback=None, usar_cache=True):
     """
     Extrai PDFs do ZIP (deduplicando por MD5), descompacta ZIPs aninhados,
     e concatena tudo num PDF único usando pdfunite.
     
     Retorna: caminho do PDF concatenado (work_dir/tudo.pdf)
+    
+    CACHE: se usar_cache=True e tudo.pdf ja existe no work_dir, reusa direto.
     """
     _log("ETAPA 1/8 — Extraindo e concatenando PDFs", log_callback)
     t0 = time.time()
+    
+    # Cache: se tudo.pdf ja existe, pula extracao
+    pdf_unico_cache = os.path.join(work_dir, "tudo.pdf")
+    if usar_cache and os.path.exists(pdf_unico_cache) and os.path.getsize(pdf_unico_cache) > 1000:
+        try:
+            r_cache = subprocess.run(['pdfinfo', pdf_unico_cache], capture_output=True, text=True, timeout=30)
+            n_pg_cache = 0
+            for linha in r_cache.stdout.split('\n'):
+                if linha.startswith('Pages:'):
+                    n_pg_cache = int(linha.split(':')[1].strip())
+                    break
+            if n_pg_cache > 0:
+                _log(f"  ETAPA 1 CACHE HIT: usando {pdf_unico_cache} ({n_pg_cache} pgs)", log_callback)
+                return {
+                    'pdf_unico': pdf_unico_cache,
+                    'n_paginas': n_pg_cache,
+                    'pdfs_extraidos': 0,
+                    'tempo': time.time() - t0,
+                    'cached': True,
+                }
+        except Exception:
+            pass  # Cache falhou, segue execucao normal
     
     hashes = set()
     pdfs = []
@@ -444,15 +468,37 @@ def etapa1_extrair_e_concatenar(zip_path, work_dir, log_callback=None):
 # ETAPA 2 — DETECÇÃO DO FIM DO CORPO DA LEI
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def etapa2_detectar_fim_corpo(pdf_unico, n_paginas, log_callback=None):
+def etapa2_detectar_fim_corpo(pdf_unico, n_paginas, log_callback=None, work_dir=None, usar_cache=True):
     """
     Analisa cada página com pdftotext -layout e detecta onde termina o corpo
     da lei (artigos com numeração crescente).
     
     Retorna: dict com texto_por_pg (cache) + fim_corpo + max_visto
+    
+    CACHE: se usar_cache=True e work_dir/etapa2_fim_corpo.json existe, reusa.
     """
     _log("ETAPA 2/8 — Detectando fim do corpo da lei", log_callback)
     t0 = time.time()
+    
+    # Cache via JSON no work_dir
+    if usar_cache and work_dir:
+        cache_path = os.path.join(work_dir, 'etapa2_fim_corpo.json')
+        if os.path.exists(cache_path):
+            try:
+                with open(cache_path) as f:
+                    cached = json.load(f)
+                if cached.get('fim_corpo') is not None and 'texto_por_pg' in cached:
+                    txt_pg = {int(k): v for k, v in cached['texto_por_pg'].items()}
+                    _log(f"  ETAPA 2 CACHE HIT: fim_corpo={cached['fim_corpo']}", log_callback)
+                    return {
+                        'fim_corpo': cached['fim_corpo'],
+                        'max_artigo_visto': cached.get('max_artigo_visto', 0),
+                        'texto_por_pg': txt_pg,
+                        'tempo': time.time() - t0,
+                        'cached': True,
+                    }
+            except Exception as e:
+                _log(f"  Cache etapa2 invalido: {e}", log_callback)
     
     texto_por_pg = {}
     for pg in range(1, n_paginas + 1):
@@ -480,26 +526,65 @@ def etapa2_detectar_fim_corpo(pdf_unico, n_paginas, log_callback=None):
     _log(f"  Total: {n_paginas} pgs | Corpo: 1-{fim_corpo} (Art 1-{max_visto}) | Anexos: {fim_corpo+1}-{n_paginas}", log_callback)
     _log(f"  Etapa 2 concluída em {time.time()-t0:.1f}s", log_callback)
     
-    return {
+    resultado_e2 = {
         'fim_corpo': fim_corpo,
         'max_artigo_visto': max_visto,
         'texto_por_pg': texto_por_pg,
         'tempo': time.time() - t0,
     }
+    
+    # Salva cache pra proxima execucao
+    if work_dir:
+        try:
+            cache_path = os.path.join(work_dir, 'etapa2_fim_corpo.json')
+            cache_data = {
+                'fim_corpo': fim_corpo,
+                'max_artigo_visto': max_visto,
+                'texto_por_pg': {str(k): v for k, v in texto_por_pg.items()},
+            }
+            with open(cache_path, 'w') as f:
+                json.dump(cache_data, f, ensure_ascii=False)
+            _log(f"  Cache etapa2 salvo: {cache_path}", log_callback)
+        except Exception as e:
+            _log(f"  AVISO: falhou salvando cache etapa2: {e}", log_callback)
+    
+    return resultado_e2
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ETAPA 3 — QUEBRA EM CORPO + ANEXOS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def etapa3_quebrar_pdf(pdf_unico, fim_corpo, n_paginas, work_dir, log_callback=None):
+def etapa3_quebrar_pdf(pdf_unico, fim_corpo, n_paginas, work_dir, log_callback=None, usar_cache=True):
     """
     Usa pypdf pra dividir o PDF em corpo.pdf + anexos.pdf.
     
     Retorna: dict com paths e info sobre quebra
+    
+    CACHE: se usar_cache=True e ambos corpo.pdf e anexos.pdf existem, reusa.
     """
     _log("ETAPA 3/8 — Quebrando PDF em corpo + anexos", log_callback)
     t0 = time.time()
+    
+    # Cache: se corpo.pdf e anexos.pdf ja existem, pula split
+    corpo_cache = os.path.join(work_dir, "corpo.pdf")
+    anexos_cache = os.path.join(work_dir, "anexos.pdf")
+    if (usar_cache and os.path.exists(corpo_cache) and os.path.getsize(corpo_cache) > 500
+        and os.path.exists(anexos_cache) and os.path.getsize(anexos_cache) > 500):
+        try:
+            n_pg_corpo = len(pypdf.PdfReader(corpo_cache).pages)
+            n_pg_anexos = len(pypdf.PdfReader(anexos_cache).pages)
+            _log(f"  ETAPA 3 CACHE HIT: corpo {n_pg_corpo}pgs + anexos {n_pg_anexos}pgs", log_callback)
+            return {
+                'corpo_pdf': corpo_cache,
+                'anexos_pdf': anexos_cache,
+                'corpo_n_pgs': n_pg_corpo,
+                'anexos_n_pgs': n_pg_anexos,
+                'tempo': time.time() - t0,
+                'cached': True,
+            }
+        except Exception:
+            pass  # Cache invalido, segue execucao normal
     
     corpo_pdf = os.path.join(work_dir, "corpo.pdf")
     anexos_pdf = os.path.join(work_dir, "anexos.pdf")
@@ -1293,19 +1378,19 @@ def processar_municipio(zip_path, municipio, estado, output_dir=None,
                 'resultado_parcial': resultado_parcial, 'metricas': metricas}
     
     try:
-        r1 = etapa1_extrair_e_concatenar(zip_path, output_dir, log_callback)
+        r1 = etapa1_extrair_e_concatenar(zip_path, output_dir, log_callback, usar_cache=usar_cache)
         metricas['etapas']['1'] = {'tempo': r1['tempo'], 'n_pgs': r1['n_paginas']}
     except Exception as e:
         return _fim(1, str(e), e)
     
     try:
-        r2 = etapa2_detectar_fim_corpo(r1['pdf_unico'], r1['n_paginas'], log_callback)
+        r2 = etapa2_detectar_fim_corpo(r1['pdf_unico'], r1['n_paginas'], log_callback, work_dir=output_dir, usar_cache=usar_cache)
         metricas['etapas']['2'] = {'tempo': r2['tempo'], 'fim_corpo': r2['fim_corpo']}
     except Exception as e:
         return _fim(2, str(e), e)
     
     try:
-        r3 = etapa3_quebrar_pdf(r1['pdf_unico'], r2['fim_corpo'], r1['n_paginas'], output_dir, log_callback)
+        r3 = etapa3_quebrar_pdf(r1['pdf_unico'], r2['fim_corpo'], r1['n_paginas'], output_dir, log_callback, usar_cache=usar_cache)
         metricas['etapas']['3'] = {'tempo': r3['tempo']}
     except Exception as e:
         return _fim(3, str(e), e)
