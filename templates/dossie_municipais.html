@@ -215,6 +215,7 @@ async function dossieToggleAccordion(munId) {
         +   '<div style="flex:1"><div style="font-size:12px;font-weight:600">📄 ' + (d.iniciado_em||'—') + '</div>'
         +     '<div style="font-size:10px;color:var(--muted);margin-top:2px">' + (d.tipo==='manual'?'🖱 Manual':'🤖 Automática') + ' · ' + d.total_legislacoes + ' lei(s) · ' + status + '</div>'
         +   '</div>'
+        +   '<button onclick="event.stopPropagation();dossieEnviarTodasGerador(' + d.id + ', ' + d.total_legislacoes + ')" title="Enviar todas as leis deste dossie pro Gerador de Planilha" style="font-size:10px;color:#9b8ed7;background:rgba(155,89,182,.08);border:1px solid rgba(155,89,182,.3);padding:3px 8px;border-radius:5px;cursor:pointer;margin-right:4px">📊 Enviar ' + d.total_legislacoes + ' lei(s)</button>'
         +   '<button onclick="event.stopPropagation();dossieOpenDossieDrawer(' + d.id + ')" style="font-size:10px;color:var(--muted);background:transparent;border:1px solid var(--border);padding:3px 8px;border-radius:5px;cursor:pointer">ℹ️ detalhes</button>'
         + '</div>'
         + '<div id="dossie-legs-' + d.id + '" style="display:none;background:rgba(255,255,255,.02);border-top:1px solid var(--border)"></div>'
@@ -535,6 +536,7 @@ async function dossieToggleDossieLegs(buscaId, munId) {
       const pdfBtn = leg.pdf_url
         ? '<a href="' + leg.pdf_url + '" download style="font-size:11px;color:var(--accent);text-decoration:none;border:1px solid var(--accent);padding:3px 8px;border-radius:5px" onclick="event.stopPropagation()">📄 PDF (' + leg.n_paginas + 'p)</a>'
         : '';
+      const gerBtn = '<button onclick="event.stopPropagation();dossieEnviarLegGerador(' + leg.busca_id + ', \'' + leg.label + '\', \'' + ((leg.tipo||'') + ' ' + (leg.numero||'') + '/' + (leg.ano||'')).replace(/\'/g, "\\\'") + '\')" title="Enviar esta lei pro Gerador de Planilha" style="font-size:11px;color:#9b8ed7;background:rgba(155,89,182,.08);border:1px solid rgba(155,89,182,.3);padding:3px 8px;border-radius:5px;cursor:pointer;margin-right:4px">📊 Gerador</button>';
       return '<div style="border-top:1px solid var(--border)">'
         + '<div onclick="dossieToggleLegArquivos(' + leg.id + ')" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer">'
         +   '<span id="caret-leg-' + leg.id + '" style="font-size:11px;color:var(--muted)">▸</span>'
@@ -546,6 +548,7 @@ async function dossieToggleDossieLegs(buscaId, munId) {
         +       statusBadge
         +     '</div>'
         +   '</div>'
+        +   gerBtn
         +   pdfBtn
         + '</div>'
         + '<div id="leg-arquivos-' + leg.id + '" style="display:none;background:rgba(255,255,255,.02)"></div>'
@@ -796,6 +799,56 @@ function _dossieRenderArqRow(a, cor) {
 
 function _escHtml(s) {
   return (s || '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+
+// ────────────────────────────────────────────────────────────────
+// Envio pro Gerador de Planilha
+// ────────────────────────────────────────────────────────────────
+async function dossieEnviarTodasGerador(buscaId, totalLegs) {
+  if (!confirm('Enviar todas as ' + totalLegs + ' lei(s) deste dossiê para o Gerador de Planilha?\n\nIsso enfileirará ' + totalLegs + ' processamento(s).\n\nReaproveita os arquivos do dossiê (Etapas 1-3 puladas).\n\nCustos estimados: ~$3.00 por lei\nTempo estimado: ~13 min por lei')) return;
+  try {
+    const r = await fetch('/api/dossie/enviar-gerador', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({busca_id: buscaId})
+    });
+    const data = await r.json();
+    if (data.success) {
+      let msg = '✅ ' + data.total_enfileirados + ' lei(s) enfileirada(s) no Gerador';
+      if (data.erros && data.erros.length) {
+        msg += '\n\n⚠️ Erros (' + data.erros.length + '):\n' + 
+               data.erros.map(e => '  - ' + e.label + ': ' + e.erro).join('\n');
+      }
+      msg += '\n\nAcompanhe em /gerador-planilha';
+      alert(msg);
+    } else {
+      alert('❌ Erro: ' + (data.error || '?'));
+    }
+  } catch(e) {
+    alert('❌ Erro de rede: ' + e.message);
+  }
+}
+
+async function dossieEnviarLegGerador(buscaId, label, tituloLei) {
+  if (!confirm('Enviar ' + tituloLei + ' para o Gerador de Planilha?\n\nReaproveita os arquivos do dossiê (Etapas 1-3 puladas).\n\nCusto estimado: ~$3.00\nTempo estimado: ~13 min')) return;
+  try {
+    const r = await fetch('/api/dossie/enviar-gerador', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({busca_id: buscaId, legislacao_label: label})
+    });
+    const data = await r.json();
+    if (data.success && data.total_enfileirados > 0) {
+      alert('✅ Lei enfileirada no Gerador.\n\nAcompanhe em /gerador-planilha');
+    } else if (data.erros && data.erros.length) {
+      alert('❌ Erro: ' + data.erros[0].erro);
+    } else {
+      alert('❌ Erro: ' + (data.error || 'falhou ao enfileirar'));
+    }
+  } catch(e) {
+    alert('❌ Erro de rede: ' + e.message);
+  }
 }
 
 </script>

@@ -39,22 +39,24 @@ logger = logging.getLogger(__name__)
 
 
 # Base onde o pipeline cria seus work_dirs
-PIPELINES_BASE_DIR = '/var/www/urbanlex/pipelines'
+# IMPORTANTE: deve ser o MESMO PIPELINES_BASE_DIR do pipeline_extracao_lei.py
+# Senao os arquivos sao copiados em pasta diferente e cache nao eh acionado.
+try:
+    from modulos.pipeline_extracao_lei import PIPELINES_BASE_DIR
+except ImportError:
+    PIPELINES_BASE_DIR = '/var/www/urbanlex/static/pipelines'
 
 
-def _slug(s: str) -> str:
-    """Converte 'Florianopolis' -> 'florianopolis', 'Xangri-La' -> 'xangri-la'"""
-    import unicodedata, re
-    s = unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode('ascii')
-    s = s.lower().strip()
-    s = re.sub(r'[^a-z0-9]+', '-', s)
-    s = s.strip('-')
-    return s
-
-
-def _slug_municipio(municipio: str, estado: str) -> str:
-    """Mesmo formato do pipeline_extracao_lei._slug_municipio"""
-    return f"{_slug(municipio)}_{_slug(estado)}"
+# CRITICO: usar o mesmo _slug_municipio do pipeline real
+# senao o cache hit nao funciona (pasta sera diferente)
+try:
+    from modulos.pipeline_extracao_lei import _slug_municipio
+except ImportError:
+    def _slug_municipio(municipio, estado):
+        import unicodedata, re
+        m = unicodedata.normalize('NFKD', municipio).encode('ascii', 'ignore').decode('ascii')
+        m = re.sub(r'[^A-Za-z0-9]+', '_', m).strip('_')
+        return f"{m}_{estado.upper()}"
 
 
 def preparar_work_dir_pipeline(dossie_id: int, busca_historico_id: int,

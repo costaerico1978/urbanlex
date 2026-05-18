@@ -5593,6 +5593,7 @@ def api_dossie_legislacoes_do_municipio(mun_id):
             legislacoes.append({
                 'id': r['id'],
                 'label': r['legislacao_label'],
+                'busca_id': busca_id,
                 'categoria': r['categoria'] or '',
                 'tipo': meta.get('tipo', ''),
                 'numero': meta.get('numero', ''),
@@ -5692,6 +5693,153 @@ def api_dossie_legislacoes_do_dossie(busca_id):
         return jsonify({'success': False, 'error': str(e), 'traceback': traceback.format_exc()[-500:]})
 
 
+
+@app.route('/api/dossie/enviar-gerador', methods=['POST'])
+@login_required
+def api_dossie_enviar_gerador():
+    """
+    Envia legislacao(oes) do dossie pro Gerador de Planilha (pipeline 8 etapas).
+    
+    Reutiliza artifacts do dossie (pdf_concatenado, corpo.pdf, anexos.pdf)
+    pulando as Etapas 1-3 do pipeline. Economia: ~30s por legislacao.
+    
+    Body:
+      busca_id (int):              ID da busca historica
+      legislacao_label (str, opcional): se fornecido, processa SO essa legislacao
+                                          se omitido, processa TODAS as legislacoes
+                                          do dossie
+    
+    Retorna:
+      {
+        success: bool,
+        enfileirados: [{label, fila_id}],
+        erros: [{label, erro}],
+        total_enfileirados: int
+      }
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        busca_id = data.get('busca_id')
+        legislacao_label = (data.get('legislacao_label') or '').strip() or None
+        
+        if not busca_id:
+            return jsonify({'success': False, 'error': 'busca_id obrigatorio'}), 400
+        
+        try:
+            busca_id = int(busca_id)
+        except:
+            return jsonify({'success': False, 'error': 'busca_id invalido'}), 400
+        
+        # Busca info do dossie + legislacoes
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        # Pega municipio/estado da busca
+        cur.execute("""SELECT id, municipio, estado FROM buscas_historico WHERE id=%s""",
+                    (busca_id,))
+        bh = cur.fetchone()
+        if not bh:
+            cur.close(); conn.close()
+            return jsonify({'success': False, 'error': f'busca_id {busca_id} nao encontrada'}), 404
+        
+        municipio = bh['municipio']
+        estado = bh['estado']
+        
+        # Pega legislacoes do dossie (filtradas se label especifico)
+        if legislacao_label:
+            cur.execute("""SELECT id, dossie_id, legislacao_label, pasta_path
+                           FROM dossie_legislacoes_pasta
+                           WHERE busca_historico_id=%s AND legislacao_label=%s""",
+                        (busca_id, legislacao_label))
+        else:
+            cur.execute("""SELECT id, dossie_id, legislacao_label, pasta_path
+                           FROM dossie_legislacoes_pasta
+                           WHERE busca_historico_id=%s
+                           ORDER BY legislacao_label""",
+                        (busca_id,))
+        legs = cur.fetchall()
+        cur.close(); conn.close()
+        
+        if not legs:
+            return jsonify({'success': False, 
+                            'error': f'nenhuma legislacao encontrada para busca {busca_id}' +
+                                    (f' com label {legislacao_label}' if legislacao_label else '')}), 404
+        
+        # Pra cada legislacao: prepara work_dir + enfileira
+        from modulos.dossie_para_gerador import preparar_work_dir_pipeline
+        from modulos.pipeline_extracao_lei import enfileirar_extracao
+        
+        enfileirados = []
+        erros = []
+        
+        # Pega nome do usuario pra logs
+        user_name = (session.get('nome') or session.get('email') or 'sistema')
+        
+        for leg in legs:
+            label = leg['legislacao_label']
+            dossie_id = leg['dossie_id']
+            pasta_path = leg['pasta_path']
+            
+            # 1. Prepara work_dir copiando arquivos do dossie pro pipeline
+            try:
+                work_dir = preparar_work_dir_pipeline(
+                    dossie_id=dossie_id,
+                    busca_historico_id=busca_id,
+                    legislacao_label=label,
+                    get_db=get_db,
+                )
+                if not work_dir:
+                    erros.append({'label': label, 'erro': 'falha preparando work_dir'})
+                    continue
+            except Exception as e:
+                erros.append({'label': label, 'erro': f'preparacao: {str(e)[:200]}'})
+                continue
+            
+            # 2. Adiciona como 'compilado' no Gerador de Planilha
+            #    (NAO enfileira pipeline ainda - operador escolhe na tela do Gerador)
+            try:
+                import uuid as _u_c
+                novo_job_id = str(_u_c.uuid4())[:8]
+                # zip_path aponta pro tudo.pdf do work_dir (que o pipeline reusara via cache hit)
+                zip_path_efetivo = os.path.join(work_dir, 'tudo.pdf')
+                
+                conn = get_db(); cur = conn.cursor()
+                cur.execute('''
+                    INSERT INTO gerador_compilados 
+                      (job_id, municipio, estado, zip_path, tabela_path, criado_por, criado_por_nome)
+                    VALUES (%s, %s, %s, %s, NULL, %s, %s)
+                    RETURNING id
+                ''', (novo_job_id, municipio, estado, zip_path_efetivo, 
+                      session.get('user_id'), user_name))
+                comp_row = cur.fetchone()
+                conn.commit(); cur.close(); conn.close()
+                
+                if comp_row:
+                    enfileirados.append({
+                        'label': label, 
+                        'compilado_id': comp_row[0],
+                        'job_id': novo_job_id,
+                    })
+                else:
+                    erros.append({'label': label, 'erro': 'falha INSERT em gerador_compilados'})
+            except Exception as e:
+                erros.append({'label': label, 'erro': f'adicionando compilado: {str(e)[:200]}'})
+        
+        return jsonify({
+            'success': True,
+            'enfileirados': enfileirados,
+            'erros': erros,
+            'total_enfileirados': len(enfileirados),
+            'municipio': municipio,
+            'estado': estado,
+        })
+        
+    except Exception as e:
+        import traceback
+        logger.error(f"erro enviar-gerador: {traceback.format_exc()[:1000]}")
+        return jsonify({'success': False, 'error': str(e)[:200]}), 500
+
+
 @app.route('/api/dossie/anexo/upload', methods=['POST'])
 @editor_required
 def api_dossie_anexo_upload():
@@ -5700,6 +5848,7 @@ def api_dossie_anexo_upload():
         dossie_id = request.form.get('dossie_id', '').strip()
         legislacao_label = request.form.get('legislacao_label', '').strip()
         refere_a = (request.form.get('refere_a') or '').strip()  # opcional: "Anexo 1.4"
+        busca_id_form = request.form.get('busca_historico_id', '').strip()
         arquivo = request.files.get('arquivo')
         
         if not dossie_id or not legislacao_label or not arquivo:
@@ -5716,9 +5865,32 @@ def api_dossie_anexo_upload():
         if not nome_seguro:
             return jsonify({'success': False, 'error': 'nome de arquivo invalido'}), 400
         
-        # Cria pasta upload_pendente
+        # Resolve busca_historico_id: do form ou query banco pela legislacao
+        busca_id = None
+        try:
+            if busca_id_form:
+                busca_id = int(busca_id_form)
+            else:
+                # Procura no banco pela legislacao mais recente desse dossie+label
+                _c_u = get_db(); _cu_u = _c_u.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                _cu_u.execute("""SELECT busca_historico_id FROM dossie_legislacoes_pasta 
+                                 WHERE dossie_id=%s AND legislacao_label=%s 
+                                 ORDER BY criado_em DESC LIMIT 1""",
+                              (dossie_id, legislacao_label))
+                _row_u = _cu_u.fetchone()
+                _cu_u.close(); _c_u.close()
+                if _row_u and _row_u['busca_historico_id']:
+                    busca_id = _row_u['busca_historico_id']
+        except Exception:
+            pass
+        
+        # Cria pasta upload_pendente (com busca_id se disponivel)
         import os as _os_u, hashlib as _h_u
-        pasta = f'/var/www/urbanlex/static/dossies/{dossie_id}/{legislacao_label}/upload_pendente'
+        if busca_id:
+            pasta = f'/var/www/urbanlex/static/dossies/{dossie_id}/busca_{busca_id}/{legislacao_label}/upload_pendente'
+        else:
+            # Fallback legacy
+            pasta = f'/var/www/urbanlex/static/dossies/{dossie_id}/{legislacao_label}/upload_pendente'
         _os_u.makedirs(pasta, exist_ok=True)
         
         # Salva arquivo (evita colisao)
@@ -5923,15 +6095,45 @@ def _aplicar_uploads_worker(dossie_id, legislacao_label, zip_orig_path, pendente
     logger_w = _log_w.getLogger(__name__)
     logger_w.info(f"[aplicar dossie {dossie_id} {legislacao_label}] iniciando ({len(pendentes)} pendente(s))")
     
-    leg_dir = f'/var/www/urbanlex/static/dossies/{dossie_id}/{legislacao_label}'
-    if not _os_w.path.exists(leg_dir):
-        logger_w.error(f"[aplicar dossie {dossie_id}] pasta nao existe: {leg_dir}")
+    # Resolve a pasta: primeiro tenta achar via banco (com busca_id), depois fallback legacy
+    leg_dir = None
+    try:
+        _c_w_path = get_db(); _cu_w_path = _c_w_path.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        _cu_w_path.execute("""SELECT pasta_path FROM dossie_legislacoes_pasta 
+                              WHERE dossie_id=%s AND legislacao_label=%s 
+                              ORDER BY criado_em DESC LIMIT 1""",
+                           (dossie_id, legislacao_label))
+        _row_path = _cu_w_path.fetchone()
+        _cu_w_path.close(); _c_w_path.close()
+        if _row_path and _row_path['pasta_path'] and _os_w.path.exists(_row_path['pasta_path']):
+            leg_dir = _row_path['pasta_path']
+    except Exception:
+        pass
+    
+    # Fallback legacy se nao achou no banco
+    if not leg_dir:
+        candidatos = [
+            f'/var/www/urbanlex/static/dossies/{dossie_id}/{legislacao_label}',  # legacy
+        ]
+        # Tambem tenta encontrar a busca mais recente em /static/dossies/<id>/busca_*/
+        import glob as _glob_w
+        for d in _glob_w.glob(f'/var/www/urbanlex/static/dossies/{dossie_id}/busca_*/{legislacao_label}'):
+            candidatos.insert(0, d)
+        for c in candidatos:
+            if _os_w.path.exists(c):
+                leg_dir = c
+                break
+    
+    if not leg_dir:
+        logger_w.error(f"[aplicar dossie {dossie_id}] pasta nao encontrada para {legislacao_label}")
         return
     
     pdf_atual = _os_w.path.join(leg_dir, 'pdf_concatenado.pdf')
     if not _os_w.path.exists(pdf_atual):
         logger_w.error(f"[aplicar dossie {dossie_id}] PDF concatenado nao existe: {pdf_atual}")
         return
+    
+    logger_w.info(f"[aplicar dossie {dossie_id}] usando pasta: {leg_dir}")
     
     # Converte cada upload pra PDF
     from modulos.conversor_pdf import converter_para_pdf, concatenar_pdfs, identificar_tipo
@@ -6014,14 +6216,32 @@ def _aplicar_uploads_worker(dossie_id, legislacao_label, zip_orig_path, pendente
                 'origem': 'upload_manual',
             })
         
-        cur.execute("""
-            UPDATE dossie_legislacoes_pasta
-            SET n_paginas=%s, 
-                total_arquivos=%s,
-                arquivos_originais=%s::jsonb,
-                atualizado_em=NOW()
-            WHERE dossie_id=%s AND legislacao_label=%s
-        """, (n_paginas, len(arq_atual), _json_w.dumps(arq_atual), dossie_id, legislacao_label))
+        # Pega o busca_historico_id pra UPDATE
+        cur.execute("""SELECT busca_historico_id FROM dossie_legislacoes_pasta 
+                       WHERE dossie_id=%s AND legislacao_label=%s 
+                       ORDER BY criado_em DESC LIMIT 1""",
+                    (dossie_id, legislacao_label))
+        _row_bh = cur.fetchone()
+        bh_id = _row_bh['busca_historico_id'] if _row_bh else None
+        
+        if bh_id:
+            cur.execute("""
+                UPDATE dossie_legislacoes_pasta
+                SET n_paginas=%s, 
+                    total_arquivos=%s,
+                    arquivos_originais=%s::jsonb,
+                    atualizado_em=NOW()
+                WHERE busca_historico_id=%s AND legislacao_label=%s
+            """, (n_paginas, len(arq_atual), _json_w.dumps(arq_atual), bh_id, legislacao_label))
+        else:
+            cur.execute("""
+                UPDATE dossie_legislacoes_pasta
+                SET n_paginas=%s, 
+                    total_arquivos=%s,
+                    arquivos_originais=%s::jsonb,
+                    atualizado_em=NOW()
+                WHERE dossie_id=%s AND legislacao_label=%s
+            """, (n_paginas, len(arq_atual), _json_w.dumps(arq_atual), dossie_id, legislacao_label))
         
         # Marca uploads como aplicado
         for a in arquivos_aplicados:
@@ -6055,17 +6275,38 @@ def _aplicar_uploads_worker(dossie_id, legislacao_label, zip_orig_path, pendente
         
         if res.get('sucesso'):
             cur = conn.cursor()
-            cur.execute("""
-                UPDATE dossie_legislacoes_pasta
-                SET anexos_citados=%s::jsonb,
-                    anexos_faltantes=%s::jsonb,
-                    atualizado_em=NOW()
-                WHERE dossie_id=%s AND legislacao_label=%s
-            """, (
-                _json_w2.dumps(res.get('anexos_citados', [])),
-                _json_w2.dumps(res.get('anexos_faltantes', [])),
-                dossie_id, legislacao_label
-            ))
+            # Pega busca_historico_id pra acertar a linha certa
+            cur.execute("""SELECT busca_historico_id FROM dossie_legislacoes_pasta 
+                           WHERE dossie_id=%s AND legislacao_label=%s 
+                           ORDER BY criado_em DESC LIMIT 1""",
+                        (dossie_id, legislacao_label))
+            _bh_row = cur.fetchone()
+            _bh_id = _bh_row[0] if _bh_row else None
+            
+            if _bh_id:
+                cur.execute("""
+                    UPDATE dossie_legislacoes_pasta
+                    SET anexos_citados=%s::jsonb,
+                        anexos_faltantes=%s::jsonb,
+                        atualizado_em=NOW()
+                    WHERE busca_historico_id=%s AND legislacao_label=%s
+                """, (
+                    _json_w2.dumps(res.get('anexos_citados', [])),
+                    _json_w2.dumps(res.get('anexos_faltantes', [])),
+                    _bh_id, legislacao_label
+                ))
+            else:
+                cur.execute("""
+                    UPDATE dossie_legislacoes_pasta
+                    SET anexos_citados=%s::jsonb,
+                        anexos_faltantes=%s::jsonb,
+                        atualizado_em=NOW()
+                    WHERE dossie_id=%s AND legislacao_label=%s
+                """, (
+                    _json_w2.dumps(res.get('anexos_citados', [])),
+                    _json_w2.dumps(res.get('anexos_faltantes', [])),
+                    dossie_id, legislacao_label
+                ))
             conn.commit(); cur.close()
             logger_w.info(f"[aplicar dossie {dossie_id}] Etapa 4.5 atualizada: {len(res.get('anexos_faltantes', []))} faltantes")
         conn.close()
