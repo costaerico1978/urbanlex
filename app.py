@@ -8308,6 +8308,70 @@ def api_fila_extracao_listar():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+
+@app.route('/api/fila_extracao/log/<int:fila_id>')
+@login_required
+def api_fila_extracao_log(fila_id):
+    """
+    Retorna logs ao vivo de um item da fila_extracao.
+    UI usa pra exibir log de execucao do pipeline em tempo real.
+    
+    Query: cursor=N (retorna logs com cursor > N)
+    Returns: {status, job_id, progresso_atual, done, logs:[{ts, nivel, msg, cursor}]}
+    """
+    try:
+        cursor_after = int(request.args.get('cursor', 0))
+    except:
+        cursor_after = 0
+    
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""SELECT id, municipio, estado, status, job_id, progresso_atual,
+                              erro_etapa, erro_msg, iniciado_em, concluido_em
+                       FROM fila_extracao WHERE id=%s""", (fila_id,))
+        item = cur.fetchone()
+        if not item:
+            cur.close(); conn.close()
+            return jsonify({'success': False, 'error': 'item nao encontrado'}), 404
+        
+        logs = []
+        if item['job_id']:
+            cur.execute("""SELECT cursor, ts, nivel, msg 
+                           FROM buscas_logs 
+                           WHERE job_id=%s AND cursor > %s 
+                           ORDER BY cursor ASC LIMIT 500""",
+                        (item['job_id'], cursor_after))
+            for r in cur.fetchall():
+                logs.append({
+                    'cursor': r['cursor'],
+                    'ts': r['ts'],
+                    'nivel': r['nivel'],
+                    'msg': r['msg'],
+                })
+        
+        cur.close(); conn.close()
+        
+        done = item['status'] in ('concluido', 'erro', 'cancelado')
+        
+        return jsonify({
+            'success': True,
+            'fila_id': fila_id,
+            'job_id': item['job_id'],
+            'municipio': item['municipio'],
+            'estado': item['estado'],
+            'status': item['status'],
+            'progresso_atual': item['progresso_atual'],
+            'erro_etapa': item['erro_etapa'],
+            'erro_msg': item['erro_msg'],
+            'done': done,
+            'logs': logs,
+            'next_cursor': logs[-1]['cursor'] if logs else cursor_after,
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)[:200]}), 500
+
+
 @app.route('/api/fila_extracao/<int:item_id>')
 @login_required
 def api_fila_extracao_detalhe(item_id):

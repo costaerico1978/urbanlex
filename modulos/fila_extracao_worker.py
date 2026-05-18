@@ -143,11 +143,31 @@ def _processar_item(item, get_db):
     except Exception as e:
         logger.warning(f"[{job_id}] Erro ao verificar cache: {e} (continua sem cache)")
     
+    # Counter pra cursor incremental dos logs
+    _log_cursor = [0]
+    
+    def _gravar_log_banco(msg, nivel='info'):
+        '''Grava 1 linha de log em buscas_logs (best-effort, sem bloquear pipeline)'''
+        try:
+            from datetime import datetime as _dt
+            _log_cursor[0] += 1
+            conn = get_db(); cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO buscas_logs (job_id, cursor, nivel, msg, criado_em, ts) "
+                "VALUES (%s, %s, %s, %s, NOW(), %s)",
+                (job_id, _log_cursor[0], nivel, (msg or '')[:5000], 
+                 _dt.now().strftime('%H:%M:%S'))
+            )
+            conn.commit(); cur.close(); conn.close()
+        except Exception as _e:
+            logger.warning(f"[{job_id}] falha ao gravar log no banco: {_e}")
+    
     try:
-        # Callback de log atualiza progresso_atual
+        # Callback de log: stdout + banco + progresso_atual
         def log_cb(msg):
             logger.info(f"[{job_id}] {msg}")
-            # Atualiza apenas etapas importantes (evita spam no banco)
+            _gravar_log_banco(msg)  # grava TODA linha em buscas_logs (Opcao B)
+            # Atualiza progresso visivel na fila apenas em etapas importantes
             if 'ETAPA' in msg or 'CACHE HIT' in msg or 'CONCLU' in msg:
                 _atualizar_progresso(get_db, item_id, msg)
         

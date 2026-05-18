@@ -865,11 +865,15 @@ async function gpIniciar(){
     html += '<div style="margin-top:12px;font-size:12px;color:var(--muted);">A extração roda em background. Acompanhe pelo dashboard ou recarregue a página.</div>';
     html += '</div>';
     document.getElementById('gp-log-body').innerHTML = html;
-    
     gpToast('Extração enfileirada com sucesso!');
     
-    // Não esconde o botão (pode enfileirar mais municípios)
-    gpPolling();
+    // OPCAO B: Salva fila_id do primeiro item enfileirado e inicia polling do log ao vivo
+    if (d.enfileirados && d.enfileirados.length > 0) {
+        _gpFilaId = d.enfileirados[0].fila_id;
+        _gpLogCursor = 0;
+        document.getElementById('gp-log-body').innerHTML += '<div style="padding:6px 10px;border-top:1px solid var(--border);margin-top:10px;font-size:11px;color:var(--muted);">--- Log em tempo real (fila #' + _gpFilaId + ') ---</div>';
+        gpPollingFila();
+    }
   }catch(e){ gpToast('Erro: ' + e.message, true); }
 }
 
@@ -897,6 +901,77 @@ async function gpCancelar(){
 }
 
 let _gpLogCursor = 0;
+let _gpFilaId = null;
+
+// ─── OPCAO B: Polling NOVO via /api/fila_extracao/log/<fila_id> ───
+async function gpPollingFila(){
+  if(!_gpFilaId) return;
+  try{
+    const r = await fetch('/api/fila_extracao/log/' + _gpFilaId + '?cursor=' + _gpLogCursor);
+    const d = await r.json();
+    if(!d.success){ console.error('Erro polling:', d.error); setTimeout(gpPollingFila, 3000); return; }
+    
+    if(d.logs && d.logs.length){
+      const body = document.getElementById('gp-log-body');
+      d.logs.forEach(l => {
+        const div = document.createElement('div');
+        div.style.fontFamily = 'monospace';
+        div.style.fontSize = '12px';
+        div.style.padding = '2px 10px';
+        let cor = 'var(--muted)';
+        let extra = '';
+        const msg = l.msg || '';
+        if (msg.includes('ETAPA') && msg.includes('/8')) { cor = 'var(--accent)'; extra = 'font-weight:600;margin-top:6px;'; }
+        else if (msg.includes('CACHE HIT')) { cor = '#9b8ed7'; }
+        else if (msg.includes('CONCLU') || msg.startsWith('✓')) { cor = 'var(--accent)'; }
+        else if (l.nivel === 'erro') { cor = '#e74c3c'; }
+        else if (l.nivel === 'aviso') { cor = '#f0ad4e'; }
+        div.style.cssText += 'color:' + cor + ';' + extra;
+        div.textContent = '[' + (l.ts || '') + '] ' + msg;
+        body.appendChild(div);
+      });
+      body.scrollTop = body.scrollHeight;
+      _gpLogCursor = d.next_cursor || _gpLogCursor;
+    }
+    
+    if (d.progresso_atual) {
+      let st = document.getElementById('gp-status-progress');
+      if (!st) {
+        const wrap = document.getElementById('gp-log-wrap');
+        st = document.createElement('div');
+        st.id = 'gp-status-progress';
+        st.style.cssText = 'padding:8px 12px;background:rgba(0,229,160,.08);border-left:3px solid var(--accent);font-size:12px;font-weight:600;margin:6px 0;';
+        wrap.insertBefore(st, document.getElementById('gp-log-body'));
+      }
+      st.textContent = (d.done ? '✓ ' : '⏳ ') + d.progresso_atual;
+      if (d.status === 'erro') { 
+        st.style.background = 'rgba(231,76,60,.08)';
+        st.style.borderLeftColor = '#e74c3c';
+        st.textContent = '✗ ' + (d.erro_msg || d.progresso_atual);
+      }
+    }
+    
+    if(d.done){
+      const body = document.getElementById('gp-log-body');
+      const fin = document.createElement('div');
+      fin.style.cssText = 'padding:10px;margin-top:10px;background:rgba(0,229,160,.1);border-radius:6px;font-weight:600;';
+      if (d.status === 'concluido') {
+        fin.style.color = 'var(--accent)';
+        fin.innerHTML = '✅ Pipeline concluído! Veja resultado em Histórico.';
+      } else {
+        fin.style.background = 'rgba(231,76,60,.1)';
+        fin.style.color = '#e74c3c';
+        fin.innerHTML = '❌ Pipeline falhou na etapa ' + (d.erro_etapa || '?') + ': ' + (d.erro_msg || 'erro');
+      }
+      body.appendChild(fin);
+      body.scrollTop = body.scrollHeight;
+      _gpFilaId = null;
+      return;
+    }
+    setTimeout(gpPollingFila, 2000);
+  } catch(e){ console.error(e); setTimeout(gpPollingFila, 5000); }
+}
+
 async function gpPolling(){
   if(!_gpJobId) return;
   try{
