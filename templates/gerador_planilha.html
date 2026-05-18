@@ -818,21 +818,25 @@ async function gpIniciar(){
   // PIPELINE END-TO-END: extrai dados via /api/gerador/extrair-dados
   // (não usa mais planilha base / IA selecionada / prompt — todos fixos no backend)
   
-  // Constrói lista de compilados selecionados (1 entrada por município)
+  // Constrói lista de compilados selecionados (pode ser varios por municipio)
   const _selecionados = [];
   for (const g of _gpCompilados) {
-    if (typeof g._selIdx !== 'number' || !g.entradas || !g.entradas[g._selIdx]) continue;
-    const e = g.entradas[g._selIdx];
-    if (!e.zip_path) continue;  // pipeline precisa do ZIP
-    _selecionados.push({
-      municipio: g.municipio, 
-      estado: g.estado,
-      zip_path: e.zip_path,
-    });
+    const idxs = Array.isArray(g._selIdxs) ? g._selIdxs 
+              : (typeof g._selIdx === 'number' ? [g._selIdx] : []);
+    if (!idxs.length || !g.entradas) continue;
+    for (const ei of idxs) {
+      const e = g.entradas[ei];
+      if (!e || !e.zip_path) continue;
+      _selecionados.push({
+        municipio: g.municipio,
+        estado: g.estado,
+        zip_path: e.zip_path,
+      });
+    }
   }
-  if (!_selecionados.length){ 
-    gpToast('Selecione um compilado com ZIP em cada município', true); 
-    return; 
+  if (!_selecionados.length){
+    gpToast('Selecione pelo menos 1 compilado com ZIP', true);
+    return;
   }
   
   document.getElementById('gp-log-wrap').style.display = 'block';
@@ -867,11 +871,25 @@ async function gpIniciar(){
     document.getElementById('gp-log-body').innerHTML = html;
     gpToast('Extração enfileirada com sucesso!');
     
-    // OPCAO B: Salva fila_id do primeiro item enfileirado e inicia polling do log ao vivo
+    // OPCAO B+: salva LISTA de fila_ids pra acompanhar sequencialmente
     if (d.enfileirados && d.enfileirados.length > 0) {
-        _gpFilaId = d.enfileirados[0].fila_id;
+        _gpFilaIds = d.enfileirados.map(it => ({
+            fila_id: it.fila_id,
+            municipio: it.municipio,
+            estado: it.estado,
+            status: 'aguardando'  // aguardando | rodando | concluido | erro | cancelado
+        }));
+        _gpFilaIds[0].status = 'rodando';
+        _gpFilaIdxAtual = 0;
+        _gpFilaId = _gpFilaIds[0].fila_id;
         _gpLogCursor = 0;
-        document.getElementById('gp-log-body').innerHTML += '<div style="padding:6px 10px;border-top:1px solid var(--border);margin-top:10px;font-size:11px;color:var(--muted);">--- Log em tempo real (fila #' + _gpFilaId + ') ---</div>';
+        
+        // Cria painel resumo sticky + botao cancelar
+        gpCriarPainelResumo();
+        
+        const m = _gpFilaIds[0];
+        const totalJobs = _gpFilaIds.length;
+        document.getElementById('gp-log-body').innerHTML += '<div style="padding:8px 10px;border-top:2px solid var(--accent);margin-top:10px;font-size:12px;color:var(--accent);font-weight:600;">▶ Job 1/' + totalJobs + ': ' + m.municipio + '/' + m.estado + ' (fila #' + m.fila_id + ')</div>';
         gpPollingFila();
     }
   }catch(e){ gpToast('Erro: ' + e.message, true); }
@@ -902,6 +920,100 @@ async function gpCancelar(){
 
 let _gpLogCursor = 0;
 let _gpFilaId = null;
+let _gpFilaIds = [];      // lista de jobs enfileirados na rodada
+let _gpFilaIdxAtual = 0;  // qual job esta sendo exibido
+
+// ─── Painel resumo sticky abaixo do log ───
+function gpCriarPainelResumo(){
+  const wrap = document.getElementById('gp-log-wrap');
+  let painel = document.getElementById('gp-painel-resumo');
+  if (painel) painel.remove();
+  
+  painel = document.createElement('div');
+  painel.id = 'gp-painel-resumo';
+  painel.style.cssText = 'margin-top:14px;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;';
+  wrap.appendChild(painel);
+  
+  gpAtualizarPainelResumo();
+}
+
+function gpAtualizarPainelResumo(){
+  const painel = document.getElementById('gp-painel-resumo');
+  if (!painel) return;
+  
+  const total = (_gpFilaIds||[]).length;
+  if (!total) { painel.style.display = 'none'; return; }
+  
+  const concluidos = _gpFilaIds.filter(j => j.status === 'concluido').length;
+  const erros = _gpFilaIds.filter(j => j.status === 'erro').length;
+  const cancelados = _gpFilaIds.filter(j => j.status === 'cancelado').length;
+  
+  let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;">';
+  html += '<div style="font-weight:600;font-size:13px;">📋 Status da Extração</div>';
+  html += '<div style="display:flex;gap:6px;align-items:center;">';
+  html += '<span style="font-size:11px;color:var(--muted);">' + concluidos + '/' + total + ' · ' + erros + ' erros</span>';
+  // Botao cancelar + limpar (so se tiver job ativo)
+  const temAtivo = _gpFilaIds.some(j => j.status === 'rodando' || j.status === 'aguardando');
+  if (temAtivo) {
+    html += '<button onclick="gpCancelarELimpar()" style="padding:5px 10px;border-radius:5px;background:rgba(231,76,60,.12);color:#e74c3c;border:1px solid rgba(231,76,60,.3);font-size:11px;font-weight:600;cursor:pointer;">⏹ Cancelar e Limpar</button>';
+  } else {
+    html += '<button onclick="gpLimparLog()" style="padding:5px 10px;border-radius:5px;background:rgba(155,89,182,.12);color:#9b8ed7;border:1px solid rgba(155,89,182,.3);font-size:11px;font-weight:600;cursor:pointer;">🗑 Limpar Log</button>';
+  }
+  html += '</div></div>';
+  
+  // Lista de jobs
+  html += '<div style="display:flex;flex-direction:column;gap:4px;">';
+  _gpFilaIds.forEach((j, idx) => {
+    let icon = '⏸';
+    let cor = 'var(--muted)';
+    if (j.status === 'concluido') { icon = '✅'; cor = 'var(--accent)'; }
+    else if (j.status === 'erro')  { icon = '❌'; cor = '#e74c3c'; }
+    else if (j.status === 'cancelado') { icon = '⏹'; cor = '#f0ad4e'; }
+    else if (j.status === 'rodando') { icon = '⏳'; cor = '#9b8ed7'; }
+    
+    const peso = (idx === _gpFilaIdxAtual && j.status === 'rodando') ? 'font-weight:700;' : '';
+    html += '<div style="padding:5px 8px;background:rgba(255,255,255,0.03);border-radius:4px;font-size:11px;color:' + cor + ';' + peso + '">';
+    html += icon + ' Job ' + (idx+1) + '/' + total + ': ' + j.municipio + '/' + j.estado + ' (fila #' + j.fila_id + ')';
+    html += '</div>';
+  });
+  html += '</div>';
+  
+  painel.innerHTML = html;
+  painel.style.display = 'block';
+}
+
+async function gpCancelarELimpar(){
+  if (!confirm('Cancelar a extração em andamento e limpar o log?\n\nJobs ainda não iniciados serão cancelados.')) return;
+  
+  // Marca jobs aguardando como cancelado (no banco) + atualiza estado
+  for (const j of (_gpFilaIds||[])) {
+    if (j.status === 'aguardando' || j.status === 'rodando') {
+      try {
+        await fetch('/api/fila_extracao/cancelar/' + j.fila_id, {method:'POST'});
+        j.status = 'cancelado';
+      } catch(e) { console.error('Erro ao cancelar:', e); }
+    }
+  }
+  
+  gpLimparLog();
+}
+
+function gpLimparLog(){
+  // Limpa o log visual
+  document.getElementById('gp-log-body').innerHTML = '';
+  const st = document.getElementById('gp-status-progress');
+  if (st) st.remove();
+  
+  // Remove painel resumo
+  const painel = document.getElementById('gp-painel-resumo');
+  if (painel) painel.remove();
+  
+  // Reseta estado
+  _gpFilaIds = [];
+  _gpFilaId = null;
+  _gpFilaIdxAtual = 0;
+  _gpLogCursor = 0;
+}
 
 // ─── OPCAO B: Polling NOVO via /api/fila_extracao/log/<fila_id> ───
 async function gpPollingFila(){
@@ -934,6 +1046,11 @@ async function gpPollingFila(){
       _gpLogCursor = d.next_cursor || _gpLogCursor;
     }
     
+    // Sincroniza status no painel resumo (caso server tenha mudado)
+    if (_gpFilaIds[_gpFilaIdxAtual] && d.status && _gpFilaIds[_gpFilaIdxAtual].status !== d.status) {
+      _gpFilaIds[_gpFilaIdxAtual].status = (d.status === 'aguardando' || d.status === 'rodando') ? 'rodando' : d.status;
+      gpAtualizarPainelResumo();
+    }
     if (d.progresso_atual) {
       let st = document.getElementById('gp-status-progress');
       if (!st) {
@@ -957,14 +1074,51 @@ async function gpPollingFila(){
       fin.style.cssText = 'padding:10px;margin-top:10px;background:rgba(0,229,160,.1);border-radius:6px;font-weight:600;';
       if (d.status === 'concluido') {
         fin.style.color = 'var(--accent)';
-        fin.innerHTML = '✅ Pipeline concluído! Veja resultado em Histórico.';
+        fin.innerHTML = '✅ Job #' + _gpFilaId + ' concluído!';
+        if (_gpFilaIds[_gpFilaIdxAtual]) _gpFilaIds[_gpFilaIdxAtual].status = 'concluido';
       } else {
         fin.style.background = 'rgba(231,76,60,.1)';
         fin.style.color = '#e74c3c';
-        fin.innerHTML = '❌ Pipeline falhou na etapa ' + (d.erro_etapa || '?') + ': ' + (d.erro_msg || 'erro');
+        fin.innerHTML = '❌ Job #' + _gpFilaId + ' falhou na etapa ' + (d.erro_etapa || '?') + ': ' + (d.erro_msg || 'erro');
+        if (_gpFilaIds[_gpFilaIdxAtual]) _gpFilaIds[_gpFilaIdxAtual].status = 'erro';
       }
       body.appendChild(fin);
       body.scrollTop = body.scrollHeight;
+      gpAtualizarPainelResumo();  // atualiza resumo sticky
+      
+      // Tem proximo job na lista?
+      if (Array.isArray(_gpFilaIds) && _gpFilaIdxAtual + 1 < _gpFilaIds.length) {
+        _gpFilaIdxAtual += 1;
+        const prox = _gpFilaIds[_gpFilaIdxAtual];
+        prox.status = 'rodando';
+        _gpFilaId = prox.fila_id;
+        _gpLogCursor = 0;
+        
+        const oldStatus = document.getElementById('gp-status-progress');
+        if (oldStatus) oldStatus.remove();
+        
+        const sep = document.createElement('div');
+        sep.style.cssText = 'padding:8px 10px;border-top:2px solid var(--accent);margin-top:10px;font-size:12px;color:var(--accent);font-weight:600;';
+        sep.innerHTML = '▶ Job ' + (_gpFilaIdxAtual + 1) + '/' + _gpFilaIds.length + ': ' + prox.municipio + '/' + prox.estado + ' (fila #' + prox.fila_id + ')';
+        body.appendChild(sep);
+        body.scrollTop = body.scrollHeight;
+        gpAtualizarPainelResumo();
+        
+        setTimeout(gpPollingFila, 1000);
+        return;
+      }
+      
+      // Acabou TUDO
+      const allDone = document.createElement('div');
+      allDone.style.cssText = 'padding:12px;margin-top:14px;background:rgba(0,229,160,.15);border:2px solid var(--accent);border-radius:8px;font-weight:700;font-size:14px;color:var(--accent);text-align:center;';
+      const total = Array.isArray(_gpFilaIds) ? _gpFilaIds.length : 1;
+      const concluidos = _gpFilaIds.filter(j => j.status === 'concluido').length;
+      const erros = _gpFilaIds.filter(j => j.status === 'erro').length;
+      allDone.innerHTML = '🎉 Extração finalizada! ' + concluidos + ' ok · ' + erros + ' erro(s) · total ' + total;
+      body.appendChild(allDone);
+      body.scrollTop = body.scrollHeight;
+      gpAtualizarPainelResumo();
+      
       _gpFilaId = null;
       return;
     }

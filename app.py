@@ -8372,6 +8372,40 @@ def api_fila_extracao_log(fila_id):
         return jsonify({'success': False, 'error': str(e)[:200]}), 500
 
 
+
+@app.route('/api/fila_extracao/cancelar/<int:fila_id>', methods=['POST'])
+@login_required
+def api_fila_extracao_cancelar(fila_id):
+    """
+    Cancela um item da fila_extracao.
+    - Se aguardando: marca como cancelado direto
+    - Se rodando: marca como cancelado (worker vai detectar e parar)
+    - Se ja terminou: retorna sem fazer nada
+    """
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT id, status FROM fila_extracao WHERE id=%s", (fila_id,))
+        item = cur.fetchone()
+        if not item:
+            cur.close(); conn.close()
+            return jsonify({'success': False, 'error': 'item nao encontrado'}), 404
+        
+        if item['status'] in ('concluido', 'erro', 'cancelado'):
+            cur.close(); conn.close()
+            return jsonify({'success': True, 'ja_terminou': True, 'status': item['status']})
+        
+        cur.execute("""UPDATE fila_extracao 
+                       SET status='cancelado', concluido_em=NOW(), 
+                           erro_msg='Cancelado pelo operador via UI' 
+                       WHERE id=%s""", (fila_id,))
+        conn.commit(); cur.close(); conn.close()
+        
+        return jsonify({'success': True, 'fila_id': fila_id, 'status': 'cancelado'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)[:200]}), 500
+
+
 @app.route('/api/fila_extracao/<int:item_id>')
 @login_required
 def api_fila_extracao_detalhe(item_id):
