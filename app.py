@@ -7984,6 +7984,43 @@ def api_gerador_cancelar(job_id):
     if job: job['done'] = True; job['cancelled'] = True
     return jsonify({'success': True})
 
+@app.route('/api/gerador/jsons-gerados/excluir', methods=['POST'])
+@login_required
+def api_gerador_jsons_gerados_excluir():
+    """Apaga registros + pastas leg do disco."""
+    try:
+        if session.get('role') != 'admin':
+            return jsonify({'success': False, 'error': 'apenas admin'}), 403
+        ids = (request.json or {}).get('ids', [])
+        if not ids:
+            return jsonify({'success': False, 'error': 'nenhum id'}), 400
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('SELECT id, municipio, estado, output_dir, zip_md5 FROM legislacao_processamentos WHERE id = ANY(%s)', (ids,))
+        regs = cur.fetchall()
+        import os as _os, shutil as _sh
+        from modulos.pipeline_extracao_lei import PIPELINES_BASE_DIR, _slug_municipio
+        pastas = 0
+        for r in regs:
+            target = None
+            if r.get('output_dir') and _os.path.isdir(r['output_dir']):
+                target = r['output_dir']
+            elif r.get('zip_md5') and r.get('municipio') and r.get('estado'):
+                slug = _slug_municipio(r['municipio'], r['estado'])
+                target = _os.path.join(PIPELINES_BASE_DIR, slug, 'leg_' + r['zip_md5'][:12])
+            if target and _os.path.isdir(target):
+                try:
+                    _sh.rmtree(target); pastas += 1
+                except Exception as e:
+                    logger.warning('falha apagar ' + str(target) + ': ' + str(e))
+        cur.execute('DELETE FROM legislacao_processamentos WHERE id = ANY(%s)', (ids,))
+        n = cur.rowcount
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({'success': True, 'deletados': n, 'pastas': pastas})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)[:300]}), 500
+
+
 @app.route('/api/gerador/jsons-gerados')
 @login_required
 def api_gerador_jsons_gerados():

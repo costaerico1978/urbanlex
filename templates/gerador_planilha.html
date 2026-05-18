@@ -1215,17 +1215,33 @@ async function gpCarregarJsonsGerados() {
     const r = await fetch('/api/gerador/jsons-gerados');
     const d = await r.json();
     if (!d.success) { el.innerHTML = '<div style="padding:14px;color:#e74c3c;font-size:12px;">Erro: ' + d.error + '</div>'; return; }
-    if (!d.grupos || !d.grupos.length) { el.innerHTML = '<div style="padding:14px;text-align:center;font-size:12px;color:var(--muted);">Nenhum JSON gerado ainda. Rode um pipeline pra gerar o primeiro.</div>'; return; }
-    let html = '<div style="font-size:11px;color:var(--muted);margin-bottom:10px;">' + d.total + ' JSON(s) em ' + d.grupos.length + ' municipio(s)</div>';
+    if (!d.grupos || !d.grupos.length) { el.innerHTML = '<div style="padding:14px;text-align:center;font-size:12px;color:var(--muted);">Nenhum JSON gerado ainda.</div>'; return; }
+    window._gpJsonsData = d.grupos;
+    window._gpJsonsSel = window._gpJsonsSel || new Set();
+    let html = '';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;flex-wrap:wrap;">';
+    html += '<div style="font-size:11px;color:var(--muted);">' + d.total + ' JSON(s) em ' + d.grupos.length + ' municipio(s)</div>';
+    html += '<div id="gpj-actions" style="display:flex;gap:6px;align-items:center;">';
+    html += '<span id="gpj-sel-count" style="font-size:11px;color:var(--accent);font-weight:600;">' + window._gpJsonsSel.size + ' selecionado(s)</span>';
+    html += '<button onclick="gpJsonsExcluir()" id="gpj-btn-del" ' + (window._gpJsonsSel.size === 0 ? 'disabled' : '') + ' style="padding:4px 10px;border-radius:5px;background:rgba(231,76,60,.12);color:#e74c3c;border:1px solid rgba(231,76,60,.3);font-size:11px;font-weight:600;cursor:pointer;' + (window._gpJsonsSel.size === 0 ? 'opacity:0.4;' : '') + '">\u{1F5D1} Excluir selecionados</button>';
+    html += '</div></div>';
     d.grupos.forEach((g, gi) => {
+      const ids_grupo = g.jsons.map(j => j.id);
+      const todos_marcados = ids_grupo.every(id => window._gpJsonsSel.has(id));
       html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:6px;">';
-      html += '<div onclick="gpToggleJsonGrupo(' + gi + ')" style="display:flex;align-items:center;gap:8px;cursor:pointer;">';
+      html += '<div style="display:flex;align-items:center;gap:8px;">';
+      html += '<input type="checkbox" ' + (todos_marcados ? 'checked' : '') + ' onclick="event.stopPropagation();gpJsonsToggleMun(' + gi + ')" style="accent-color:var(--accent);cursor:pointer;" title="Selecionar todos do municipio">';
+      html += '<div onclick="gpToggleJsonGrupo(' + gi + ')" style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;">';
       html += '<span id="gpj-arrow-' + gi + '" style="font-size:11px;">▶</span>';
       html += '<strong>🏙️ ' + g.municipio + ' / ' + g.estado + '</strong>';
-      html += '<span style="margin-left:auto;font-size:11px;color:var(--muted);">' + g.jsons.length + ' json(s)</span></div>';
+      html += '<span style="margin-left:auto;font-size:11px;color:var(--muted);">' + g.jsons.length + ' json(s)</span>';
+      html += '</div></div>';
       html += '<div id="gpj-content-' + gi + '" style="display:none;margin-top:8px;">';
       g.jsons.forEach(j => {
-        html += '<div style="padding:8px 10px;border:1px solid var(--border);border-radius:4px;margin-top:4px;font-size:11px;background:rgba(255,255,255,0.02);">';
+        const isSel = window._gpJsonsSel.has(j.id);
+        html += '<div style="padding:8px 10px;border:1px solid var(--border);border-radius:4px;margin-top:4px;font-size:11px;background:rgba(255,255,255,0.02);display:flex;align-items:flex-start;gap:8px;' + (isSel ? 'border-color:var(--accent);' : '') + '">';
+        html += '<input type="checkbox" ' + (isSel ? 'checked' : '') + ' onclick="gpJsonsToggleItem(' + j.id + ')" style="accent-color:var(--accent);cursor:pointer;margin-top:2px;">';
+        html += '<div style="flex:1;">';
         html += '<div style="font-family:monospace;color:var(--accent);word-break:break-all;margin-bottom:5px;">' + j.filename + '</div>';
         html += '<div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--muted);gap:6px;flex-wrap:wrap;">';
         html += '<span>' + j.processado_em + ' · custo $' + (j.custo_total||0).toFixed(2) + ' · ' + Math.round(j.tempo_total) + 's</span>';
@@ -1234,7 +1250,7 @@ async function gpCarregarJsonsGerados() {
           html += '<a href="' + j.web_url + '" download="' + j.filename + '" style="padding:3px 8px;border-radius:4px;background:rgba(0,229,160,.15);color:var(--accent);border:1px solid rgba(0,229,160,.3);text-decoration:none;">⬇ Baixar</a>';
           html += '<a href="' + j.web_url + '" target="_blank" style="padding:3px 8px;border-radius:4px;background:rgba(155,89,182,.12);color:#9b8ed7;border:1px solid rgba(155,89,182,.3);text-decoration:none;">👁 Ver</a>';
         } else { html += '<span style="color:#e74c3c;">arquivo nao encontrado</span>'; }
-        html += '</div></div></div>';
+        html += '</div></div></div></div>';
       });
       html += '</div></div>';
     });
@@ -1247,6 +1263,35 @@ function gpToggleJsonGrupo(gi) {
   if (c.style.display === 'none') { c.style.display = 'block'; if (a) a.textContent = '▼'; }
   else { c.style.display = 'none'; if (a) a.textContent = '▶'; }
 }
+function gpJsonsToggleItem(id) {
+  window._gpJsonsSel = window._gpJsonsSel || new Set();
+  if (window._gpJsonsSel.has(id)) window._gpJsonsSel.delete(id);
+  else window._gpJsonsSel.add(id);
+  gpCarregarJsonsGerados();
+}
+function gpJsonsToggleMun(gi) {
+  window._gpJsonsSel = window._gpJsonsSel || new Set();
+  const grupo = (window._gpJsonsData || [])[gi]; if (!grupo) return;
+  const ids = grupo.jsons.map(j => j.id);
+  const todos = ids.every(id => window._gpJsonsSel.has(id));
+  if (todos) ids.forEach(id => window._gpJsonsSel.delete(id));
+  else ids.forEach(id => window._gpJsonsSel.add(id));
+  gpCarregarJsonsGerados();
+}
+async function gpJsonsExcluir() {
+  const ids = Array.from(window._gpJsonsSel || []);
+  if (!ids.length) return;
+  if (!confirm('Apagar ' + ids.length + ' JSON(s) e seus caches do disco?')) return;
+  try {
+    const r = await fetch('/api/gerador/jsons-gerados/excluir', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids}) });
+    const d = await r.json();
+    if (!d.success) { alert('Erro: ' + d.error); return; }
+    alert(d.deletados + ' JSON(s) apagados, ' + d.pastas + ' pasta(s) de cache removida(s)');
+    window._gpJsonsSel = new Set();
+    gpCarregarJsonsGerados();
+  } catch(e) { alert('Erro: ' + e.message); }
+}
+
 
 async function gpCarregarHistorico(){
   try{
