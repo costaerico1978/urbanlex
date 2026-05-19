@@ -6926,6 +6926,51 @@ def api_dossie_dossie_detalhe(dossie_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/dossie/legislacao/<int:leg_id>', methods=['DELETE'])
+@login_required
+def api_dossie_apagar_legislacao_dossie(leg_id):
+    """Apaga uma legislacao individual do dossie + pasta no disco + cache pipeline."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('SELECT id, pasta_path, busca_historico_id, legislacao_label FROM dossie_legislacoes_pasta WHERE id=%s', (leg_id,))
+        leg = cur.fetchone()
+        if not leg:
+            cur.close(); conn.close()
+            return jsonify({'success': False, 'error': 'nao encontrado'}), 404
+        import os as _os_l, shutil as _sh_l, hashlib as _hl
+        # 1. Calcula MD5 do pdf_concatenado pra achar cache do pipeline
+        cache_apagado = False
+        if leg['pasta_path'] and _os_l.path.isdir(leg['pasta_path']):
+            concat = _os_l.path.join(leg['pasta_path'], 'pdf_concatenado.pdf')
+            if _os_l.path.exists(concat):
+                try:
+                    with open(concat, 'rb') as _f: md5 = _hl.md5(_f.read()).hexdigest()[:12]
+                    cur.execute('SELECT municipio, estado FROM buscas_historico WHERE id=%s', (leg['busca_historico_id'],))
+                    bh = cur.fetchone()
+                    if bh:
+                        from modulos.pipeline_extracao_lei import _slug_municipio, PIPELINES_BASE_DIR
+                        slug = _slug_municipio(bh['municipio'], bh['estado'])
+                        cache_dir = _os_l.path.join(PIPELINES_BASE_DIR, slug, 'leg_' + md5)
+                        if _os_l.path.isdir(cache_dir):
+                            try: _sh_l.rmtree(cache_dir); cache_apagado = True
+                            except Exception as e: logger.warning('falha apagando cache ' + str(cache_dir) + ': ' + str(e))
+                        cur.execute('DELETE FROM gerador_compilados WHERE municipio=%s AND estado=%s AND zip_path LIKE %s', (bh['municipio'], bh['estado'], '%' + 'leg_' + md5 + '%'))
+                        cur.execute('DELETE FROM legislacao_processamentos WHERE municipio=%s AND estado=%s AND zip_md5=%s', (bh['municipio'], bh['estado'], md5))
+                except Exception as e: logger.warning('erro limpando cache: ' + str(e))
+            # 2. Apaga pasta do dossie
+            try: _sh_l.rmtree(leg['pasta_path'])
+            except Exception as e: logger.warning('falha apagando pasta ' + str(leg['pasta_path']) + ': ' + str(e))
+        # 3. Apaga linha em dossie_legislacoes_pasta
+        cur.execute('DELETE FROM dossie_legislacoes_pasta WHERE id=%s', (leg_id,))
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({'success': True, 'cache_pipeline_apagado': cache_apagado})
+    except Exception as e:
+        import traceback
+        logger.error('erro apagar legislacao ' + str(leg_id) + ': ' + traceback.format_exc()[:1000])
+        return jsonify({'success': False, 'error': str(e)[:300]}), 500
+
+
 @app.route('/api/dossie/dossie/<int:dossie_id>', methods=['DELETE'])
 @login_required
 def api_dossie_apagar_dossie(dossie_id):

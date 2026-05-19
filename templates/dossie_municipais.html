@@ -537,8 +537,11 @@ async function dossieToggleDossieLegs(buscaId, munId) {
         ? '<a href="' + leg.pdf_url + '" download style="font-size:11px;color:var(--accent);text-decoration:none;border:1px solid var(--accent);padding:3px 8px;border-radius:5px" onclick="event.stopPropagation()">📄 PDF (' + leg.n_paginas + 'p)</a>'
         : '';
       const gerBtn = '<button onclick="event.stopPropagation();dossieEnviarLegGerador(' + leg.busca_id + ', \'' + leg.label + '\', \'' + ((leg.tipo||'') + ' ' + (leg.numero||'') + '/' + (leg.ano||'')).replace(/\'/g, "\\\'") + '\')" title="Enviar esta lei pro Gerador de Planilha" style="font-size:11px;color:#9b8ed7;background:rgba(155,89,182,.08);border:1px solid rgba(155,89,182,.3);padding:3px 8px;border-radius:5px;cursor:pointer;margin-right:4px">📊 Gerador</button>';
+      const isSelLeg = window._legsSel && window._legsSel.has(leg.id);
       return '<div style="border-top:1px solid var(--border)">'
-        + '<div onclick="dossieToggleLegArquivos(' + leg.id + ')" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer">'
+        + '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px">'
+        +   '<input type="checkbox" ' + (isSelLeg?'checked':'') + ' onclick="event.stopPropagation();dossieToggleLegSel(' + leg.id + ',' + leg.busca_id + ',\'' + (leg.label||'').replace(/\'/g,"\\\'") + '\',\'' + (((leg.tipo||"") + " " + (leg.numero||"") + "/" + (leg.ano||"")) || "").replace(/\'/g,"\\\'") + '\')" style="accent-color:var(--accent);cursor:pointer;width:16px;height:16px;flex-shrink:0">'
+        +   '<div onclick="dossieToggleLegArquivos(' + leg.id + ')" style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1">'
         +   '<span id="caret-leg-' + leg.id + '" style="font-size:11px;color:var(--muted)">▸</span>'
         +   '<div style="flex:1">'
         +     '<div style="font-size:13px;font-weight:600">⚖️ ' + (leg.tipo || '') + ' ' + (leg.numero || '') + '/' + (leg.ano || '') + '</div>'
@@ -550,7 +553,7 @@ async function dossieToggleDossieLegs(buscaId, munId) {
         +   '</div>'
         +   gerBtn
         +   pdfBtn
-        + '</div>'
+        + '</div></div>'
         + '<div id="leg-arquivos-' + leg.id + '" style="display:none;background:rgba(255,255,255,.02)"></div>'
         + '</div>';
     }).join('');
@@ -828,6 +831,60 @@ async function dossieEnviarTodasGerador(buscaId, totalLegs) {
   } catch(e) {
     alert('❌ Erro de rede: ' + e.message);
   }
+}
+
+window._legsSel = new Map();
+function dossieToggleLegSel(legId, buscaId, label, titulo) {
+  if (window._legsSel.has(legId)) window._legsSel.delete(legId);
+  else window._legsSel.set(legId, {busca_id: buscaId, label: label, titulo: titulo});
+  dossieAtualizarToolbarLegs();
+}
+function dossieAtualizarToolbarLegs() {
+  let tb = document.getElementById('dossie-toolbar-legs');
+  if (!tb) {
+    tb = document.createElement('div');
+    tb.id = 'dossie-toolbar-legs';
+    tb.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid #9b59b6;border-radius:8px;padding:10px 16px;display:flex;gap:8px;align-items:center;box-shadow:0 4px 16px rgba(0,0,0,.4);z-index:101';
+    document.body.appendChild(tb);
+  }
+  const n = window._legsSel.size;
+  if (n === 0) { tb.style.display = 'none'; return; }
+  tb.style.display = 'flex';
+  tb.innerHTML = '<span style="color:#9b59b6;font-weight:700;font-size:12px">' + n + ' lei(s)</span>'
+    + '<button onclick="dossieApagarLegsSel()" style="padding:5px 10px;border-radius:5px;background:rgba(231,76,60,.1);color:#e74c3c;border:1px solid rgba(231,76,60,.3);font-size:11px;font-weight:600;cursor:pointer">\u{1F5D1} Apagar</button>'
+    + '<button onclick="dossieEnviarLegsSelGerador()" style="padding:5px 10px;border-radius:5px;background:rgba(155,89,182,.12);color:#9b59b6;border:1px solid rgba(155,89,182,.3);font-size:11px;font-weight:600;cursor:pointer">\u{1F4CA} Enviar Gerador</button>';
+}
+async function dossieApagarLegsSel() {
+  const n = window._legsSel.size;
+  if (!n) return;
+  if (!confirm('Apagar ' + n + ' lei(s) selecionada(s)?\n\nArquivos do disco + cache do pipeline serão removidos.')) return;
+  let ok = 0, fail = 0;
+  for (const [legId, info] of window._legsSel) {
+    try {
+      const r = await fetch('/api/dossie/legislacao/' + legId, {method:'DELETE'});
+      const j = await r.json();
+      if (j.success) ok++; else fail++;
+    } catch(e) { fail++; }
+  }
+  window._legsSel.clear();
+  alert('\u2705 ' + ok + ' apagada(s)' + (fail ? ' \u00b7 ' + fail + ' falha(s)' : ''));
+  setTimeout(() => window.location.reload(), 800);
+}
+async function dossieEnviarLegsSelGerador() {
+  const n = window._legsSel.size;
+  if (!n) return;
+  if (!confirm('Enviar ' + n + ' lei(s) pro Gerador de Planilha?\n\nCada lei vira um compilado separado no Gerador.')) return;
+  let ok = 0, fail = 0;
+  for (const [legId, info] of window._legsSel) {
+    try {
+      const r = await fetch('/api/dossie/enviar-gerador', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({busca_id: info.busca_id, legislacao_label: info.label})});
+      const j = await r.json();
+      if (j.success && j.total_enfileirados > 0) ok++; else fail++;
+    } catch(e) { fail++; }
+  }
+  window._legsSel.clear();
+  alert('\u2705 ' + ok + ' enviada(s) pro Gerador' + (fail ? ' \u00b7 ' + fail + ' falha(s)' : '') + '\n\nAcesse /gerador-planilha pra rodar a Etapa 5.');
+  setTimeout(() => window.location.reload(), 800);
 }
 
 async function dossieEnviarLegGerador(buscaId, label, tituloLei) {
