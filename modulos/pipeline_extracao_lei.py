@@ -1567,7 +1567,8 @@ def buscar_processamento_por_md5(municipio, estado_uf, zip_md5):
 
 
 def salvar_processamento(resultado_pipeline, legislacao_id=None,
-                         processado_por=None, log_callback=None):
+                         processado_por=None, log_callback=None,
+                         legislacao_label=None):
     """
     Salva o resultado do pipeline em legislacao_processamentos.
     
@@ -1619,8 +1620,8 @@ def salvar_processamento(resultado_pipeline, legislacao_id=None,
             INSERT INTO legislacao_processamentos
                 (legislacao_id, municipio, estado, resultado_json, metricas,
                  pipeline_versao, prompt_versao, sucesso, erro_etapa, erro_msg,
-                 zip_path, zip_md5, output_dir, processado_por)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 zip_path, zip_md5, output_dir, processado_por, legislacao_label)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """, (
             legislacao_id, municipio, estado_uf,
@@ -1633,6 +1634,7 @@ def salvar_processamento(resultado_pipeline, legislacao_id=None,
             zip_md5,
             metricas.get('output_dir'),
             processado_por,
+            legislacao_label,
         ))
         novo_id = cur.fetchone()[0]
         conn.commit()
@@ -1820,7 +1822,7 @@ def buscar_consolidado(municipio, estado_uf):
 
 def enfileirar_extracao(zip_path, municipio, estado_uf, legislacao_id=None,
                         usar_cache=True, consolidar_apos=True, ordem=0,
-                        criado_por=None):
+                        criado_por=None, legislacao_label=None):
     """
     Adiciona um item na fila_extracao para processamento em background.
     
@@ -1847,11 +1849,11 @@ def enfileirar_extracao(zip_path, municipio, estado_uf, legislacao_id=None,
         cur.execute("""
             INSERT INTO fila_extracao
                 (municipio, estado, zip_path, legislacao_id,
-                 usar_cache, consolidar_apos, ordem, criado_por)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                 usar_cache, consolidar_apos, ordem, criado_por, legislacao_label)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """, (municipio, estado_uf, zip_path, legislacao_id,
-              usar_cache, consolidar_apos, ordem, criado_por))
+              usar_cache, consolidar_apos, ordem, criado_por, legislacao_label))
         novo_id = cur.fetchone()[0]
         conn.commit()
         cur.close()

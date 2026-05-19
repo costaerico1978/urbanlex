@@ -714,11 +714,19 @@ function gpRenderCompilados(){
       }).join('');
       const dataDossie = dos.dossie_criado_em || 'sem data';
       const nLeis = dos.entradas_idx.length;
+      // Estado checkbox dossie: quantos dos seus ids estao selecionados?
+      const eis = dos.entradas_idx;
+      const selDosN = eis.filter(ei => g._selIdxs.includes(ei)).length;
+      const dosChecked = eis.length > 0 && selDosN === eis.length;
+      const dosIndet = selDosN > 0 && selDosN < eis.length;
       return '<div style="margin-top:8px;">' +
-        '<div onclick="gpToggleDossie(' + gi + ',' + di + ')" style="cursor:pointer;padding:6px 10px;background:rgba(155,89,182,.08);border-radius:4px;font-size:11px;display:flex;align-items:center;gap:8px;">' +
-          '<span style="font-size:10px;color:var(--muted);">' + (isAbertoDossie ? '▼' : '▶') + '</span>' +
+        '<div style="padding:6px 10px;background:rgba(155,89,182,.08);border-radius:4px;font-size:11px;display:flex;align-items:center;gap:8px;">' +
+          '<input type="checkbox" ' + (dosChecked?'checked':'') + ' ref="' + (dosIndet?'indet':'') + '" onclick="event.stopPropagation();gpToggleDossieSel(' + gi + ',' + di + ')" style="accent-color:var(--accent);cursor:pointer;width:16px;height:16px;flex-shrink:0;" title="Selecionar todas leis do dossie">' +
+          '<div onclick="gpToggleDossie(' + gi + ',' + di + ')" style="cursor:pointer;flex:1;min-width:0;display:flex;align-items:center;gap:8px;">' +
+          '<span style="font-size:10px;color:var(--muted);flex-shrink:0;">' + (isAbertoDossie ? '▼' : '▶') + '</span>' +
           '<span style="font-weight:600;color:#9b8ed7;">📑 Dossiê ' + dataDossie + '</span>' +
           '<span style="color:var(--muted);font-size:10px;">· ' + nLeis + ' lei(s)</span>' +
+          '</div>' +
         '</div>' +
         '<div style="display:' + (isAbertoDossie?'block':'none') + ';">' + legsHtml + '</div>' +
       '</div>';
@@ -747,6 +755,20 @@ function gpRenderCompilados(){
   setTimeout(() => {
     document.querySelectorAll('input[type="checkbox"][ref="indet"]').forEach(cb => { cb.indeterminate = true; });
   }, 0);
+}
+function gpToggleDossieSel(gi, di) {
+  const g = _gpCompilados[gi];
+  if (!g || !g.dossies_arr || !g.dossies_arr[di]) return;
+  const eis = g.dossies_arr[di].entradas_idx;
+  const todosSel = eis.every(ei => g._selIdxs.includes(ei));
+  if (todosSel) {
+    // Desmarca todos do dossie
+    g._selIdxs = g._selIdxs.filter(ei => !eis.includes(ei));
+  } else {
+    // Marca todos do dossie (sem duplicar)
+    eis.forEach(ei => { if (!g._selIdxs.includes(ei)) g._selIdxs.push(ei); });
+  }
+  gpRenderCompilados();
 }
 function gpToggleDossie(gi, di){
   const g = _gpCompilados[gi];
@@ -1375,7 +1397,7 @@ async function gpCarregarJsonsGerados() {
         html += '<span>' + j.processado_em + ' · custo $' + (j.custo_total||0).toFixed(2) + ' · ' + Math.round(j.tempo_total) + 's</span>';
         html += '<div style="display:flex;gap:4px;">';
         if (j.web_url) {
-          html += '<a href="' + j.web_url + '" download="' + j.filename + '" style="padding:3px 8px;border-radius:4px;background:rgba(0,229,160,.15);color:var(--accent);border:1px solid rgba(0,229,160,.3);text-decoration:none;">⬇ Baixar</a>';
+          html += '<a href="/api/gerador/json/download/' + j.id + '" download style="padding:3px 8px;border-radius:4px;background:rgba(0,229,160,.15);color:var(--accent);border:1px solid rgba(0,229,160,.3);text-decoration:none;">⬇ Baixar</a>';
           html += '<a href="' + j.web_url + '" target="_blank" style="padding:3px 8px;border-radius:4px;background:rgba(155,89,182,.12);color:#9b8ed7;border:1px solid rgba(155,89,182,.3);text-decoration:none;">👁 Ver</a>';
         } else { html += '<span style="color:#e74c3c;">arquivo nao encontrado</span>'; }
         html += '</div></div></div></div>';

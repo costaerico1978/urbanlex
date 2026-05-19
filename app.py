@@ -8084,6 +8084,72 @@ def api_gerador_jsons_gerados_excluir():
         return jsonify({'success': False, 'error': str(e)[:300]}), 500
 
 
+@app.route('/api/gerador/json/download/<int:proc_id>')
+@login_required
+def api_gerador_json_download(proc_id):
+    """Baixa resultado_final.json com filename customizado (tipo_numero_ano)."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT lp.id, lp.municipio, lp.estado, lp.legislacao_label, lp.output_dir, lp.processado_em,
+                   l.tipo_nome, l.numero AS lei_numero, l.ano AS lei_ano,
+                   dlp.legislacao_meta::text AS dlp_meta_json
+            FROM legislacao_processamentos lp
+            LEFT JOIN legislacoes l ON l.id = lp.legislacao_id
+            LEFT JOIN buscas_historico bh
+                ON LOWER(bh.municipio) = LOWER(lp.municipio)
+                AND bh.estado = lp.estado
+            LEFT JOIN dossie_legislacoes_pasta dlp
+                ON dlp.busca_historico_id = bh.id
+                AND dlp.legislacao_label = lp.legislacao_label
+            WHERE lp.id = %s
+        """, (proc_id,))
+        r = cur.fetchone()
+        cur.close(); conn.close()
+        if not r:
+            return jsonify({'success': False, 'error': 'nao encontrado'}), 404
+        # Monta filename (mesma logica de jsons-gerados)
+        tipo = (r.get('tipo_nome') or '').replace(' ', '')
+        numero = (r.get('lei_numero') or '').replace('/', '-')
+        ano = str(r.get('lei_ano') or '')
+        if (not tipo or not numero or not ano) and r.get('dlp_meta_json'):
+            try:
+                import json as _json
+                meta = _json.loads(r['dlp_meta_json'])
+                if not tipo:
+                    t = (meta.get('tipo') or '').strip()
+                    if 'Complementar' in t: tipo = 'LC'
+                    elif 'Decreto' in t: tipo = 'Dec'
+                    elif t: tipo = t.replace(' ', '')
+                if not numero: numero = str(meta.get('numero') or '').replace('/', '-').replace('.', '')
+                if not ano: ano = str(meta.get('ano') or '')
+            except Exception:
+                pass
+        if (not tipo or not numero or not ano) and r.get('legislacao_label'):
+            parts = r['legislacao_label'].split('_')
+            if len(parts) >= 3:
+                if not tipo: tipo = parts[0]
+                if not numero: numero = parts[1]
+                if not ano: ano = parts[2]
+        tipo = tipo or 'Lei'; numero = numero or '?'; ano = ano or '?'
+        mun_safe = (r['municipio'] or '').replace(' ', '-').replace('/', '-')
+        estado = r['estado'] or '?'
+        dt = r['processado_em']
+        data_str = dt.strftime('%d%m%Y_%H%M') if dt else '?'
+        filename = f"Extracao_{estado}_{mun_safe}_{tipo}_{numero}_{ano}_{data_str}.json"
+        # Path do arquivo
+        output_dir = r.get('output_dir') or ''
+        json_path = os.path.join(output_dir, 'resultado_final.json')
+        if not os.path.exists(json_path):
+            return jsonify({'success': False, 'error': 'arquivo nao existe no disco'}), 404
+        from flask import send_file
+        return send_file(json_path, as_attachment=True, download_name=filename, mimetype='application/json')
+    except Exception as e:
+        import traceback; logger.error('json_download: ' + traceback.format_exc()[:500])
+        return jsonify({'success': False, 'error': str(e)[:200]}), 500
+
+
 @app.route('/api/gerador/jsons-gerados')
 @login_required
 def api_gerador_jsons_gerados():
@@ -8111,14 +8177,37 @@ def api_gerador_jsons_gerados():
             if key not in grupos:
                 grupos[key] = {'municipio': r['municipio'], 'estado': r['estado'], 'jsons': []}
             
-            # Monta nome do arquivo
-            tipo = (r.get('tipo_nome') or 'Lei').replace(' ', '')
-            numero = (r.get('lei_numero') or '?').replace('/', '-')
-            ano = r.get('lei_ano') or '?'
-            
-            # Se nao tem dados de legislacao, tenta tirar do label
-            if (not r.get('tipo_nome') or not r.get('lei_numero')) and r.get('legislacao_label'):
-                tipo = r['legislacao_label']
+            # Monta nome: tabela legislacoes -> meta do dossie -> label parsing
+            tipo = (r.get('tipo_nome') or '').replace(' ', '')
+            numero = (r.get('lei_numero') or '').replace('/', '-')
+            ano = str(r.get('lei_ano') or '')
+            # Fallback 1: meta do dossie
+            if (not tipo or not numero or not ano) and r.get('dlp_meta_json'):
+                try:
+                    import json as _json
+                    meta = _json.loads(r['dlp_meta_json'])
+                    if not tipo:
+                        t = (meta.get('tipo') or '').strip()
+                        if 'Complementar' in t: tipo = 'LC'
+                        elif 'Decreto' in t: tipo = 'Dec'
+                        elif t: tipo = t.replace(' ', '')
+                    if not numero:
+                        numero = str(meta.get('numero') or '').replace('/', '-').replace('.', '')
+                    if not ano:
+                        ano = str(meta.get('ano') or '')
+                except Exception:
+                    pass
+            # Fallback 2: parsing do legislacao_label
+            if (not tipo or not numero or not ano) and r.get('legislacao_label'):
+                parts = r['legislacao_label'].split('_')
+                if len(parts) >= 3:
+                    if not tipo: tipo = parts[0]
+                    if not numero: numero = parts[1]
+                    if not ano: ano = parts[2]
+            # Defaults
+            tipo = tipo or 'Lei'
+            numero = numero or '?'
+            ano = ano or '?'
             
             mun_safe = (r['municipio'] or '').replace(' ', '-').replace('/', '-')
             estado = r['estado'] or '?'
@@ -8804,6 +8893,15 @@ def api_gerador_extrair_dados():
                 erros.append({'municipio': municipio, 'erro': f'ZIP nao encontrado: {zip_path}'})
                 continue
             
+            # Resolve legislacao_label a partir do zip_path em gerador_compilados
+            leg_label_lookup = None
+            try:
+                _c2 = get_db().cursor()
+                _c2.execute('SELECT legislacao_label FROM gerador_compilados WHERE zip_path=%s LIMIT 1', (zip_path,))
+                _r2 = _c2.fetchone()
+                if _r2 and _r2[0]: leg_label_lookup = _r2[0]
+                _c2.close()
+            except Exception as _e_lk: logger.warning('lookup legislacao_label falhou: ' + str(_e_lk))
             item_id = _enfileirar_extracao(
                 zip_path=zip_path,
                 municipio=municipio,
@@ -8811,6 +8909,7 @@ def api_gerador_extrair_dados():
                 usar_cache=(not forcar_repr),
                 consolidar_apos=True,
                 criado_por=session.get('user_id'),
+                legislacao_label=leg_label_lookup,
             )
             if item_id:
                 ids_enfileirados.append({'municipio': municipio, 'estado': estado, 'fila_id': item_id})

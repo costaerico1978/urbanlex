@@ -24,6 +24,11 @@ USO:
 """
 
 import threading
+
+
+class PipelineCanceladoError(Exception):
+    pass
+
 import time
 import uuid
 import logging
@@ -162,14 +167,31 @@ def _processar_item(item, get_db):
         except Exception as _e:
             logger.warning(f"[{job_id}] falha ao gravar log no banco: {_e}")
     
+    _cancel_check = [0]
+    
+    def _checar_cancelamento():
+        try:
+            _c = get_db(); _cur = _c.cursor()
+            _cur.execute("SELECT status FROM fila_extracao WHERE id=%s", (item_id,))
+            _row = _cur.fetchone()
+            _cur.close(); _c.close()
+            if _row and _row[0] == 'cancelado':
+                raise PipelineCanceladoError(f"Job {job_id} cancelado")
+        except PipelineCanceladoError:
+            raise
+        except Exception as _e_cancel:
+            logger.warning(f"[{job_id}] erro check cancel: {_e_cancel}")
+    
     try:
-        # Callback de log: stdout + banco + progresso_atual
+        # Callback de log + check cancelamento periodico
         def log_cb(msg):
             logger.info(f"[{job_id}] {msg}")
-            _gravar_log_banco(msg)  # grava TODA linha em buscas_logs (Opcao B)
-            # Atualiza progresso visivel na fila apenas em etapas importantes
+            _gravar_log_banco(msg)
             if 'ETAPA' in msg or 'CACHE HIT' in msg or 'CONCLU' in msg:
                 _atualizar_progresso(get_db, item_id, msg)
+            _cancel_check[0] += 1
+            if _cancel_check[0] % 5 == 0:
+                _checar_cancelamento()
         
         # Roda pipeline completo
         resultado = processar_municipio(
@@ -208,6 +230,7 @@ def _processar_item(item, get_db):
             legislacao_id=item.get('legislacao_id'),
             processado_por=item.get('criado_por'),
             log_callback=lambda m: logger.info(f"[{job_id}] {m}"),
+            legislacao_label=item.get('legislacao_label'),
         )
         
         # Consolida se solicitado
@@ -238,6 +261,15 @@ def _processar_item(item, get_db):
         logger.info(f"[{job_id}] CONCLUÍDO ({resultado['metricas']['tempo_total']:.0f}s, "
                    f"${resultado['metricas']['custo_total']:.2f})")
     
+    except PipelineCanceladoError as _cancel_e:
+        logger.info(f"[{job_id}] CANCELADO: {_cancel_e}")
+        try:
+            _conn_c = get_db(); _cur_c = _conn_c.cursor()
+            _cur_c.execute("UPDATE fila_extracao SET concluido_em=NOW(), progresso_atual='Cancelado pelo operador' WHERE id=%s AND status='cancelado'", (item_id,))
+            _conn_c.commit(); _cur_c.close(); _conn_c.close()
+        except Exception:
+            pass
+        return
     except Exception as e:
         logger.exception(f"[{job_id}] Erro inesperado")
         try:
