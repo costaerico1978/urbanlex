@@ -124,13 +124,13 @@
     <div class="gp-card-title"><span class="num">3</span> Prompt da Análise</div>
     <div class="gp-help">Use o campo de texto OU selecione um prompt salvo.</div>
     <div class="gp-source-toggle">
-      <div class="gp-source-tab active" onclick="gpAlternarFonte('texto',this)">✍️ Digitar prompt</div>
-      <div class="gp-source-tab" onclick="gpAlternarFonte('arquivo',this)">📁 Usar arquivo da lista</div>
+      <div class="gp-source-tab" onclick="gpAlternarFonte('texto',this)">✍️ Digitar prompt</div>
+      <div class="gp-source-tab active" onclick="gpAlternarFonte('arquivo',this)">📁 Usar arquivo da lista</div>
     </div>
-    <div id="gp-modo-texto">
+    <div id="gp-modo-texto" style="display:none;">
       <textarea class="gp-prompt-ta" id="gp-prompt">Analise todos os documentos fornecidos e preencha a planilha Excel com os parâmetros urbanísticos de cada zona identificada. Para cada zona extraia: nome/código, taxa de ocupação, coeficiente de aproveitamento básico e máximo, taxa de permeabilidade, gabarito máximo, recuos mínimos e uso permitido. Caso algum parâmetro não esteja definido, indique "NI".</textarea>
     </div>
-    <div id="gp-modo-arquivo" style="display:none;">
+    <div id="gp-modo-arquivo">
       <div class="gp-prompts-toolbar">
         <label class="gp-mini" style="cursor:pointer;">
           📤 Adicionar arquivo
@@ -678,8 +678,8 @@ function gpRenderCompilados(){
       const dataCriado = e.criado_em || '';
       const autor = e.criado_por_nome || '';
       const btnDel = isAdmin ? '<button class="gp-mini" onclick="gpExcluirEntrada(event,' + e.id + ')" style="margin-left:8px;color:#e74c3c;">🗑</button>' : '';
-      return '<div onclick="gpToggleEntrada(' + gi + ',' + ei + ')" style="cursor:pointer;padding:6px 10px;border:1px solid var(--border);border-radius:4px;margin-top:4px;font-size:11px;display:flex;align-items:center;gap:6px;' + sel + '">' +
-        '<input type="checkbox" ' + (isSel?'checked':'') + ' style="accent-color:var(--accent);">' +
+      return '<div onclick="gpToggleEntrada(' + gi + ',' + ei + ')" style="cursor:pointer;padding:8px 10px;border:1px solid var(--border);border-radius:4px;margin-top:4px;font-size:11px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;' + sel + '">' +
+        '<input type="checkbox" ' + (isSel?'checked':'') + ' style="accent-color:var(--accent);width:16px;height:16px;flex-shrink:0;">' +
         '<span style="color:var(--muted);">' + dataCriado + '</span>' +
         (autor ? '<span style="color:var(--muted);">· ' + autor + '</span>' : '') +
         (e.zip_path ? '<span style="color:#7c6af7;">📦</span>' : '') +
@@ -694,6 +694,7 @@ function gpRenderCompilados(){
         (g._selIdxs && g._selIdxs.length ? '<span style="font-size:10px;padding:2px 7px;border-radius:5px;background:rgba(0,229,160,.15);color:var(--accent);font-weight:600;">' + g._selIdxs.length + ' selecionado(s)</span>' : '') +
         '<span style="margin-left:auto;font-size:11px;color:var(--muted);">' + (g.entradas||[]).length + ' compilado(s)</span>' +
         ((g.entradas||[]).length > 1 ? '<button onclick="event.stopPropagation();gpToggleTodos(' + gi + ')" style="margin-left:8px;font-size:10px;padding:3px 8px;background:rgba(0,229,160,.12);color:var(--accent);border:1px solid rgba(0,229,160,.3);border-radius:4px;cursor:pointer;">' + ((g._selIdxs && g._selIdxs.length === (g.entradas||[]).length) ? '☐ Desmarcar todos' : '☑ Selecionar todos') + '</button>' : '') +
+        ((g._selIdxs && g._selIdxs.length > 0) ? '<button onclick="event.stopPropagation();gpApagarSelMun(' + gi + ')" style="margin-left:6px;font-size:10px;padding:3px 8px;background:rgba(231,76,60,.12);color:#e74c3c;border:1px solid rgba(231,76,60,.3);border-radius:4px;cursor:pointer;">🗑 Apagar (' + g._selIdxs.length + ')</button>' : '') +
       '</div>' +
       '<div id="gpacc-' + gi + '" style="display:' + (g._aberto?'block':'none') + ';">' + entradas + '</div>' +
     '</div>';
@@ -717,6 +718,24 @@ function gpToggleTodos(gi){
   gpRenderCompilados();
 }
 function gpSelEntrada(gi, ei){ gpToggleEntrada(gi, ei); }
+async function gpApagarSelMun(gi) {
+  const g = _gpCompilados[gi];
+  if (!g || !g._selIdxs || !g._selIdxs.length) return;
+  const n = g._selIdxs.length;
+  if (!confirm('Apagar ' + n + ' compilado(s) de ' + g.municipio + ' / ' + g.estado + '?\n\nIsso remove os registros e o cache do pipeline.')) return;
+  const ids = g._selIdxs.map(ei => g.entradas[ei] && g.entradas[ei].id).filter(Boolean);
+  let ok = 0, fail = 0;
+  for (const id of ids) {
+    try {
+      const r = await fetch('/api/gerador/compilados/' + id, {method:'DELETE'});
+      const d = await r.json();
+      if (d.success) ok++; else fail++;
+    } catch(e) { fail++; }
+  }
+  gpToast('✅ ' + ok + ' apagado(s)' + (fail ? ' · ' + fail + ' falha(s)' : ''));
+  g._selIdxs = [];
+  gpCarregarCompiladosServer();
+}
 async function gpExcluirEntrada(ev, id){
   ev.stopPropagation();
   if(!confirm('Excluir este compilado?')) return;
