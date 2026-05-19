@@ -116,9 +116,17 @@ def preparar_work_dir_pipeline(dossie_id: int, busca_historico_id: int,
     # 2. Determina work_dir do pipeline
     # ───────────────────────────────────────────────────────────────
     slug = _slug_municipio(municipio, estado)
-    work_dir = os.path.join(PIPELINES_BASE_DIR, slug)
+    # Calcula MD5 do pdf_concatenado pra cache por legislacao (alinha com commit e021f38)
+    import hashlib as _hl
+    src_concat_path = os.path.join(pasta_dossie, 'pdf_concatenado.pdf')
+    if not os.path.exists(src_concat_path):
+        _log(f"ERRO: pdf_concatenado.pdf nao existe em {pasta_dossie}")
+        return None
+    with open(src_concat_path, 'rb') as _f_md5:
+        zip_md5 = _hl.md5(_f_md5.read()).hexdigest()[:12]
+    work_dir = os.path.join(PIPELINES_BASE_DIR, slug, f'leg_{zip_md5}')
     os.makedirs(work_dir, exist_ok=True)
-    _log(f"Work dir do pipeline: {work_dir}")
+    _log(f"Work dir do pipeline: {work_dir} (md5={zip_md5})")
     
     # ───────────────────────────────────────────────────────────────
     # 3. Copia arquivos: pdf_concatenado.pdf -> tudo.pdf (Etapa 1)
