@@ -5805,12 +5805,12 @@ def api_dossie_enviar_gerador():
                 
                 conn = get_db(); cur = conn.cursor()
                 cur.execute('''
-                    INSERT INTO gerador_compilados 
-                      (job_id, municipio, estado, zip_path, tabela_path, criado_por, criado_por_nome)
-                    VALUES (%s, %s, %s, %s, NULL, %s, %s)
+                    INSERT INTO gerador_compilados
+                      (job_id, municipio, estado, zip_path, tabela_path, criado_por, criado_por_nome, legislacao_label, busca_historico_id)
+                    VALUES (%s, %s, %s, %s, NULL, %s, %s, %s, %s)
                     RETURNING id
-                ''', (novo_job_id, municipio, estado, zip_path_efetivo, 
-                      session.get('user_id'), user_name))
+                ''', (novo_job_id, municipio, estado, zip_path_efetivo,
+                      session.get('user_id'), user_name, label, busca_id))
                 comp_row = cur.fetchone()
                 conn.commit(); cur.close(); conn.close()
                 
@@ -6515,14 +6515,32 @@ def api_gerador_compilados_listar():
     try:
         rows = qry("""
             SELECT gc.id, gc.job_id, gc.municipio, gc.estado, gc.zip_path, gc.tabela_path,
-                   gc.criado_em, gc.criado_por, gc.criado_por_nome
+                   gc.criado_em, gc.criado_por, gc.criado_por_nome,
+                   gc.legislacao_label, gc.busca_historico_id,
+                   dlp.legislacao_meta::text AS legislacao_meta_json,
+                   bh.iniciado_em AS dossie_criado_em
             FROM gerador_compilados gc
-            ORDER BY gc.municipio, gc.estado, gc.criado_em DESC
+            LEFT JOIN dossie_legislacoes_pasta dlp
+                ON dlp.busca_historico_id = gc.busca_historico_id
+                AND dlp.legislacao_label = gc.legislacao_label
+            LEFT JOIN buscas_historico bh
+                ON bh.id = gc.busca_historico_id
+            ORDER BY gc.municipio, gc.estado, gc.busca_historico_id NULLS LAST, gc.criado_em DESC
         """)
         from datetime import timedelta as _td
+        import json as _json
         for r in rows:
             if r.get('criado_em') and hasattr(r['criado_em'], 'strftime'):
                 r['criado_em'] = (r['criado_em'] - _td(hours=3)).strftime('%d/%m/%Y %H:%M')
+            if r.get('dossie_criado_em') and hasattr(r['dossie_criado_em'], 'strftime'):
+                r['dossie_criado_em'] = (r['dossie_criado_em'] - _td(hours=3)).strftime('%d/%m/%Y %H:%M')
+            # Parseia legislacao_meta (tipo, numero, ano, descricao)
+            if r.get('legislacao_meta_json'):
+                try: r['legislacao_meta'] = _json.loads(r['legislacao_meta_json'])
+                except: r['legislacao_meta'] = {}
+                r.pop('legislacao_meta_json', None)
+            else:
+                r['legislacao_meta'] = {}
         return jsonify({'success': True, 'data': rows or []})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
