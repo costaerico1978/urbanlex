@@ -618,7 +618,8 @@ async function gpBaixarPrompt(id, btn) {
     const d = await r.json();
     if (!d.success) { alert('Erro: ' + d.error); return; }
     const nome = (d.data.nome || ('prompt_' + id)).replace(/[^A-Za-z0-9_-]+/g, '_');
-    const blob = new Blob([d.data.conteudo || ''], {type: 'text/plain;charset=utf-8'});
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM, d.data.conteudo || ''], {type: 'text/plain;charset=utf-8'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = nome + '.txt';
