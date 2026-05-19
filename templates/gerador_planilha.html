@@ -589,6 +589,11 @@ async function gpCarregarPrompts(){
     const lista = document.getElementById('gp-prompts-list');
     if(!d.data.length){ lista.innerHTML = '<div style="padding:14px;text-align:center;font-size:12px;color:var(--muted);">Nenhum prompt salvo. Use Adicionar arquivo.</div>'; document.getElementById('gp-prompts-stats').textContent = ''; return; }
     let total = 0;
+    // Se nada selecionado ainda, marca o primeiro (mais recente) por default
+    if (!_gpPromptIdSelecionado && d.data.length > 0) {
+      _gpPromptIdSelecionado = d.data[0].id;
+      try { sessionStorage.setItem('gp_prompt_id', String(_gpPromptIdSelecionado)); } catch(e) {}
+    }
     lista.innerHTML = d.data.map(p => {
       total += p.tamanho_bytes || 0;
       const sel = p.id === _gpPromptIdSelecionado ? 'selected' : '';
@@ -600,10 +605,30 @@ async function gpCarregarPrompts(){
           '<div class="gp-prompt-preview">' + (p.preview||'').replace(/[<>&]/g,'') + '</div>' +
           '<div class="gp-prompt-meta">' + gpFmtBytes(p.tamanho_bytes) + ' · ' + gpFmtData(p.criado_em) + '</div>' +
         '</div>' +
+        '<button onclick="event.stopPropagation();gpBaixarPrompt(' + p.id + ', this)" title="Baixar como TXT" style="flex-shrink:0;padding:5px 9px;background:rgba(0,229,160,.12);color:var(--accent);border:1px solid rgba(0,229,160,.3);border-radius:5px;cursor:pointer;font-size:13px;">⬇</button>' +
       '</div>';
     }).join('');
     document.getElementById('gp-prompts-stats').textContent = d.data.length + ' arquivos · ' + gpFmtBytes(total);
   }catch(e){ console.warn(e); }
+}
+async function gpBaixarPrompt(id, btn) {
+  try {
+    if (btn) btn.disabled = true;
+    const r = await fetch('/api/prompts-salvos/' + id);
+    const d = await r.json();
+    if (!d.success) { alert('Erro: ' + d.error); return; }
+    const nome = (d.data.nome || ('prompt_' + id)).replace(/[^A-Za-z0-9_-]+/g, '_');
+    const blob = new Blob([d.data.conteudo || ''], {type: 'text/plain;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nome + '.txt';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    alert('Erro: ' + e.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 function gpSelecionarPrompt(id){
   _gpPromptIdSelecionado = id;
