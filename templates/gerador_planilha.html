@@ -664,29 +664,66 @@ async function gpExcluirPrompts(){
   }catch(e){ gpToast('Erro de rede', true); }
 }
 
+function _gpLegTitulo(e) {
+  // Monta titulo da legislacao a partir do meta ou label
+  const m = e.legislacao_meta || {};
+  if (m.tipo || m.numero) {
+    const num = m.numero || '';
+    const ano = m.ano || '';
+    return (m.tipo || 'Lei') + ' ' + num + (ano ? '/' + ano : '');
+  }
+  return (e.legislacao_label || '').replace(/_/g, ' ');
+}
+function _gpLegDesc(e) {
+  const m = e.legislacao_meta || {};
+  return (m.descricao || m.ementa || '').substring(0, 120);
+}
 function gpRenderCompilados(){
   const el = document.getElementById('gp-compilados');
   document.getElementById('gp-compilados-empty').style.display = _gpCompilados.length ? 'none' : 'block';
   const isAdmin = (window._gpUserRole === 'admin');
   el.innerHTML = _gpCompilados.map((g, gi) => {
-    const entradas = (g.entradas||[]).map((e, ei) => {
-      if (!Array.isArray(g._selIdxs)) {
-        g._selIdxs = (typeof g._selIdx === 'number') ? [g._selIdx] : [];
-      }
-      const isSel = g._selIdxs.includes(ei);
-      const sel = isSel ? 'background:rgba(0,229,160,.15);' : '';
-      const dataCriado = e.criado_em || '';
-      const autor = e.criado_por_nome || '';
-      const btnDel = isAdmin ? '<button class="gp-mini" onclick="gpExcluirEntrada(event,' + e.id + ')" style="margin-left:8px;color:#e74c3c;">🗑</button>' : '';
-      return '<div onclick="gpToggleEntrada(' + gi + ',' + ei + ')" style="cursor:pointer;padding:8px 10px;border:1px solid var(--border);border-radius:4px;margin-top:4px;font-size:11px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;' + sel + '">' +
-        '<input type="checkbox" ' + (isSel?'checked':'') + ' style="accent-color:var(--accent);width:16px;height:16px;flex-shrink:0;">' +
-        '<span style="color:var(--muted);">' + dataCriado + '</span>' +
-        (autor ? '<span style="color:var(--muted);">· ' + autor + '</span>' : '') +
-        (e.zip_path ? '<span style="color:#7c6af7;">📦</span>' : '') +
-        (e.tabela_path ? '<span style="color:#7c6af7;">📊</span>' : '') +
-        btnDel +
+    if (!Array.isArray(g._selIdxs)) {
+      g._selIdxs = (typeof g._selIdx === 'number') ? [g._selIdx] : [];
+    }
+    // Renderiza por DOSSIE (sub-agrupamento)
+    const dossies_arr = g.dossies_arr || [];
+    const dossiesHtml = dossies_arr.map((dos, di) => {
+      const isAbertoDossie = dos._aberto !== false; // padrao aberto
+      const legsHtml = dos.entradas_idx.map(ei => {
+        const e = g.entradas[ei];
+        const isSel = g._selIdxs.includes(ei);
+        const sel = isSel ? 'background:rgba(0,229,160,.15);' : '';
+        const titulo = _gpLegTitulo(e);
+        const desc = _gpLegDesc(e);
+        const dataCriado = e.criado_em || '';
+        const autor = e.criado_por_nome || '';
+        const btnDel = isAdmin ? '<button class="gp-mini" onclick="gpExcluirEntrada(event,' + e.id + ')" style="margin-left:auto;color:#e74c3c;flex-shrink:0;">🗑</button>' : '';
+        return '<div onclick="gpToggleEntrada(' + gi + ',' + ei + ')" style="cursor:pointer;padding:8px 10px;border:1px solid var(--border);border-radius:4px;margin-top:4px;margin-left:18px;font-size:11px;display:flex;align-items:flex-start;gap:8px;' + sel + '">' +
+          '<input type="checkbox" ' + (isSel?'checked':'') + ' onclick="event.stopPropagation();gpToggleEntrada(' + gi + ',' + ei + ')" style="accent-color:var(--accent);width:16px;height:16px;flex-shrink:0;margin-top:2px;">' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div style="font-weight:600;color:var(--text);">⚖️ ' + titulo + '</div>' +
+            (desc ? '<div style="color:var(--muted);font-size:10px;margin-top:2px;">' + desc + '</div>' : '') +
+            '<div style="color:var(--muted);font-size:10px;margin-top:3px;">envio: ' + dataCriado + (autor ? ' · ' + autor : '') +
+              (e.zip_path ? ' · 📦' : '') +
+              (e.tabela_path ? ' · 📊' : '') +
+            '</div>' +
+          '</div>' +
+          btnDel +
+        '</div>';
+      }).join('');
+      const dataDossie = dos.dossie_criado_em || 'sem data';
+      const nLeis = dos.entradas_idx.length;
+      return '<div style="margin-top:8px;">' +
+        '<div onclick="gpToggleDossie(' + gi + ',' + di + ')" style="cursor:pointer;padding:6px 10px;background:rgba(155,89,182,.08);border-radius:4px;font-size:11px;display:flex;align-items:center;gap:8px;">' +
+          '<span style="font-size:10px;color:var(--muted);">' + (isAbertoDossie ? '▼' : '▶') + '</span>' +
+          '<span style="font-weight:600;color:#9b8ed7;">📑 Dossiê ' + dataDossie + '</span>' +
+          '<span style="color:var(--muted);font-size:10px;">· ' + nLeis + ' lei(s)</span>' +
+        '</div>' +
+        '<div style="display:' + (isAbertoDossie?'block':'none') + ';">' + legsHtml + '</div>' +
       '</div>';
     }).join('');
+    const entradas = dossiesHtml;
     const totalEntr = (g.entradas||[]).length;
     const selN = (g._selIdxs||[]).length;
     const cbChecked = totalEntr > 0 && selN === totalEntr;
@@ -710,6 +747,12 @@ function gpRenderCompilados(){
   setTimeout(() => {
     document.querySelectorAll('input[type="checkbox"][ref="indet"]').forEach(cb => { cb.indeterminate = true; });
   }, 0);
+}
+function gpToggleDossie(gi, di){
+  const g = _gpCompilados[gi];
+  if (!g || !g.dossies_arr || !g.dossies_arr[di]) return;
+  g.dossies_arr[di]._aberto = g.dossies_arr[di]._aberto === false ? true : false;
+  gpRenderCompilados();
 }
 function gpToggleAcc(gi){ _gpCompilados[gi]._aberto = !_gpCompilados[gi]._aberto; gpRenderCompilados(); }
 function gpToggleEntrada(gi, ei){
@@ -777,14 +820,27 @@ async function gpCarregarCompiladosServer(){
     const r = await fetch('/api/gerador/compilados');
     const d = await r.json();
     if (!d.success) return;
-    // Agrupar por municipio/estado em accordion
+    // Agrupar por municipio/estado e SUB-agrupar por busca_historico_id (dossie)
     const grupos = {};
     for (const item of (d.data||[])) {
       const k = item.municipio + '||' + item.estado;
-      if (!grupos[k]) grupos[k] = { municipio: item.municipio, estado: item.estado, entradas: [] };
+      if (!grupos[k]) grupos[k] = { municipio: item.municipio, estado: item.estado, entradas: [], dossies: {} };
       grupos[k].entradas.push(item);
+      const bid = item.busca_historico_id || 0;
+      if (!grupos[k].dossies[bid]) {
+        grupos[k].dossies[bid] = {
+          busca_id: bid,
+          dossie_criado_em: item.dossie_criado_em || '',
+          entradas_idx: []
+        };
+      }
+      grupos[k].dossies[bid].entradas_idx.push(grupos[k].entradas.length - 1);
     }
     _gpCompilados = Object.values(grupos);
+    // Converte dossies de obj pra array ordenado
+    for (const g of _gpCompilados) {
+      g.dossies_arr = Object.values(g.dossies).sort((a,b) => (b.dossie_criado_em||'').localeCompare(a.dossie_criado_em||''));
+    }
     gpRenderCompilados();
   } catch(e) { console.error('gpCarregarCompiladosServer:', e); }
 }
