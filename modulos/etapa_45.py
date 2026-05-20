@@ -433,24 +433,26 @@ def _catalogar_com_match(anexos_pdf_path, fim_corpo, work_dir, lista_citados, lo
         except Exception:
             pass
     
-    # Se anexos > 100 pgs, manda so as 100 primeiras
-    if n_pg_anexos > 100:
-        if log_callback:
-            log_callback(f"Anexos tem {n_pg_anexos} pgs (>100), pegando as 100 primeiras")
-        import pypdf
-        anexos_pdf_uso = _os_c.path.join(work_dir, "anexos_100.pdf")
-        reader = pypdf.PdfReader(anexos_pdf_path)
+    # Divide anexos.pdf em chunks pra evitar estouro de tokens
+    # (anexos com muitas imagens estouram 200k tokens facilmente)
+    import pypdf
+    CHUNK_SIZE = 30
+    reader_full = pypdf.PdfReader(anexos_pdf_path)
+    chunks = []
+    n_chunks = (n_pg_anexos + CHUNK_SIZE - 1) // CHUNK_SIZE
+    for ci in range(n_chunks):
+        i_inicio = ci * CHUNK_SIZE
+        i_fim = min((ci + 1) * CHUNK_SIZE, n_pg_anexos)
+        chunk_path = _os_c.path.join(work_dir, f"anexos_chunk_{ci+1}.pdf")
         writer = pypdf.PdfWriter()
-        for i in range(100):
-            writer.add_page(reader.pages[i])
-        with open(anexos_pdf_uso, 'wb') as f:
+        for i in range(i_inicio, i_fim):
+            writer.add_page(reader_full.pages[i])
+        with open(chunk_path, 'wb') as f:
             writer.write(f)
-    else:
-        anexos_pdf_uso = anexos_pdf_path
-    
-    # PDF em base64
-    with open(anexos_pdf_uso, 'rb') as f:
-        pdf_b64 = base64.b64encode(f.read()).decode('ascii')
+        chunks.append({'path': chunk_path, 'offset': i_inicio,
+                       'pg_inicio': i_inicio + 1, 'pg_fim': i_fim})
+    if log_callback:
+        log_callback(f"Anexos tem {n_pg_anexos} pgs - dividindo em {n_chunks} chunk(s) de {CHUNK_SIZE}pgs")
     
     # Prompt expandido com lista_citados
     lista_str = '\n'.join(f'  - "{c}"' for c in lista_citados)
@@ -504,40 +506,71 @@ ATENCAO: paginas que voce ve no PDF comecam em 1. Retorne APENAS o JSON.
 {texto_anexos[:50000]}"""
     
     client = anthropic.Anthropic(api_key=_os_c.environ['ANTHROPIC_API_KEY'])
-    
+    # Processa em chunks
+    blocos_raw = []
+    tokens_in = 0
+    tokens_out = 0
+    custo = 0.0
+    for ci, ck in enumerate(chunks, start=1):
+        with open(ck['path'], 'rb') as fck:
+            pdf_b64 = base64.b64encode(fck.read()).decode('ascii')
+        if log_callback:
+            log_callback(f"Chunk {ci}/{len(chunks)} (pg {ck['pg_inicio']}-{ck['pg_fim']}): chamando Haiku 4.5...")
+        try:
+            resposta = ""
+            with client.messages.stream(
+                model=MODELO_HAIKU,
+                max_tokens=8000,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "document", "source": {
+                            "type": "base64", "media_type": "application/pdf", "data": pdf_b64
+                        }, "title": f"anexos_chunk_{ci}.pdf"},
+                        {"type": "text", "text": prompt},
+                    ]
+                }]
+            ) as stream:
+                for delta in stream.text_stream:
+                    resposta += delta
+                final = stream.get_final_message()
+            t_in = final.usage.input_tokens
+            t_out = final.usage.output_tokens
+            c = calcular_custo(t_in, t_out, 'haiku')
+            tokens_in += t_in
+            tokens_out += t_out
+            custo += c
+            if log_callback:
+                log_callback(f"  Chunk {ci}: tokens {t_in}->{t_out}, ${c:.4f}")
+            parsed = parse_json_robusto(resposta)
+            if not parsed or 'blocos' not in parsed:
+                if log_callback:
+                    log_callback(f"  AVISO chunk {ci}: JSON invalido, pulando")
+                continue
+            for b in parsed['blocos']:
+                try:
+                    b['inicio'] = int(b.get('inicio', 1)) + ck['offset']
+                    b['fim'] = int(b.get('fim', 1)) + ck['offset']
+                except Exception:
+                    pass
+                blocos_raw.append(b)
+        except Exception as e_ck:
+            if log_callback:
+                log_callback(f"  ERRO chunk {ci}: {str(e_ck)[:200]}")
+            continue
     if log_callback:
-        log_callback(f"Chamando Haiku 4.5 (catalogacao + match com {len(lista_citados)} citados)...")
-    
-    resposta = ""
-    with client.messages.stream(
-        model=MODELO_HAIKU,
-        max_tokens=8000,
-        messages=[{
-            "role": "user",
-            "content": [
-                {"type": "document", "source": {
-                    "type": "base64", "media_type": "application/pdf", "data": pdf_b64
-                }, "title": "anexos.pdf"},
-                {"type": "text", "text": prompt},
-            ]
-        }]
-    ) as stream:
-        for delta in stream.text_stream:
-            resposta += delta
-        final = stream.get_final_message()
-    
-    tokens_in = final.usage.input_tokens
-    tokens_out = final.usage.output_tokens
-    custo = calcular_custo(tokens_in, tokens_out, 'haiku')
-    
-    if log_callback:
-        log_callback(f"  tokens {tokens_in}->{tokens_out}, ${custo:.4f}")
-    
-    parsed = parse_json_robusto(resposta)
-    if not parsed or 'blocos' not in parsed:
-        raise RuntimeError(f"Haiku retornou JSON invalido: {resposta[:300]}")
-    
-    blocos_raw = parsed['blocos']
+        log_callback(f"Catalogacao total: {len(blocos_raw)} bloco(s) | tokens {tokens_in}->{tokens_out}, ${custo:.4f}")
+    visto = {}
+    for b in blocos_raw:
+        chave = (b.get('citado_como') or b.get('nome') or '').lower().strip()
+        if chave and chave in visto:
+            if b.get('inicio', 99999) < visto[chave].get('inicio', 99999):
+                visto[chave] = b
+        elif chave:
+            visto[chave] = b
+        else:
+            visto[id(b)] = b
+    blocos_raw = list(visto.values())
     
     # Soma fim_corpo nas paginas pra ficar consistente com PDF concatenado
     blocos = []
