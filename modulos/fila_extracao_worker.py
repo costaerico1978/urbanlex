@@ -231,6 +231,8 @@ def _processar_item(item, get_db):
             processado_por=item.get('criado_por'),
             log_callback=lambda m: logger.info(f"[{job_id}] {m}"),
             legislacao_label=item.get('legislacao_label'),
+            municipio=item.get('municipio'),
+            estado=item.get('estado'),
         )
         
         # Consolida se solicitado

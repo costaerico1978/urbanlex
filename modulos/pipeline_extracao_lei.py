@@ -1582,7 +1582,8 @@ def buscar_processamento_por_md5(municipio, estado_uf, zip_md5):
 
 def salvar_processamento(resultado_pipeline, legislacao_id=None,
                          processado_por=None, log_callback=None,
-                         legislacao_label=None):
+                         legislacao_label=None,
+                         municipio=None, estado=None):
     """
     Salva o resultado do pipeline em legislacao_processamentos.
     
@@ -1604,17 +1605,40 @@ def salvar_processamento(resultado_pipeline, legislacao_id=None,
     sucesso = resultado_pipeline.get('sucesso', False)
     metricas = resultado_pipeline.get('metricas', {})
     
-    # Determina municipio/estado a partir de metricas ou resultado
+    # Determina municipio/estado: prioridade param > resultado > metricas > slug
+    # do output_dir como ultimo recurso
+    municipio_param = municipio  # do parametro
+    estado_param = estado
     if sucesso:
         estado_extr = resultado_pipeline.get('resultado', {})
         leg = estado_extr.get('legislacao') or {}
-        municipio = leg.get('municipio') or metricas.get('municipio')
-        estado_uf = leg.get('estado') or metricas.get('estado')
     else:
         rp = resultado_pipeline.get('resultado_parcial', {}) or {}
         leg = rp.get('legislacao') or {}
-        municipio = leg.get('municipio')
-        estado_uf = leg.get('estado')
+    municipio = (municipio_param 
+                 or leg.get('municipio') 
+                 or metricas.get('municipio'))
+    estado_uf = (estado_param 
+                 or leg.get('estado') 
+                 or metricas.get('estado'))
+    # Fallback final: parse do output_dir (ex: /static/pipelines/Rio_de_Janeiro_RJ/...)
+    if (not municipio or not estado_uf) and metricas.get('output_dir'):
+        try:
+            import re as _re
+            od = metricas['output_dir']
+            m = _re.search(r'/pipelines/([^/]+)_([A-Z]{2})(?:/|$)', od)
+            if m:
+                if not municipio:
+                    municipio = m.group(1).replace('_', ' ')
+                if not estado_uf:
+                    estado_uf = m.group(2)
+        except Exception:
+            pass
+    # Se ainda nao tem, escreve de volta no JSON pra ficar consistente
+    if municipio and isinstance(leg, dict) and not leg.get('municipio'):
+        leg['municipio'] = municipio
+    if estado_uf and isinstance(leg, dict) and not leg.get('estado'):
+        leg['estado'] = estado_uf
     
     if not municipio or not estado_uf:
         _log("  ERRO: municipio ou estado não identificados no resultado", log_callback)
