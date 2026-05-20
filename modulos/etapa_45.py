@@ -484,6 +484,32 @@ Exemplos de match:
   - Bloco "GLOSSARIO - ANEXO G01" pode corresponder a "Anexo G01"
   - Bloco "Errata" provavelmente nao corresponde a nenhum (citado_como: null)
 
+═══ TRABALHO 3: CLASSIFICAR RELEVANCIA URBANISTICA ═══
+Pra CADA bloco catalogado, classifique a RELEVANCIA URBANISTICA dele:
+
+  - "ALTA": conteudo urbanistico CRITICO. Inclui:
+    * Tabelas de zoneamento (parametros por zona)
+    * Tabelas de uso e ocupacao do solo
+    * Mapas de zoneamento (com zonas identificadas)
+    * Quadros com gabaritos, taxa de ocupacao, coeficiente, recuos
+    * Parametros urbanisticos quantitativos
+
+  - "MEDIA": tem ALGUM conteudo urbanistico mas indireto. Inclui:
+    * Diretrizes/objetivos de politica urbana
+    * Hierarquia viaria sem parametros numericos
+    * Definicoes/glossarios urbanisticos
+    * Listas de empreendimentos/imoveis (APAC, ZEIS)
+
+  - "NULA": NAO tem conteudo urbanistico util. Inclui:
+    * Errata (correcoes textuais)
+    * Encerramento/assinatura
+    * Capa/sumario
+    * Indice de figuras
+    * Ilustracoes decorativas sem dados
+    * Texto puramente administrativo (vetos, prazos)
+
+REGRA DE OURO: na duvida entre MEDIA e NULA, escolha MEDIA (melhor processar do que perder).
+
 ═══ FORMATO DE RESPOSTA (JSON estrito) ═══
 
 {{
@@ -494,7 +520,9 @@ Exemplos de match:
       "inicio": 1,
       "fim": 2,
       "tipo": "anexo",
-      "citado_como": "Anexo 1.1"
+      "citado_como": "Anexo 1.1",
+      "relevancia": "ALTA",
+      "motivo_relevancia": "Mapa com zonas identificadas"
     }},
     ...
   ]

@@ -967,8 +967,14 @@ def _gerar_contexto(estado):
 
 
 def _prio_bloco(b):
-    """Define ordem de processamento dos blocos."""
+    """Define ordem de processamento dos blocos.
+    Retorna -1 pra blocos que devem ser pulados.
+    """
     nome = b['nome']
+    # Pula blocos classificados como NULA pela catalogacao Haiku
+    relev = (b.get('relevancia') or '').upper().strip()
+    if relev == 'NULA':
+        return -1
     if nome == 'corpo_lei': return -1  # ja processado na FASE 1A
     if nome == 'encerramento': return -1
     if 'errata' in nome.lower(): return 99  # errata por ultimo
@@ -1092,6 +1098,14 @@ Aplique o prompt v14 abaixo para gerar o JSON."""
     # ────────────────────────────────────────────────────────────────────────
     _log("  FASE 2: Processando demais blocos com contexto evolutivo", log_callback)
     
+    # Loga blocos pulados (relevancia NULA do Haiku)
+    pulados_nula = [b for b in blocos if (b.get('relevancia') or '').upper().strip() == 'NULA']
+    if pulados_nula:
+        _log(f"  Pulando {len(pulados_nula)} bloco(s) com relevancia=NULA (poupa Sonnet):", log_callback)
+        for pb in pulados_nula:
+            motivo = pb.get('motivo_relevancia', 'sem motivo')
+            _log(f"    - {pb['nome']} ({pb.get('titulo','?')[:60]}): {motivo}", log_callback)
+
     blocos_processar = sorted(
         [b for b in blocos if _prio_bloco(b) >= 0],
         key=_prio_bloco
