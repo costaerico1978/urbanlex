@@ -34,11 +34,11 @@ ETAPA 4 — CATALOGAÇÃO DOS ANEXOS                             [$0.20 | ~25s]
   errata, encerramento) com suas páginas iniciais e finais.
 
 ETAPA 5 — EXTRAÇÃO DE DADOS POR BLOCO                        [$1-3  | ~10-17min]
-  IA: Claude Sonnet 4.6 (contexto evolutivo + prompt v13)
+  IA: Claude Sonnet 4.6 (contexto evolutivo + prompt v14)
   Faz N chamadas sequenciais (uma por bloco), cada uma recebendo:
   - PDF do bloco + texto -layout
   - Contexto acumulado do que já foi descoberto
-  - Prompt v13 com regras de extração
+  - Prompt v14 com regras de extração
   
   FASE 1A: lê CORPO procurando usos permitidos por zona
   FASE 1B: se não achou no corpo, busca anexo com nome tipo
@@ -360,7 +360,7 @@ def calcular_custo(tokens_in, tokens_out, modelo='sonnet'):
 
 
 def carregar_prompt_v14():
-    """Carrega o prompt v13 do disco. Lança FileNotFoundError se não existir."""
+    """Carrega o prompt v14 do disco. Lança FileNotFoundError se não existir."""
     with open(PROMPT_V14_PATH, 'r', encoding='utf-8') as f:
         return f.read()
 
@@ -825,7 +825,7 @@ def _preparar_blocos(blocos, pdf_unico, texto_por_pg, work_dir, log_callback=Non
 def chamar_sonnet_extracao(pdf_path, texto_layout, prompt_extra, prompt_v14,
                            label, client, max_tokens=32000, log_callback=None):
     """
-    Chama Sonnet 4.6 com PDF + texto -layout + prompt evolutivo + prompt v13.
+    Chama Sonnet 4.6 com PDF + texto-layout + prompt evolutivo + prompt v14.
     
     Retorna: (texto_resposta, tempo, tokens_in, tokens_out) ou (None, 0, 0, 0) se erro
     """
@@ -836,7 +836,7 @@ def chamar_sonnet_extracao(pdf_path, texto_layout, prompt_extra, prompt_v14,
         prompt_extra
         + "\n\n=== TEXTO -LAYOUT ===\n"
         + texto_layout[:30000]
-        + "\n\n=== PROMPT V13 ===\n"
+        + "\n\n=== PROMPT V14 ===\n"
         + prompt_v14
     )
     
@@ -1029,7 +1029,7 @@ Voce esta vendo o CORPO da lei municipal. Sua tarefa principal:
 Os parametros detalhados podem estar em anexos separados.
 Concentre-se em USOS PERMITIDOS por zona.
 
-Aplique o prompt v13 abaixo para gerar o JSON."""
+Aplique o prompt v14 abaixo para gerar o JSON."""
     
     cache_corpo = os.path.join(work_dir, "etapa5_corpo.txt")
     if usar_cache and os.path.exists(cache_corpo) and os.path.getsize(cache_corpo) > 10000:
@@ -1626,7 +1626,7 @@ def salvar_processamento(resultado_pipeline, legislacao_id=None,
         """, (
             legislacao_id, municipio, estado_uf,
             Json(resultado_json), Json(metricas),
-            '1.0', 'v13',
+            '1.0', 'v14',
             sucesso,
             resultado_pipeline.get('erro_etapa'),
             resultado_pipeline.get('erro_msg'),

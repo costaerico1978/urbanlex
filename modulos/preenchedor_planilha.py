@@ -250,7 +250,7 @@ USO_BLOCO_INICIO = {
 # Offset dentro do bloco de uso → chave JSON em params_por_uso
 # offset = 0..21 (par = valor, ímpar = legislação)
 USO_PARAMS_OFFSET = [
-    # (offset_valor, chave_json_v13_ou_None_se_so_no_v14)
+    # (offset_valor, chave_json_v14)
     (0,  None),                            # Coef. aproveitamento basico (v14)
     (2,  None),                            # Coef. aproveitamento maximo (v14)
     (4,  None),                            # Tx. ocupacao basica (v14)
@@ -443,8 +443,8 @@ def preencher_g4_params_por_uso(ws, linha, zona_dados, usos_reconh, fonte_geral)
             continue
         # Caso 3: uso permitido (SIM/CONDICIONADO) - preenche valor real ou NI
         uso_params = ppu.get(uso, {})
-        for off, chave_v13 in USO_PARAMS_OFFSET:
-            v = uso_params.get(chave_v13) if chave_v13 else None
+        for off, chave_v14 in USO_PARAMS_OFFSET:
+            v = uso_params.get(chave_v14) if chave_v14 else None
             if v and isinstance(v, dict) and v.get('valor') not in (None, '', 'None'):
                 _set_par(ws, linha, col_inicio + off, v, fonte_geral)
             else:
