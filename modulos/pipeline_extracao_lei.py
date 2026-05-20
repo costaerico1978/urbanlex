@@ -117,7 +117,7 @@ except ImportError:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Caminhos
-PROMPT_V13_PATH = "/var/www/urbanlex/prompts/prompt_v13.md"
+PROMPT_V13_PATH = "/var/www/urbanlex/prompts/prompt_v14.md"  # default: v14
 PIPELINES_BASE_DIR = "/var/www/urbanlex/static/pipelines"
 
 # Modelos

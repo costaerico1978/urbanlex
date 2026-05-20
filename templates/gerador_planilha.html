@@ -99,8 +99,10 @@
 </style>
 
 <div class="gp-tabs">
-  <button class="gp-tab-btn active" onclick="gpTrocarTab('gerador',this)">⚙️ Gerador</button>
+  <button class="gp-tab-btn active" onclick="gpTrocarTab('gerador',this)">⚙️ Extrator</button>
   <button class="gp-tab-btn" onclick="gpTrocarTab('historico',this)">📦 JSON Gerados</button>
+  <button class="gp-tab-btn" onclick="gpTrocarTab('preenchedor',this)">📋 Preenchedor</button>
+  <button class="gp-tab-btn" onclick="gpTrocarTab('xlsgerados',this)">📊 XLS Gerados</button>
 </div>
 
 <div class="gp-panel active" id="gp-tab-gerador">
@@ -302,6 +304,57 @@
   </div>
 </div>
 
+
+<!-- ════════════════════════════════════════════════════════════
+     ABA: PREENCHEDOR DE PLANILHA
+     ════════════════════════════════════════════════════════════ -->
+<div class="gp-panel" id="gp-tab-preenchedor">
+  <div class="gp-card">
+    <div class="gp-card-title"><span class="num">1</span> JSONs selecionados para consolidar</div>
+    <div id="pp-selecionados" style="font-size:13px;color:var(--muted);">
+      Nada selecionado. Vá à aba <b>JSON Gerados</b>, escolha um ou mais JSONs e clique em <b>Enviar Preenchedor</b>.
+    </div>
+  </div>
+
+  <div class="gp-card">
+    <div class="gp-card-title"><span class="num">2</span> Planilha base</div>
+    <div id="pp-bases" style="font-size:13px;text-align:left !important;"></div>
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+      <input type="file" id="pp-upload-input" accept=".xlsx,.xlsm" style="display:none;" onchange="ppUploadBase()">
+      <button class="btn btn-secondary" onclick="document.getElementById('pp-upload-input').click()">📁 Upload nova versão</button>
+      <button class="btn btn-secondary" onclick="ppApagarBase()">🗑 Apagar versão selecionada</button>
+    </div>
+  </div>
+
+  <div class="gp-card">
+    <div class="gp-card-title"><span class="num">3</span> Gerar planilha consolidada</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+      <button class="btn btn-primary" id="pp-btn-gerar" onclick="ppGerarPlanilha()">🥩 Gerar Planilha</button>
+      <span id="pp-status" style="font-size:13px;color:var(--muted);"></span>
+    </div>
+    <div id="pp-log" style="background:#0c0c0c;border:1px solid var(--border);border-radius:6px;padding:10px;font-family:monospace;font-size:12px;max-height:300px;overflow:auto;display:none;"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     ABA: XLS GERADOS
+     ════════════════════════════════════════════════════════════ -->
+<div class="gp-panel" id="gp-tab-xlsgerados">
+  <div class="gp-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div style="font-size:14px;font-weight:600;color:var(--accent);">📊 Planilhas Geradas</div>
+      <button class="btn btn-secondary" onclick="xgCarregar()">🔄 Atualizar</button>
+    </div>
+    <div id="xg-resumo" style="font-size:12px;color:var(--muted);margin-bottom:10px;"></div>
+    <div id="xg-toolbar" style="display:none;background:#1a1a1a;padding:8px;border-radius:6px;margin-bottom:10px;font-size:13px;">
+      <span id="xg-sel-count">0 selecionada(s)</span>
+      <button class="btn btn-secondary" style="margin-left:10px;" onclick="xgDownloadSel()">⬇ Baixar selecionadas</button>
+      <button class="btn btn-secondary" style="margin-left:6px;" onclick="xgApagarSel()">🗑 Apagar selecionadas</button>
+    </div>
+    <div id="xg-lista"></div>
+  </div>
+</div>
+
 <script>
 window._gpUserRole = '{{ "admin" if is_admin else "user" }}';
 let _gpPromptsEstrategia = {
@@ -477,8 +530,14 @@ function gpTrocarTab(tab, btn){
   document.getElementById('gp-tab-' + tab).classList.add('active');
   try { localStorage.setItem('gp_tab_atual', tab); } catch(e) {}
   if(tab === 'historico') {
-    gpCarregarHistorico();
     gpCarregarJsonsGerados();
+  }
+  if(tab === 'preenchedor') {
+    ppMostrarSelecionados();
+    ppCarregarBases();
+  }
+  if(tab === 'xlsgerados') {
+    xgCarregar();
   }
 }
 // Restaura aba salva no localStorage ao carregar
@@ -486,7 +545,6 @@ document.addEventListener('DOMContentLoaded', function() {
   try {
     const tab = localStorage.getItem('gp_tab_atual');
     if (tab && tab !== 'gerador') {
-      // Acha o botao da aba
       const btns = document.querySelectorAll('.gp-tab-btn');
       btns.forEach(b => {
         const onclickStr = b.getAttribute('onclick') || '';
@@ -495,7 +553,24 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       });
     }
-  } catch(e) {}
+    // Carrega o conteudo da aba ativa (mesmo se 'gerador' for o default)
+    const ativa = document.querySelector('.gp-panel.active');
+    if (ativa && ativa.id === 'gp-tab-historico') {
+      setTimeout(() => gpCarregarJsonsGerados(), 100);
+    }
+  } catch(e) { console.error('init:', e); }
+});
+
+// Captura erros JS nao tratados e mostra na tela
+window.addEventListener('error', function(e) {
+  const div = document.getElementById('gp-historico-content') || document.getElementById('gp-tab-historico');
+  if (div && !document.getElementById('gp-js-err')) {
+    const errBox = document.createElement('div');
+    errBox.id = 'gp-js-err';
+    errBox.style.cssText = 'background:#400;color:#fff;padding:10px;margin:10px;border-radius:6px;font-family:monospace;font-size:11px;';
+    errBox.textContent = 'JS ERROR: ' + (e.error ? e.error.message : e.message) + ' at line ' + e.lineno;
+    div.prepend(errBox);
+  }
 });
 
 async function gpCarregarIAs(){
@@ -899,12 +974,16 @@ function gpAdicionarComp(id, mun, est, zip, tabela){
 }
 let _gpPlanilhaBaseId = null;
 function gpPbModo(modo){
-  document.getElementById('gp-pb-lista').style.display = modo === 'lista' ? 'block' : 'none';
-  document.getElementById('gp-pb-novo').style.display = modo === 'novo' ? 'block' : 'none';
+  const lista = document.getElementById('gp-pb-lista');
+  const novo = document.getElementById('gp-pb-novo');
+  if (!lista || !novo) return;  // legado removido — funcao no-op
+  lista.style.display = modo === 'lista' ? 'block' : 'none';
+  novo.style.display = modo === 'novo' ? 'block' : 'none';
   // Limpar selecao quando troca de modo
   if (modo === 'lista') {
     _gpTemplateFile = null;
-    document.getElementById('gp-template-file').value = '';
+    const tf = document.getElementById('gp-template-file');
+    if (tf) tf.value = '';
     gpCarregarPlanilhasBase();
   } else {
     _gpPlanilhaBaseId = null;
@@ -1374,7 +1453,9 @@ async function gpCarregarJsonsGerados() {
     html += '<div style="font-size:11px;color:var(--muted);">' + d.total + ' JSON(s) em ' + d.grupos.length + ' municipio(s)</div>';
     html += '<div id="gpj-actions" style="display:flex;gap:6px;align-items:center;">';
     html += '<span id="gpj-sel-count" style="font-size:11px;color:var(--accent);font-weight:600;">' + window._gpJsonsSel.size + ' selecionado(s)</span>';
-    html += '<button onclick="gpJsonsExcluir()" id="gpj-btn-del" ' + (window._gpJsonsSel.size === 0 ? 'disabled' : '') + ' style="padding:4px 10px;border-radius:5px;background:rgba(231,76,60,.12);color:#e74c3c;border:1px solid rgba(231,76,60,.3);font-size:11px;font-weight:600;cursor:pointer;' + (window._gpJsonsSel.size === 0 ? 'opacity:0.4;' : '') + '">\u{1F5D1} Excluir selecionados</button>';
+    html += '<button onclick="gpJsonsEnviarPreenchedor()" id="gpj-btn-envpp" ' +
+(window._gpJsonsSel.size === 0 ? 'disabled' : '') + ' style="padding:4px 10px;border-radius:5px;background:rgba(0,229,160,.12);color:var(--accent);border:1px solid rgba(0,229,160,.3);font-size:11px;font-weight:600;cursor:pointer;margin-right:4px;' + (window._gpJsonsSel.size === 0 ? 'opacity:0.4;' : '') + '">📋 Enviar Preenchedor</button>';
+    html += '<button onclick="gpJsonsExcluir()" id="gpj-btn-del" ' + (window._gpJsonsSel.size === 0 ? 'disabled' : '') + ' style="padding:4px 10px;border-radius:5px;background:rgba(231,76,60,.12);color:#e74c3c;border:1px solid rgba(231,76,60,.3);font-size:11px;font-weight:600;cursor:pointer;' + (window._gpJsonsSel.size === 0 ? 'opacity:0.4;' : '') + '">🗑 Excluir selecionados</button>';
     html += '</div></div>';
     d.grupos.forEach((g, gi) => {
       const ids_grupo = g.jsons.map(j => j.id);
@@ -1439,6 +1520,11 @@ function gpJsonsAtualizarUI() {
   if (btn) {
     btn.disabled = sel.size === 0;
     btn.style.opacity = sel.size === 0 ? '0.4' : '1';
+  }
+  const btnPp = document.getElementById('gpj-btn-envpp');
+  if (btnPp) {
+    btnPp.disabled = sel.size === 0;
+    btnPp.style.opacity = sel.size === 0 ? '0.4' : '1';
   }
   // Itera por todos os checkboxes individuais e do municipio
   document.querySelectorAll('input[type="checkbox"][onclick*="gpJsonsToggleItem"]').forEach(cb => {
@@ -1559,12 +1645,18 @@ function gpHistToggle(id){
 function gpHistAtualizarSel(){
   const sel = document.querySelectorAll('.gp-hist-cb:checked');
   const bar = document.getElementById('gp-sel-bar');
+  if (!bar) return;  // legado pode nao estar carregado
   if(sel.length === 0){ bar.style.display = 'none'; return; }
   bar.style.display = 'flex';
-  document.getElementById('gp-sel-info').innerHTML = '<strong>' + sel.length + '</strong> planilha' + (sel.length===1?'':'s') + ' selecionada' + (sel.length===1?'':'s');
+  const info = document.getElementById('gp-sel-info');
+  if (info) info.innerHTML = '<strong>' + sel.length + '</strong> planilha' + (sel.length===1?'':'s') + ' selecionada' + (sel.length===1?'':'s');
 }
 function gpHistLimparSel(){
-  document.querySelectorAll('.gp-hist-cb:checked').forEach(c => { c.checked = false; c.closest('.gp-hist-row').classList.remove('selected'); });
+  document.querySelectorAll('.gp-hist-cb:checked').forEach(c => { 
+    c.checked = false; 
+    const row = c.closest('.gp-hist-row');
+    if (row) row.classList.remove('selected');
+  });
   gpHistAtualizarSel();
 }
 async function gpHistExcluir(){
@@ -1656,6 +1748,366 @@ async function gpConfirmarEnvioLandly(){
 }
 
 gpCarregarIAs();
+
+
+// Enviar selecionados pra aba Preenchedor
+function gpJsonsEnviarPreenchedor() {
+  const sel = window._gpJsonsSel || new Set();
+  if (!sel.size) { gpToast('Selecione 1+ JSONs', true); return; }
+  // Coleta dados dos selecionados, garantindo que sao todos do mesmo municipio
+  const grupos = window._gpJsonsData || [];
+  let mun = null, est = null;
+  const items = [];
+  for (const g of grupos) {
+    for (const j of (g.jsons || [])) {
+      if (sel.has(j.id)) {
+        if (mun === null) { mun = g.municipio; est = g.estado; }
+        else if (mun !== g.municipio || est !== g.estado) {
+          gpToast('Selecione apenas JSONs do mesmo município', true);
+          return;
+        }
+        items.push({
+          id: j.id,
+          label: j.legislacao_label || j.filename || ('JSON #' + j.id),
+        });
+      }
+    }
+  }
+  if (!items.length) { gpToast('Nada selecionado', true); return; }
+  window._ppJsonsSelecionados = items;
+  window._ppMunicipio = mun;
+  window._ppEstado = est;
+  gpToast('✓ ' + items.length + ' enviado(s) ao Preenchedor');
+  // Troca pra aba preenchedor
+  const btns = document.querySelectorAll('.gp-tab-btn');
+  for (const b of btns) {
+    if (b.textContent.includes('Preenchedor')) {
+      gpTrocarTab('preenchedor', b);
+      break;
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// PREENCHEDOR DE PLANILHA (aba)
+// ════════════════════════════════════════════════════════════
+window._ppJsonsSelecionados = [];   // ids dos JSONs vindos do JSON Gerados
+window._ppBases = [];               // lista de planilhas base disponiveis
+window._ppBaseSelecionada = null;   // id da base selecionada
+window._ppMunicipio = null;
+window._ppEstado = null;
+
+function ppMostrarSelecionados() {
+  const div = document.getElementById('pp-selecionados');
+  if (!div) return;
+  if (!window._ppJsonsSelecionados || !window._ppJsonsSelecionados.length) {
+    div.innerHTML = 'Nada selecionado. Vá à aba <b>JSON Gerados</b>, escolha um ou mais JSONs e clique em <b>Enviar Preenchedor</b>.';
+    return;
+  }
+  const mun = window._ppMunicipio || '?';
+  const est = window._ppEstado || '?';
+  let html = '<div style="margin-bottom:8px;">';
+  html += '<b>📍 ' + mun + ' / ' + est + '</b> · ' + window._ppJsonsSelecionados.length + ' JSON(s) selecionado(s)';
+  html += '</div>';
+  html += '<ul style="margin:0;padding-left:20px;">';
+  for (const j of window._ppJsonsSelecionados) {
+    html += '<li>' + (j.label || ('JSON #' + j.id)) + '</li>';
+  }
+  html += '</ul>';
+  div.innerHTML = html;
+}
+
+async function ppCarregarBases() {
+  const div = document.getElementById('pp-bases');
+  div.innerHTML = '<span style="color:var(--muted);">Carregando…</span>';
+  try {
+    const r = await fetch('/api/planilhas-base');
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'erro');
+    window._ppBases = d.data || [];
+    if (!window._ppBases.length) {
+      div.innerHTML = '<span style="color:#f80;">Nenhuma planilha base ainda. Faça upload abaixo.</span>';
+      return;
+    }
+    let html = '';
+    for (const b of window._ppBases) {
+      const sel = (window._ppBaseSelecionada == b.id) ? 'checked' : '';
+      const isSel = (window._ppBaseSelecionada == b.id);
+      html += '<div style="padding:10px;border:1px solid var(--border);border-radius:4px;margin-bottom:6px;font-size:12px;background:rgba(255,255,255,0.02);display:flex;align-items:flex-start;gap:10px;' + (isSel ? 'border-color:var(--accent);' : '') + '">';
+      html += '<input type="radio" name="ppbase" value="' + b.id + '" ' + sel + ' onchange="window._ppBaseSelecionada=' + b.id + ';ppCarregarBases()" style="accent-color:var(--accent);cursor:pointer;width:16px;height:16px;flex-shrink:0;margin-top:2px;">';
+      html += '<div style="flex:1;min-width:0;">';
+      html += '<div style="font-weight:600;font-size:12px;word-break:break-all;">' + (b.nome || '?') + '</div>';
+      html += '<div style="font-size:11px;color:var(--muted);margin-top:3px;">';
+      html += gpFmtBytes(b.tamanho_bytes || 0);
+      if (b.criado_em) html += ' · ' + b.criado_em;
+      if (b.criado_por_nome) html += ' · ' + b.criado_por_nome;
+      html += '</div></div></div>';
+    }
+    div.innerHTML = html;
+    // Auto-seleciona a primeira (mais recente) se nada selecionado
+    if (!window._ppBaseSelecionada && window._ppBases.length) {
+      window._ppBaseSelecionada = window._ppBases[0].id;
+      ppCarregarBases();
+    }
+  } catch (e) {
+    div.innerHTML = '<span style="color:#f55;">Erro: ' + e.message + '</span>';
+  }
+}
+
+async function ppUploadBase() {
+  const input = document.getElementById('pp-upload-input');
+  if (!input.files || !input.files[0]) return;
+  const f = input.files[0];
+  if (!f.name.toLowerCase().endsWith('.xlsx')) {
+    gpToast('Apenas .xlsx', true);
+    return;
+  }
+  const fd = new FormData();
+  fd.append('arquivo', f);
+  try {
+    const r = await fetch('/api/planilhas-base', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'erro');
+    gpToast('✓ Upload OK');
+    input.value = '';
+    ppCarregarBases();
+  } catch (e) {
+    gpToast('Erro: ' + e.message, true);
+  }
+}
+
+async function ppApagarBase() {
+  if (!window._ppBaseSelecionada) {
+    gpToast('Selecione uma base', true);
+    return;
+  }
+  if (!confirm('Apagar essa planilha base? Não pode desfazer.')) return;
+  try {
+    const r = await fetch('/api/planilhas-base/' + window._ppBaseSelecionada, { method: 'DELETE' });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'erro');
+    gpToast('✓ Apagada');
+    window._ppBaseSelecionada = null;
+    ppCarregarBases();
+  } catch (e) {
+    gpToast('Erro: ' + e.message, true);
+  }
+}
+
+async function ppGerarPlanilha() {
+  if (!window._ppJsonsSelecionados.length) {
+    gpToast('Envie JSONs da aba JSON Gerados primeiro', true);
+    return;
+  }
+  if (!window._ppBaseSelecionada) {
+    gpToast('Selecione uma planilha base', true);
+    return;
+  }
+  if (!window._ppMunicipio || !window._ppEstado) {
+    gpToast('Município/Estado não definidos', true);
+    return;
+  }
+  const btn = document.getElementById('pp-btn-gerar');
+  const status = document.getElementById('pp-status');
+  const log = document.getElementById('pp-log');
+  btn.disabled = true; btn.textContent = '⏳ Gerando…';
+  status.textContent = '';
+  log.style.display = 'block';
+  log.innerHTML = '<div style="color:#888;">Iniciando…</div>';
+  try {
+    const payload = {
+      jsons_ids: window._ppJsonsSelecionados.map(j => j.id),
+      template_id: window._ppBaseSelecionada,
+      municipio: window._ppMunicipio,
+      estado: window._ppEstado,
+    };
+    const r = await fetch('/api/preenchedor/gerar', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (d.logs && d.logs.length) {
+      log.innerHTML = d.logs.map(l => '<div>' + l + '</div>').join('');
+    }
+    if (!d.success) throw new Error(d.error || 'erro');
+    status.innerHTML = '<span style="color:#4dffa3;">✓ Planilha gerada: ' + d.filename + ' · ' + d.n_zonas + ' zonas · ' + gpFmtBytes(d.tamanho_bytes) + '</span>';
+    gpToast('✓ Planilha gerada');
+    // Após gerar, mostra link de download direto
+    log.innerHTML += '<div style="margin-top:8px;"><a href="/api/planilhas/geradas/' + d.id + '/download" style="color:#4dffa3;">⬇ Baixar agora</a> · ou veja na aba <b>XLS Gerados</b></div>';
+  } catch (e) {
+    status.innerHTML = '<span style="color:#f55;">✗ ' + e.message + '</span>';
+    gpToast('Erro: ' + e.message, true);
+  } finally {
+    btn.disabled = false; btn.textContent = '🥩 Gerar Planilha';
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// XLS GERADOS (aba)
+// ════════════════════════════════════════════════════════════
+window._xgLista = [];
+window._xgSelecionados = new Set();
+
+async function xgCarregar() {
+  const div = document.getElementById('xg-lista');
+  div.innerHTML = '<span style="color:var(--muted);">Carregando…</span>';
+  try {
+    const r = await fetch('/api/planilhas/geradas');
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'erro');
+    window._xgLista = d.data || [];
+    xgRender();
+  } catch (e) {
+    div.innerHTML = '<span style="color:#f55;">Erro: ' + e.message + '</span>';
+  }
+}
+
+function xgRender() {
+  const div = document.getElementById('xg-lista');
+  const resumo = document.getElementById('xg-resumo');
+  if (!window._xgLista.length) {
+    resumo.textContent = '0 planilhas. Use a aba Preenchedor para gerar a primeira.';
+    div.innerHTML = '';
+    return;
+  }
+  // Agrupa por municipio
+  const grupos = {};
+  for (const p of window._xgLista) {
+    const k = (p.municipio || '?') + ' / ' + (p.estado || '?');
+    if (!grupos[k]) grupos[k] = [];
+    grupos[k].push(p);
+  }
+  resumo.textContent = window._xgLista.length + ' planilha(s) em ' + Object.keys(grupos).length + ' município(s)';
+
+  let html = '';
+  for (const k of Object.keys(grupos).sort()) {
+    const items = grupos[k];
+    // checkbox 3-state do municipio
+    const todosSel = items.every(p => window._xgSelecionados.has(p.id));
+    const algumSel = items.some(p => window._xgSelecionados.has(p.id));
+    html += '<div style="margin-bottom:10px;border:1px solid var(--border);border-radius:6px;padding:8px;">';
+    html += '<div style="display:flex;align-items:center;gap:10px;font-weight:600;color:var(--accent);cursor:pointer;" onclick="xgToggleMun(\'' + k.replace(/'/g, "\\'") + '\')">';
+    html += '<input type="checkbox" ' + (todosSel ? 'checked' : '') + ' onclick="event.stopPropagation();xgToggleGrupo(\'' + k.replace(/'/g, "\\'") + '\')" style="accent-color:var(--accent);cursor:pointer;width:16px;height:16px;flex-shrink:0;">';
+    html += '<span style="flex:1;">🏙️ ' + k + '</span>';
+    html += '<span style="font-size:11px;color:var(--muted);font-weight:normal;flex-shrink:0;">' + items.length + ' planilha(s)</span>';
+    html += '</div>';
+    html += '<div style="margin-top:6px;margin-left:24px;">';
+    for (const p of items) {
+      const checked = window._xgSelecionados.has(p.id) ? 'checked' : '';
+      const isSel = window._xgSelecionados.has(p.id);
+      html += '<div style="padding:10px;border:1px solid var(--border);border-radius:4px;margin-bottom:4px;font-size:12px;background:rgba(255,255,255,0.02);display:flex;align-items:flex-start;gap:10px;' + (isSel ? 'border-color:var(--accent);' : '') + '">';
+      html += '<input type="checkbox" ' + checked + ' onchange="xgToggleItem(' + p.id + ')" style="accent-color:var(--accent);cursor:pointer;width:16px;height:16px;flex-shrink:0;margin-top:2px;">';
+      html += '<div style="flex:1;min-width:0;">';
+      html += '<div style="font-family:monospace;font-size:12px;word-break:break-all;">📊 ' + (p.arquivo_nome || '?') + '</div>';
+      html += '<div style="font-size:11px;color:var(--muted);margin-top:3px;">';
+      if (p.versao_base) html += 'template ' + p.versao_base + ' · ';
+      html += (p.zonas_count || 0) + ' zonas · ';
+      html += gpFmtBytes(p.tamanho_bytes || 0);
+      if (p.criado_em) html += ' · ' + p.criado_em;
+      if (p.criado_por_nome) html += ' · ' + p.criado_por_nome;
+      html += '</div></div>';
+      html += '<div style="display:flex;gap:4px;flex-shrink:0;">';
+      html += '<a href="/api/planilhas/geradas/' + p.id + '/download" class="btn btn-secondary" style="font-size:11px;padding:4px 8px;">⬇</a>';
+      html += '<button class="btn btn-secondary" style="font-size:11px;padding:4px 8px;" onclick="xgApagarUm(' + p.id + ')">🗑</button>';
+      html += '</div></div>';
+    }
+    html += '</div></div>';
+  }
+  div.innerHTML = html;
+  xgAtualizarToolbar();
+}
+
+function xgToggleItem(id) {
+  if (window._xgSelecionados.has(id)) window._xgSelecionados.delete(id);
+  else window._xgSelecionados.add(id);
+  xgRender();
+}
+
+function xgToggleGrupo(k) {
+  const items = window._xgLista.filter(p => ((p.municipio || '?') + ' / ' + (p.estado || '?')) == k);
+  const todosSel = items.every(p => window._xgSelecionados.has(p.id));
+  if (todosSel) items.forEach(p => window._xgSelecionados.delete(p.id));
+  else items.forEach(p => window._xgSelecionados.add(p.id));
+  xgRender();
+}
+
+function xgToggleMun(k) {
+  xgToggleGrupo(k);
+}
+
+function xgAtualizarToolbar() {
+  const tb = document.getElementById('xg-toolbar');
+  const sc = document.getElementById('xg-sel-count');
+  const n = window._xgSelecionados.size;
+  if (n === 0) { tb.style.display = 'none'; return; }
+  tb.style.display = 'block';
+  sc.textContent = n + ' selecionada(s)';
+}
+
+async function xgDownloadSel() {
+  const ids = [...window._xgSelecionados];
+  if (!ids.length) return;
+  if (ids.length === 1) {
+    window.location.href = '/api/planilhas/geradas/' + ids[0] + '/download';
+    return;
+  }
+  // multi: POST e baixar zip via blob
+  try {
+    const r = await fetch('/api/planilhas/geradas/download-zip', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ids})
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'planilhas_geradas.zip';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    gpToast('Erro: ' + e.message, true);
+  }
+}
+
+async function xgApagarUm(id) {
+  if (!confirm('Apagar essa planilha?')) return;
+  try {
+    const r = await fetch('/api/planilhas/geradas/' + id, { method: 'DELETE' });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'erro');
+    gpToast('✓ Apagada');
+    window._xgSelecionados.delete(id);
+    xgCarregar();
+  } catch (e) {
+    gpToast('Erro: ' + e.message, true);
+  }
+}
+
+async function xgApagarSel() {
+  const ids = [...window._xgSelecionados];
+  if (!ids.length) return;
+  if (!confirm('Apagar ' + ids.length + ' planilha(s)?')) return;
+  try {
+    const r = await fetch('/api/planilhas/geradas/apagar-lote', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ids})
+    });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'erro');
+    gpToast('✓ ' + (d.apagados || 0) + ' apagadas');
+    window._xgSelecionados.clear();
+    xgCarregar();
+  } catch (e) {
+    gpToast('Erro: ' + e.message, true);
+  }
+}
+
 gpRenderCompilados();
 </script>
 {% endblock %}
