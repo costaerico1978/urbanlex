@@ -366,7 +366,81 @@ def processar_zip_para_dossie(zip_path, dossie_id, log_callback=None, busca_id=N
                         vistos_md5[md5] = arq
                 
                 todos_arquivos = list(vistos_md5.values())
-                _log(f"  Dedup: {len(todos_arquivos)} únicos | {len(duplicados)} duplicados removidos")
+                _log(f"  Dedup MD5: {len(todos_arquivos)} únicos | {len(duplicados)} duplicados removidos")
+                
+                # ─── Dedup conteúdo: hash das páginas pra detectar PDFs que se sobrepõem ───
+                # Caso típico LeisMunicipais: PDF principal já tem todos anexos
+                # embutidos + os mesmos anexos como arquivos separados.
+                # Algoritmo: extrai texto de cada página, normaliza, gera hash MD5.
+                # Se TODAS as páginas de um PDF aparecem dentro de outro maior,
+                # o menor é redundante e pode ser descartado.
+                try:
+                    import pypdf as _pp_dd
+                    import re as _re_dd
+                    import hashlib as _h_dd
+                    
+                    def _hash_pag(texto):
+                        if not texto:
+                            return None
+                        t = _re_dd.sub(r'[^a-z0-9]+', '', (texto or '').lower())
+                        if len(t) < 100:
+                            return None
+                        return _h_dd.md5(t[:500].encode()).hexdigest()
+                    
+                    def _hashes_pdf(pdf_path):
+                        try:
+                            r = _pp_dd.PdfReader(pdf_path)
+                            hs = set()
+                            for pg in r.pages:
+                                try:
+                                    h = _hash_pag(pg.extract_text() or '')
+                                    if h:
+                                        hs.add(h)
+                                except Exception:
+                                    pass
+                            return hs, len(r.pages)
+                        except Exception:
+                            return set(), 0
+                    
+                    pdfs = [a for a in todos_arquivos
+                            if a['path_extraido'].lower().endswith('.pdf')]
+                    pdf_info = {}
+                    for a in pdfs:
+                        hs, n = _hashes_pdf(a['path_extraido'])
+                        pdf_info[a['path_extraido']] = {'hashes': hs, 'n_pgs': n, 'arq': a}
+                    
+                    descartados_conteudo = []
+                    for a in pdfs:
+                        info_a = pdf_info[a['path_extraido']]
+                        if not info_a['hashes']:
+                            continue
+                        # Procura outro PDF que CONTENHA todas as paginas deste
+                        for b in pdfs:
+                            if b is a:
+                                continue
+                            info_b = pdf_info[b['path_extraido']]
+                            if not info_b['hashes']:
+                                continue
+                            if info_b['n_pgs'] <= info_a['n_pgs']:
+                                continue  # nao pode conter se for menor
+                            # Se >=80% das paginas de A estao em B, A eh redundante
+                            paginas_em_b = info_a['hashes'] & info_b['hashes']
+                            if len(paginas_em_b) / len(info_a['hashes']) >= 0.80:
+                                descartados_conteudo.append(a)
+                                _log(f"  Dedup conteudo: '{os.path.basename(a['nome_original'])}' ({info_a['n_pgs']}pgs) ja esta em '{os.path.basename(b['nome_original'])}' ({info_b['n_pgs']}pgs) - descartando")
+                                break
+                    
+                    if descartados_conteudo:
+                        _log(f"  Dedup conteudo: {len(descartados_conteudo)} PDF(s) redundante(s) descartado(s)")
+                        for d in descartados_conteudo:
+                            try:
+                                os.remove(d['path_extraido'])
+                            except Exception:
+                                pass
+                            duplicados.append(d)
+                        todos_arquivos = [a for a in todos_arquivos if a not in descartados_conteudo]
+                except Exception as _e_dd:
+                    _log(f"  Aviso dedup conteudo: {str(_e_dd)[:120]}")
                 
                 # ─── Identifica tipo + converte ───
                 tmp_pdfs = os.path.join(tmp, '_pdfs_finais')
