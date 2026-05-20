@@ -408,11 +408,12 @@ def gerar_tabela_pdf(resultado, municipio, estado, logs=None):
 
     COLS = [
         ('estado','Estado'),('municipio','Município'),('tipo','Tipo'),('numero','Nº'),
-        ('ano','Ano'),('ementa','Ementa'),('pergunta','Pergunta'),('status','Status'),
-        ('altera','Regulamenta/Altera'),('alterado_por','Regulamentado por'),
-        ('revoga','Revoga'),('revogado_por','Revogado por'),
+        ('ano','Ano'),('ementa','Ementa'),('status','Status'),
+        ('altera','Altera'),('regulamenta','Regulamenta'),
+        ('alterado_por','Alterada por'),('regulamentado_por','Regulamentada por'),
+        ('revoga','Revoga'),('revogado_por','Revogada por'),
         ('revoga_parcialmente','Revoga parcialmente'),
-        ('revogado_parcialmente_por','Revogada parcialmente por?'),
+        ('revogado_parcialmente_por','Revogada parcialmente por'),
         ('cita','Faz referência à'),('citado_em','Referenciada em'),('link','Link'),
     ]
 

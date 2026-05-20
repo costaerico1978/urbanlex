@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html>
+<head><title>TESTE</title></head>
+<body>
+<h1 id="t">Carregando...</h1>
+<script>
+document.getElementById('t').textContent = 'JS rodou em: ' + new Date().toISOString();
+fetch('/api/debug?msg=PAGINA_TESTE_JS_FUNCIONA');
+</script>
+</body>
+</html>

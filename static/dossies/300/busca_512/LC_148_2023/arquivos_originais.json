@@ -1,0 +1,489 @@
+{
+  "legislacao": {
+    "tipo": "Lei Complementar",
+    "numero": "148",
+    "ano": "2023",
+    "descricao": "Institui o Novo Plano Diretor de Desenvolvimento Urbano e Ambiental do Município de Xangri-Lá e o Sistema Municipal de Gestão do Planejamento Urbano.",
+    "categoria": "plano_diretor",
+    "status": "vigente",
+    "link": "https://leismunicipais.com.br/a/rs/x/xangri-la/lei-complementar/2023/15/148/lei-complementar-n-148-2023-institui-o-novo-plano-diretor-de-desenvolvimento-urbano-e-ambiental-do-municipio-de-xangri-la-e-o-sistema-municipal-de-gestao-do-planejamento-urbano-smgp",
+    "arquivo_zip": "LC_148_2023.zip",
+    "tem_anexos": true,
+    "qtd_anexos": 2
+  },
+  "label": "LC_148_2023",
+  "arquivos_originais": [
+    {
+      "nome": "LC_148_2023.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 435695,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-126.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 1271893,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-127.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 308597,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-128.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 287268,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-129.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 298147,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-130.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 9015472,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-131.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 511460,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-132.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 412545,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-133.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 443845,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-134.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 22181,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-135.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 15500,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-136.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 13291,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-137.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 26589,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-138.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 25370,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-139.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 25947,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-140.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 21097,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-141.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 20097,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-142.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 23732,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-143.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 20516,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-144.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 21886,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-145.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 28090,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-146.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 36417,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-147.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 26475,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-148.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 22808,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-149.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 22056,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-150.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 22131,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-151.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 31161,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-152.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 31496,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-153.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 23879,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-154.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 31188,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-155.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 24002,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-156.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 32549,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-157.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 30348,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-158.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 20216,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-159.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 31103,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-160.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 17276,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-161.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 17990,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-162.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 18533,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-163.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 30813,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-164.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 69961,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-165.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 237996,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-166.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 34615,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-167.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 25194,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-168.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 24695,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-169.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 28594,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-170.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 24045,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-171.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 29015,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-172.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 28080,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-173.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 41769,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-174.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 41990,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-175.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 47537,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-176.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 41770,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-177.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 42507,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-178.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 42291,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-179.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 42045,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-180.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 45615,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-181.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 41681,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-182.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 41715,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-183.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 45127,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-184.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 43150,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-185.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 43107,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-186.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 42282,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-187.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 132619,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-188.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 189594,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-189.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 18606,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "PDDUA - 29-11-23 - versão final consolidado com Anexos_compressed (1)-190.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 306348,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "ERRATA 02-24 - Lei Complementar 148-2023 - vf_pdf_pdf.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 1611084,
+      "conversao_ok": true,
+      "foi_convertido": false
+    }
+  ],
+  "falhas": [],
+  "duplicados_removidos": 66,
+  "n_paginas_concatenado": 139
+}

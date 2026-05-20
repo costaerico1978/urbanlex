@@ -1,0 +1,459 @@
+{% extends "base.html" %}
+{% block title %}Manutenção · UrbanLex{% endblock %}
+{% block topbar %}
+<span class="topbar-title">🛠 Manutenção</span>
+{% endblock %}
+{% block content %}
+<style>
+.mt-page-subtitle{color:var(--muted);font-size:13px;margin:-8px 0 24px;}
+.mt-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:18px;}
+.mt-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border);}
+.mt-card-title{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px;color:var(--text);}
+.mt-card-meta{font-size:11px;color:var(--muted);font-family:monospace;}
+.mt-status-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;}
+.mt-status-item{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;}
+.mt-status-label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px;}
+.mt-status-value{font-family:monospace;font-size:18px;font-weight:500;color:var(--text);}
+.mt-status-detail{font-size:11px;color:var(--muted);margin-top:2px;}
+.mt-progress{height:4px;background:var(--border);border-radius:2px;margin-top:8px;overflow:hidden;}
+.mt-progress-fill{height:100%;border-radius:2px;background:var(--accent);transition:width .3s;}
+.mt-progress-fill.warn{background:#f0ad4e;}
+.mt-progress-fill.danger{background:#e74c3c;}
+.mt-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 0;margin-bottom:14px;border-bottom:1px solid var(--border);}
+.mt-chip{padding:6px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;font-size:12px;color:var(--muted);cursor:pointer;}
+.mt-chip.active{background:rgba(0,229,160,.1);border-color:var(--accent);color:var(--accent);font-weight:600;}
+.mt-search{flex:1;min-width:180px;padding:7px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;}
+.mt-list{display:flex;flex-direction:column;max-height:520px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--surface2);}
+.mt-item{display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);}
+.mt-item:last-child{border-bottom:none;}
+.mt-item.selected{background:rgba(0,229,160,.04);}
+.mt-item.protected{background:rgba(245,185,66,.04);}
+.mt-cb{margin-top:2px;accent-color:var(--accent);width:16px;height:16px;}
+.mt-info{flex:1;min-width:0;}
+.mt-headline{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin-bottom:4px;flex-wrap:wrap;color:var(--text);}
+.mt-icon{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;}
+.mt-icon.zip{background:rgba(124,106,247,.15);color:#7c6af7;}
+.mt-icon.pdf{background:rgba(0,229,160,.12);color:var(--accent);}
+.mt-icon.fail{background:rgba(231,76,60,.12);color:#e74c3c;}
+.mt-meta-line{font-size:11px;color:var(--muted);font-family:monospace;line-height:1.6;}
+.mt-meta-line strong{color:var(--text);font-weight:500;}
+.mt-actions{display:flex;gap:6px;}
+.mt-icbtn{width:28px;height:28px;background:transparent;border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--muted);font-size:12px;}
+.mt-icbtn.active{color:#f5b942;border-color:rgba(245,185,66,.4);}
+.mt-badge{padding:1px 6px;font-size:10px;font-weight:600;border-radius:3px;}
+.mt-badge.protected{background:rgba(245,185,66,.12);color:#f5b942;}
+.mt-badge.recent{background:rgba(0,229,160,.1);color:var(--accent);}
+.mt-footer{display:flex;align-items:center;justify-content:space-between;padding:12px 0 0;margin-top:14px;border-top:1px solid var(--border);flex-wrap:wrap;gap:10px;}
+.mt-sel-info{font-size:12px;color:var(--muted);}
+.mt-sel-info strong{color:var(--accent);font-family:monospace;}
+.mt-logs-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;gap:12px;flex-wrap:wrap;}
+.mt-logs-size{font-family:monospace;font-size:18px;font-weight:500;color:var(--text);}
+.mt-logs-detail{font-size:11px;color:var(--muted);}
+.mt-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;cursor:pointer;}
+.mt-btn:disabled{opacity:.5;cursor:not-allowed;}
+.mt-btn-danger{background:rgba(231,76,60,.1);border-color:rgba(231,76,60,.4);color:#e74c3c;}
+.mt-btn-ghost{background:transparent;}
+.mt-btn-sm{padding:5px 10px;font-size:12px;}
+.mt-diag-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;}
+.mt-diag-btn{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:14px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);cursor:pointer;font-size:13px;text-align:left;}
+.mt-diag-btn-title{font-weight:600;}
+.mt-diag-btn-meta{font-size:11px;color:var(--muted);font-family:monospace;}
+.mt-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);align-items:center;justify-content:center;z-index:1000;padding:16px;}
+.mt-modal-bg.open{display:flex;}
+.mt-modal{background:var(--surface);border:1px solid #e74c3c;border-radius:10px;padding:24px;max-width:480px;width:100%;}
+.mt-modal-title{font-size:16px;font-weight:700;color:#e74c3c;margin-bottom:8px;}
+.mt-modal-text{color:var(--muted);font-size:13px;line-height:1.6;margin-bottom:16px;}
+.mt-modal-text strong{color:var(--text);}
+.mt-modal-input{width:100%;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:monospace;font-size:14px;margin-bottom:14px;}
+.mt-modal-actions{display:flex;justify-content:flex-end;gap:10px;}
+.mt-toast{position:fixed;bottom:20px;right:20px;background:var(--surface);border:1px solid var(--accent);color:var(--text);padding:12px 18px;border-radius:8px;font-size:13px;z-index:2000;display:none;}
+.mt-toast.show{display:block;}
+.mt-toast.error{border-color:#e74c3c;}
+</style>
+
+<div class="mt-page-subtitle">Selecione individualmente o que deseja apagar. Buscas marcadas como protegidas são preservadas.</div>
+
+<section class="mt-card">
+  <div class="mt-card-header">
+    <div class="mt-card-title">📊 Status do Sistema</div>
+    <button class="mt-btn mt-btn-sm mt-btn-ghost" onclick="mtAtualizarStatus()">🔄 Atualizar</button>
+  </div>
+  <div class="mt-status-grid" id="mt-status">
+    <div class="mt-status-item"><div class="mt-status-label">Carregando...</div></div>
+  </div>
+</section>
+
+<section class="mt-card">
+  <div class="mt-card-header">
+    <div class="mt-card-title">📁 Buscas Salvas</div>
+    <span class="mt-card-meta" id="mt-buscas-meta">—</span>
+  </div>
+  <div class="mt-toolbar">
+    <span class="mt-chip active" data-filtro="todas">Todas</span>
+    <span class="mt-chip" data-filtro="antigas30">Mais antigas que 30 dias</span>
+    <span class="mt-chip" data-filtro="antigas7">Mais antigas que 7 dias</span>
+    <span class="mt-chip" data-filtro="com_erro">Com erro</span>
+    <span class="mt-chip" data-filtro="protegidas">🔒 Protegidas</span>
+    <input class="mt-search" id="mt-search" placeholder="🔍 Buscar por município, lei...">
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;margin-bottom:8px;font-size:12px;">
+    <input type="checkbox" id="mt-cb-todas" onchange="mtSelecionarTodas(this.checked)" style="accent-color:var(--accent);width:16px;height:16px;cursor:pointer;">
+    <label for="mt-cb-todas" style="cursor:pointer;color:var(--text);">Selecionar todas (não-protegidas)</label>
+  </div>
+  <div class="mt-list" id="mt-list">
+    <div style="padding:30px;text-align:center;color:var(--muted);font-size:13px;">Carregando buscas...</div>
+  </div>
+  <div class="mt-footer">
+    <div class="mt-sel-info" id="mt-sel-info">Nenhuma busca selecionada</div>
+    <div style="display:flex;gap:8px;">
+      <button class="mt-btn mt-btn-ghost mt-btn-sm" onclick="mtLimparSelecao()">Limpar seleção</button>
+      <button class="mt-btn mt-btn-danger mt-btn-sm" id="mt-btn-apagar" onclick="mtAbrirModalApagar()" disabled>🗑 Apagar selecionados</button>
+    </div>
+  </div>
+</section>
+
+<section class="mt-card">
+  <div class="mt-card-header">
+    <div class="mt-card-title">📋 Logs do Sistema</div>
+  </div>
+  <div class="mt-logs-row">
+    <div>
+      <div class="mt-logs-size" id="mt-logs-size">— MB</div>
+      <div class="mt-logs-detail">registros técnicos do servidor</div>
+    </div>
+    <button class="mt-btn mt-btn-danger mt-btn-sm" onclick="mtLimparLogs()">🗑 Limpar logs</button>
+  </div>
+</section>
+
+<section class="mt-card">
+  <div class="mt-card-header">
+    <div class="mt-card-title">⚙️ Diagnóstico e Reset</div>
+  </div>
+  <div class="mt-diag-grid">
+    <button class="mt-diag-btn" onclick="mtDiag('reiniciar')">
+      <div class="mt-diag-btn-title">🔄 Reiniciar serviço</div>
+      <div class="mt-diag-btn-meta">systemctl restart urbanlex</div>
+    </button>
+    <button class="mt-diag-btn" onclick="mtDiag('matar_chromium')">
+      <div class="mt-diag-btn-title">💀 Matar Chromium órfãos</div>
+      <div class="mt-diag-btn-meta" id="mt-chrom-meta">—</div>
+    </button>
+    <button class="mt-diag-btn" onclick="mtDiag('renovar_flaresolverr')">
+      <div class="mt-diag-btn-title">🌐 Renovar FlareSolverr</div>
+      <div class="mt-diag-btn-meta">cria nova sessão limpa</div>
+    </button>
+  </div>
+</section>
+
+<div class="mt-modal-bg" id="mt-modal">
+  <div class="mt-modal">
+    <div class="mt-modal-title">⚠️ Confirmar exclusão</div>
+    <div class="mt-modal-text" id="mt-modal-text"></div>
+    <input class="mt-modal-input" id="mt-modal-input" placeholder="DELETAR">
+    <div class="mt-modal-actions">
+      <button class="mt-btn mt-btn-ghost mt-btn-sm" onclick="mtFecharModal()">Cancelar</button>
+      <button class="mt-btn mt-btn-danger mt-btn-sm" onclick="mtConfirmarApagar()">Apagar definitivamente</button>
+    </div>
+  </div>
+</div>
+
+<div class="mt-toast" id="mt-toast"></div>
+
+<script>
+let _mtBuscas = [];
+let _mtFiltro = 'todas';
+let _mtQuery = '';
+
+function fmtBytes(b){
+  if(!b) return '0 B';
+  if(b < 1024) return b + ' B';
+  if(b < 1048576) return (b/1024).toFixed(0) + ' KB';
+  if(b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+  return (b/1073741824).toFixed(2) + ' GB';
+}
+
+function fmtData(s){
+  if(!s) return '—';
+  const d = new Date(new Date(s).getTime() - 3*60*60*1000);
+  return d.toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+
+function diasAtras(s){
+  if(!s) return null;
+  return Math.floor((Date.now() - new Date(s).getTime()) / 86400000);
+}
+
+function toast(msg, error){
+  const t = document.getElementById('mt-toast');
+  t.textContent = msg;
+  t.className = 'mt-toast show' + (error ? ' error' : '');
+  setTimeout(() => t.className = 'mt-toast', 3500);
+}
+
+async function mtAtualizarStatus(){
+  try{
+    const r = await fetch('/api/manutencao/status');
+    const d = await r.json();
+    if(!d.success) return;
+    const el = document.getElementById('mt-status');
+    const cor = d.disco_pct > 85 ? 'danger' : d.disco_pct > 70 ? 'warn' : '';
+    const corMem = d.memoria_pct > 85 ? 'danger' : d.memoria_pct > 70 ? 'warn' : '';
+    el.innerHTML = '<div class="mt-status-item">'+
+      '<div class="mt-status-label">Disco</div>'+
+      '<div class="mt-status-value">'+d.disco_pct+'%</div>'+
+      '<div class="mt-status-detail">'+d.disco_usado_gb+' GB / '+d.disco_total_gb+' GB · '+d.disco_livre_gb+' GB livres</div>'+
+      '<div class="mt-progress"><div class="mt-progress-fill '+cor+'" style="width:'+d.disco_pct+'%"></div></div>'+
+      '</div>'+
+      '<div class="mt-status-item">'+
+      '<div class="mt-status-label">Memória</div>'+
+      '<div class="mt-status-value">'+d.memoria_pct+'%</div>'+
+      '<div class="mt-status-detail">'+d.memoria_usado_mb+' MB / '+d.memoria_total_mb+' MB</div>'+
+      '<div class="mt-progress"><div class="mt-progress-fill '+corMem+'" style="width:'+d.memoria_pct+'%"></div></div>'+
+      '</div>'+
+      '<div class="mt-status-item">'+
+      '<div class="mt-status-label">Buscas</div>'+
+      '<div class="mt-status-value">'+d.buscas_total+'</div>'+
+      '<div class="mt-status-detail">'+d.buscas_protegidas+' protegidas · '+d.buscas_com_arquivo+' com arquivos</div>'+
+      '</div>'+
+      '<div class="mt-status-item">'+
+      '<div class="mt-status-label">Downloads</div>'+
+      '<div class="mt-status-value">'+fmtBytes(d.downloads_bytes)+'</div>'+
+      '<div class="mt-status-detail">arquivos em /static/downloads</div>'+
+      '</div>';
+    document.getElementById('mt-logs-size').textContent = fmtBytes(d.logs_bytes);
+    document.getElementById('mt-chrom-meta').textContent = d.chromium_orfaos + ' processo(s) detectado(s)';
+  }catch(e){ console.warn(e); }
+}
+
+async function mtCarregarBuscas(){
+  const params = new URLSearchParams({filtro: _mtFiltro, q: _mtQuery});
+  try{
+    const r = await fetch('/api/manutencao/buscas?' + params);
+    const d = await r.json();
+    if(!d.success){
+      document.getElementById('mt-list').innerHTML = '<div style="padding:30px;text-align:center;color:#e74c3c;">Erro: '+d.error+'</div>';
+      return;
+    }
+    _mtBuscas = d.data;
+    document.getElementById('mt-buscas-meta').textContent = _mtBuscas.length + ' buscas';
+    mtRenderBuscas();
+  }catch(e){
+    document.getElementById('mt-list').innerHTML = '<div style="padding:30px;text-align:center;color:#e74c3c;">Erro ao carregar.</div>';
+  }
+}
+
+function mtRenderBuscas(){
+  const lista = document.getElementById('mt-list');
+  if(!_mtBuscas.length){
+    lista.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted);font-size:13px;">Nenhuma busca encontrada com este filtro.</div>';
+    mtAtualizarSel();
+    return;
+  }
+  lista.innerHTML = _mtBuscas.map(function(b){
+    const dias = diasAtras(b.iniciado_em);
+    const recente = dias !== null && dias <= 2;
+    const erro = !b.sucesso;
+    const tipoIcon = b.tem_zip ? 'zip' : (erro ? 'fail' : 'pdf');
+    const tipoEmoji = b.tem_zip ? '📦' : (erro ? '⚠' : '📄');
+    const titulo = b.legislacao_numero
+      ? (b.municipio+'/'+b.estado+' — '+(b.legislacao_tipo||'')+' '+b.legislacao_numero+'/'+(b.legislacao_ano||''))
+      : (b.municipio+'/'+b.estado);
+    const tipoBusca = b.tipo === 'especifica' ? 'Busca específica' : (erro ? 'Falhou' : 'Busca completa');
+    const arquivos = [];
+    if(b.tem_zip) arquivos.push('ZIP');
+    if(b.tem_relatorio) arquivos.push('Relatório PDF');
+    if(b.tem_tabela) arquivos.push('Tabela PDF');
+    if(b.tem_pdf) arquivos.push('PDF');
+    const cbDis = b.protegida ? 'disabled' : '';
+    const protCls = b.protegida ? 'protected' : '';
+    const protBadge = b.protegida ? '<span class="mt-badge protected">🔒 protegida</span>' : '';
+    const recBadge = (recente && !b.protegida) ? '<span class="mt-badge recent">recente</span>' : '';
+    const protBtnIcon = b.protegida ? '🔓' : '🔒';
+    const protBtnTitle = b.protegida ? 'Remover proteção' : 'Marcar como protegida';
+    const protBtnCls = b.protegida ? 'active' : '';
+    return '<div class="mt-item '+protCls+'" data-id="'+b.id+'">'+
+      '<input type="checkbox" class="mt-cb" data-id="'+b.id+'" '+cbDis+' onchange="mtToggleSel('+b.id+')">'+
+      '<div class="mt-info">'+
+      '<div class="mt-headline">'+
+      '<div class="mt-icon '+tipoIcon+'">'+tipoEmoji+'</div>'+
+      '<span>'+titulo+'</span>'+protBadge+recBadge+
+      '</div>'+
+      '<div class="mt-meta-line"><strong>'+tipoBusca+'</strong> · '+fmtData(b.iniciado_em)+'<br>'+
+      arquivos.join(' · ')+' · <strong>'+fmtBytes(b.tamanho_bytes)+'</strong></div>'+
+      '</div>'+
+      '<div class="mt-actions">'+
+      '<button class="mt-icbtn '+protBtnCls+'" onclick="mtToggleProtecao('+b.id+', '+(!b.protegida)+')" title="'+protBtnTitle+'">'+protBtnIcon+'</button>'+
+      '</div>'+
+      '</div>';
+  }).join('');
+  mtAtualizarSel();
+}
+
+function mtToggleSel(id){
+  const cb = document.querySelector('.mt-cb[data-id="'+id+'"]');
+  if(!cb) return;
+  cb.closest('.mt-item').classList.toggle('selected', cb.checked);
+  mtAtualizarSel();
+}
+
+function mtAtualizarSel(){
+  // Sincroniza estado do "selecionar todas"
+  const cbTodas = document.getElementById('mt-cb-todas');
+  if(cbTodas){
+    const total = document.querySelectorAll('.mt-cb:not(:disabled)').length;
+    const marcadas = document.querySelectorAll('.mt-cb:checked').length;
+    cbTodas.checked = total > 0 && marcadas === total;
+    cbTodas.indeterminate = marcadas > 0 && marcadas < total;
+  }
+
+  const sel = document.querySelectorAll('.mt-cb:checked');
+  const ids = Array.from(sel).map(c => parseInt(c.dataset.id));
+  let bytes = 0;
+  ids.forEach(id => {
+    const b = _mtBuscas.find(x => x.id === id);
+    if(b) bytes += b.tamanho_bytes;
+  });
+  const info = document.getElementById('mt-sel-info');
+  if(ids.length === 0){
+    info.innerHTML = 'Nenhuma busca selecionada';
+    document.getElementById('mt-btn-apagar').disabled = true;
+  } else {
+    info.innerHTML = '<strong>'+ids.length+'</strong> busca'+(ids.length===1?'':'s')+' selecionada'+(ids.length===1?'':'s')+' · <strong>'+fmtBytes(bytes)+'</strong>';
+    document.getElementById('mt-btn-apagar').disabled = false;
+  }
+}
+
+function mtLimparSelecao(){
+  document.querySelectorAll('.mt-cb:checked').forEach(c => {
+    c.checked = false;
+    c.closest('.mt-item').classList.remove('selected');
+  });
+  mtAtualizarSel();
+}
+
+function mtSelecionarTodas(marcar){
+  document.querySelectorAll('.mt-cb:not(:disabled)').forEach(c => {
+    c.checked = marcar;
+    c.closest('.mt-item').classList.toggle('selected', marcar);
+  });
+  mtAtualizarSel();
+}
+
+async function mtToggleProtecao(id, novoValor){
+  try{
+    const r = await fetch('/api/manutencao/buscas/'+id+'/proteger', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({protegida: novoValor})
+    });
+    const d = await r.json();
+    if(d.success){
+      toast(novoValor ? '🔒 Busca protegida' : '🔓 Proteção removida');
+      mtCarregarBuscas();
+    } else {
+      toast('Erro: ' + (d.error||'falhou'), true);
+    }
+  }catch(e){ toast('Erro de rede', true); }
+}
+
+function mtAbrirModalApagar(){
+  const sel = document.querySelectorAll('.mt-cb:checked');
+  const n = sel.length;
+  let bytes = 0;
+  sel.forEach(c => {
+    const b = _mtBuscas.find(x => x.id === parseInt(c.dataset.id));
+    if(b) bytes += b.tamanho_bytes;
+  });
+  document.getElementById('mt-modal-text').innerHTML =
+    'Você está prestes a apagar <strong>'+n+' busca'+(n===1?'':'s')+'</strong> '+
+    '(~'+fmtBytes(bytes)+' de arquivos).<br><br>'+
+    'Os arquivos físicos serão removidos. As entradas no histórico continuarão existindo, '+
+    'mas <strong>os downloads ficarão indisponíveis</strong>.<br><br>'+
+    'Para confirmar, digite <strong>DELETAR</strong>:';
+  document.getElementById('mt-modal-input').value = '';
+  document.getElementById('mt-modal').classList.add('open');
+}
+
+function mtFecharModal(){
+  document.getElementById('mt-modal').classList.remove('open');
+}
+
+async function mtConfirmarApagar(){
+  const txt = document.getElementById('mt-modal-input').value.trim();
+  if(txt !== 'DELETAR'){ toast('Digite DELETAR para confirmar', true); return; }
+  const ids = Array.from(document.querySelectorAll('.mt-cb:checked')).map(c => parseInt(c.dataset.id));
+  if(!ids.length) return;
+  try{
+    const r = await fetch('/api/manutencao/buscas/apagar', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ids: ids})
+    });
+    const d = await r.json();
+    if(d.success){
+      mtFecharModal();
+      toast('✅ '+d.arquivos_apagados+' arquivo(s) apagado(s) · '+d.mb_liberados+' MB liberados');
+      mtCarregarBuscas();
+      mtAtualizarStatus();
+    } else {
+      toast('Erro: ' + (d.error||'falhou'), true);
+    }
+  }catch(e){ toast('Erro de rede', true); }
+}
+
+async function mtLimparLogs(){
+  if(!confirm('Limpar logs do sistema? Esta ação não afeta o app.')) return;
+  try{
+    const r = await fetch('/api/manutencao/logs/limpar', {method:'POST'});
+    const d = await r.json();
+    if(d.success){
+      toast('✅ '+d.mb_liberados+' MB de logs liberados');
+      mtAtualizarStatus();
+    } else {
+      toast('Erro: ' + (d.error||'falhou'), true);
+    }
+  }catch(e){ toast('Erro de rede', true); }
+}
+
+async function mtDiag(acao){
+  const labels = {
+    'reiniciar': 'Reiniciar o serviço UrbanLex agora? A tela ficará indisponível por alguns segundos.',
+    'matar_chromium': 'Matar processos Chromium órfãos?',
+    'renovar_flaresolverr': 'Criar nova sessão FlareSolverr?'
+  };
+  if(!confirm(labels[acao] || 'Confirmar?')) return;
+  try{
+    const r = await fetch('/api/manutencao/diagnostico/'+acao, {method:'POST'});
+    const d = await r.json();
+    if(d.success){
+      toast('✅ ' + (d.msg||'OK'));
+      setTimeout(mtAtualizarStatus, 2000);
+    } else {
+      toast('Erro: ' + (d.error||'falhou'), true);
+    }
+  }catch(e){ toast('Erro de rede', true); }
+}
+
+document.querySelectorAll('.mt-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.mt-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    _mtFiltro = chip.dataset.filtro;
+    mtCarregarBuscas();
+  });
+});
+
+let _mtSearchTimer;
+document.getElementById('mt-search').addEventListener('input', e => {
+  clearTimeout(_mtSearchTimer);
+  _mtSearchTimer = setTimeout(() => {
+    _mtQuery = e.target.value;
+    mtCarregarBuscas();
+  }, 400);
+});
+
+mtAtualizarStatus();
+mtCarregarBuscas();
+setInterval(mtAtualizarStatus, 30000);
+</script>
+{% endblock %}

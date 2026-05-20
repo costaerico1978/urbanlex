@@ -1,0 +1,158 @@
+{
+  "blocos": [
+    {
+      "nome": "corpo_lei",
+      "titulo": "Corpo da Lei",
+      "inicio": 1,
+      "fim": 59,
+      "tipo": "corpo"
+    },
+    {
+      "nome": "anexo_1.1",
+      "titulo": "ANEXO 1.1 - UNIDADES TERRITORIAIS",
+      "inicio": 66,
+      "fim": 66,
+      "tipo": "anexo",
+      "citado_como": "Anexo 1.1"
+    },
+    {
+      "nome": "anexo_1.2",
+      "titulo": "ANEXO 1.2 - HIERARQUIA VIÁRIA",
+      "inicio": 67,
+      "fim": 67,
+      "tipo": "anexo",
+      "citado_como": "Anexo 1.2"
+    },
+    {
+      "nome": "anexo_1.3",
+      "titulo": "ANEXO 1.3 - GRAVAMES VIARIOS",
+      "inicio": 68,
+      "fim": 69,
+      "tipo": "anexo",
+      "citado_como": "Anexo 1.3"
+    },
+    {
+      "nome": "anexo_1.4",
+      "titulo": "ANEXO 1.4 - ESTRUTURA CICLOVIÁRIA",
+      "inicio": 69,
+      "fim": 69,
+      "tipo": "anexo",
+      "citado_como": "Anexo 1.4"
+    },
+    {
+      "nome": "anexo_1.5",
+      "titulo": "ANEXO 1.5 - USOS DO SOLO",
+      "inicio": 70,
+      "fim": 70,
+      "tipo": "anexo",
+      "citado_como": "Anexo 1.5"
+    },
+    {
+      "nome": "anexo_1.6",
+      "titulo": "ANEXO 1.6 - PROJETOS E GRAVAMES",
+      "inicio": 71,
+      "fim": 71,
+      "tipo": "anexo",
+      "citado_como": "Anexo 1.6"
+    },
+    {
+      "nome": "anexo_1.7",
+      "titulo": "ANEXO 1.7 - ESTRUTURA AMBIENTAL",
+      "inicio": 72,
+      "fim": 72,
+      "tipo": "anexo",
+      "citado_como": "Anexo 1.7"
+    },
+    {
+      "nome": "anexo_1.8",
+      "titulo": "ANEXO 1.8 - INFRAESTRUTURA",
+      "inicio": 73,
+      "fim": 73,
+      "tipo": "anexo",
+      "citado_como": "Anexo 1.8"
+    },
+    {
+      "nome": "anexo_2.1",
+      "titulo": "ANEXO 02.1 - GRAVAMES VIARIOS",
+      "inicio": 74,
+      "fim": 76,
+      "tipo": "anexo",
+      "citado_como": "Anexo 2.1"
+    },
+    {
+      "nome": "anexo_2.2",
+      "titulo": "ANEXO 02.2 GABARITOS VIÁRIOS",
+      "inicio": 77,
+      "fim": 104,
+      "tipo": "anexo",
+      "citado_como": "Anexo 2.2"
+    },
+    {
+      "nome": "anexo_2.3",
+      "titulo": "AN 02.3 - PROGRAMAS E PROJETOS",
+      "inicio": 105,
+      "fim": 112,
+      "tipo": "anexo",
+      "citado_como": "Anexo 2.3"
+    },
+    {
+      "nome": "anexo_2.4",
+      "titulo": "ANEXO 2.4 QUADROS DE USO DO SOLO",
+      "inicio": 113,
+      "fim": 126,
+      "tipo": "anexo",
+      "citado_como": "Anexo 2.4"
+    },
+    {
+      "nome": "anexo_2.5",
+      "titulo": "ANEXO 2.5 PROJETOS ESPECIAIS",
+      "inicio": 127,
+      "fim": 128,
+      "tipo": "anexo",
+      "citado_como": "Anexo 2.5"
+    },
+    {
+      "nome": "anexo_2.6",
+      "titulo": "ANEXO 02.6 - GARAGENS",
+      "inicio": 129,
+      "fim": 129,
+      "tipo": "anexo",
+      "citado_como": "Anexo 2.6"
+    },
+    {
+      "nome": "anexo_2.7",
+      "titulo": "ANEXO 2.7 ILUSTRAÇÕES DO PLANO REGULADOR",
+      "inicio": 130,
+      "fim": 130,
+      "tipo": "anexo",
+      "citado_como": "Anexo 2.7"
+    },
+    {
+      "nome": "errata_02_2024",
+      "titulo": "ERRATA 02-2024",
+      "inicio": 131,
+      "fim": 138,
+      "tipo": "errata",
+      "citado_como": null
+    },
+    {
+      "nome": "errata_03_2024",
+      "titulo": "ERRATA 03-2024",
+      "inicio": 63,
+      "fim": 64,
+      "tipo": "errata",
+      "citado_como": null
+    },
+    {
+      "nome": "encerramento",
+      "titulo": "Download do Documento e Informações de Inserção",
+      "inicio": 65,
+      "fim": 65,
+      "tipo": "encerramento",
+      "citado_como": null
+    }
+  ],
+  "tokens_in": 171155,
+  "tokens_out": 1479,
+  "custo": 0.17855
+}

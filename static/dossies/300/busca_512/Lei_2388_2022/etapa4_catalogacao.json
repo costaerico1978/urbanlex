@@ -1,0 +1,38 @@
+{
+  "blocos": [
+    {
+      "nome": "corpo_lei",
+      "titulo": "Corpo da Lei",
+      "inicio": 1,
+      "fim": 4,
+      "tipo": "corpo"
+    },
+    {
+      "nome": "anexo_1",
+      "titulo": "ANEXO I - DECLARAÇÃO DATA DE CONCLUSÃO DE OBRA",
+      "inicio": 5,
+      "fim": 5,
+      "tipo": "anexo",
+      "citado_como": "Anexo I"
+    },
+    {
+      "nome": "anexo_2",
+      "titulo": "ANEXO II - DECLARAÇÃO – VIZINHO",
+      "inicio": 6,
+      "fim": 6,
+      "tipo": "anexo",
+      "citado_como": "Anexo II"
+    },
+    {
+      "nome": "anexo_3",
+      "titulo": "ANEXO III - DECLARAÇÃO – VIZINHO AFETADO",
+      "inicio": 7,
+      "fim": 7,
+      "tipo": "anexo",
+      "citado_como": "Anexo III"
+    }
+  ],
+  "tokens_in": 5489,
+  "tokens_out": 254,
+  "custo": 0.006759
+}

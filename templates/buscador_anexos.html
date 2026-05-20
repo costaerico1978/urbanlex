@@ -168,7 +168,7 @@ async function analisarAnexo() {
 function mostrarResultado(r) {
     const el = document.getElementById('anx-resultado');
     el.style.display = 'block';
-    const campos = [['Altera',r.altera],['Revoga',r.revoga],['Regulamenta',r.regulamenta],['Alterado por',r.alterado_por],['Revogado por',r.revogado_por],['Regulamentado por',r.regulamentado_por],['Faz referência à',r.cita]];
+    const campos = [['Altera',r.altera],['Regulamenta',r.regulamenta],['Revoga',r.revoga],['Alterada por',r.alterado_por],['Regulamentada por',r.regulamentado_por],['Revogada por',r.revogado_por],['Faz referência à',r.cita],['Referenciada em',r.citado_em]];
     // Tabela de contexto das citacoes
     if (r.contexto_citas && r.contexto_citas.length) {
         let hctx = '<h4 style="color:var(--accent);margin:20px 0 10px">📍 Contexto das Legislações Citadas</h4>';

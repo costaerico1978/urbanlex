@@ -117,7 +117,7 @@ except ImportError:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Caminhos
-PROMPT_V13_PATH = "/var/www/urbanlex/prompts/prompt_v14.md"  # default: v14
+PROMPT_V14_PATH = "/var/www/urbanlex/prompts/prompt_v14.md"  # default: v14
 PIPELINES_BASE_DIR = "/var/www/urbanlex/static/pipelines"
 
 # Modelos
@@ -359,9 +359,9 @@ def calcular_custo(tokens_in, tokens_out, modelo='sonnet'):
     return (tokens_in * PRECO_SONNET_IN + tokens_out * PRECO_SONNET_OUT) / 1_000_000
 
 
-def carregar_prompt_v13():
+def carregar_prompt_v14():
     """Carrega o prompt v13 do disco. Lança FileNotFoundError se não existir."""
-    with open(PROMPT_V13_PATH, 'r', encoding='utf-8') as f:
+    with open(PROMPT_V14_PATH, 'r', encoding='utf-8') as f:
         return f.read()
 
 
@@ -822,7 +822,7 @@ def _preparar_blocos(blocos, pdf_unico, texto_por_pg, work_dir, log_callback=Non
         _log(f"    {b['nome']:25s} pgs {b['inicio']:3d}-{b['fim']:3d} | {n_p} pgs | {len(b['texto_layout'])} chars", log_callback)
 
 
-def chamar_sonnet_extracao(pdf_path, texto_layout, prompt_extra, prompt_v13,
+def chamar_sonnet_extracao(pdf_path, texto_layout, prompt_extra, prompt_v14,
                            label, client, max_tokens=32000, log_callback=None):
     """
     Chama Sonnet 4.6 com PDF + texto -layout + prompt evolutivo + prompt v13.
@@ -837,7 +837,7 @@ def chamar_sonnet_extracao(pdf_path, texto_layout, prompt_extra, prompt_v13,
         + "\n\n=== TEXTO -LAYOUT ===\n"
         + texto_layout[:30000]
         + "\n\n=== PROMPT V13 ===\n"
-        + prompt_v13
+        + prompt_v14
     )
     
     _log(f"    [{label}] Chamando Sonnet 4.6...", log_callback)
@@ -1007,7 +1007,7 @@ def etapa5_extrair_dados(blocos, pdf_unico, texto_por_pg, work_dir,
     total_in = 0
     total_out = 0
     
-    prompt_v13 = carregar_prompt_v13()
+    prompt_v14 = carregar_prompt_v14()
     client = anthropic.Anthropic(api_key=os.environ['ANTHROPIC_API_KEY'])
     
     # ────────────────────────────────────────────────────────────────────────
@@ -1039,7 +1039,7 @@ Aplique o prompt v13 abaixo para gerar o JSON."""
     else:
         resp_corpo, t, ti, to = chamar_sonnet_extracao(
             corpo_bloco['pdf_path'], corpo_bloco['texto_layout'],
-            contexto_corpo, prompt_v13, 'CORPO', client, log_callback=log_callback
+            contexto_corpo, prompt_v14, 'CORPO', client, log_callback=log_callback
         )
         if resp_corpo:
             open(cache_corpo, 'w').write(resp_corpo)
@@ -1076,7 +1076,7 @@ Aplique o prompt v13 abaixo para gerar o JSON."""
             else:
                 resp, t, ti, to = chamar_sonnet_extracao(
                     anexo_usos['pdf_path'], anexo_usos['texto_layout'],
-                    ctx, prompt_v13, anexo_usos['nome'], client, log_callback=log_callback
+                    ctx, prompt_v14, anexo_usos['nome'], client, log_callback=log_callback
                 )
                 if resp:
                     open(cache_path, 'w').write(resp)
@@ -1109,7 +1109,7 @@ Aplique o prompt v13 abaixo para gerar o JSON."""
             ctx = _gerar_contexto(estado)
             resp, t, ti, to = chamar_sonnet_extracao(
                 b['pdf_path'], b['texto_layout'],
-                ctx, prompt_v13, b['nome'], client, log_callback=log_callback
+                ctx, prompt_v14, b['nome'], client, log_callback=log_callback
             )
             if resp:
                 open(cache_path, 'w').write(resp)

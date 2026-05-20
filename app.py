@@ -6433,8 +6433,8 @@ def api_planilhas_base_listar():
     try:
         from datetime import timedelta as _td
         # Filtra apenas a planilha base mais recente (v3.1)
-        rows = qry("""SELECT id, nome, tamanho_bytes, criado_em, criado_por_nome
-                       FROM planilhas_base ORDER BY criado_em DESC LIMIT 1""")
+        rows = qry("""SELECT id, nome, tamanho_bytes, criado_em, criado_por_nome, arquivo_path
+                       FROM planilhas_base ORDER BY criado_em DESC""")
         for r in rows:
             if r.get('criado_em') and hasattr(r['criado_em'], 'strftime'):
                 r['criado_em'] = (r['criado_em'] - _td(hours=3)).strftime('%d/%m/%Y %H:%M')
@@ -8148,6 +8148,211 @@ def api_gerador_json_download(proc_id):
     except Exception as e:
         import traceback; logger.error('json_download: ' + traceback.format_exc()[:500])
         return jsonify({'success': False, 'error': str(e)[:200]}), 500
+
+
+# ════════════════════════════════════════════════════════════
+# PREENCHEDOR DE PLANILHA - gera xlsx consolidado por municipio
+# ════════════════════════════════════════════════════════════
+
+@app.route('/api/preenchedor/gerar', methods=['POST'])
+@login_required
+def api_preenchedor_gerar():
+    """Recebe lista de jsons_ids + template_id + municipio + estado,
+    gera planilha consolidada e salva em planilhas_geradas."""
+    try:
+        data = request.get_json() or {}
+        jsons_ids = data.get('jsons_ids') or []
+        template_id = data.get('template_id')   # id em planilhas_base
+        municipio = (data.get('municipio') or '').strip()
+        estado = (data.get('estado') or '').strip()
+
+        if not jsons_ids:
+            return jsonify({'success': False, 'error': 'jsons_ids obrigatorio'}), 400
+        if not template_id:
+            return jsonify({'success': False, 'error': 'template_id obrigatorio'}), 400
+        if not municipio or not estado:
+            return jsonify({'success': False, 'error': 'municipio/estado obrigatorios'}), 400
+
+        # Busca planilha base
+        rows = qry("SELECT id, nome, arquivo_path FROM planilhas_base WHERE id=%s", (int(template_id),))
+        if not rows:
+            return jsonify({'success': False, 'error': 'planilha base nao encontrada'}), 404
+        template_path = rows[0]['arquivo_path']
+        template_nome = rows[0]['nome']
+        import os as _os
+        if not _os.path.exists(template_path):
+            return jsonify({'success': False, 'error': f'arquivo template nao existe: {template_path}'}), 404
+
+        # Detecta versao do template (v3.1, v3.2 etc) pra metadados
+        import re as _re
+        m = _re.search(r'_v(\d+_\d+)_', template_nome)
+        versao_base = m.group(1).replace('_', '.') if m else None
+
+        # Importa o modulo (lazy)
+        from modulos import preenchedor_planilha as pp
+
+        # Buffer de log
+        logs = []
+        def log(m):
+            logs.append(m)
+            print(f"[preenchedor] {m}")
+
+        # Roda geracao
+        resultado = pp.gera_planilha_municipio(
+            jsons_ids=[int(j) for j in jsons_ids],
+            template_path=template_path,
+            municipio=municipio,
+            estado=estado,
+            get_db_func=get_db,
+            log_callback=log,
+        )
+        if not resultado:
+            return jsonify({'success': False, 'error': 'falha ao gerar planilha', 'logs': logs}), 500
+
+        # INSERT em planilhas_geradas
+        uid = session.get('user_id')
+        unome = ''
+        try:
+            urows = qry("SELECT nome FROM users WHERE id=%s", (uid,))
+            if urows: unome = urows[0].get('nome') or ''
+        except Exception: pass
+
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""INSERT INTO planilhas_geradas
+            (municipio, estado, arquivo_nome, arquivo_path,
+             zonas_count, template_path, criado_por, legislacoes_usadas, tamanho_bytes)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s) RETURNING id""",
+            (municipio, estado, resultado['filename'], resultado['filepath'],
+             resultado['n_zonas'], template_path, uid,
+             json.dumps(resultado['jsons_ids']), resultado['tamanho_bytes']))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+
+        return jsonify({
+            'success': True,
+            'id': new_id,
+            'filename': resultado['filename'],
+            'n_zonas': resultado['n_zonas'],
+            'n_jsons': resultado['n_jsons_usados'],
+            'tamanho_bytes': resultado['tamanho_bytes'],
+            'versao_base': versao_base,
+            'logs': logs,
+        })
+    except Exception as e:
+        import traceback as _tb
+        return jsonify({'success': False, 'error': str(e)[:500], 'tb': _tb.format_exc()[-500:]}), 500
+
+
+@app.route('/api/planilhas/geradas', methods=['GET'])
+@login_required
+def api_planilhas_geradas_listar():
+    """Lista xlsx gerados, agrupados por municipio."""
+    try:
+        rows = qry("""
+            SELECT pg.id, pg.municipio, pg.estado, pg.arquivo_nome, pg.arquivo_path,
+                   pg.zonas_count, pg.tamanho_bytes, pg.criado_em,
+                   pg.template_path, pg.legislacoes_usadas,
+                   u.nome AS criado_por_nome
+              FROM planilhas_geradas pg
+              LEFT JOIN users u ON u.id = pg.criado_por
+             ORDER BY pg.municipio, pg.estado, pg.criado_em DESC
+        """) or []
+        from datetime import timedelta as _td
+        for r in rows:
+            if r.get('criado_em') and hasattr(r['criado_em'], 'strftime'):
+                r['criado_em'] = (r['criado_em'] - _td(hours=3)).strftime('%d/%m/%Y %H:%M')
+            # versao do template
+            tn = (r.get('template_path') or '').split('/')[-1]
+            import re as _re
+            mm = _re.search(r'_v(\d+_\d+)_', tn)
+            r['versao_base'] = mm.group(1).replace('_', '.') if mm else None
+        return jsonify({'success': True, 'data': rows})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)[:300]}), 500
+
+
+@app.route('/api/planilhas/geradas/<int:pid>', methods=['DELETE'])
+@login_required
+def api_planilhas_geradas_apagar(pid):
+    """Apaga 1 planilha gerada (arquivo + registro)."""
+    try:
+        rows = qry("SELECT arquivo_path FROM planilhas_geradas WHERE id=%s", (pid,))
+        if rows and rows[0].get('arquivo_path'):
+            import os as _os
+            try: _os.remove(rows[0]['arquivo_path'])
+            except Exception: pass
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("DELETE FROM planilhas_geradas WHERE id=%s", (pid,))
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)[:300]}), 500
+
+
+@app.route('/api/planilhas/geradas/apagar-lote', methods=['POST'])
+@login_required
+def api_planilhas_geradas_apagar_lote():
+    """Apaga varias planilhas geradas de uma vez."""
+    try:
+        data = request.get_json() or {}
+        ids = data.get('ids') or []
+        ids = [int(i) for i in ids if str(i).isdigit()]
+        if not ids:
+            return jsonify({'success': False, 'error': 'ids vazio'}), 400
+        rows = qry("SELECT id, arquivo_path FROM planilhas_geradas WHERE id = ANY(%s)", (ids,)) or []
+        import os as _os
+        for r in rows:
+            try: _os.remove(r['arquivo_path'])
+            except Exception: pass
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("DELETE FROM planilhas_geradas WHERE id = ANY(%s)", (ids,))
+        n = cur.rowcount
+        conn.commit(); cur.close(); conn.close()
+        return jsonify({'success': True, 'apagados': n})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)[:300]}), 500
+
+
+@app.route('/api/planilhas/geradas/<int:pid>/download', methods=['GET'])
+@login_required
+def api_planilhas_geradas_download(pid):
+    """Baixa 1 xlsx."""
+    try:
+        rows = qry("SELECT arquivo_path, arquivo_nome FROM planilhas_geradas WHERE id=%s", (pid,))
+        if not rows:
+            return jsonify({'success': False, 'error': 'nao encontrada'}), 404
+        from flask import send_file as _sf
+        return _sf(rows[0]['arquivo_path'], as_attachment=True, download_name=rows[0]['arquivo_nome'])
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)[:300]}), 500
+
+
+@app.route('/api/planilhas/geradas/download-zip', methods=['POST'])
+@login_required
+def api_planilhas_geradas_download_zip():
+    """Recebe lista de ids, junta num zip e baixa."""
+    try:
+        data = request.get_json() or {}
+        ids = data.get('ids') or []
+        ids = [int(i) for i in ids if str(i).isdigit()]
+        if not ids:
+            return jsonify({'success': False, 'error': 'ids vazio'}), 400
+        rows = qry("SELECT id, arquivo_path, arquivo_nome FROM planilhas_geradas WHERE id = ANY(%s)", (ids,)) or []
+        if not rows:
+            return jsonify({'success': False, 'error': 'nenhuma encontrada'}), 404
+        import io as _io, zipfile as _zip, os as _os
+        buf = _io.BytesIO()
+        with _zip.ZipFile(buf, 'w', _zip.ZIP_DEFLATED) as zf:
+            for r in rows:
+                if r.get('arquivo_path') and _os.path.exists(r['arquivo_path']):
+                    zf.write(r['arquivo_path'], arcname=r['arquivo_nome'])
+        buf.seek(0)
+        from flask import send_file as _sf
+        import time as _t
+        zipname = f"planilhas_geradas_{_t.strftime('%d%m%Y_%H%M')}.zip"
+        return _sf(buf, mimetype='application/zip', as_attachment=True, download_name=zipname)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)[:300]}), 500
 
 
 @app.route('/api/gerador/jsons-gerados')

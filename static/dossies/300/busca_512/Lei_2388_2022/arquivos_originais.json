@@ -1,0 +1,34 @@
+{
+  "legislacao": {
+    "tipo": "Lei",
+    "numero": "2388",
+    "ano": "2022",
+    "descricao": "Dispõe sobre a regularização das construções no Município de Xangri-Lá, nos casos em que menciona e dá outras providências.",
+    "categoria": "outros",
+    "status": "vigente",
+    "link": "https://leismunicipais.com.br/a/rs/x/xangri-la/lei-ordinaria/2022/239/2388/lei-ordinaria-n-2388-2022-dispoe-sobre-a-regularizacao-das-construcoes-no-municipio-de-xangri-la-nos-casos-em-que-menciona-e-da-outras-providencias",
+    "arquivo_zip": "Lei_2388_2022.zip",
+    "tem_anexos": true,
+    "qtd_anexos": 1
+  },
+  "label": "Lei_2388_2022",
+  "arquivos_originais": [
+    {
+      "nome": "Lei_2388_2022.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 56192,
+      "conversao_ok": true,
+      "foi_convertido": false
+    },
+    {
+      "nome": "anexo-lei-ordinaria-2388-2022-xangri-la-rs-1.pdf",
+      "tipo_detectado": "pdf",
+      "tamanho": 1842055,
+      "conversao_ok": true,
+      "foi_convertido": false
+    }
+  ],
+  "falhas": [],
+  "duplicados_removidos": 0,
+  "n_paginas_concatenado": 7
+}
