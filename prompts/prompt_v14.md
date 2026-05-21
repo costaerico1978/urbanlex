@@ -192,6 +192,44 @@ Para cada um: valor + legislacao fonte.
 
 **5.3** Para zonas onde o uso eh NAO (proibido), confirme: "Uso X proibido na zona Y."
 
+**5.4 — Parametros remetidos a OUTRA LEGISLACAO (importante)**
+
+Algumas zonas tem parametros que NAO sao definidos na lei principal — a lei remete a OUTRA norma (Decreto antigo, LC anterior, etc).
+
+Exemplos comuns: "ver Dec. no 3046/1981", "conforme LC 89/2005", "definido em legislacao especifica".
+
+Quando isso ocorrer, faca DOIS PASSOS:
+
+**Passo 1 — Marcar o valor:** use NI_LEI_EXTERNA (em vez de NI) no campo valor do parametro. Isso sinaliza que o valor existe, so esta em outra norma.
+
+Exemplo:
+"coeficiente_aproveitamento_maximo": {
+  "valor": "NI_LEI_EXTERNA",
+  "fonte": "LC 270/2024, Anexo XXI — remete a Dec. 3046/1981"
+}
+
+**Passo 2 — Adicionar referencias_externas na zona:**
+"referencias_externas": [
+  {
+    "lei_referenciada": "Dec. 3046/1981",
+    "dispositivo": "Subzonas A-4, A-5, A-6, ...",
+    "parametros_afetados": ["coeficiente_aproveitamento_maximo", "taxa_ocupacao_maxima_pct"],
+    "contexto": "ZPP - Plano Piloto Jacarepagua, parametros por subzona do Dec 3046"
+  }
+]
+
+**Como Python usa isso depois:** se o operador fornecer o PDF da lei externa, cria N linhas adicionais na planilha (uma por subzona), onde:
+- UT1, UT2, UT3 mantem hierarquia da lei principal (ex: AP-4)
+- Zona Urbana mantem (ex: ZPP)
+- UT4 recebe a subdivisao da lei externa (ex: Subzona A-4)
+- Parametros preenchidos com valores reais; fonte cita "Dec. 3046/1981, Subzona A-4"
+
+**Hierarquia UT4-UT6 (regra):**
+- UT1, UT2, UT3 = hierarquia da LEI PRINCIPAL (Macrozona, AP, etc)
+- UT4, UT5, UT6 = APENAS para hierarquia da LEI EXTERNA (quando aplicavel)
+- Sem lei externa: UT4, UT5, UT6 ficam null
+
+
 ---
 
 ## PARTE 6 — Variações condicionais
