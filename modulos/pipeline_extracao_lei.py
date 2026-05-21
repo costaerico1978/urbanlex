@@ -318,10 +318,14 @@ def set_dot_path(obj, path, valor):
     return False
 
 
-def eh_zona_real(sigla, zonas_validas=None):
+def eh_zona_real(sigla, zonas_validas=None, zona_obj=None):
     """
-    Filtro de falsos positivos.
-    Aceita siglas em zonas_validas, rejeita as do blacklist.
+    Filtro de falsos positivos por conteudo.
+    - Rejeita siglas vazias ou na blacklist (AV, RUA, etc)
+    - Aceita siglas em zonas_validas (se fornecido)
+    - Caso contrario, aceita se a zona tem dados urbanisticos
+      (usos_permitidos OU parametros_gerais nao-vazios)
+    - Sem regex/listas hardcoded - decisao por conteudo
     """
     if not sigla:
         return False
@@ -330,10 +334,36 @@ def eh_zona_real(sigla, zonas_validas=None):
         return False
     if zonas_validas and s in zonas_validas:
         return True
-    # Heurística: começa com Z e tem só letras/números
-    if s.startswith('Z') and re.match(r'^Z[A-Z0-9]+$', s):
-        return True
-    return False
+    # Aceita por conteudo: tem dados urbanisticos?
+    if zona_obj and isinstance(zona_obj, dict):
+        # Tem usos_permitidos com algum status nao-null?
+        usos = zona_obj.get('usos_permitidos')
+        if isinstance(usos, dict):
+            for u in usos.values():
+                if isinstance(u, dict) and u.get('status'):
+                    return True
+        # Tem parametros_gerais com algum valor nao-NI?
+        pg = zona_obj.get('parametros_gerais')
+        if isinstance(pg, dict):
+            for v in pg.values():
+                if isinstance(v, dict):
+                    val = v.get('valor')
+                    if val and str(val).strip().upper() not in ('NI', 'N/A', ''):
+                        return True
+                elif v and str(v).strip().upper() not in ('NI', 'N/A', '', 'NONE'):
+                    return True
+        # Tem parametros_por_uso?
+        if zona_obj.get('parametros_por_uso'):
+            return True
+        # Tem variacoes preenchidas?
+        var = zona_obj.get('variacoes')
+        if isinstance(var, dict):
+            for v in var.values():
+                if v and (not isinstance(v, dict) or any(v.values())):
+                    return True
+    # Fallback final pra compatibilidade quando zona_obj nao foi passado:
+    # aceita qualquer sigla nao-blacklisted (Sonnet ja filtrou)
+    return True
 
 
 def eh_anexo_de_usos(titulo):
@@ -871,7 +901,11 @@ def chamar_sonnet_extracao(pdf_path, texto_layout, prompt_extra, prompt_v14,
         _log(f"    ERRO Sonnet [{label}]: {e}", log_callback)
         return None, time.time() - t0, 0, 0
     
-    return texto, time.time() - t0, final.usage.input_tokens, final.usage.output_tokens
+    # Detecta truncamento por max_tokens
+    stop = getattr(final, 'stop_reason', None)
+    if stop == 'max_tokens':
+        _log(f"    ⚠️  TRUNCADO [{label}]: Sonnet atingiu max_tokens={max_tokens} (resposta cortada, {len(texto)} chars). Zonas podem ser perdidas.", log_callback)
+        return texto, time.time() - t0, final.usage.input_tokens, final.usage.output_tokens
 
 
 def _extrair_usos_da_resposta(parsed):
@@ -1207,7 +1241,7 @@ def etapa6_reconsolidar(estado_run, work_dir, zonas_validas=None, log_callback=N
             if not isinstance(z, dict):
                 continue
             sigla = (z.get('sigla_canonica') or '').strip().upper()
-            if not eh_zona_real(sigla, zonas_validas):
+            if not eh_zona_real(sigla, zonas_validas, zona_obj=z):
                 if sigla:
                     descartados.add(sigla)
                 continue
