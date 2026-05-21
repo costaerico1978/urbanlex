@@ -853,7 +853,7 @@ def _preparar_blocos(blocos, pdf_unico, texto_por_pg, work_dir, log_callback=Non
 
 
 def chamar_sonnet_extracao(pdf_path, texto_layout, prompt_extra, prompt_v14,
-                           label, client, max_tokens=32000, log_callback=None):
+                           label, client, max_tokens=64000, log_callback=None):
     """
     Chama Sonnet 4.6 com PDF + texto-layout + prompt evolutivo + prompt v14.
     
