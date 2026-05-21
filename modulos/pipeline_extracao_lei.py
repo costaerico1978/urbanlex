@@ -853,7 +853,7 @@ def _preparar_blocos(blocos, pdf_unico, texto_por_pg, work_dir, log_callback=Non
 
 
 def chamar_sonnet_extracao(pdf_path, texto_layout, prompt_extra, prompt_v14,
-                           label, client, max_tokens=64000, log_callback=None):
+                           label, client, max_tokens=128000, log_callback=None):
     """
     Chama Sonnet 4.6 com PDF + texto-layout + prompt evolutivo + prompt v14.
     
@@ -906,7 +906,7 @@ def chamar_sonnet_extracao(pdf_path, texto_layout, prompt_extra, prompt_v14,
     if stop == 'max_tokens':
         _log(f"    ⚠️  TRUNCADO [{label}]: Sonnet atingiu max_tokens={max_tokens} (resposta cortada, {len(texto)} chars). Zonas podem ser perdidas.", log_callback)
         return texto, time.time() - t0, final.usage.input_tokens, final.usage.output_tokens
-
+    return texto, time.time() - t0, final.usage.input_tokens, final.usage.output_tokens
 
 def _extrair_usos_da_resposta(parsed):
     """Extrai mapeamento {sigla -> [usos]} do JSON do Sonnet."""
