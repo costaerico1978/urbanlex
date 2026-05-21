@@ -157,8 +157,11 @@ def consolidar(jsons: List[Dict]) -> Dict:
         zonas = j['data'].get('estado', {}).get('zonas', {}) or {}
         for z_nome, z_dados in zonas.items():
             if z_nome not in consolidado['zonas']:
+                # sigla_canonica eh a sigla limpa (ex: 'ZCA2-A').
+                # z_nome pode incluir hierarquia como sufixo (ex: 'ZCA2-A|AP-1') quando ha desambiguacao.
+                sigla_limpa = z_dados.get('sigla_canonica') or z_nome.split('|')[0]
                 consolidado['zonas'][z_nome] = {
-                    'sigla': z_nome,
+                    'sigla': sigla_limpa,
                     'fonte_definicao': fonte,
                     'usos': {},
                     'params_gerais': {},
@@ -251,17 +254,17 @@ USO_BLOCO_INICIO = {
 # offset = 0..21 (par = valor, ímpar = legislação)
 USO_PARAMS_OFFSET = [
     # (offset_valor, chave_json_v14)
-    (0,  None),                            # Coef. aproveitamento basico (v14)
-    (2,  None),                            # Coef. aproveitamento maximo (v14)
-    (4,  None),                            # Tx. ocupacao basica (v14)
-    (6,  'taxa_ocupacao_maxima_pct'),      # Tx. ocupacao maxima
-    (8,  None),                            # Gabarito basico (pavtos) (v14)
-    (10, 'gabarito_max_nao_afastado_pavimentos'),  # Gab max pavtos (aproximacao)
-    (12, None),                            # Gabarito basico altura (v14)
-    (14, 'altura_maxima_absoluta_m'),      # Gab max altura
-    (16, 'recuo_frontal_m'),               # Afast frontal
-    (18, 'recuo_lateral_m'),               # Afast lateral
-    (20, 'recuo_fundos_m'),                # Afast fundos
+    (0,  'coeficiente_aproveitamento_basico'),     # Coef. aprov. basico
+    (2,  'coeficiente_aproveitamento_maximo'),     # Coef. aprov. maximo
+    (4,  'taxa_ocupacao_basica_pct'),              # Tx. ocupacao basica
+    (6,  'taxa_ocupacao_maxima_pct'),              # Tx. ocupacao maxima
+    (8,  'gabarito_basico_pavimentos'),            # Gab basico pavtos
+    (10, 'gabarito_max_nao_afastado_pavimentos'),  # Gab max pavtos
+    (12, 'gabarito_basico_altura_m'),              # Gab basico altura
+    (14, 'altura_maxima_absoluta_m'),              # Gab max altura
+    (16, 'recuo_frontal_m'),                       # Afast frontal
+    (18, 'recuo_lateral_m'),                       # Afast lateral
+    (20, 'recuo_fundos_m'),                        # Afast fundos
 ]
 
 # Mapeamento G2 (cols 32-47): General Parameters

@@ -124,56 +124,73 @@ Cite a fonte legal para cada uso definido (artigo/anexo).
 ## PARTE 4 — Parâmetros gerais por zona
 
 **4.1** Para cada zona/subzona, esta lei define parâmetros gerais (que valem para a zona toda, sem distinguir por uso)?
-
 Se não viu essa informação neste batch, deixe como null — outro batch pode ter.
+Se sim, informe os valores definidos.
 
-Se sim, informe os valores definidos:
+**ATENCAO: USE EXATAMENTE estas chaves JSON em `parametros_gerais`. NAO INVENTE NOMES.**
+Se um valor existir na lei mas o nome do parametro for diferente, normalize para a chave abaixo. Nao use abreviacoes da lei (TO, CAM, TP, etc) — sempre use o nome canonico.
 
-PARÂMETROS DO LOTE
-- Área Lote Mínimo (m²)
-- Área Lote Máximo (m²)
-- Testada Mínima (m)
-- Área a ser doada em loteamento (%)
+PARAMETROS DO LOTE (registrar em `parametros_gerais`)
 
-PARÂMETROS GERAIS DA ZONA
-- Taxa de Permeabilidade Mínima (%)
-- Quota Ideal (m²/economia)
-- Afastamento entre blocos
-- Gabarito máximo Não Afastado — em pavimentos
-- Gabarito máximo Não Afastado — em altura (m)
-- Isenção de Outorga Onerosa (Sim/Não/Parcial)
+| Parametro                          | Chave JSON               |
+|------------------------------------|--------------------------|
+| Area Lote Minimo (m2)              | `area_lote_minimo_m2`    |
+| Area Lote Maximo (m2)              | `area_lote_maximo_m2`    |
+| Testada Minima (m)                 | `testada_minima_m`       |
+| Area a ser doada em loteamento (%) | `area_doacao_pct`        |
 
-Para cada parâmetro: valor + legislação fonte (Ex: "LC 148/2023, Art. 70, II").
+PARAMETROS GERAIS DA ZONA (registrar em `parametros_gerais`)
 
-Se a lei não define um parâmetro, use "NI" (Não Informado).
+| Parametro                                | Chave JSON                                |
+|------------------------------------------|-------------------------------------------|
+| Taxa de Permeabilidade Minima (%)        | `permeabilidade_minima_pct`               |
+| Quota Ideal (m2/economia)                | `quota_ideal_m2_economia`                 |
+| Afastamento entre blocos                 | `afastamento_entre_blocos`                |
+| Gabarito maximo Nao Afastado — pavimentos| `gabarito_max_nao_afastado_pavimentos`    |
+| Gabarito maximo Nao Afastado — altura (m)| `gabarito_max_nao_afastado_altura_m`      |
+| Isencao de Outorga Onerosa               | `isencao_outorga_onerosa`                 |
+
+Para cada parametro: valor + legislacao fonte (Ex: "LC 148/2023, Art. 70, II").
+Se a lei nao define um parametro, use "NI" (Nao Informado).
+
+**Nao crie campos fora desta lista em `parametros_gerais`. Coeficiente de Aproveitamento (CAM/CAB) e Taxa de Ocupacao (TO) sao REGISTRADOS por uso (PARTE 5), nunca em `parametros_gerais`.**
 
 ---
-
 ## PARTE 5 — Parâmetros por uso
 
-**5.1** Para cada zona, os parâmetros urbanísticos variam dependendo do uso?
+**5.1** Para cada zona, os parametros urbanisticos variam dependendo do uso?
+Se nao viu essa informacao neste batch, deixe como null — outro batch pode ter.
+Se sim, para cada combinacao (zona x uso permitido), informe os 11 parametros abaixo.
 
-Se não viu essa informação neste batch, deixe como null — outro batch pode ter.
+**ATENCAO: USE EXATAMENTE estas chaves JSON em `parametros_por_uso[<uso>]`. NAO INVENTE NOMES.**
+Se a lei usar abreviacoes (CAM, CAB, TO, TP, etc), normalize para a chave canonica abaixo:
 
-Se sim, para cada combinação (zona × uso permitido), informe os 11 parâmetros abaixo:
+| Parametro                                          | Chave JSON                              |
+|----------------------------------------------------|-----------------------------------------|
+| Coeficiente de Aproveitamento BASICO (sem outorga) | `coeficiente_aproveitamento_basico`     |
+| Coeficiente de Aproveitamento MAXIMO (com outorga) | `coeficiente_aproveitamento_maximo`     |
+| Taxa de Ocupacao BASICA                            | `taxa_ocupacao_basica_pct`              |
+| Taxa de Ocupacao MAXIMA                            | `taxa_ocupacao_maxima_pct`              |
+| Gabarito BASICO em pavimentos                      | `gabarito_basico_pavimentos`            |
+| Gabarito MAXIMO em pavimentos                      | `gabarito_max_nao_afastado_pavimentos`  |
+| Gabarito BASICO em altura (m)                      | `gabarito_basico_altura_m`              |
+| Gabarito MAXIMO em altura (m)                      | `altura_maxima_absoluta_m`              |
+| Afastamento frontal                                | `recuo_frontal_m`                       |
+| Afastamento lateral                                | `recuo_lateral_m`                       |
+| Afastamento de fundos                              | `recuo_fundos_m`                        |
 
-- Coeficiente de Aproveitamento BÁSICO (sem outorga)
-- Coeficiente de Aproveitamento MÁXIMO (com outorga onerosa)
-- Taxa de Ocupação BÁSICA
-- Taxa de Ocupação MÁXIMA
-- Gabarito BÁSICO em pavimentos
-- Gabarito MÁXIMO em pavimentos
-- Gabarito BÁSICO em altura (m)
-- Gabarito MÁXIMO em altura (m)
-- Afastamento frontal
-- Afastamento lateral
-- Afastamento de fundos
+**Aliases comuns nas leis brasileiras (NORMALIZAR para a chave canonica):**
+- "CAM", "Coef. Aprov. Maximo", "CA max" -> `coeficiente_aproveitamento_maximo`
+- "CAB", "Coef. Aprov. Basico", "CA basico" -> `coeficiente_aproveitamento_basico`
+- "TO", "TO max", "Taxa Ocup." -> `taxa_ocupacao_maxima_pct`
+- "TP" -> `permeabilidade_minima_pct` (vai em `parametros_gerais`)
+- "Afast. frontal", "Recuo Frontal", "Recuo F" -> `recuo_frontal_m`
 
-Para cada um: valor + legislação fonte.
+Para cada um: valor + legislacao fonte.
 
-**5.2** Se a lei NÃO distingue parâmetros por uso (define só valores gerais da zona), confirme: "Parâmetros são gerais da zona, valem para todos os usos permitidos."
+**5.2** Se a lei NAO distingue parametros por uso (define so valores gerais da zona), confirme: "Parametros sao gerais da zona, valem para todos os usos permitidos."
 
-**5.3** Para zonas onde o uso é NÃO (proibido), confirme: "Uso X proibido na zona Y."
+**5.3** Para zonas onde o uso eh NAO (proibido), confirme: "Uso X proibido na zona Y."
 
 ---
 
