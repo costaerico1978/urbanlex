@@ -196,7 +196,7 @@ Para cada um: valor + legislacao fonte.
 
 Algumas zonas tem parametros que NAO sao definidos na lei principal — a lei remete a OUTRA norma (Decreto antigo, LC anterior, etc).
 
-Exemplos comuns: "ver Dec. no 3046/1981", "conforme LC 89/2005", "definido em legislacao especifica".
+Exemplos comuns na tabela: "ver Dec. no 3046/1981", "conforme LC 89/2005", "definido em legislacao especifica".
 
 Quando isso ocorrer, faca DOIS PASSOS:
 
@@ -208,27 +208,70 @@ Exemplo:
   "fonte": "LC 270/2024, Anexo XXI — remete a Dec. 3046/1981"
 }
 
-**Passo 2 — Adicionar referencias_externas na zona:**
+**Passo 2 — Adicionar referencias_externas na zona (formato ESTRUTURADO obrigatorio):**
+
+```
 "referencias_externas": [
   {
-    "lei_referenciada": "Dec. 3046/1981",
-    "dispositivo": "Subzonas A-4, A-5, A-6, ...",
-    "parametros_afetados": ["coeficiente_aproveitamento_maximo", "taxa_ocupacao_maxima_pct"],
+    "lei_referenciada": {
+      "esfera": "municipal",
+      "municipio": "Rio de Janeiro",
+      "estado": "RJ",
+      "tipo_nome": "Decreto",
+      "numero": "3046",
+      "ano": 1981,
+      "texto_original": "Dec. nº 3046, de 27 de abril de 1981"
+    },
+    "dispositivo": "Subzonas A-4, A-5, A-6, A-7, ...",
+    "parametros_afetados": [
+      "coeficiente_aproveitamento_maximo",
+      "taxa_ocupacao_maxima_pct"
+    ],
     "contexto": "ZPP - Plano Piloto Jacarepagua, parametros por subzona do Dec 3046"
   }
 ]
+```
 
-**Como Python usa isso depois:** se o operador fornecer o PDF da lei externa, cria N linhas adicionais na planilha (uma por subzona), onde:
-- UT1, UT2, UT3 mantem hierarquia da lei principal (ex: AP-4)
-- Zona Urbana mantem (ex: ZPP)
-- UT4 recebe a subdivisao da lei externa (ex: Subzona A-4)
-- Parametros preenchidos com valores reais; fonte cita "Dec. 3046/1981, Subzona A-4"
+**REGRAS de preenchimento de lei_referenciada (esquema do Buscador):**
 
-**Hierarquia UT4-UT6 (regra):**
-- UT1, UT2, UT3 = hierarquia da LEI PRINCIPAL (Macrozona, AP, etc)
+- `esfera` (obrigatorio): use EXATAMENTE um destes valores: `"federal"`, `"estadual"`, `"municipal"`
+- `municipio` (so se esfera=municipal): nome completo do municipio (ex: "Rio de Janeiro", "Sao Paulo")
+- `estado` (obrigatorio se esfera=municipal ou estadual): sigla UF (ex: "RJ", "SP")
+- `tipo_nome` (obrigatorio): use EXATAMENTE um destes 14 tipos canonicos:
+  - "Lei Ordinária"
+  - "Lei Complementar"
+  - "Decreto"
+  - "Decreto-Lei"
+  - "Portaria"
+  - "Resolução"
+  - "Instrução Normativa"
+  - "Instrução Técnica"
+  - "Medida Provisória"
+  - "Emenda Constitucional"
+  - "Plano Diretor"
+  - "Código de Obras"
+  - "Código de Posturas"
+  - "Regulamento"
+- `numero` (obrigatorio): string, sem o ano (ex: "3046", "270", "148")
+- `ano` (obrigatorio): integer (ex: 1981, 2024)
+- `texto_original` (opcional, recomendado): citacao literal da lei principal, util pra auditoria
+
+**Como o sistema usa isso:**
+
+1. Apos a extracao, o sistema busca cada lei referenciada no banco de dossies usando esfera+tipo+numero+ano
+2. Se a lei JA EXISTE no dossie (foi encontrada pelo Buscador automaticamente), o sistema processa ela em pipeline secundario
+3. Se NAO existe, o operador pode anexar o PDF manualmente
+4. Apos processar a lei externa, faz MERGE: cada zona com referencia vira N linhas adicionais na planilha:
+   - UT1, UT2, UT3 mantem hierarquia da lei principal (ex: AP-4)
+   - Zona Urbana mantem (ex: ZPP)
+   - UT4 recebe a subdivisao da lei externa (ex: "Subzona A-4")
+   - Parametros sao preenchidos com valores reais
+   - Fonte cita "Dec. 3046/1981, Subzona A-4"
+
+**Hierarquia UT4-UT6 (regra estrita):**
+- UT1, UT2, UT3 = hierarquia da LEI PRINCIPAL (Macrozona, AP, Setor, etc)
 - UT4, UT5, UT6 = APENAS para hierarquia da LEI EXTERNA (quando aplicavel)
 - Sem lei externa: UT4, UT5, UT6 ficam null
-
 
 ---
 
