@@ -6810,6 +6810,92 @@ def api_gerador_ultimo_job():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+
+@app.route('/api/processamento/<int:proc_id>/refs_externas')
+@login_required
+def api_processamento_refs_externas(proc_id):
+    """
+    Retorna o relatorio das referencias externas de um processamento (JSON gerado).
+    Para cada ref, retorna o status colorido (vermelho/amarelo/verde) + detalhes
+    pra alimentar o accordion da aba JSON Gerados.
+    """
+    try:
+        import psycopg2
+        from modulos.resolver_referencias_externas import relatorio_refs
+
+        # Le o resultado_json do processamento
+        conn = psycopg2.connect(os.environ['DATABASE_URL'])
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, municipio, estado, legislacao_label, processado_em,
+                   resultado_json, sucesso
+            FROM legislacao_processamentos
+            WHERE id = %s
+        """, (proc_id,))
+        row = cur.fetchone()
+        if not row:
+            cur.close()
+            conn.close()
+            return jsonify({'success': False, 'error': f'processamento {proc_id} nao encontrado'}), 404
+
+        id_, municipio, estado, label, processado_em, resultado_json, sucesso = row
+
+        if not sucesso:
+            cur.close()
+            conn.close()
+            return jsonify({
+                'success': True,
+                'processamento_id': id_,
+                'legislacao_label': label,
+                'municipio': municipio,
+                'estado': estado,
+                'refs_externas': [],
+                'resumo': {'total': 0, 'vermelho': 0, 'amarelo': 0, 'verde': 0},
+                'observacao': 'processamento sem sucesso',
+            })
+
+        # Gera relatorio (consulta legislacoes + legislacao_processamentos)
+        relatorio = relatorio_refs(resultado_json, conn)
+        cur.close()
+        conn.close()
+
+        # Serializa: converte datas e remove campos pesados
+        def _serializar(item):
+            r = dict(item)
+            # Converte parametros_pendentes (set ja foi convertido pra lista no modulo)
+            # detalhes_banco pode ter data_publicacao como objeto date
+            for chave in ('detalhes_banco', 'detalhes_processamento'):
+                if r.get(chave):
+                    d = dict(r[chave])
+                    for k, v in list(d.items()):
+                        if hasattr(v, 'isoformat'):
+                            d[k] = v.isoformat()
+                    r[chave] = d
+            return r
+
+        refs_serializadas = [_serializar(it) for it in relatorio]
+
+        resumo = {
+            'total': len(refs_serializadas),
+            'vermelho': sum(1 for r in refs_serializadas if r['status'] == 'vermelho'),
+            'amarelo':  sum(1 for r in refs_serializadas if r['status'] == 'amarelo'),
+            'verde':    sum(1 for r in refs_serializadas if r['status'] == 'verde'),
+        }
+
+        return jsonify({
+            'success': True,
+            'processamento_id': id_,
+            'legislacao_label': label,
+            'municipio': municipio,
+            'estado': estado,
+            'processado_em': processado_em.isoformat() if processado_em else None,
+            'refs_externas': refs_serializadas,
+            'resumo': resumo,
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({'success': False, 'error': str(e), 'traceback': traceback.format_exc()}), 500
+
 @app.route('/api/api-keys/<servico>', methods=['POST'])
 @login_required
 def api_api_keys_salvar(servico):
