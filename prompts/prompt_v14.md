@@ -32,6 +32,76 @@ Se houver errata ou retificação no batch, leia a errata **antes** da lei origi
 
 ---
 
+## PARTE 0 — REGRAS DE FORMATO CANONICO (LEIA PRIMEIRO, NAO VIOLE)
+
+Estas regras sao OBRIGATORIAS e tem prioridade sobre QUALQUER exemplo que voce veja adiante neste prompt. Se um exemplo neste prompt contradiz uma regra desta PARTE 0, siga a regra (nao o exemplo).
+
+**REGRA 0.1 — Formato canonico da sigla_canonica:**
+
+A `sigla_canonica` da zona deve conter APENAS letras maiusculas (A-Z) e digitos (0-9). SEM hifens, espacos, pontos, acentos ou outros caracteres.
+
+| Sigla na lei (variantes) | sigla_canonica CORRETA |
+|--------------------------|-----------------------|
+| `ZCA-1`, `ZCA 1`, `ZCA1` | `ZCA1` |
+| `ZRM 2 A`, `ZRM2-A`, `ZRM2A` | `ZRM2A` |
+| `ZRM 1 D`, `ZRM1-D` | `ZRM1D` |
+| `ZUM-A`, `ZUM A` | `ZUMA` |
+| `ZUPI-A` | `ZUPIA` |
+| `ZEIS-1` | `ZEIS1` |
+| `ZCS A`, `ZCS-A` | `ZCSA` |
+| `ZPP` | `ZPP` |
+
+**REGRA 0.2 — A sigla NUNCA contem hierarquia (AP, Macrozona, Setor, etc):**
+
+PROIBIDO usar sufixos hierarquicos na sigla. A diferenciacao entre zonas com mesmo nome em hierarquias diferentes deve ser feita via `hierarquia` (UT1/UT2/UT3).
+
+ERRADO:
+- `ZRM2A-AP1`, `ZRM2AAP1`, `ZRM2A_AP1`, `ZRM2A.AP1`
+- `ZRM-2-A-AP-2.1`
+- `ZCA1-AP1`
+
+CORRETO (mesma sigla, hierarquia diferente):
+```
+{"sigla_canonica": "ZRM2A", "hierarquia": {"UT1": "AP1"}, ...}
+{"sigla_canonica": "ZRM2A", "hierarquia": {"UT1": "AP2"}, ...}
+```
+
+Sao DUAS entradas separadas no array `zonas`, com sigla IDENTICA mas UT1 distinta.
+
+**REGRA 0.3 — Formato canonico da hierarquia UT1/UT2/UT3:**
+
+Use forma compacta sem hifen nem espaco.
+
+| Variante na lei | UT1 canonico |
+|----------------|--------------|
+| `AP-1`, `AP 1`, `AP1`, `Área de Planejamento 1`, `Area de Planejamento 1` | `AP1` |
+| `AP-4`, `Area de Planejamento 4` | `AP4` |
+| `AP-2.1`, `Área de Planejamento 2.1` | `AP2.1` |
+| `Macrozona 2`, `Macrozona II` | `Macrozona2` |
+| `Setor 3` | `Setor3` |
+
+**REGRA 0.4 — O que NAO eh uma zona (NAO incluir no array `zonas`):**
+
+NAO crie entrada no array `zonas` para:
+
+1. **Macrozonas** (Macrozona de Proteção Integral, Uso Sustentavel, Estruturação Urbana, Requalificação Urbana, Controle da Ocupação, Desenvolvimento Estratégico, Redução da Vulnerabilidade, etc) — sao niveis hierarquicos amplos, **NAO definem parametros urbanisticos**. Devem aparecer SOMENTE em `UT1` das zonas.
+
+2. **Conceitos sem parametros** (zonas mencionadas no texto da lei mas sem `usos_permitidos` ou `parametros_gerais`/`parametros_por_uso` preenchidos) — se voce nao tem PARAMETROS REAIS pra preencher (mesmo que NI), nao crie a entrada.
+
+3. **Artefatos de figuras/legendas** (Zona A da Figura 10, Zona B do mapa X) — nao sao zonas urbanas reais, sao apenas referencias visuais.
+
+4. **Pais-mae sem subdivisao real** (ZRM, ZCA sem numero, quando todas as instancias reais sao subzonas tipo ZRM1A, ZRM2A) — nao crie entrada generica.
+
+**REGRA 0.5 — Filtragem por ter parametros:**
+
+Uma zona so entra no array `zonas` se atende A PELO MENOS UMA destas:
+- Tem pelo menos um uso em `usos_permitidos` com `status: "SIM"` ou `"CONDICIONADO"`, OU
+- Tem ao menos um parametro em `parametros_gerais` ou `parametros_por_uso` com valor (mesmo que `NI` ou `NI_LEI_EXTERNA`)
+
+Se nada disso se aplica, NAO inclua a zona no JSON.
+
+---
+
 ## PARTE 1 — Sobre esta legislação
 
 **1.1** Qual é a identificação formal desta legislação?
