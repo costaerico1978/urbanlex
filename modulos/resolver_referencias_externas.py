@@ -57,6 +57,7 @@ def coletar_refs_unicas(resultado_json: Dict) -> List[Dict]:
     else:
         iterator = [(z.get('sigla_canonica', f'idx_{i}'), z) for i, z in enumerate(zonas)]
 
+    # ----- 1. Refs no nivel ZONA (formato novo, pos-commit 5c80482) -----
     for chave_zona, z in iterator:
         if not isinstance(z, dict):
             continue
@@ -94,6 +95,50 @@ def coletar_refs_unicas(resultado_json: Dict) -> List[Dict]:
             agg['zonas_afetadas'].append(chave_zona)
             params_afetados = ref_item.get('parametros_afetados') or []
             agg['parametros_pendentes'].update(params_afetados)
+
+    # ----- 2. Refs no nivel LEGISLACAO (formato antigo agregado) -----
+    # estado.legislacao.referencias_externas: lista de {tipo, numero, ano, contexto}
+    refs_alto = (estado.get('legislacao') or {}).get('referencias_externas') or []
+    municipio_leg = (estado.get('legislacao') or {}).get('municipio') or ''
+    estado_leg = (estado.get('legislacao') or {}).get('estado') or ''
+    for ref_item in refs_alto:
+        if not isinstance(ref_item, dict):
+            continue
+        # Pode estar em formato simples (tipo+numero+ano direto) ou com lei_referenciada
+        if 'lei_referenciada' in ref_item:
+            lei = ref_item['lei_referenciada'] or {}
+        else:
+            # Formato antigo: tipo/numero/ano no proprio item
+            lei = {
+                'tipo_nome': ref_item.get('tipo'),
+                'numero': ref_item.get('numero'),
+                'ano': ref_item.get('ano'),
+                'esfera': 'municipal' if municipio_leg else None,
+                'municipio': municipio_leg,
+                'estado': estado_leg,
+                'texto_original': ref_item.get('contexto'),
+            }
+        if not lei.get('numero') or not lei.get('ano'):
+            continue
+        esfera = (lei.get('esfera') or '').lower()
+        tipo_nome = lei.get('tipo_nome') or ''
+        numero = str(lei.get('numero') or '').strip()
+        ano = lei.get('ano')
+        municipio = lei.get('municipio') or municipio_leg
+        estado_uf = lei.get('estado') or estado_leg
+        chave_agg = (esfera, tipo_nome, numero, str(ano), municipio if esfera == 'municipal' else '', estado_uf)
+        agg = agrupado[chave_agg]
+        if agg['ref'] is None:
+            agg['ref'] = {
+                'esfera': esfera,
+                'tipo_nome': tipo_nome,
+                'numero': numero,
+                'ano': ano,
+                'municipio': municipio,
+                'estado': estado_uf,
+                'texto_original': lei.get('texto_original') or ref_item.get('contexto'),
+            }
+        # Nao tem zona especifica nesse formato; nao adiciona zonas_afetadas
 
     # Converte set pra lista
     resultado = []
@@ -161,6 +206,75 @@ def buscar_lei_no_banco(ref: Dict, db_conn) -> Optional[Dict]:
     return dict(row) if row else None
 
 
+def buscar_processamento_da_lei(ref: Dict, db_conn) -> Optional[Dict]:
+    """
+    Verifica se existe processamento BEM-SUCEDIDO desta lei externa em
+    `legislacao_processamentos`, matchando pelo conteudo do resultado_json:
+    estado.legislacao.{tipo, numero, ano}.
+
+    Returns:
+        {id, processado_em, municipio, output_dir} ou None se nao existir.
+    """
+    cur = db_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    sql = """
+        SELECT id, processado_em, municipio, estado, output_dir
+        FROM legislacao_processamentos
+        WHERE sucesso=TRUE
+          AND resultado_json -> 'estado' -> 'legislacao' ->> 'tipo' = %s
+          AND resultado_json -> 'estado' -> 'legislacao' ->> 'numero' = %s
+          AND (resultado_json -> 'estado' -> 'legislacao' ->> 'ano')::int = %s
+        ORDER BY id DESC
+        LIMIT 1
+    """
+    cur.execute(sql, (ref.get('tipo_nome'), str(ref.get('numero')), int(ref.get('ano'))))
+    row = cur.fetchone()
+    cur.close()
+    return dict(row) if row else None
+
+
+def status_lei_externa(ref: Dict, db_conn) -> Dict:
+    """
+    Determina o status da lei externa referenciada:
+      - 'vermelho': lei AUSENTE em `legislacoes`
+      - 'amarelo': existe em `legislacoes` mas sem JSON processado
+      - 'verde': existe + tem processamento com sucesso
+
+    Returns:
+        {
+          'status': 'vermelho'|'amarelo'|'verde',
+          'legislacao_id': int|None,    # id em `legislacoes`
+          'processamento_id': int|None, # id em `legislacao_processamentos`
+          'detalhes_banco': dict|None,
+          'detalhes_processamento': dict|None,
+        }
+    """
+    legislacao = buscar_lei_no_banco(ref, db_conn)
+    if not legislacao:
+        return {
+            'status': 'vermelho',
+            'legislacao_id': None,
+            'processamento_id': None,
+            'detalhes_banco': None,
+            'detalhes_processamento': None,
+        }
+    processamento = buscar_processamento_da_lei(ref, db_conn)
+    if not processamento:
+        return {
+            'status': 'amarelo',
+            'legislacao_id': legislacao['id'],
+            'processamento_id': None,
+            'detalhes_banco': legislacao,
+            'detalhes_processamento': None,
+        }
+    return {
+        'status': 'verde',
+        'legislacao_id': legislacao['id'],
+        'processamento_id': processamento['id'],
+        'detalhes_banco': legislacao,
+        'detalhes_processamento': processamento,
+    }
+
+
 def relatorio_refs(resultado_json: Dict, db_conn) -> List[Dict]:
     """
     Gera relatorio de todas as referencias externas:
@@ -172,12 +286,15 @@ def relatorio_refs(resultado_json: Dict, db_conn) -> List[Dict]:
     refs_unicas = coletar_refs_unicas(resultado_json)
     relatorio = []
     for item in refs_unicas:
-        lei_banco = buscar_lei_no_banco(item['ref'], db_conn)
+        st = status_lei_externa(item['ref'], db_conn)
         relatorio.append({
             **item,
-            'encontrada_no_banco': lei_banco is not None,
-            'legislacao_id': lei_banco['id'] if lei_banco else None,
-            'detalhes_banco': lei_banco,
+            'status': st['status'],   # 'vermelho'|'amarelo'|'verde'
+            'encontrada_no_banco': st['legislacao_id'] is not None,
+            'legislacao_id': st['legislacao_id'],
+            'processamento_id': st['processamento_id'],
+            'detalhes_banco': st['detalhes_banco'],
+            'detalhes_processamento': st['detalhes_processamento'],
         })
     return relatorio
 
@@ -217,18 +334,24 @@ if __name__ == '__main__':
     print(f"\n=== Buscando no banco ===")
     conn = psycopg2.connect(os.environ['DATABASE_URL'])
     relatorio = relatorio_refs(d, conn)
+    icones = {'vermelho': '🔴', 'amarelo': '🟡', 'verde': '🟢'}
     for i, item in enumerate(relatorio, 1):
         r = item['ref']
-        status = "✅ ENCONTRADA" if item['encontrada_no_banco'] else "❌ NAO encontrada"
-        print(f"\n{i}. {r['tipo_nome']} {r['numero']}/{r['ano']} → {status}")
+        ico = icones.get(item['status'], '?')
+        print(f"\n{i}. {ico} {r['tipo_nome']} {r['numero']}/{r['ano']} ({item['status'].upper()})")
         if item['detalhes_banco']:
             db = item['detalhes_banco']
-            print(f"   id={db['id']} | data={db['data_publicacao']} | texto={db['texto_size']} chars")
-            print(f"   ementa: {(db['ementa'] or '')[:80]}")
+            print(f"   legislacao_id={db['id']} | texto={db['texto_size']} chars | data={db['data_publicacao']}")
+        if item['detalhes_processamento']:
+            p = item['detalhes_processamento']
+            print(f"   processamento_id={p['id']} | processado_em={p['processado_em']} | output_dir={p.get('output_dir')}")
     conn.close()
 
-    encontradas = sum(1 for r in relatorio if r['encontrada_no_banco'])
+    n_verm = sum(1 for r in relatorio if r['status'] == 'vermelho')
+    n_amar = sum(1 for r in relatorio if r['status'] == 'amarelo')
+    n_verd = sum(1 for r in relatorio if r['status'] == 'verde')
     print(f"\n=== RESUMO ===")
     print(f"  Total refs: {len(refs)}")
-    print(f"  No banco: {encontradas}")
-    print(f"  Faltam: {len(refs) - encontradas}")
+    print(f"  🔴 vermelho (ausente no urbanlex): {n_verm}")
+    print(f"  🟡 amarelo (no banco, sem JSON):    {n_amar}")
+    print(f"  🟢 verde (com JSON gerado):         {n_verd}")
