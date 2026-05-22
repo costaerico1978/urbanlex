@@ -1480,13 +1480,99 @@ async function gpCarregarJsonsGerados() {
         if (j.web_url) {
           html += '<a href="/api/gerador/json/download/' + j.id + '" download style="padding:3px 8px;border-radius:4px;background:rgba(0,229,160,.15);color:var(--accent);border:1px solid rgba(0,229,160,.3);text-decoration:none;">⬇ Baixar</a>';
           html += '<a href="' + j.web_url + '" target="_blank" style="padding:3px 8px;border-radius:4px;background:rgba(155,89,182,.12);color:#9b8ed7;border:1px solid rgba(155,89,182,.3);text-decoration:none;">👁 Ver</a>';
+          html += '<button onclick="gpToggleRefsExternas(' + j.id + ')" id="gpref-btn-' + j.id + '" style="padding:3px 8px;border-radius:4px;background:rgba(255,255,255,.05);color:var(--text);border:1px solid var(--border);cursor:pointer;font-size:10px;">🔗 Refs externas ▼</button>';
         } else { html += '<span style="color:#e74c3c;">arquivo nao encontrado</span>'; }
         html += '</div></div></div></div>';
+        // Container do accordion (oculto inicialmente)
+        html += '<div id="gpref-content-' + j.id + '" style="display:none;margin-top:6px;margin-left:26px;padding:10px 12px;background:rgba(0,0,0,0.15);border:1px solid var(--border);border-radius:4px;font-size:11px;">Carregando...</div>';
       });
       html += '</div></div>';
     });
     el.innerHTML = html;
   } catch(e) { el.innerHTML = '<div style="padding:14px;color:#e74c3c;font-size:12px;">Erro: ' + e.message + '</div>'; }
+}
+// ====== B.4: Refs externas (accordion) ======
+window._gpRefsCache = window._gpRefsCache || {};
+async function gpToggleRefsExternas(procId) {
+  const cont = document.getElementById('gpref-content-' + procId);
+  const btn = document.getElementById('gpref-btn-' + procId);
+  if (!cont) return;
+  if (cont.style.display === 'block') {
+    cont.style.display = 'none';
+    if (btn) btn.innerHTML = '🔗 Refs externas ▼';
+    return;
+  }
+  // Mostra carregando
+  cont.style.display = 'block';
+  if (btn) btn.innerHTML = '🔗 Refs externas ▲';
+  // Usa cache se ja carregou
+  if (window._gpRefsCache[procId]) {
+    cont.innerHTML = gpRenderRefsExternas(window._gpRefsCache[procId]);
+    return;
+  }
+  cont.innerHTML = '<span style="color:var(--muted);">Carregando...</span>';
+  try {
+    const r = await fetch('/api/processamento/' + procId + '/refs_externas');
+    const d = await r.json();
+    if (!d.success) {
+      cont.innerHTML = '<span style="color:#e74c3c;">Erro: ' + (d.error || 'desconhecido') + '</span>';
+      return;
+    }
+    window._gpRefsCache[procId] = d;
+    cont.innerHTML = gpRenderRefsExternas(d);
+  } catch(e) {
+    cont.innerHTML = '<span style="color:#e74c3c;">Erro: ' + e.message + '</span>';
+  }
+}
+function gpRenderRefsExternas(d) {
+  if (!d.refs_externas || !d.refs_externas.length) {
+    return '<span style="color:var(--muted);">Nenhuma referencia externa encontrada neste JSON.</span>';
+  }
+  const cores = {
+    'vermelho': {flag: '🔴', label: 'AUSENTE no urbanlex', bg: 'rgba(231,76,60,.08)', border: 'rgba(231,76,60,.3)'},
+    'amarelo':  {flag: '🟡', label: 'no Dossie, sem JSON', bg: 'rgba(241,196,15,.08)', border: 'rgba(241,196,15,.4)'},
+    'verde':    {flag: '🟢', label: 'JSON gerado', bg: 'rgba(0,229,160,.08)', border: 'rgba(0,229,160,.3)'}
+  };
+  let html = '';
+  // Resumo
+  const r = d.resumo;
+  html += '<div style="display:flex;gap:10px;margin-bottom:8px;font-weight:600;color:var(--muted);">';
+  html += '<span>Total: ' + r.total + '</span>';
+  if (r.vermelho) html += '<span style="color:#e74c3c;">🔴 ' + r.vermelho + '</span>';
+  if (r.amarelo)  html += '<span style="color:#f1c40f;">🟡 ' + r.amarelo + '</span>';
+  if (r.verde)    html += '<span style="color:var(--accent);">🟢 ' + r.verde + '</span>';
+  html += '</div>';
+  // Cada ref
+  d.refs_externas.forEach(item => {
+    const c = cores[item.status] || cores.vermelho;
+    const ref = item.ref;
+    html += '<div style="padding:8px 10px;margin-bottom:5px;background:' + c.bg + ';border:1px solid ' + c.border + ';border-radius:4px;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">';
+    html += '<div style="flex:1;min-width:0;">';
+    html += '<span style="font-size:12px;">' + c.flag + ' <strong>' + ref.tipo_nome + ' ' + ref.numero + '/' + ref.ano + '</strong></span>';
+    html += '<span style="color:var(--muted);margin-left:6px;font-size:10px;">— ' + c.label + '</span>';
+    html += '</div>';
+    // Botao "Extrair info" so se amarelo (B.5 vai implementar funcionalidade)
+    if (item.status === 'amarelo' && item.legislacao_id) {
+      html += '<button onclick="gpExtrairInfoLeiExterna(' + item.legislacao_id + ', \'' + (ref.tipo_nome+' '+ref.numero+'/'+ref.ano).replace(/\'/g, "\\'") + '\')" style="padding:3px 8px;border-radius:4px;background:rgba(241,196,15,.15);color:#f1c40f;border:1px solid rgba(241,196,15,.4);cursor:pointer;font-size:10px;flex-shrink:0;">⚙ Extrair info</button>';
+    }
+    html += '</div>';
+    // Linha de contexto/zonas afetadas se houver
+    if (ref.texto_original || (item.zonas_afetadas && item.zonas_afetadas.length)) {
+      html += '<div style="margin-top:4px;font-size:10px;color:var(--muted);">';
+      if (ref.texto_original) html += '<div>' + ref.texto_original + '</div>';
+      if (item.zonas_afetadas && item.zonas_afetadas.length) {
+        html += '<div>Zonas afetadas: ' + item.zonas_afetadas.join(', ') + '</div>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+  });
+  return html;
+}
+function gpExtrairInfoLeiExterna(legId, label) {
+  // B.5: implementar disparo do pipeline pra lei externa
+  alert('🔧 Em breve (Fase B.5): vai disparar pipeline pra extrair ' + label + ' (id=' + legId + ')');
 }
 function gpToggleJsonGrupo(gi) {
   const c = document.getElementById('gpj-content-' + gi);
