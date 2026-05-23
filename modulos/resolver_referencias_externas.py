@@ -291,22 +291,28 @@ def status_lei_externa(ref: Dict, db_conn) -> Dict:
         return {
             'status': 'vermelho',
             'legislacao_id': None,
+            'dossie_pasta_id': None,
             'processamento_id': None,
             'detalhes_banco': None,
             'detalhes_processamento': None,
         }
+    # legislacao pode ter vindo de dossie_legislacoes_pasta (fonte='dossie_pasta')
+    leg_id = legislacao.get('id')
+    dossie_pasta_id = legislacao.get('dossie_pasta_id')
     processamento = buscar_processamento_da_lei(ref, db_conn)
     if not processamento:
         return {
             'status': 'amarelo',
-            'legislacao_id': legislacao['id'],
+            'legislacao_id': leg_id,
+            'dossie_pasta_id': dossie_pasta_id,
             'processamento_id': None,
             'detalhes_banco': legislacao,
             'detalhes_processamento': None,
         }
     return {
         'status': 'verde',
-        'legislacao_id': legislacao['id'],
+        'legislacao_id': leg_id,
+        'dossie_pasta_id': dossie_pasta_id,
         'processamento_id': processamento['id'],
         'detalhes_banco': legislacao,
         'detalhes_processamento': processamento,
@@ -330,6 +336,7 @@ def relatorio_refs(resultado_json: Dict, db_conn) -> List[Dict]:
             'status': st['status'],   # 'vermelho'|'amarelo'|'verde'
             'encontrada_no_banco': st['legislacao_id'] is not None,
             'legislacao_id': st['legislacao_id'],
+            'dossie_pasta_id': st.get('dossie_pasta_id'),
             'processamento_id': st['processamento_id'],
             'detalhes_banco': st['detalhes_banco'],
             'detalhes_processamento': st['detalhes_processamento'],

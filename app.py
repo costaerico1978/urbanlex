@@ -6913,22 +6913,41 @@ def api_legislacao_extrair_info(legislacao_id):
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        # 1. Pega a lei
-        cur.execute("""
-            SELECT id, tipo_nome, numero, ano, municipio_nome, estado, ementa
-            FROM legislacoes
-            WHERE id = %s
-        """, (legislacao_id,))
-        leg = cur.fetchone()
-        if not leg:
+        # 1. Pega a lei - tenta primeiro em legislacoes, depois fallback em dossie_legislacoes_pasta
+        dossie_pasta_id = request.args.get('dossie_pasta_id', type=int)
+        tipo = numero = ano = municipio = estado = None
+        if legislacao_id and legislacao_id > 0:
+            cur.execute("""
+                SELECT id, tipo_nome, numero, ano, municipio_nome, estado, ementa
+                FROM legislacoes
+                WHERE id = %s
+            """, (legislacao_id,))
+            leg = cur.fetchone()
+            if leg:
+                tipo = leg['tipo_nome']
+                numero = str(leg['numero'])
+                ano = str(leg['ano'])
+                municipio = leg['municipio_nome']
+                estado = leg['estado']
+        # Fallback: se nao acha em legislacoes, tenta dossie_pasta_id
+        if not tipo and dossie_pasta_id:
+            cur.execute("""
+                SELECT dlp.legislacao_meta, bh.municipio, bh.estado
+                FROM dossie_legislacoes_pasta dlp
+                JOIN buscas_historico bh ON bh.id = dlp.busca_historico_id
+                WHERE dlp.id = %s
+            """, (dossie_pasta_id,))
+            row_pasta = cur.fetchone()
+            if row_pasta:
+                meta = row_pasta['legislacao_meta'] or {}
+                tipo = meta.get('tipo') or meta.get('tipo_nome')
+                numero = str(meta.get('numero') or '')
+                ano = str(meta.get('ano') or '')
+                municipio = row_pasta['municipio']
+                estado = row_pasta['estado']
+        if not tipo:
             cur.close(); conn.close()
-            return jsonify({'success': False, 'error': f'legislacao {legislacao_id} nao encontrada'}), 404
-
-        tipo = leg['tipo_nome']
-        numero = str(leg['numero'])
-        ano = str(leg['ano'])
-        municipio = leg['municipio_nome']
-        estado = leg['estado']
+            return jsonify({'success': False, 'error': f'legislacao_id={legislacao_id} nem dossie_pasta_id={dossie_pasta_id} retornaram lei valida'}), 404
         label_user = f"{tipo} {numero}/{ano}"
 
         # 2. Procura no dossie via match com legislacao_meta

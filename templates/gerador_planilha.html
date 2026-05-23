@@ -1617,8 +1617,8 @@ function gpRenderRefsExternas(d) {
     html += '<span style="color:var(--muted);margin-left:6px;font-size:10px;">— ' + c.label + '</span>';
     html += '</div>';
     // Botao "Extrair info" so se amarelo (B.5 vai implementar funcionalidade)
-    if (item.status === 'amarelo' && item.legislacao_id) {
-      html += '<button onclick="gpExtrairInfoLeiExterna(' + item.legislacao_id + ', \'' + (ref.tipo_nome+' '+ref.numero+'/'+ref.ano).replace(/\'/g, "\\'") + '\')" style="padding:3px 8px;border-radius:4px;background:rgba(241,196,15,.15);color:#f1c40f;border:1px solid rgba(241,196,15,.4);cursor:pointer;font-size:10px;flex-shrink:0;">⚙ Extrair info</button>';
+    if (item.status === 'amarelo' && (item.legislacao_id || item.dossie_pasta_id)) {
+      html += '<button onclick="gpExtrairInfoLeiExterna(' + (item.legislacao_id || 0) + ', ' + (item.dossie_pasta_id || 0) + ', \'' + (ref.tipo_nome+' '+ref.numero+'/'+ref.ano).replace(/\'/g, "\\'") + '\')" style="padding:3px 8px;border-radius:4px;background:rgba(241,196,15,.15);color:#f1c40f;border:1px solid rgba(241,196,15,.4);cursor:pointer;font-size:10px;flex-shrink:0;">⚙ Extrair info</button>';
     }
     html += '</div>';
     // Linha de contexto/zonas afetadas se houver
@@ -1634,13 +1634,14 @@ function gpRenderRefsExternas(d) {
   });
   return html;
 }
-async function gpExtrairInfoLeiExterna(legId, label) {
+async function gpExtrairInfoLeiExterna(legId, dossiePastaId, label) {
   if (!confirm('Disparar extracao do pipeline para ' + label + '? Isso vai consumir Sonnet 4.6 e pode demorar alguns minutos.')) return;
   // Acha o botao pra mostrar status
-  const btns = document.querySelectorAll('button[onclick*="gpExtrairInfoLeiExterna(' + legId + '"]');
+  const btns = document.querySelectorAll('button[onclick*="gpExtrairInfoLeiExterna(' + (legId || 0) + ', ' + (dossiePastaId || 0) + '"]');
   btns.forEach(b => { b.disabled = true; b.innerHTML = '⏳ Enfileirando...'; });
   try {
-    const r = await fetch('/api/legislacao/' + legId + '/extrair-info', {
+    const url = '/api/legislacao/' + (legId || 0) + '/extrair-info' + (dossiePastaId ? '?dossie_pasta_id=' + dossiePastaId : '');
+    const r = await fetch(url, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({})
