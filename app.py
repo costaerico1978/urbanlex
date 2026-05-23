@@ -9031,6 +9031,43 @@ def api_fila_extracao_adicionar():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/fila_extracao/ultima')
+@login_required
+def api_fila_extracao_ultima():
+    """Retorna a fila mais recente (qualquer status)."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""SELECT id, municipio, estado, status, job_id, progresso_atual,
+                              erro_etapa, erro_msg, iniciado_em, concluido_em, criado_em,
+                              legislacao_label
+                       FROM fila_extracao ORDER BY id DESC LIMIT 1""")
+        item = cur.fetchone()
+        cur.close(); conn.close()
+        if not item:
+            return jsonify({'success': True, 'fila': None})
+        return jsonify({
+            'success': True,
+            'fila': {
+                'fila_id': item['id'],
+                'municipio': item['municipio'],
+                'estado': item['estado'],
+                'status': item['status'],
+                'job_id': item['job_id'],
+                'progresso_atual': item['progresso_atual'],
+                'erro_etapa': item['erro_etapa'],
+                'erro_msg': item['erro_msg'],
+                'iniciado_em': item['iniciado_em'].isoformat() if item['iniciado_em'] else None,
+                'concluido_em': item['concluido_em'].isoformat() if item['concluido_em'] else None,
+                'criado_em': item['criado_em'].isoformat() if item['criado_em'] else None,
+                'legislacao_label': item['legislacao_label'],
+                'ativa': item['status'] in ('aguardando', 'rodando'),
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)[:200]}), 500
+
+
 @app.route('/api/fila_extracao/listar')
 @login_required
 def api_fila_extracao_listar():

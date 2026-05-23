@@ -529,6 +529,9 @@ function gpTrocarTab(tab, btn){
   if (btn) btn.classList.add('active');
   document.getElementById('gp-tab-' + tab).classList.add('active');
   try { localStorage.setItem('gp_tab_atual', tab); } catch(e) {}
+  if(tab === 'gerador') {
+    gpRestaurarLogUltimaExtracao();
+  }
   if(tab === 'historico') {
     gpCarregarJsonsGerados();
   }
@@ -558,6 +561,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (ativa && ativa.id === 'gp-tab-historico') {
       setTimeout(() => gpCarregarJsonsGerados(), 100);
     }
+    setTimeout(() => gpRestaurarLogUltimaExtracao(), 200);
   } catch(e) { console.error('init:', e); }
 });
 
@@ -1280,6 +1284,71 @@ function gpLimparLog(){
   _gpFilaId = null;
   _gpFilaIdxAtual = 0;
   _gpLogCursor = 0;
+}
+
+// ─── Restauracao de log persistido server-side ───
+async function gpRestaurarLogUltimaExtracao() {
+  try {
+    const r = await fetch('/api/fila_extracao/ultima');
+    const d = await r.json();
+    if (!d.success || !d.fila) {
+      const body = document.getElementById('gp-log-body');
+      if (body && !body.innerHTML.trim()) {
+        body.innerHTML = '<div style="padding:10px;color:var(--muted);font-size:11px;">Nenhuma extracao foi feita ainda. Selecione municipios acima e clique em "Iniciar extracao".</div>';
+      }
+      return;
+    }
+    const fila = d.fila;
+    _gpFilaId = null;
+    const body = document.getElementById('gp-log-body');
+    if (body) body.innerHTML = '';
+    const oldStatus = document.getElementById('gp-status-progress');
+    if (oldStatus) oldStatus.remove();
+    if (body) {
+      const cab = document.createElement('div');
+      cab.style.cssText = 'padding:8px 10px;border-bottom:1px solid var(--border);margin-bottom:6px;font-size:11px;color:var(--muted);';
+      const labelStatus = (fila.status === 'concluido' ? '\u2713 concluido' : fila.status === 'erro' ? '\u2717 erro' : fila.status === 'rodando' ? '\u23f3 rodando' : fila.status === 'aguardando' ? '\u23f3 aguardando' : fila.status);
+      cab.innerHTML = '<b>Ultima extracao</b> \u00b7 ' + (fila.legislacao_label || (fila.municipio + '/' + fila.estado)) + ' \u00b7 fila #' + fila.fila_id + ' \u00b7 ' + labelStatus;
+      body.appendChild(cab);
+    }
+    const r2 = await fetch('/api/fila_extracao/log/' + fila.fila_id + '?cursor=0');
+    const d2 = await r2.json();
+    if (d2.success && d2.logs && d2.logs.length) {
+      d2.logs.forEach(l => {
+        const div = document.createElement('div');
+        div.style.fontFamily = 'monospace';
+        div.style.fontSize = '12px';
+        div.style.padding = '2px 10px';
+        let cor = 'var(--muted)';
+        let extra = '';
+        const msg = l.msg || '';
+        if (msg.includes('ETAPA') && msg.includes('/8')) { cor = 'var(--accent)'; extra = 'font-weight:600;margin-top:6px;'; }
+        else if (msg.includes('CACHE HIT')) { cor = '#9b8ed7'; }
+        else if (msg.includes('CONCLU') || msg.startsWith('\u2713')) { cor = 'var(--accent)'; }
+        else if (l.nivel === 'erro') { cor = '#e74c3c'; }
+        else if (l.nivel === 'aviso') { cor = '#f0ad4e'; }
+        div.style.cssText += 'color:' + cor + ';' + extra;
+        div.textContent = '[' + (l.ts || '') + '] ' + msg;
+        body.appendChild(div);
+      });
+      _gpLogCursor = d2.next_cursor || 0;
+      body.scrollTop = body.scrollHeight;
+    }
+    if (d2.success && d2.done) {
+      const fin = document.createElement('div');
+      fin.style.cssText = 'padding:10px;margin-top:10px;background:rgba(0,229,160,.1);border-radius:6px;font-weight:600;';
+      if (d2.status === 'concluido') { fin.style.color = 'var(--accent)'; fin.innerHTML = '\u2705 Job #' + fila.fila_id + ' concluido!'; }
+      else { fin.style.background = 'rgba(231,76,60,.1)'; fin.style.color = '#e74c3c'; fin.innerHTML = '\u274c Job #' + fila.fila_id + ' falhou na etapa ' + (d2.erro_etapa || '?') + ': ' + (d2.erro_msg || 'erro'); }
+      body.appendChild(fin);
+      body.scrollTop = body.scrollHeight;
+    }
+    if (fila.ativa) {
+      _gpFilaId = fila.fila_id;
+      _gpFilaIdxAtual = 0;
+      _gpFilaIds = [{fila_id: fila.fila_id, municipio: fila.municipio, estado: fila.estado, status: fila.status}];
+      setTimeout(gpPollingFila, 1500);
+    }
+  } catch (e) { console.error('gpRestaurarLogUltimaExtracao:', e); }
 }
 
 // ─── OPCAO B: Polling NOVO via /api/fila_extracao/log/<fila_id> ───
