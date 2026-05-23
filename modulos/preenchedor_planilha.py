@@ -549,6 +549,30 @@ def gera_planilha_municipio(jsons_ids: List[int], template_path: str,
     for j in jsons:
         _log(f"  {j['data_publicacao']} → {j['legislacao_label']}")
 
+    # ===== Fase B.8: merge de leis externas =====
+    try:
+        from modulos.mesclar_leis_externas import mesclar_leis_externas
+        jsons_mesclados, log_merges = mesclar_leis_externas(jsons)
+        if log_merges:
+            _log(f"== Fase B (merge de leis externas): {len(log_merges)} merge(s) realizadas ==")
+            for m in log_merges:
+                lei_ext = m.get('lei_externa') or {}
+                tipo = lei_ext.get('tipo_nome') or lei_ext.get('tipo') or '?'
+                numero = lei_ext.get('numero') or '?'
+                ano = lei_ext.get('ano') or '?'
+                subzonas = m.get('subzonas_adicionadas') or []
+                _log(
+                    f"  {m.get('lei_pai')} :: '{m.get('zona_pai')}' "
+                    f"expandida via {tipo} {numero}/{ano} -> "
+                    f"{len(subzonas)} subzona(s): {', '.join(subzonas)}"
+                )
+            jsons = jsons_mesclados
+        else:
+            _log("== Fase B: nenhuma lei externa referenciada estava entre os JSONs selecionados (sem merge) ==")
+    except Exception as e:
+        _log(f"AVISO Fase B (merge): falhou - {str(e)[:200]} (seguindo sem merge)")
+        logger.warning(f"Fase B merge falhou: {e}", exc_info=True)
+
     consolidado = consolidar(jsons)
     _log(f"Consolidado: {len(consolidado['zonas'])} zona(s)")
 
