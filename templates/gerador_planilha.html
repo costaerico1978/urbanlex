@@ -1574,11 +1574,7 @@ async function gpToggleRefsExternas(procId) {
   // Mostra carregando
   cont.style.display = 'block';
   if (btn) btn.innerHTML = '🔗 Refs externas ▲';
-  // Usa cache se ja carregou
-  if (window._gpRefsCache[procId]) {
-    cont.innerHTML = gpRenderRefsExternas(window._gpRefsCache[procId]);
-    return;
-  }
+  // SEMPRE busca do servidor (server-side eh source of truth - reflete dossie atual)
   cont.innerHTML = '<span style="color:var(--muted);">Carregando...</span>';
   try {
     const r = await fetch('/api/processamento/' + procId + '/refs_externas');
@@ -1587,7 +1583,6 @@ async function gpToggleRefsExternas(procId) {
       cont.innerHTML = '<span style="color:#e74c3c;">Erro: ' + (d.error || 'desconhecido') + '</span>';
       return;
     }
-    window._gpRefsCache[procId] = d;
     cont.innerHTML = gpRenderRefsExternas(d);
   } catch(e) {
     cont.innerHTML = '<span style="color:#e74c3c;">Erro: ' + e.message + '</span>';

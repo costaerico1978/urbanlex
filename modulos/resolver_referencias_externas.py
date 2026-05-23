@@ -202,8 +202,46 @@ def buscar_lei_no_banco(ref: Dict, db_conn) -> Optional[Dict]:
 
     cur.execute(sql, params)
     row = cur.fetchone()
+    if row:
+        cur.close()
+        return dict(row)
+
+    # FALLBACK: procurar tambem em dossie_legislacoes_pasta (leis trazidas pelo buscador)
+    # Match por legislacao_meta JSONB: tipo + numero + ano
+    cur.execute("""
+        SELECT dlp.id AS dossie_pasta_id, dlp.dossie_id, dlp.legislacao_label,
+               dlp.legislacao_meta, dlp.pdf_concatenado_path
+        FROM dossie_legislacoes_pasta dlp
+        WHERE LOWER(COALESCE(dlp.legislacao_meta->>'tipo', dlp.legislacao_meta->>'tipo_nome', '')) = LOWER(%s)
+          AND (dlp.legislacao_meta->>'numero') = %s
+          AND (dlp.legislacao_meta->>'ano') = %s
+        ORDER BY dlp.id DESC
+        LIMIT 1
+    """, (ref.get('tipo_nome') or '', str(ref.get('numero') or ''), str(ref.get('ano') or '')))
+    drow = cur.fetchone()
     cur.close()
-    return dict(row) if row else None
+    if drow:
+        # Retorna um dict sintetico simulando uma legislacao
+        return {
+            'id': None,  # nao tem id em legislacoes
+            'fonte': 'dossie_pasta',
+            'dossie_pasta_id': drow['dossie_pasta_id'],
+            'dossie_id': drow['dossie_id'],
+            'legislacao_label': drow['legislacao_label'],
+            'esfera': ref.get('esfera'),
+            'municipio_nome': ref.get('municipio'),
+            'estado': ref.get('estado'),
+            'tipo_nome': ref.get('tipo_nome'),
+            'numero': str(ref.get('numero')),
+            'ano': ref.get('ano'),
+            'ementa': (drow['legislacao_meta'] or {}).get('descricao', ''),
+            'data_publicacao': None,
+            'status': (drow['legislacao_meta'] or {}).get('status', 'vigente'),
+            'arquivo_url': (drow['legislacao_meta'] or {}).get('link'),
+            'texto_size': 0,
+            'pdf_concatenado_path': drow['pdf_concatenado_path'],
+        }
+    return None
 
 
 def buscar_processamento_da_lei(ref: Dict, db_conn) -> Optional[Dict]:
