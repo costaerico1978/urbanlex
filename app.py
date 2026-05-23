@@ -6896,6 +6896,138 @@ def api_processamento_refs_externas(proc_id):
         import traceback
         return jsonify({'success': False, 'error': str(e), 'traceback': traceback.format_exc()}), 500
 
+
+@app.route('/api/legislacao/<int:legislacao_id>/extrair-info', methods=['POST'])
+@login_required
+def api_legislacao_extrair_info(legislacao_id):
+    """
+    Fase B.5: dispara extracao do pipeline pra uma lei externa que ja esta
+    no dossie (status amarelo). Procura o dossie da lei + enfileira pipeline.
+
+    Returns: {success, compilado_id, fila_id, label, mensagem}
+    """
+    try:
+        from modulos.dossie_para_gerador import preparar_work_dir_pipeline
+        from modulos.pipeline_extracao_lei import enfileirar_extracao as _enf
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        # 1. Pega a lei
+        cur.execute("""
+            SELECT id, tipo_nome, numero, ano, municipio_nome, estado, ementa
+            FROM legislacoes
+            WHERE id = %s
+        """, (legislacao_id,))
+        leg = cur.fetchone()
+        if not leg:
+            cur.close(); conn.close()
+            return jsonify({'success': False, 'error': f'legislacao {legislacao_id} nao encontrada'}), 404
+
+        tipo = leg['tipo_nome']
+        numero = str(leg['numero'])
+        ano = str(leg['ano'])
+        municipio = leg['municipio_nome']
+        estado = leg['estado']
+        label_user = f"{tipo} {numero}/{ano}"
+
+        # 2. Procura no dossie via match com legislacao_meta
+        # Usa comparacao case-insensitive no tipo_nome
+        cur.execute("""
+            SELECT dlp.id AS dlp_id, dlp.dossie_id, dlp.legislacao_label,
+                   dlp.pasta_path, dlp.busca_historico_id,
+                   bh.municipio, bh.estado
+            FROM dossie_legislacoes_pasta dlp
+            JOIN buscas_historico bh ON bh.id = dlp.busca_historico_id
+            WHERE LOWER(bh.municipio) = LOWER(%s)
+              AND UPPER(bh.estado) = UPPER(%s)
+              AND LOWER(dlp.legislacao_meta->>'tipo') = LOWER(%s)
+              AND dlp.legislacao_meta->>'numero' = %s
+              AND dlp.legislacao_meta->>'ano' = %s
+            ORDER BY dlp.id DESC
+            LIMIT 1
+        """, (municipio, estado, tipo, numero, ano))
+        row = cur.fetchone()
+
+        if not row:
+            cur.close(); conn.close()
+            return jsonify({
+                'success': False,
+                'error': f'{label_user} nao encontrada no dossie do municipio {municipio}/{estado}. ' +
+                         f'Voce precisa primeiro buscar essa lei no Buscador e organizar no Dossie.',
+                'codigo': 'NO_DOSSIE'
+            }), 404
+
+        cur.close(); conn.close()
+
+        legislacao_label = row['legislacao_label']
+        dossie_id = row['dossie_id']
+        busca_id = row['busca_historico_id']
+
+        # 3. Prepara work_dir
+        work_dir = preparar_work_dir_pipeline(
+            dossie_id=dossie_id,
+            busca_historico_id=busca_id,
+            legislacao_label=legislacao_label,
+            get_db=get_db,
+        )
+        if not work_dir:
+            return jsonify({'success': False, 'error': 'falha preparando work_dir do dossie'}), 500
+
+        zip_path_efetivo = os.path.join(work_dir, 'tudo.pdf')
+        if not os.path.exists(zip_path_efetivo):
+            return jsonify({'success': False, 'error': f'arquivo {zip_path_efetivo} nao existe'}), 500
+
+        # 4. INSERT em gerador_compilados
+        import uuid as _u_c
+        novo_job_id = str(_u_c.uuid4())[:8]
+        user_name = (session.get('nome') or session.get('email') or 'sistema')
+
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO gerador_compilados
+              (job_id, municipio, estado, zip_path, tabela_path, criado_por,
+               criado_por_nome, legislacao_label, busca_historico_id)
+            VALUES (%s, %s, %s, %s, NULL, %s, %s, %s, %s)
+            RETURNING id
+        """, (novo_job_id, municipio, estado, zip_path_efetivo,
+              session.get('user_id'), user_name, legislacao_label, busca_id))
+        compilado_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+
+        # 5. enfileirar extracao DIRETAMENTE (B.5 opcao B = nao precisa do operador clicar)
+        fila_id = _enf(
+            zip_path=zip_path_efetivo,
+            municipio=municipio,
+            estado_uf=estado,
+            legislacao_id=legislacao_id,
+            usar_cache=True,
+            consolidar_apos=True,
+            ordem=0,
+            criado_por=session.get('user_id'),
+            legislacao_label=legislacao_label,
+        )
+
+        if not fila_id:
+            return jsonify({
+                'success': False,
+                'error': 'gerador_compilado criado mas falhou ao enfileirar pipeline',
+                'compilado_id': compilado_id
+            }), 500
+
+        return jsonify({
+            'success': True,
+            'compilado_id': compilado_id,
+            'fila_id': fila_id,
+            'label': label_user,
+            'legislacao_label': legislacao_label,
+            'mensagem': f'{label_user} enfileirada no pipeline (fila_id={fila_id}). Aguarde concluir e recarregue refs.'
+        })
+
+    except Exception as e:
+        import traceback
+        return jsonify({'success': False, 'error': str(e), 'traceback': traceback.format_exc()[:500]}), 500
+
 @app.route('/api/api-keys/<servico>', methods=['POST'])
 @login_required
 def api_api_keys_salvar(servico):

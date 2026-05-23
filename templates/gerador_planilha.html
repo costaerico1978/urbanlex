@@ -1570,9 +1570,38 @@ function gpRenderRefsExternas(d) {
   });
   return html;
 }
-function gpExtrairInfoLeiExterna(legId, label) {
-  // B.5: implementar disparo do pipeline pra lei externa
-  alert('🔧 Em breve (Fase B.5): vai disparar pipeline pra extrair ' + label + ' (id=' + legId + ')');
+async function gpExtrairInfoLeiExterna(legId, label) {
+  if (!confirm('Disparar extracao do pipeline para ' + label + '? Isso vai consumir Sonnet 4.6 e pode demorar alguns minutos.')) return;
+  // Acha o botao pra mostrar status
+  const btns = document.querySelectorAll('button[onclick*="gpExtrairInfoLeiExterna(' + legId + '"]');
+  btns.forEach(b => { b.disabled = true; b.innerHTML = '⏳ Enfileirando...'; });
+  try {
+    const r = await fetch('/api/legislacao/' + legId + '/extrair-info', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({})
+    });
+    const d = await r.json();
+    if (!d.success) {
+      btns.forEach(b => { b.disabled = false; b.innerHTML = '⚙ Extrair info'; });
+      alert('Erro: ' + (d.error || 'desconhecido'));
+      return;
+    }
+    btns.forEach(b => {
+      b.innerHTML = '✓ Enfileirada (fila #' + d.fila_id + ')';
+      b.style.background = 'rgba(0,229,160,.15)';
+      b.style.color = 'var(--accent)';
+      b.style.borderColor = 'rgba(0,229,160,.3)';
+    });
+    // Invalida cache pra forcar reload na proxima abertura
+    if (window._gpRefsCache) {
+      Object.keys(window._gpRefsCache).forEach(k => delete window._gpRefsCache[k]);
+    }
+    alert(d.mensagem || 'Extracao enfileirada com sucesso!');
+  } catch(e) {
+    btns.forEach(b => { b.disabled = false; b.innerHTML = '⚙ Extrair info'; });
+    alert('Erro: ' + e.message);
+  }
 }
 function gpToggleJsonGrupo(gi) {
   const c = document.getElementById('gpj-content-' + gi);
