@@ -343,6 +343,55 @@ Exemplo:
 - UT4, UT5, UT6 = APENAS para hierarquia da LEI EXTERNA (quando aplicavel)
 - Sem lei externa: UT4, UT5, UT6 ficam null
 
+### 5.5 — Revogacoes de Zonas/Subzonas de Leis EXTERNAS
+
+A lei principal sob analise pode REVOGAR zonas ou subzonas inteiras
+definidas em leis externas (anteriores). Isso eh COMUM em:
+- Planos diretores novos que substituem subzonas obsoletas de decretos antigos
+- Leis municipais que extinguem zonas especiais criadas por leis anteriores
+- Atos que reclassificam parte de uma area, deixando a subzona original sem efeito
+
+**Quando capturar:** se a lei explicitamente diz "fica revogada a zona X
+do Decreto Y", "a Subzona A-4 do Dec 3046/1981 fica extinta", "Suprime-se
+a area destinada a Z definida pela Lei W", ou similar.
+
+**Como capturar:** preencher campo `estado.legislacao.revogacoes_zonas_externas`
+(LISTA) com o seguinte schema:
+
+```
+"revogacoes_zonas_externas": [
+  {
+    "lei_origem": {
+      "esfera": "municipal",
+      "municipio": "Rio de Janeiro",
+      "estado": "RJ",
+      "tipo_nome": "Decreto",
+      "numero": "3046",
+      "ano": 1981
+    },
+    "sigla_zona": "A-4",
+    "dispositivo_revogador": "Art. 250, inciso II",
+    "motivo": "Subzona A-4 do Dec 3046 fica revogada por reclassificacao da area pela LC 270/2024"
+  }
+]
+```
+
+**REGRAS:**
+- `lei_origem`: mesmo schema de `lei_referenciada` (esfera, municipio, estado, tipo_nome, numero, ano)
+- `sigla_zona` (obrigatorio): sigla EXATA da zona/subzona revogada (ex: "A-4", "ZE-2", "Subzona III")
+  - Se a lei revoga UM CONJUNTO de zonas/subzonas, criar UM ITEM por sigla
+- `dispositivo_revogador` (opcional, recomendado): artigo/anexo da lei principal que efetua a revogacao
+- `motivo` (opcional, recomendado): explicacao breve
+
+**Importante:** capture APENAS revogacoes EXPLICITAS de zonas. Nao capture
+modificacoes parciais (alteracoes de parametros) — essas ficam em outros
+campos. Apenas revogacao INTEIRA da zona/subzona.
+
+**Como o sistema usa isso:** durante a geracao da planilha, quando uma lei
+externa eh mesclada (etapa Fase B do preenchedor), o sistema verifica se
+ha revogacoes_zonas_externas em QUALQUER um dos JSONs carregados. Se sim,
+as zonas revogadas SAO OMITIDAS da planilha final.
+
 ---
 
 ## PARTE 6 — Variações condicionais

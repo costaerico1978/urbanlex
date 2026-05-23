@@ -110,6 +110,34 @@ def _gerar_nova_chave_zona(zona_pai: str, sigla_filha: str) -> str:
     return f"{zona_pai}|{sigla_filha}"
 
 
+def _coletar_revogacoes_zonas_externas(jsons_carregados: List[Dict]) -> set:
+    """
+    Varre todos os JSONs carregados procurando em estado.legislacao.revogacoes_zonas_externas
+    e retorna set de chaves (tipo_lower, numero, ano, sigla_zona) pra match O(1) durante o merge.
+
+    A sigla_zona vem normalizada (lowercase, sem espacos).
+    """
+    revogacoes = set()
+    for j in jsons_carregados:
+        leg = ((j.get('data') or {}).get('estado') or {}).get('legislacao') or {}
+        revogs = leg.get('revogacoes_zonas_externas') or []
+        if not isinstance(revogs, list):
+            continue
+        for item in revogs:
+            if not isinstance(item, dict):
+                continue
+            lei_origem = item.get('lei_origem') or {}
+            chave_lei = _extrair_chave_lei(lei_origem)
+            if not chave_lei:
+                continue
+            sigla = (item.get('sigla_zona') or '').strip().lower()
+            if not sigla:
+                continue
+            # Chave de match: (tipo, numero, ano, sigla)
+            revogacoes.add((chave_lei[0], chave_lei[1], chave_lei[2], sigla))
+    return revogacoes
+
+
 def mesclar_leis_externas(jsons_carregados: List[Dict]) -> Tuple[List[Dict], List[Dict]]:
     """
     Para cada JSON na lista, varre suas zonas procurando referencias_externas.
@@ -125,7 +153,10 @@ def mesclar_leis_externas(jsons_carregados: List[Dict]) -> Tuple[List[Dict], Lis
     # Faz copia profunda pra nao mexer no original
     jsons = copy.deepcopy(jsons_carregados)
     indice = _indexar_leis_carregadas(jsons)
+    revogacoes_set = _coletar_revogacoes_zonas_externas(jsons)
     log_merges = []
+    if revogacoes_set:
+        logger.info(f"Coletadas {len(revogacoes_set)} revogacoes de zonas externas que serao puladas no merge")
 
     for j in jsons:
         data = j.get('data') or {}
@@ -172,8 +203,19 @@ def mesclar_leis_externas(jsons_carregados: List[Dict]) -> Tuple[List[Dict], Lis
                     continue
 
                 subzonas_adicionadas = []
+                zonas_externa_puladas_por_revogacao = []
                 for sigla_ext, dados_ext in zonas_externa.items():
                     if not isinstance(dados_ext, dict):
+                        continue
+                    # Verifica se esta zona externa foi revogada
+                    sigla_norm = str(sigla_ext or '').strip().lower()
+                    chave_rev = (chave_ext[0], chave_ext[1], chave_ext[2], sigla_norm)
+                    if chave_rev in revogacoes_set:
+                        zonas_externa_puladas_por_revogacao.append(sigla_ext)
+                        logger.info(
+                            f"Pulando zona '{sigla_ext}' de {chave_ext} no merge "
+                            f"(REVOGADA conforme alguma lei do conjunto)"
+                        )
                         continue
                     # Gera nova chave: 'ZPP|AP4|A-1'
                     nova_chave = _gerar_nova_chave_zona(chave_zona, sigla_ext)
@@ -198,16 +240,18 @@ def mesclar_leis_externas(jsons_carregados: List[Dict]) -> Tuple[List[Dict], Lis
                     subzonas_adicionadas.append(nova_chave)
 
                 # Marca a zona pai como "expandida via merge"
-                if subzonas_adicionadas:
+                if subzonas_adicionadas or zonas_externa_puladas_por_revogacao:
                     zona['_expandida_por_merge'] = {
                         'lei_externa': dict(lei_ref),
                         'subzonas_geradas': subzonas_adicionadas,
+                        'subzonas_puladas_por_revogacao': zonas_externa_puladas_por_revogacao,
                     }
                     log_merges.append({
                         'lei_pai': rotulo_principal,
                         'zona_pai': chave_zona,
                         'lei_externa': dict(lei_ref),
                         'subzonas_adicionadas': subzonas_adicionadas,
+                        'subzonas_puladas_por_revogacao': zonas_externa_puladas_por_revogacao,
                     })
                     logger.info(
                         f"Merge: {rotulo_principal} zona '{chave_zona}' expandida "
