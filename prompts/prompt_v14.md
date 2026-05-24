@@ -100,6 +100,26 @@ Uma zona so entra no array `zonas` se atende A PELO MENOS UMA destas:
 
 Se nada disso se aplica, NAO inclua a zona no JSON.
 
+**REGRA 0.6 — Sigla canonica NUNCA concatena zona pai com subzona:**
+
+Quando uma lei detalha SUBZONAS de uma zona pai (ex: Zona Especial 5 - ZE-5 com subzonas A-1, A-2, A-3), CADA SUBZONA eh uma entrada SEPARADA no array `zonas`, com:
+- `sigla_canonica` = APENAS a sigla da subzona (ex: "A1", "A2", "A3")
+- `hierarquia.UT4` = sigla da zona pai (ex: "ZE5")
+- NAO crie sigla concatenada tipo "ZE5A1" - eh ERRADO
+
+CORRETO:
+```
+{"sigla_canonica": "A1", "hierarquia": {"UT1": null, "UT4": "ZE5"}, ...}
+{"sigla_canonica": "A2", "hierarquia": {"UT1": null, "UT4": "ZE5"}, ...}
+```
+
+ERRADO:
+```
+{"sigla_canonica": "ZE5A1", "hierarquia": {"UT4": "A1"}, ...}  // NAO!
+```
+
+Esta regra eh CRITICA pra que o merge automatico entre leis funcione: uma lei principal referencia subzonas como "A-1, A-4, A-7" - se a sigla canonica estiver concatenada (ZE5A1), o match falha.
+
 ---
 
 ## PARTE 1 — Sobre esta legislação
@@ -112,22 +132,74 @@ Informe: tipo de ato (Lei Complementar, Lei Ordinária, Decreto, Errata, Portari
 
 **1.3** Esta lei altera, revoga ou substitui dispositivos de outras leis?
 
-Se não, pule para 1.4.
+Se nao, pule para 1.4.
 
-Se sim, para cada lei afetada, informe:
-- Identificação da lei alvo (Ex: LC 270/2024)
-- Tipo de modificação: revogação total / revogação parcial / alteração / errata
-- Dispositivo afetado (Ex: "Art. 47", "Tabela XV do Anexo II")
-- Escopo geográfico da alteração (Ex: "todo o município", "apenas AP-1", "Bairro X")
-- Escopo de uso (Ex: "todos os usos", "apenas Comercial")
+Se sim, para CADA modificacao, capture estruturadamente em `overrides_de_leis_anteriores` (no topo da seccao `legislacao`):
+- `lei_alterada`: {tipo, numero, ano}
+- `tipo_alteracao`: "nova_redacao_integral" (artigo INTEIRO reescrito) / "alteracao_cirurgica" (so inciso/paragrafo mudou) / "revogacao_total" / "revogacao_parcial" / "errata"
+- `dispositivo_alterado`: Ex: "art. 32, inciso III"
+- `escopo_geografico`: Ex: "todo o municipio", "AP-1"
+- `escopo_uso`: Ex: "todos os usos", "apenas Comercial"
+- `zonas_afetadas`: lista de siglas canonicas (Ex: ["ZRM2S"]) ou null
+- `redacao_nova`: texto da nova redacao SE houver
+- `parametros_novos`: dict se a alteracao define novos valores (Ex: {"ZRM2S": {"altura_maxima_m": "20"}})
 
-**1.4** Esta lei referencia outras leis que NÃO estão neste conjunto de documentos?
+Exemplo:
+```json
+"overrides_de_leis_anteriores": [
+  {
+    "lei_alterada": {"tipo": "Lei Complementar", "numero": "270", "ano": "2024"},
+    "tipo_alteracao": "nova_redacao_integral",
+    "dispositivo_alterado": "art. 32",
+    "zonas_afetadas": ["ZRM2S"],
+    "parametros_novos": {"ZRM2S": {"taxa_ocupacao_maxima_pct": "60", "altura_maxima_m": "20"}}
+  }
+]
+```
 
-Se sim, liste cada referência: tipo de ato, número, ano, contexto onde aparece. Marque essas leis como "pendência externa" — não invente o conteúdo delas.
+**1.4** Esta lei referencia outras leis que NAO estao neste conjunto de documentos?
+
+Se sim, em `referencias_externas`, para CADA referencia capture:
+- `tipo`, `numero`, `ano`, `contexto` (basico)
+- `zona_referenciante`: sigla_canonica da zona desta lei (Ex: "ZPP")
+- `subzonas_aplicaveis`: lista ESTRUTURADA das subzonas referenciadas (Ex: ["A4", "A5", "A6", "A7"])
+  - Formato canonico (REGRA 0.1): so letras+digitos, sem hifen
+  - Referencia generica ("aplicam-se as normas do Dec 3046") -> use ["*"] (TODAS subzonas)
+- `dispositivo`: artigo/inciso desta lei onde a referencia aparece
+
+Exemplo:
+```json
+"referencias_externas": [
+  {
+    "tipo": "Decreto", "numero": "3046", "ano": "1981",
+    "contexto": "Parametros urbanisticos ZPP (AP-4)",
+    "zona_referenciante": "ZPP",
+    "subzonas_aplicaveis": ["A4", "A5", "A6", "A7"],
+    "dispositivo": "art. 32, inciso II"
+  }
+]
+```
+
+Marque essas leis externas como "pendencia externa" - nao invente o conteudo delas.
 
 ---
 
 ## PARTE 2 — Mapeamento territorial
+
+**REGRA 2.D — Dispositivo definidor da zona (OBRIGATORIO):**
+
+Cada zona deve incluir o campo `dispositivo_definidor`, indicando o artigo PRINCIPAL onde a zona eh definida nesta lei:
+
+```json
+{
+  "sigla_canonica": "ZRM2S",
+  "dispositivo_definidor": "art. 32",
+  "hierarquia": {...},
+  ...
+}
+```
+
+Use formato curto: "art. N" ou "art. N, paragrafo M" ou "Anexo X". Pra que serve: facilita rastreabilidade e overrides por leis posteriores.
 
 **2.1** Esta legislação define zonas, subzonas ou áreas específicas onde determinados usos são permitidos?
 
@@ -192,6 +264,20 @@ Cite a fonte legal para cada uso definido (artigo/anexo).
 ---
 
 ## PARTE 4 — Parâmetros gerais por zona
+
+**REGRA 4.D — Dispositivo legal por parametro (OBRIGATORIO):**
+
+Cada parametro em `parametros_gerais` e `parametros_por_uso` deve incluir o campo `dispositivo`, ALEM do campo `fonte`, indicando o artigo/inciso/paragrafo ESPECIFICO:
+
+```json
+"area_lote_minimo_m2": {
+  "valor": "360",
+  "fonte": "LC 148/2023, Art. 70, II",
+  "dispositivo": "art. 70, inciso II"
+}
+```
+
+Formato curto: "art. N", "art. N, inciso M", "art. N, paragrafo M, inciso K", "Anexo X". Pra que serve: permite que leis posteriores facam alteracoes cirurgicas em dispositivos especificos.
 
 **4.1** Para cada zona/subzona, esta lei define parâmetros gerais (que valem para a zona toda, sem distinguir por uso)?
 Se não viu essa informação neste batch, deixe como null — outro batch pode ter.

@@ -138,6 +138,45 @@ def _coletar_revogacoes_zonas_externas(jsons_carregados: List[Dict]) -> set:
     return revogacoes
 
 
+def _normalizar_sigla_p8(s: str) -> str:
+    """Normaliza sigla pra comparacao: maiuscula, sem hifen, sem espaco."""
+    if not s:
+        return ''
+    return ''.join(c for c in str(s).upper() if c.isalnum())
+
+
+def _filtrar_zonas_aplicaveis(zonas_externa: Dict, subzonas_aplicaveis: List[str]) -> Dict:
+    """
+    Filtra dict de zonas externas mantendo so as que estao em subzonas_aplicaveis.
+    Match feito por sigla canonica normalizada.
+    Se subzonas_aplicaveis contem '*', mantem TODAS.
+    Se eh None ou vazio, mantem TODAS (compatibilidade com JSON sem o campo).
+    """
+    if not subzonas_aplicaveis or '*' in subzonas_aplicaveis:
+        return zonas_externa
+    aplicaveis_norm = {_normalizar_sigla_p8(s) for s in subzonas_aplicaveis}
+    resultado = {}
+    for sigla, dados in zonas_externa.items():
+        if not isinstance(dados, dict):
+            continue
+        sigla_canonica = dados.get('sigla_canonica') or sigla
+        if _normalizar_sigla_p8(sigla_canonica) in aplicaveis_norm:
+            resultado[sigla] = dados
+    return resultado
+
+
+def _ordenar_cronologicamente(jsons: List[Dict]) -> List[Dict]:
+    """Ordena jsons por ano desc (mais recente primeiro)."""
+    def chave_data(j):
+        leg = ((j.get('data') or {}).get('estado') or {}).get('legislacao') or {}
+        ano = leg.get('ano') or '0'
+        try:
+            return int(ano)
+        except (ValueError, TypeError):
+            return 0
+    return sorted(jsons, key=chave_data, reverse=True)
+
+
 def mesclar_leis_externas(jsons_carregados: List[Dict]) -> Tuple[List[Dict], List[Dict]]:
     """
     Para cada JSON na lista, varre suas zonas procurando referencias_externas.
@@ -152,6 +191,7 @@ def mesclar_leis_externas(jsons_carregados: List[Dict]) -> Tuple[List[Dict], Lis
     """
     # Faz copia profunda pra nao mexer no original
     jsons = copy.deepcopy(jsons_carregados)
+    jsons = _ordenar_cronologicamente(jsons)  # mais recente primeiro
     indice = _indexar_leis_carregadas(jsons)
     revogacoes_set = _coletar_revogacoes_zonas_externas(jsons)
     log_merges = []
@@ -201,6 +241,13 @@ def mesclar_leis_externas(jsons_carregados: List[Dict]) -> Tuple[List[Dict], Lis
 
                 if not zonas_externa or not isinstance(zonas_externa, dict):
                     continue
+                # Filtra por subzonas_aplicaveis se especificado na ref
+                subzonas_aplicaveis = ref_item.get('subzonas_aplicaveis')
+                if subzonas_aplicaveis:
+                    antes = len(zonas_externa)
+                    zonas_externa = _filtrar_zonas_aplicaveis(zonas_externa, subzonas_aplicaveis)
+                    if antes != len(zonas_externa):
+                        logger.info(f"Filtrou {chave_ext}: {antes} -> {len(zonas_externa)} subzonas (aplicaveis: {subzonas_aplicaveis})")
 
                 subzonas_adicionadas = []
                 zonas_externa_puladas_por_revogacao = []
