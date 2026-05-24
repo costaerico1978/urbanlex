@@ -5684,6 +5684,7 @@ def api_dossie_legislacoes_do_dossie(busca_id):
                 'falhas': falhas,
                 'anexos_citados': r['anexos_citados'] or [],
                 'anexos_faltantes': r['anexos_faltantes'] or [],
+                'busca_id': r['busca_historico_id'],
                 'criado_em': r['criado_em'].strftime('%d/%m/%Y %H:%M') if r['criado_em'] else None,
                 'atualizado_em': r['atualizado_em'].strftime('%d/%m/%Y %H:%M') if r['atualizado_em'] else None,
             })
