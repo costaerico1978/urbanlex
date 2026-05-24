@@ -1300,6 +1300,7 @@ async function gpRestaurarLogUltimaExtracao() {
     }
     const fila = d.fila;
     _gpFilaId = null;
+    _gpJobId = null;  // Para polling antigo de geracao de planilha
     const body = document.getElementById('gp-log-body');
     if (body) body.innerHTML = '';
     const oldStatus = document.getElementById('gp-status-progress');
@@ -1328,7 +1329,7 @@ async function gpRestaurarLogUltimaExtracao() {
         else if (l.nivel === 'erro') { cor = '#e74c3c'; }
         else if (l.nivel === 'aviso') { cor = '#f0ad4e'; }
         div.style.cssText += 'color:' + cor + ';' + extra;
-        div.textContent = '[' + (l.ts || '') + '] ' + msg;
+        div.textContent = '[' + gpFmtTs(l.ts) + '] ' + msg;
         body.appendChild(div);
       });
       _gpLogCursor = d2.next_cursor || 0;
@@ -1349,6 +1350,31 @@ async function gpRestaurarLogUltimaExtracao() {
       setTimeout(gpPollingFila, 1500);
     }
   } catch (e) { console.error('gpRestaurarLogUltimaExtracao:', e); }
+}
+
+
+// Formata timestamp do log em horario de Sao Paulo (UTC-3)
+function gpFmtTs(ts){
+  if(!ts) return '';
+  try{
+    // Se ts ja tem timezone (ex: "2026-05-24T10:53:54Z" ou "+00:00"), usa direto.
+    // Senao, assume UTC (postgres timestamp sem tz) e anexa Z.
+    let s = ts;
+    if(typeof ts === 'string' && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(ts.trim())){
+      // remove fracao de segundos se houver, padroniza T
+      s = ts.replace(' ', 'T') + 'Z';
+    }
+    const d = new Date(s);
+    if(isNaN(d.getTime())) return ts;
+    return d.toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      hour12: false,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+  }catch(e){
+    return ts;
+  }
 }
 
 // ─── OPCAO B: Polling NOVO via /api/fila_extracao/log/<fila_id> ───
