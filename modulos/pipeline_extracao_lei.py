@@ -458,7 +458,15 @@ def etapa1_extrair_e_concatenar(zip_path, work_dir, log_callback=None, usar_cach
                         f.write(c)
                     _extrair_recursivo(tz, dest)
     
-    _extrair_recursivo(zip_path, work_dir)
+    # Se zip_path ja eh um PDF direto (vindo do dossie), usa direto
+    if zip_path.endswith('.pdf') and open(zip_path,'rb').read(4) == b'%PDF':
+        import shutil
+        pdf_dest = os.path.join(work_dir, 'pdf_000.pdf')
+        if zip_path != pdf_dest:
+            shutil.copy2(zip_path, pdf_dest)
+        pdfs.append({'nome': os.path.basename(zip_path), 'path': pdf_dest})
+    else:
+        _extrair_recursivo(zip_path, work_dir)
     
     if not pdfs:
         raise ValueError(f"Nenhum PDF encontrado em {zip_path}")
