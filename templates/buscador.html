@@ -259,6 +259,9 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
     <button class="tab-btn" onclick="mudarTab('manual')" id="tab-manual">
         🔎 Busca Manual
     </button>
+    <button class="tab-btn" onclick="mudarTab('upload')" id="tab-upload">
+        📤 Upload Legislação
+    </button>
     <button class="tab-btn" onclick="mudarTab('especifica')" id="tab-especifica">
         ⚡ Legislação Específica
         <span style="display:inline-block;background:rgba(0,229,160,.15);color:var(--accent);font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:6px;border:1px solid rgba(0,229,160,.3)">NOVO</span>
@@ -648,6 +651,41 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <!-- TAB: LEI ESPECÍFICA                                             -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- TAB: UPLOAD LEGISLAÇÃO -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="panel-upload">
+<div class="busca-card">
+  <div class="busca-card-header">
+    <span class="busca-card-icon">📤</span>
+    <span class="busca-card-title">Upload de Legislação para Análise</span>
+  </div>
+  <div class="busca-card-desc">Envie arquivos PDF ou DOC de uma ou mais legislações para análise completa — mesma análise da busca automática, sem precisar buscar na internet.</div>
+</div>
+<div id="upl-legs-container"></div>
+<button onclick="uplAdicionarLeg()" style="margin-top:10px;background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.3);border-radius:6px;color:var(--accent);font-size:12px;padding:7px 14px;cursor:pointer;font-weight:600;">+ Adicionar legislação</button>
+<div style="display:flex;gap:10px;margin-top:20px;align-items:center;">
+  <button class="btn btn-primary btn-sm" onclick="iniciarUploadAnalise()">🔍 Analisar</button>
+  <button class="btn btn-secondary btn-sm" onclick="uplLimpar()">Limpar</button>
+  <span style="font-size:11px;color:var(--muted2);margin-left:8px;">Estimativa: 2–5 minutos por lei</span>
+</div>
+<div id="upl-loading" style="display:none;text-align:center;padding:30px;color:var(--muted);">
+  <div class="spinner-busca"></div>
+  <div style="font-size:13px;font-weight:600;margin-top:12px;" id="upl-loading-msg">Iniciando análise...</div>
+</div>
+<div id="upl-log" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:16px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface);">
+    <span style="font-size:12px;font-weight:600;color:var(--text)">📋 Log da Análise</span>
+  </div>
+  <div id="upl-log-lines" style="padding:10px 12px;max-height:400px;overflow-y:auto;font-family:var(--font-mono);font-size:11px;line-height:1.8;"></div>
+</div>
+<div id="upl-downloads" style="display:none;margin-top:12px;gap:10px;flex-wrap:wrap;"></div>
+<div id="upl-resultado" style="display:none;margin-top:16px;padding:14px;background:rgba(0,229,160,.05);border:1px solid rgba(0,229,160,.2);border-radius:8px;">
+  <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:8px;">✅ Análise concluída</div>
+  <div id="upl-resultado-links" style="display:flex;gap:12px;flex-wrap:wrap;"></div>
+</div>
+</div>
+<!-- ═══════════════════════════════════════════════════════════════ -->
 <div class="tab-panel" id="panel-especifica">
     <div class="busca-card">
         <div class="busca-card-header">
@@ -782,6 +820,7 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
             <option value="">Todos os tipos</option>
             <option value="automatica">Autom&#xE1;tica</option>
             <option value="manual">Manual</option>
+            <option value="upload">Upload</option>
         </select>
         <button class="btn btn-secondary btn-sm" onclick="carregarHistorico()">&#x1F504; Atualizar</button>
     </div>
@@ -826,6 +865,198 @@ window.onerror = function(msg, src, line, col, err) {
     document.body.appendChild(d);
     return false;
 };
+// ── Upload Legislação ──
+let _uplLegs = [];
+let _uplJobId = null;
+let _uplPollInterval = null;
+
+function _uplUFOptions() {
+  return ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(u=>`<option>${u}</option>`).join('');
+}
+function _uplTipoOptions() {
+  return ['Lei Complementar','Lei','Decreto','Decreto-Lei','Resolução'].map(t=>`<option value="${t}">${t}</option>`).join('');
+}
+function uplAdicionarLeg() {
+  const idx = _uplLegs.length;
+  _uplLegs.push({idx});
+  const div = document.createElement('div');
+  div.id = `upl-leg-${idx}`;
+  div.style.cssText = 'background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px;';
+  div.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted2);">Legislação ${idx+1}</span>
+      ${idx>0?`<button onclick="uplRemoverLeg(${idx})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;" title="Remover">✕</button>`:''}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:700px;">
+      <div>
+        <div class="field-label">Município</div>
+        <div class="ac-wrapper">
+          <input type="text" class="field-input" id="upl-${idx}-municipio" placeholder="Ex: Rio de Janeiro..." autocomplete="off"
+            oninput="acBuscarUpl(this.value,${idx})" onfocus="acBuscarUpl(this.value,${idx})" onkeydown="acKeydownUpl(event,${idx})">
+          <div class="ac-list" id="upl-${idx}-ac-list"></div>
+        </div>
+      </div>
+      <div>
+        <div class="field-label">Estado</div>
+        <select class="field-input" id="upl-${idx}-estado">${_uplUFOptions()}</select>
+      </div>
+      <div>
+        <div class="field-label">Tipo de Ato</div>
+        <select class="field-input" id="upl-${idx}-tipo">${_uplTipoOptions()}</select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div><div class="field-label">Número</div><input class="field-input" type="text" id="upl-${idx}-numero" placeholder="Ex: 270"></div>
+        <div><div class="field-label">Ano</div><input class="field-input" type="text" id="upl-${idx}-ano" placeholder="Ex: 2024" maxlength="4"></div>
+      </div>
+    </div>
+    <div style="margin-top:12px;max-width:700px;">
+      <div class="field-label">Arquivo(s) — PDF ou DOC</div>
+      <input type="file" id="upl-${idx}-files" multiple accept=".pdf,.doc,.docx"
+        onchange="uplMostrarArquivos(${idx})"
+        style="display:block;padding:8px;background:var(--bg);border:1px dashed var(--border);border-radius:6px;width:100%;color:var(--text);font-size:12px;cursor:pointer;">
+      <div id="upl-${idx}-files-list" style="margin-top:6px;font-size:11px;color:var(--muted);"></div>
+    </div>`;
+  document.getElementById('upl-legs-container').appendChild(div);
+}
+function uplRemoverLeg(idx) {
+  const el = document.getElementById(`upl-leg-${idx}`);
+  if (el) el.remove();
+  _uplLegs = _uplLegs.filter(l=>l.idx!==idx);
+}
+function uplMostrarArquivos(idx) {
+  const inp = document.getElementById(`upl-${idx}-files`);
+  const lst = document.getElementById(`upl-${idx}-files-list`);
+  if (!inp || !inp.files.length) { if(lst) lst.innerHTML=''; return; }
+  const nomes = Array.from(inp.files).map(f=>`📄 ${f.name} (${(f.size/1024).toFixed(0)} KB)`);
+  if (lst) lst.innerHTML = nomes.join('<br>');
+}
+async function acBuscarUpl(query, idx) {
+  const listEl = document.getElementById(`upl-${idx}-ac-list`);
+  const estadoEl = document.getElementById(`upl-${idx}-estado`);
+  const estado = estadoEl ? estadoEl.value : '';
+  query = (query||'').trim();
+  if (query.length < 2) { if(listEl) listEl.classList.remove('open'); return; }
+  clearTimeout(window._acTimerUpl);
+  window._acTimerUpl = setTimeout(async ()=>{
+    try {
+      const qs = `q=${encodeURIComponent(query)}${estado?'&estado='+estado:''}`;
+      const r = await api('GET', '/api/buscador/autocomplete-municipios?'+qs);
+      const items = r.municipios||[];
+      if (!listEl) return;
+      if (!items.length) {
+        listEl.innerHTML='<div class="ac-empty">Nenhum município encontrado</div>';
+        listEl.classList.add('open'); return;
+      }
+      listEl.innerHTML = items.map((m,i)=>`
+        <div class="ac-item" data-nome="${m.nome}" data-estado="${m.estado}"
+          onclick="acSelecionarUpl(this,${idx})"
+          onmouseenter="this.classList.add('selected')" onmouseleave="this.classList.remove('selected')">
+          <span class="ac-estado">${m.estado}</span><span class="ac-sep">–</span><span class="ac-nome">${m.nome}</span>
+        </div>`).join('');
+      listEl.classList.add('open');
+    } catch(e){}
+  }, 200);
+}
+function acKeydownUpl(e, idx) {
+  const listEl = document.getElementById(`upl-${idx}-ac-list`);
+  if (!listEl || !listEl.classList.contains('open')) return;
+  const items = listEl.querySelectorAll('.ac-item');
+  let sel = listEl.querySelector('.ac-item.selected');
+  if (e.key==='ArrowDown') { e.preventDefault(); const n=sel?sel.nextElementSibling:items[0]; if(n){sel&&sel.classList.remove('selected');n.classList.add('selected');} }
+  else if (e.key==='ArrowUp') { e.preventDefault(); const p=sel?sel.previousElementSibling:null; if(p){sel.classList.remove('selected');p.classList.add('selected');} }
+  else if (e.key==='Enter') { if(sel) {e.preventDefault(); acSelecionarUpl(sel,idx);} }
+  else if (e.key==='Escape') { listEl.classList.remove('open'); }
+}
+function acSelecionarUpl(el, idx) {
+  const nome = el.dataset.nome;
+  const estado = el.dataset.estado;
+  const inp = document.getElementById(`upl-${idx}-municipio`);
+  const stEl = document.getElementById(`upl-${idx}-estado`);
+  const list = document.getElementById(`upl-${idx}-ac-list`);
+  if (inp) inp.value = nome;
+  if (stEl && estado) stEl.value = estado;
+  if (list) list.classList.remove('open');
+}
+function uplLimpar() {
+  document.getElementById('upl-legs-container').innerHTML='';
+  _uplLegs=[];
+  document.getElementById('upl-loading').style.display='none';
+  document.getElementById('upl-log').style.display='none';
+  document.getElementById('upl-log-lines').innerHTML='';
+  document.getElementById('upl-downloads').style.display='none';
+  document.getElementById('upl-downloads').innerHTML='';
+  document.getElementById('upl-resultado').style.display='none';
+  uplAdicionarLeg();
+}
+async function iniciarUploadAnalise() {
+  const container = document.getElementById('upl-legs-container');
+  const blocks = container.querySelectorAll('[id^="upl-leg-"]');
+  if (!blocks.length) { alert('Adicione pelo menos uma legislação.'); return; }
+  const metadata = [];
+  const formData = new FormData();
+  let valid = true;
+  blocks.forEach((blk, i) => {
+    const idx = parseInt(blk.id.replace('upl-leg-',''));
+    const mun = (document.getElementById(`upl-${idx}-municipio`)?.value||'').trim();
+    const est = (document.getElementById(`upl-${idx}-estado`)?.value||'').trim();
+    const tipo = document.getElementById(`upl-${idx}-tipo`)?.value||'Lei';
+    const num = (document.getElementById(`upl-${idx}-numero`)?.value||'').trim();
+    const ano = (document.getElementById(`upl-${idx}-ano`)?.value||'').trim();
+    const files = document.getElementById(`upl-${idx}-files`)?.files;
+    if (!mun||!est||!num||!ano) { alert(`Preencha município, estado, número e ano da legislação ${i+1}.`); valid=false; return; }
+    if (!files||!files.length) { alert(`Adicione pelo menos 1 arquivo para a legislação ${i+1}.`); valid=false; return; }
+    metadata.push({municipio:mun, estado:est, tipo, numero:num, ano});
+    Array.from(files).forEach(f => formData.append(`files_${i}`, f));
+  });
+  if (!valid) return;
+  formData.append('metadata', JSON.stringify(metadata));
+  document.getElementById('upl-loading').style.display='block';
+  document.getElementById('upl-log').style.display='none';
+  document.getElementById('upl-resultado').style.display='none';
+  document.getElementById('upl-downloads').style.display='none';
+  document.getElementById('upl-log-lines').innerHTML='';
+  document.getElementById('upl-loading-msg').textContent = `Iniciando análise de ${metadata.length} legislação(ões)...`;
+  try {
+    const resp = await fetch('/api/buscador/upload-legislacao', {method:'POST', body:formData});
+    const data = await resp.json();
+    if (!data.success) { alert('Erro: '+(data.error||'Falha ao iniciar')); document.getElementById('upl-loading').style.display='none'; return; }
+    _uplJobId = data.job_id;
+    document.getElementById('upl-log').style.display='block';
+    const logLines = document.getElementById('upl-log-lines');
+    let cursor = 0;
+    mudarTab('upload');
+    _uplPollInterval = setInterval(async ()=>{
+      try {
+        const p = await fetch('/api/buscador/job/'+_uplJobId+'?cursor='+cursor);
+        const pd = await p.json();
+        if (pd.logs) {
+          pd.logs.forEach(l=>{
+            if (l.nivel==='token') return;
+            const div = document.createElement('div');
+            div.style.color = l.nivel==='ok'?'var(--accent)':l.nivel==='aviso'?'#f0ad4e':l.nivel==='erro'?'#e74c3c':'var(--muted)';
+            div.innerHTML = `<span style="color:var(--muted2);margin-right:6px;">${l.ts||''}</span>${l.msg||''}`;
+            logLines.appendChild(div);
+          });
+          cursor = pd.cursor||cursor;
+          logLines.scrollTop = logLines.scrollHeight;
+        }
+        if (pd.done) {
+          clearInterval(_uplPollInterval);
+          document.getElementById('upl-loading').style.display='none';
+          if (pd.result) {
+            _exibirBotoesDownload(pd.result, {targetId:'panel-upload', prefix:'upl'});
+            document.getElementById('upl-downloads').style.display='flex';
+            document.getElementById('upl-resultado').style.display='block';
+          }
+        }
+      } catch(e){}
+    }, 2000);
+  } catch(e) {
+    alert('Erro ao enviar: '+e.message);
+    document.getElementById('upl-loading').style.display='none';
+  }
+}
+
 // ── Tabs ──
 function mudarTab(tab) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -835,6 +1066,7 @@ function mudarTab(tab) {
     document.getElementById('busca-status').textContent = '';
     // Carregar dados ao entrar na aba
     if (tab === 'historico') carregarHistorico();
+    if (tab === 'upload' && document.getElementById('upl-legs-container').children.length === 0) uplAdicionarLeg();
 }
 
 // ── Campo condicional esfera ──

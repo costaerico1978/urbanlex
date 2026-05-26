@@ -3556,6 +3556,99 @@ def api_buscador_lei_especifica():
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({"success": True, "job_id": job_id})
 
+
+@app.route('/api/buscador/upload-legislacao', methods=['POST'])
+@editor_required
+def api_buscador_upload_legislacao():
+    """Upload manual de legislacoes para analise completa."""
+    import uuid, threading, json as _j_up, os as _os_up, shutil as _sh_up
+    from werkzeug.utils import secure_filename
+    metadata_str = request.form.get('metadata', '[]')
+    try:
+        metadata = _j_up.loads(metadata_str)
+    except Exception:
+        return jsonify({"success": False, "error": "metadata invalido"}), 400
+    if not metadata:
+        return jsonify({"success": False, "error": "Nenhuma legislacao informada"}), 400
+    primeira = metadata[0]
+    mun = primeira.get('municipio', '').strip()
+    est = primeira.get('estado', '').strip().upper()
+    if not mun or not est:
+        return jsonify({"success": False, "error": "municipio e estado sao obrigatorios"}), 400
+    # Bloquear jobs concorrentes
+    _jc = [j for jid, j in _buscador_jobs.items() if not j.get("done") and not j.get("cancelled")]
+    if _jc:
+        return jsonify({"success": False, "error": "job_concorrente"}), 409
+    job_id = str(uuid.uuid4())[:8]
+    upload_base = f"/var/www/urbanlex/static/uploads_manuais/{job_id}"
+    _os_up.makedirs(upload_base, exist_ok=True)
+    legs_override = []
+    arquivos_override = []
+    for i, leg_meta in enumerate(metadata):
+        tipo = leg_meta.get('tipo', 'Lei').strip()
+        numero = leg_meta.get('numero', '').strip()
+        ano = leg_meta.get('ano', '').strip()
+        leg_dir = _os_up.path.join(upload_base, f"leg_{i}")
+        _os_up.makedirs(leg_dir, exist_ok=True)
+        files = request.files.getlist(f'files_{i}')
+        saved = []
+        for f in files:
+            if f and f.filename:
+                fname = secure_filename(f.filename)
+                fpath = _os_up.path.join(leg_dir, fname)
+                f.save(fpath)
+                saved.append(fpath)
+        if not saved:
+            return jsonify({"success": False, "error": f"Nenhum arquivo para legislacao {i+1}"}), 400
+        legs_override.append({"tipo": tipo, "numero": numero, "ano": ano, "_nivel": 0, "_pergunta_label": ""})
+        arquivos_override.append({"tipo": tipo, "numero": numero, "ano": ano, "arquivos": saved})
+    job = {"done": False, "cancelled": False, "logs": _LogList(job_id, get_db), "result": None, "tipo": "upload"}
+    _buscador_jobs[job_id] = job
+    hist_id = None
+    try:
+        _hc = get_db(); _hcur = _hc.cursor()
+        _hcur.execute("INSERT INTO buscas_historico (tipo, municipio, estado, iniciado_em, job_id) VALUES (%s,%s,%s,NOW(),%s) RETURNING id",
+                      ('upload', mun, est, job_id))
+        hist_id = _hcur.fetchone()[0]
+        _hc.commit(); _hcur.close(); _hc.close()
+    except Exception: pass
+    def _run():
+        try:
+            from modulos.buscador_legislacoes import _chamar_llm as _llm
+            from modulos.buscador_urbanistico import buscar_legislacoes_urbanisticas
+            def chamar_llm(p, logs, label="LLM", max_retries=2): return _llm(p, logs, label, max_retries)
+            r = buscar_legislacoes_urbanisticas(mun, est, job["logs"], chamar_llm,
+                max_legislacoes=len(legs_override), _legs_override=legs_override,
+                _arquivos_override=arquivos_override)
+            job["result"] = {"encontradas": r.get("encontradas", []),
+                "zip_url": r.get("zip_url"), "zip_nome": r.get("zip_nome"),
+                "relatorio_url": r.get("relatorio_url"), "relatorio_nome": r.get("relatorio_nome"),
+                "tabela_url": r.get("tabela_url"), "tabela_nome": r.get("tabela_nome"),
+                "nao_encontrada": r.get("nao_encontrada", False)}
+            job["hist_id"] = hist_id
+            if hist_id:
+                try:
+                    _enc = r.get("encontradas", []); _leg = _enc[0] if _enc else {}
+                    _hc2 = get_db(); _hcur2 = _hc2.cursor()
+                    _hcur2.execute("UPDATE buscas_historico SET concluido_em=NOW(), sucesso=%s, legislacao_tipo=%s, legislacao_numero=%s, legislacao_ano=%s, zip_path=%s, relatorio_path=%s, tabela_path=%s WHERE id=%s",
+                        (bool(_enc), _leg.get("tipo",""), _leg.get("numero",""), _leg.get("ano",""),
+                         r.get("zip_url",""), r.get("relatorio_url",""), r.get("tabela_url",""), hist_id))
+                    _hc2.commit(); _hcur2.close(); _hc2.close()
+                except Exception: pass
+            try:
+                _zip_fim = r.get("zip_url","")
+                if _zip_fim:
+                    from modulos.dossie_trigger import disparar_organizador_async
+                    disparar_organizador_async(mun, est, _zip_fim, get_db, origem='upload', busca_id=hist_id)
+            except Exception as _et:
+                job["logs"].append({"nivel":"aviso","msg":f"Trigger dossie nao disparado: {str(_et)[:150]}"})
+        except Exception as e:
+            job["logs"].append({"nivel":"erro","msg":f"Erro upload: {str(e)[:200]}"})
+        finally:
+            job["done"] = True
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"success": True, "job_id": job_id})
+
 @app.route('/api/buscador/manual', methods=['POST'])
 @editor_required
 def api_buscador_manual():

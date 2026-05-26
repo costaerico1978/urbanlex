@@ -61,7 +61,7 @@ def _filtrar_leis_validas(itens, logs=None, contexto=""):
     return validos
 
 
-def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallback_url=None, max_legislacoes=None, _legs_override=None):
+def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallback_url=None, max_legislacoes=None, _legs_override=None, _arquivos_override=None):
     resultado = {"encontradas": [], "nao_encontrada": False}
     _falhas_municipio = 0  # Contador de legislacoes nao encontradas em nenhum fallback
     _browser_mun = None  # Browser Playwright compartilhado por municipio
@@ -422,7 +422,30 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
         _pergunta_origem = leg.get("_pergunta_label", "")
         _tabela_evento(logs, municipio, estado, tipo, numero, ano, pergunta=_pergunta_origem, status="analisando")
         enc = None
-        if _fonte_funcionou and _fonte_funcionou != "lm":
+        # _arquivos_override: pula download quando arquivos ja estao disponíveis
+        _arq_pre = None
+        if _arquivos_override:
+            import os as _os_up
+            for _ao in _arquivos_override:
+                if (str(_ao.get('tipo','')).lower() == str(tipo).lower() and
+                    str(_ao.get('numero','')).strip() == str(numero).strip() and
+                    str(_ao.get('ano','')).strip() == str(ano).strip()):
+                    _arq_pre = _ao.get('arquivos', [])
+                    break
+        if _arq_pre:
+            import os as _os_up2
+            _primeiro = next((p for p in _arq_pre if p.lower().endswith(('.pdf','.doc','.docx'))), _arq_pre[0] if _arq_pre else None)
+            enc = {
+                "municipio": municipio, "estado": estado,
+                "tipo": tipo, "numero": numero, "ano": ano,
+                "titulo": f"{tipo} {numero}/{ano} — {municipio}/{estado}",
+                "pdf_path": _primeiro,
+                "anexos_lm": [{"path": p, "pdf_path": p if p.lower().endswith('.pdf') else None,
+                                "nome": _os_up2.path.basename(p), "texto": ""} for p in _arq_pre],
+                "html": "", "_fonte": "upload", "_nivel": leg.get("_nivel", 1), "url": "",
+            }
+            logs.append({"nivel": "ok", "msg": f"[Upload] {tipo} {numero}/{ano} — {len(_arq_pre)} arquivo(s) prontos para analise"})
+        elif _fonte_funcionou and _fonte_funcionou != "lm":
             # Ja sabemos qual fonte funciona — ir direto sem tentar LM
             logs.append({"nivel": "info", "msg": f"  [{_fonte_funcionou.upper()}] Fonte conhecida para {municipio} — buscando {tipo} {numero}/{ano} diretamente..."})
             if _fonte_funcionou == "fallback1":
