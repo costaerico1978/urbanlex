@@ -868,12 +868,17 @@ window.onerror = function(msg, src, line, col, err) {
     return false;
 };
 // ── Upload Legislação ──
+function _uplTs() {
+  const d = new Date();
+  d.setHours(d.getHours() - 3);
+  return d.toISOString().replace('T',' ').substring(0,19)+' BRT';
+}
 let _uplLegs = [];
 let _uplJobId = null;
 let _uplPollInterval = null;
 
 function _uplUFOptions() {
-  return ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(u=>`<option>${u}</option>`).join('');
+  return '<option value="">Selecione...</option>'+['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(u=>`<option>${u}</option>`).join('');
 }
 function _uplTipoOptions() {
   return ['Lei Complementar','Lei','Decreto','Decreto-Lei','Resolução'].map(t=>`<option value="${t}">${t}</option>`).join('');
@@ -1016,11 +1021,21 @@ async function iniciarUploadAnalise() {
   document.getElementById('upl-log').style.display='none';
   document.getElementById('upl-resultado').style.display='none';
   document.getElementById('upl-downloads').style.display='none';
-  document.getElementById('upl-log-lines').innerHTML='';
+  document.getElementById('upl-log-lines').innerHTML='<div style="color:var(--muted2);font-size:10px;padding-bottom:4px;border-bottom:1px solid var(--border);margin-bottom:4px;">['+_uplTs()+'] Iniciando nova análise...</div>';
   document.getElementById('upl-loading-msg').textContent = `Iniciando análise de ${metadata.length} legislação(ões)...`;
   try {
-    const resp = await fetch('/api/buscador/upload-legislacao', {method:'POST', body:formData});
-    const data = await resp.json();
+    let resp, data;
+    try {
+      resp = await fetch('/api/buscador/upload-legislacao', {method:'POST', body:formData});
+      const text = await resp.text();
+      try { data = JSON.parse(text); } catch(pe) {
+        alert('Erro do servidor ('+resp.status+'): '+text.substring(0,200));
+        document.getElementById('upl-loading').style.display='none'; return;
+      }
+    } catch(fe) {
+      alert('Erro de rede: '+fe.message);
+      document.getElementById('upl-loading').style.display='none'; return;
+    }
     if (!data.success) { alert('Erro: '+(data.error||'Falha ao iniciar')); document.getElementById('upl-loading').style.display='none'; return; }
     _uplJobId = data.job_id;
     document.getElementById('upl-log').style.display='block';
