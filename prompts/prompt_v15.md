@@ -270,6 +270,30 @@ Cite a fonte legal para cada uso definido (artigo/anexo).
 
 ---
 
+**REGRA 3.H — Herança de usos por nomenclatura (UNIVERSAL):**
+
+Quando um Anexo ou tabela de usos define usos para um TIPO DE ZONA (ex: ZRM, ZRU, ZCS, ZCA),
+todas as VARIANTES desse tipo HERDAM os mesmos usos, SALVO disposicao explicita em contrario.
+
+Prefixo alfabético contínuo define o tipo base:
+  ZRM  → ZRM1, ZRM1D, ZRM2, ZRM2A, ZRM2B, ZRM2D, ZRM3, ZRM3F herdam usos de ZRM
+  ZRU  → ZRU1, ZRU1A, ZRU1B, ZRU2, ZRU2A herdam usos de ZRU
+  ZCS  → ZCSA, ZCSB herdam usos de ZCS
+  ZCA  → ZCA1, ZCA2, ZCA2A, ZCA2B, ZCA2C herdam usos de ZCA
+  ZUPI → ZUPIA herda usos de ZUPI
+  ZEI  → ZEIS herda usos de ZEI
+  ZPP  → sem variantes; segue Nota 8 (Dec 3046 por subzona)
+
+Ordem de prioridade:
+1. Usos EXPLICITOS para a variante na lei/Anexo
+2. Usos do TIPO BASE herdados do Anexo/tabela de usos
+3. null (nem variante nem tipo base encontrados neste batch)
+
+IMPORTANTE: nao deixe usos_permitidos vazio para zona com tipo base no Anexo.
+Se o Anexo tem ZRM, preencha ZRM1D, ZRM2A, ZRM2B etc com os usos de ZRM.
+
+---
+
 ## PARTE 4 — Parâmetros gerais por zona
 
 **REGRA 4.D — Dispositivo legal por parametro (OBRIGATORIO):**
