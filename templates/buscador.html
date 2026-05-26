@@ -1038,6 +1038,7 @@ async function iniciarUploadAnalise() {
     }
     if (!data.success) { alert('Erro: '+(data.error||'Falha ao iniciar')); document.getElementById('upl-loading').style.display='none'; return; }
     _uplJobId = data.job_id;
+    history.replaceState({uplJobId:_uplJobId}, '', '?uplJob='+_uplJobId);
     document.getElementById('upl-log').style.display='block';
     const logLines = document.getElementById('upl-log-lines');
     let cursor = 0;
@@ -1074,6 +1075,38 @@ async function iniciarUploadAnalise() {
   }
 }
 
+// ── Upload recuperacao ──
+async function _uplRecuperarSeNecessario() {
+  const params = new URLSearchParams(location.search);
+  const jobId = _uplJobId || params.get('uplJob');
+  if (!jobId) return;
+  const logLines = document.getElementById('upl-log-lines');
+  if (!logLines) return;
+  // Ja tem conteudo nessa sessao - nao recarrega
+  if (_uplJobId === jobId && logLines.children.length > 1) return;
+  try {
+    const check = await fetch('/api/buscador/job/'+jobId+'?cursor=0');
+    const data = await check.json();
+    if (!data || data.error) return;
+    _uplJobId = jobId;
+    document.getElementById('upl-log').style.display = 'block';
+    logLines.innerHTML = '<div style="color:var(--muted2);font-size:10px;padding-bottom:4px;border-bottom:1px solid var(--border);margin-bottom:4px;">['+_uplTs()+'] Log recuperado do servidor</div>';
+    (data.logs||[]).forEach(l => {
+      if (l.nivel==='token') return;
+      const div = document.createElement('div');
+      div.style.color = l.nivel==='ok'?'var(--accent)':l.nivel==='aviso'?'#f0ad4e':l.nivel==='erro'?'#e74c3c':'var(--muted)';
+      div.innerHTML = '<span style="color:var(--muted2);margin-right:6px;">'+(l.ts||'')+'</span>'+(l.msg||'');
+      logLines.appendChild(div);
+    });
+    logLines.scrollTop = logLines.scrollHeight;
+    if (data.done && data.result) {
+      document.getElementById('upl-loading').style.display='none';
+      _exibirBotoesDownload(data.result, {targetId:'panel-upload', prefix:'upl'});
+      document.getElementById('upl-downloads').style.display='flex';
+      document.getElementById('upl-resultado').style.display='block';
+    }
+  } catch(e) {}
+}
 // ── Tabs ──
 function mudarTab(tab) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -1084,6 +1117,7 @@ function mudarTab(tab) {
     // Carregar dados ao entrar na aba
     if (tab === 'historico') carregarHistorico();
     if (tab === 'upload' && document.getElementById('upl-legs-container').children.length === 0) uplAdicionarLeg();
+    if (tab === 'upload') _uplRecuperarSeNecessario();
 }
 
 // ── Campo condicional esfera ──
