@@ -117,7 +117,7 @@ except ImportError:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Caminhos
-PROMPT_V14_PATH = "/var/www/urbanlex/prompts/prompt_v14.md"  # default: v14
+PROMPT_V14_PATH = "/var/www/urbanlex/prompts/prompt_v15.md"  # default: v15 (refactor sem sigla_canonica)
 PIPELINES_BASE_DIR = "/var/www/urbanlex/static/pipelines"
 
 # Modelos
@@ -387,6 +387,19 @@ def calcular_custo(tokens_in, tokens_out, modelo='sonnet'):
     if modelo == 'haiku':
         return (tokens_in * PRECO_HAIKU_IN + tokens_out * PRECO_HAIKU_OUT) / 1_000_000
     return (tokens_in * PRECO_SONNET_IN + tokens_out * PRECO_SONNET_OUT) / 1_000_000
+
+
+
+def _extrair_sigla_zona(z):
+    """Extrai sigla principal: UT mais profunda da hierarquia (v15), fallback sigla_canonica (v14)."""
+    if not isinstance(z, dict):
+        return ''
+    hier = z.get('hierarquia') or {}
+    for ut in ['UT7', 'UT6', 'UT5', 'UT4', 'UT3', 'UT2', 'UT1']:
+        v = hier.get(ut)
+        if v:
+            return str(v).strip()
+    return (z.get('sigla_canonica') or '').strip()
 
 
 def carregar_prompt_v14():
@@ -922,7 +935,7 @@ def _extrair_usos_da_resposta(parsed):
     for z in (parsed.get('zonas') or []):
         if not isinstance(z, dict):
             continue
-        sigla = z.get('sigla_canonica')
+        sigla = _extrair_sigla_zona(z)
         if not sigla:
             continue
         usos = z.get('usos_permitidos')
@@ -961,7 +974,7 @@ def _atualizar_estado(estado, parsed):
     for z in (parsed.get('zonas') or []):
         if not isinstance(z, dict):
             continue
-        sigla = z.get('sigla_canonica')
+        sigla = _extrair_sigla_zona(z)
         if not sigla:
             continue
         if sigla not in estado['zonas']:
@@ -1248,7 +1261,7 @@ def etapa6_reconsolidar(estado_run, work_dir, zonas_validas=None, log_callback=N
         for z in (parsed.get('zonas') or []):
             if not isinstance(z, dict):
                 continue
-            sigla = (z.get('sigla_canonica') or '').strip().upper()
+            sigla = _extrair_sigla_zona(z).upper()
             if not eh_zona_real(sigla, zonas_validas, zona_obj=z):
                 if sigla:
                     descartados.add(sigla)

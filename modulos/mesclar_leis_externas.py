@@ -110,6 +110,33 @@ def _gerar_nova_chave_zona(zona_pai: str, sigla_filha: str) -> str:
     return f"{zona_pai}|{sigla_filha}"
 
 
+
+def _extrair_subzonas_de_texto(texto):
+    """Extrai siglas tipo 'A-4', 'A4', 'Subzona A 5' do texto livre.
+    Retorna lista de siglas normalizadas (lowercase, sem hifen)."""
+    import re
+    if not texto:
+        return []
+    # Padrao: letra + opcional hifen/espaco + digito(s)
+    # Ex: 'A-4', 'A4', 'A 5', 'Subzona A-12'
+    # Mas evita capturar 'Art. 1', 'Cap.III' etc
+    # Estrategia: procura 'A' (maiusculo ou nao) seguido de opcional separador e numero
+    pattern = re.compile(r'\b([A-Z]+)\s*[-\s]?\s*(\d{1,3})\b')
+    siglas = set()
+    for m in pattern.finditer(texto):
+        letra = m.group(1).upper()
+        numero = m.group(2)
+        # Filtro: ignora prefixos que nao sao zonas
+        if letra in ('ART', 'CAP', 'INC', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'):
+            continue
+        # Tamanho razoavel de sigla (1-4 letras)
+        if len(letra) > 4:
+            continue
+        sigla = f"{letra}{numero}".lower()
+        siglas.add(sigla)
+    return sorted(siglas)
+
+
 def _coletar_revogacoes_zonas_externas(jsons_carregados: List[Dict]) -> set:
     """
     Varre todos os JSONs carregados procurando em estado.legislacao.revogacoes_zonas_externas
@@ -130,11 +157,49 @@ def _coletar_revogacoes_zonas_externas(jsons_carregados: List[Dict]) -> set:
             chave_lei = _extrair_chave_lei(lei_origem)
             if not chave_lei:
                 continue
-            sigla = (item.get('sigla_zona') or '').strip().lower()
+            # v15: usa hierarquia_zona (dict) - extrai UT mais profunda
+            # v14 compat: aceita sigla_zona (string) tambem
+            sigla = ''
+            hier_zona = item.get('hierarquia_zona')
+            if isinstance(hier_zona, dict):
+                sigla = _ut_mais_profunda(hier_zona).lower()
+            if not sigla:
+                sigla = (item.get('sigla_zona') or '').strip().lower()
             if not sigla:
                 continue
             # Chave de match: (tipo, numero, ano, sigla)
             revogacoes.add((chave_lei[0], chave_lei[1], chave_lei[2], sigla))
+    # FALLBACK v15: tambem le overrides_de_leis_anteriores com tipo_alteracao=revogacao*
+    # (caso o Sonnet tenha posto revogacoes de zonas no campo errado)
+    for j in jsons_carregados:
+        leg = ((j.get('data') or {}).get('estado') or {}).get('legislacao') or {}
+        overs = leg.get('overrides_de_leis_anteriores') or []
+        if not isinstance(overs, list):
+            continue
+        for item in overs:
+            if not isinstance(item, dict):
+                continue
+            tipo_alt = str(item.get('tipo_alteracao') or '').lower()
+            if not tipo_alt.startswith('revogacao'):
+                continue
+            disp = str(item.get('dispositivo_alterado') or '')
+            # So considera se mencionar subzona/zona (evita confundir com revogacao de artigos)
+            if not any(s in disp.lower() for s in ['subzona', 'zona ', 'zonas']):
+                continue
+            # Lei alterada (pode estar como tipo ou tipo_nome)
+            lei_alt = item.get('lei_alterada') or {}
+            chave_lei = _extrair_chave_lei({
+                'tipo_nome': lei_alt.get('tipo_nome') or lei_alt.get('tipo'),
+                'numero': lei_alt.get('numero'),
+                'ano': lei_alt.get('ano'),
+            })
+            if not chave_lei:
+                continue
+            # Extrai siglas do dispositivo (texto livre)
+            siglas = _extrair_subzonas_de_texto(disp)
+            for sigla in siglas:
+                revogacoes.add((chave_lei[0], chave_lei[1], chave_lei[2], sigla))
+                logger.info(f"FALLBACK revogacao via overrides: {chave_lei} subzona {sigla}")
     return revogacoes
 
 
@@ -145,23 +210,37 @@ def _normalizar_sigla_p8(s: str) -> str:
     return ''.join(c for c in str(s).upper() if c.isalnum())
 
 
+def _ut_mais_profunda(hierarquia: Dict) -> str:
+    """Retorna o valor da UT preenchida mais profunda em uma hierarquia."""
+    if not isinstance(hierarquia, dict):
+        return ''
+    for ut in ['UT7', 'UT6', 'UT5', 'UT4', 'UT3', 'UT2', 'UT1']:
+        v = hierarquia.get(ut)
+        if v:
+            return str(v).strip()
+    return ''
+
+
 def _filtrar_zonas_aplicaveis(zonas_externa: Dict, subzonas_aplicaveis: List[str]) -> Dict:
     """
     Filtra dict de zonas externas mantendo so as que estao em subzonas_aplicaveis.
-    Match feito por sigla canonica normalizada.
-    Se subzonas_aplicaveis contem '*', mantem TODAS.
-    Se eh None ou vazio, mantem TODAS (compatibilidade com JSON sem o campo).
+    Match feito pela UT mais profunda da hierarquia (v15) ou pela chave do dict (fallback).
+    Se subzonas_aplicaveis contem '*' ou eh vazio/None, mantem TODAS.
     """
     if not subzonas_aplicaveis or '*' in subzonas_aplicaveis:
         return zonas_externa
     aplicaveis_norm = {_normalizar_sigla_p8(s) for s in subzonas_aplicaveis}
     resultado = {}
-    for sigla, dados in zonas_externa.items():
+    for chave_zona, dados in zonas_externa.items():
         if not isinstance(dados, dict):
             continue
-        sigla_canonica = dados.get('sigla_canonica') or sigla
+        # v15: usa UT mais profunda da hierarquia
+        hier = dados.get('hierarquia') or {}
+        sigla_via_hier = _ut_mais_profunda(hier)
+        # Fallback: chave do dict (v14 compat)
+        sigla_canonica = dados.get('sigla_canonica') or sigla_via_hier or chave_zona
         if _normalizar_sigla_p8(sigla_canonica) in aplicaveis_norm:
-            resultado[sigla] = dados
+            resultado[chave_zona] = dados
     return resultado
 
 
@@ -234,6 +313,15 @@ def mesclar_leis_externas(jsons_carregados: List[Dict]) -> Tuple[List[Dict], Lis
                 if not lei_externa_json:
                     # Lei externa nao esta entre os JSONs selecionados, skip
                     continue
+                # GUARD: pula refs auto-referentes (lei externa == lei principal)
+                chave_propria = _extrair_chave_lei({
+                    'tipo_nome': leg_meta_principal.get('tipo_nome') or leg_meta_principal.get('tipo'),
+                    'numero': leg_meta_principal.get('numero'),
+                    'ano': leg_meta_principal.get('ano'),
+                })
+                if chave_propria and chave_propria == chave_ext:
+                    logger.warning(f"Pulando ref auto-referente: zona '{chave_zona}' aponta pra propria lei {chave_ext}")
+                    continue
 
                 # Pega zonas da lei externa
                 zonas_externa = ((lei_externa_json.get('data') or {})
@@ -251,11 +339,12 @@ def mesclar_leis_externas(jsons_carregados: List[Dict]) -> Tuple[List[Dict], Lis
 
                 subzonas_adicionadas = []
                 zonas_externa_puladas_por_revogacao = []
-                for sigla_ext, dados_ext in zonas_externa.items():
+                for sigla_ext, dados_ext in list(zonas_externa.items()):
                     if not isinstance(dados_ext, dict):
                         continue
                     # Verifica se esta zona externa foi revogada
-                    sigla_norm = str(sigla_ext or '').strip().lower()
+                    # v15: compara pelo ultimo segmento da chave (ex: 'ZE5|A4' -> 'a4')
+                    sigla_norm = str(sigla_ext or '').strip().split('|')[-1].lower()
                     chave_rev = (chave_ext[0], chave_ext[1], chave_ext[2], sigla_norm)
                     if chave_rev in revogacoes_set:
                         zonas_externa_puladas_por_revogacao.append(sigla_ext)
@@ -277,9 +366,28 @@ def mesclar_leis_externas(jsons_carregados: List[Dict]) -> Tuple[List[Dict], Lis
 
                     # Copia subzona profundamente + acrescenta marcadores
                     subzona_copy = copy.deepcopy(dados_ext)
+                    # v15: concatenar hierarquia da pai com hierarquia da subzona externa
+                    hier_pai = zona.get('hierarquia') or {}
+                    hier_ext = subzona_copy.get('hierarquia') or {}
+                    hier_nova = {}
+                    idx = 1
+                    for ut in ['UT1','UT2','UT3','UT4','UT5','UT6','UT7']:
+                        v = hier_pai.get(ut)
+                        if v:
+                            hier_nova[f'UT{idx}'] = v
+                            idx += 1
+                    for ut in ['UT1','UT2','UT3','UT4','UT5','UT6','UT7']:
+                        v = hier_ext.get(ut)
+                        if v and idx <= 7:
+                            hier_nova[f'UT{idx}'] = v
+                            idx += 1
+                    for n in range(idx, 8):
+                        hier_nova[f'UT{n}'] = None
+                    subzona_copy['hierarquia'] = hier_nova
                     # Anota a origem do merge
                     subzona_copy['_origem_merge'] = {
                         'zona_pai': chave_zona,
+                        'hierarquia_pai': hier_pai,
                         'lei_origem': dict(lei_ref),
                         'sigla_original': sigla_ext,
                     }
@@ -309,6 +417,76 @@ def mesclar_leis_externas(jsons_carregados: List[Dict]) -> Tuple[List[Dict], Lis
         estado['zonas'] = zonas
         data['estado'] = estado
         j['data'] = data
+
+    # v15: pos-processamento - remove zonas das leis EXTERNAS que ja foram
+    # mescladas em outras leis principais (evita duplicacao na planilha final)
+    # Coleta sigla+lei das zonas mescladas
+    siglas_mescladas = {}  # {chave_lei: set(siglas)}
+    for j in jsons:
+        zonas = ((j.get('data') or {}).get('estado') or {}).get('zonas') or {}
+        for chave_z, z in zonas.items():
+            origem = z.get('_origem_merge')
+            if not origem:
+                continue
+            lei_orig = origem.get('lei_origem') or {}
+            chave_lei = _extrair_chave_lei({
+                'tipo_nome': lei_orig.get('tipo_nome') or lei_orig.get('tipo'),
+                'numero': lei_orig.get('numero'),
+                'ano': lei_orig.get('ano'),
+            })
+            if not chave_lei:
+                continue
+            # Sigla original (ultimo segmento da chave da zona externa)
+            sigla_orig = str(origem.get('sigla_original') or '').strip().split('|')[-1].lower()
+            if sigla_orig:
+                siglas_mescladas.setdefault(chave_lei, set()).add(sigla_orig)
+    # Remove das leis externas as zonas ja mescladas
+    n_removidas = 0
+    for j in jsons:
+        leg = ((j.get('data') or {}).get('estado') or {}).get('legislacao') or {}
+        chave_propria = _extrair_chave_lei({
+            'tipo_nome': leg.get('tipo_nome') or leg.get('tipo'),
+            'numero': leg.get('numero'),
+            'ano': leg.get('ano'),
+        })
+        if not chave_propria:
+            continue
+        siglas_remover = siglas_mescladas.get(chave_propria, set())
+        if not siglas_remover:
+            continue
+        zonas = ((j.get('data') or {}).get('estado') or {}).get('zonas') or {}
+        if not isinstance(zonas, dict):
+            continue
+        for chave_z in list(zonas.keys()):
+            sigla_ult = chave_z.split('|')[-1].lower()
+            if sigla_ult in siglas_remover:
+                del zonas[chave_z]
+                n_removidas += 1
+    if n_removidas:
+        logger.info(f"Pos-processamento v15: removidas {n_removidas} zonas duplicadas (mescladas em outras leis)")
+
+    # Tambem remove zonas REVOGADAS das leis externas (nao devem aparecer nem standalone)
+    n_revogadas_removidas = 0
+    for j in jsons:
+        leg = ((j.get('data') or {}).get('estado') or {}).get('legislacao') or {}
+        chave_propria = _extrair_chave_lei({
+            'tipo_nome': leg.get('tipo_nome') or leg.get('tipo'),
+            'numero': leg.get('numero'),
+            'ano': leg.get('ano'),
+        })
+        if not chave_propria:
+            continue
+        zonas = ((j.get('data') or {}).get('estado') or {}).get('zonas') or {}
+        if not isinstance(zonas, dict):
+            continue
+        for chave_z in list(zonas.keys()):
+            sigla_ult = chave_z.split('|')[-1].lower()
+            chave_rev = (chave_propria[0], chave_propria[1], chave_propria[2], sigla_ult)
+            if chave_rev in revogacoes_set:
+                del zonas[chave_z]
+                n_revogadas_removidas += 1
+    if n_revogadas_removidas:
+        logger.info(f"Pos-processamento v15: removidas {n_revogadas_removidas} zonas REVOGADAS da lei externa standalone")
 
     return jsons, log_merges
 

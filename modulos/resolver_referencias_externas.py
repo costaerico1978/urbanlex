@@ -55,7 +55,7 @@ def coletar_refs_unicas(resultado_json: Dict) -> List[Dict]:
     if isinstance(zonas, dict):
         iterator = zonas.items()
     else:
-        iterator = [(z.get('sigla_canonica', f'idx_{i}'), z) for i, z in enumerate(zonas)]
+        iterator = [(z.get('hierarquia', {}).get('UT7') or z.get('hierarquia', {}).get('UT6') or z.get('hierarquia', {}).get('UT5') or z.get('hierarquia', {}).get('UT4') or z.get('hierarquia', {}).get('UT3') or z.get('hierarquia', {}).get('UT2') or z.get('hierarquia', {}).get('UT1') or z.get('sigla_canonica', f'idx_{i}'), z) for i, z in enumerate(zonas)]
 
     # ----- 1. Refs no nivel ZONA (formato novo, pos-commit 5c80482) -----
     for chave_zona, z in iterator:

@@ -159,7 +159,11 @@ def consolidar(jsons: List[Dict]) -> Dict:
             if z_nome not in consolidado['zonas']:
                 # sigla_canonica eh a sigla limpa (ex: 'ZCA2-A').
                 # z_nome pode incluir hierarquia como sufixo (ex: 'ZCA2-A|AP-1') quando ha desambiguacao.
-                sigla_limpa = z_dados.get('sigla_canonica') or z_nome.split('|')[0]
+                # v15: UT mais profunda da hierarquia, fallback sigla_canonica, fallback nome
+                _hier = z_dados.get('hierarquia') or {}
+                sigla_limpa = (_hier.get('UT7') or _hier.get('UT6') or _hier.get('UT5') or
+                               _hier.get('UT4') or _hier.get('UT3') or _hier.get('UT2') or _hier.get('UT1') or
+                               z_dados.get('sigla_canonica') or z_nome.split('|')[-1])
                 consolidado['zonas'][z_nome] = {
                     'sigla': sigla_limpa,
                     'fonte_definicao': fonte,
