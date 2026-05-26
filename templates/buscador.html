@@ -4,7 +4,8 @@
 {% block extra_style %}
 <style>
 /* Tabs */
-.tabs { display:flex; gap:0; border-bottom:2px solid var(--border); margin-bottom:36px; }
+.tabs { display:flex; gap:0; border-bottom:2px solid var(--border); margin-bottom:36px; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; flex-shrink:0; }
+.tabs::-webkit-scrollbar { display:none; }
 .tab-btn { padding:10px 20px; background:none; border:none; color:var(--muted); cursor:pointer;
            font-size:13px; font-weight:600; position:relative; transition:color .2s; font-family:var(--font-head); }
 .tab-btn:hover { color:var(--text); }
