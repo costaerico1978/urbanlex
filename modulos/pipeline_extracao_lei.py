@@ -1129,7 +1129,7 @@ def etapa5_extrair_dados_gemini(blocos, pdf_unico, texto_por_pg, work_dir,
     _preparar_blocos(blocos, pdf_unico, texto_por_pg, work_dir, log_callback)
     estado = {"legislacao": None, "usos_por_zona": {}, "zonas": {}, "modificacoes": [], "refs_externas": []}
     total_tempo = 0; total_in = 0; total_out = 0
-    prompt_gemini = carregar_prompt_gemini()
+    prompt_gemini = carregar_prompt_v14()  # usa prompt_v15.md (mesmo do Sonnet)
     blocos_corp = [b for b in blocos if b["nome"] == "corpo_lei"]
     blocos_rest = sorted([b for b in blocos if _prio_bloco(b) >= 0], key=_prio_bloco)
     blocos_todos = blocos_corp + blocos_rest
