@@ -123,6 +123,9 @@ PIPELINES_BASE_DIR = "/var/www/urbanlex/static/pipelines"
 # Modelos
 MODELO_HAIKU = "claude-haiku-4-5-20251001"
 MODELO_SONNET = "claude-sonnet-4-6"
+USAR_GEMINI_EXTRACAO = os.environ.get('URBANLEX_IA_EXTRACAO', 'sonnet') == 'gemini'
+PROMPT_GEMINI_PATH = "/var/www/urbanlex/prompts/prompt_gemini.md"
+GEMINI_MAX_PAGES_PER_CALL = 150
 
 # Zonas válidas do Art. 277 (Xangri-Lá-compatível, expandir conforme necessário)
 ZONAS_VALIDAS_DEFAULT = {
@@ -401,6 +404,11 @@ def _extrair_sigla_zona(z):
             return str(v).strip()
     return (z.get('sigla_canonica') or '').strip()
 
+
+def carregar_prompt_gemini():
+    """Carrega prompt_gemini.md para extracao com Gemini Pro 2.5."""
+    with open(PROMPT_GEMINI_PATH, 'r', encoding='utf-8') as f:
+        return f.read()
 
 def carregar_prompt_v14():
     """Carrega o prompt v14 do disco. Lança FileNotFoundError se não existir."""
@@ -1038,6 +1046,103 @@ def _prio_bloco(b):
     return 50
 
 
+def chamar_gemini_extracao(pdf_path, texto_layout, prompt_extra, prompt_gemini, label,
+                            log_callback=None, max_tokens=65536):
+    """Chama Gemini Pro 2.5 com PDF + texto-layout + contexto evolutivo."""
+    try:
+        from google import genai as _genai
+        from google.genai import types as _gtypes
+    except ImportError:
+        _log(f"    ERRO Gemini [{label}]: google-genai nao instalado", log_callback)
+        return "", 0, 0, 0
+    GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
+    if not GEMINI_KEY:
+        _log(f"    ERRO Gemini [{label}]: GEMINI_API_KEY nao configurada", log_callback)
+        return "", 0, 0, 0
+    client = _genai.Client(api_key=GEMINI_KEY)
+    with open(pdf_path, "rb") as _f:
+        pdf_bytes = _f.read()
+    _log(f"    [{label}] Chamando Gemini Pro 2.5...", log_callback)
+    t0 = time.time()
+    sufixo = "\nRetorne APENAS JSON sem markdown fences. COMPACTO: omita campos null."
+    padrao = "Analise o PDF seguindo as instrucoes. Retorne APENAS JSON sem markdown fences. COMPACTO: omita campos null."
+    instrucao = (prompt_extra + sufixo) if prompt_extra else padrao
+    conteudo = [_gtypes.Part(text=prompt_gemini)]
+    if texto_layout:
+        conteudo.append(_gtypes.Part(text="=== TEXTO-LAYOUT DO PDF ===\n" + texto_layout[:50000]))
+    conteudo.append(_gtypes.Part(inline_data=_gtypes.Blob(mime_type="application/pdf", data=pdf_bytes)))
+    conteudo.append(_gtypes.Part(text=instrucao))
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-pro",
+            contents=conteudo,
+            config=_gtypes.GenerateContentConfig(max_output_tokens=max_tokens, temperature=0.1)
+        )
+        texto = response.text or ""
+        uso = response.usage_metadata
+        tokens_in = getattr(uso, "prompt_token_count", 0) or 0
+        tokens_out = getattr(uso, "candidates_token_count", 0) or 0
+        elapsed = time.time() - t0
+        custo = (tokens_in * 1.25 + tokens_out * 10) / 1_000_000
+        _log(f"    [{label}] OK: {len(texto)} chars, {elapsed:.1f}s, in={tokens_in} out={tokens_out} custo=${custo:.4f}", log_callback)
+        return texto, elapsed, tokens_in, tokens_out
+    except Exception as e:
+        _log(f"    ERRO Gemini [{label}]: {e}", log_callback)
+        return "", time.time()-t0, 0, 0
+
+
+def etapa5_extrair_dados_gemini(blocos, pdf_unico, texto_por_pg, work_dir,
+                                 usar_cache=True, log_callback=None):
+    """Versao Gemini da Etapa 5. Chamada unica se <=150 pgs, evolutiva se >150."""
+    _log("ETAPA 5/8 — Extracao de dados (Gemini Pro 2.5)", log_callback)
+    t0 = time.time()
+    _preparar_blocos(blocos, pdf_unico, texto_por_pg, work_dir, log_callback)
+    estado = {"legislacao": None, "usos_por_zona": {}, "zonas": {}, "modificacoes": [], "refs_externas": []}
+    total_tempo = 0; total_in = 0; total_out = 0
+    prompt_gemini = carregar_prompt_gemini()
+    blocos_corp = [b for b in blocos if b["nome"] == "corpo_lei"]
+    blocos_rest = sorted([b for b in blocos if _prio_bloco(b) >= 0], key=_prio_bloco)
+    blocos_todos = blocos_corp + blocos_rest
+    n_pgs = sum(b.get("fim", 0) - b.get("inicio", 0) + 1 for b in blocos_todos)
+    _log(f"  Total paginas: {n_pgs} (limite: {GEMINI_MAX_PAGES_PER_CALL})", log_callback)
+    if n_pgs <= GEMINI_MAX_PAGES_PER_CALL:
+        _log("  Modo: chamada unica com PDF completo", log_callback)
+        cache_path = os.path.join(work_dir, "etapa5_gemini_completo.txt")
+        if usar_cache and os.path.exists(cache_path) and os.path.getsize(cache_path) > 1000:
+            _log(f"    CACHE HIT: {os.path.getsize(cache_path)} chars", log_callback)
+            resp = open(cache_path).read(); t, ti, to = 0, 0, 0
+        else:
+            pgs_s = sorted(int(k) for k in texto_por_pg.keys() if k.isdigit())
+            tl = "\n".join(f"=== PG {p} ===\n{texto_por_pg[str(p)]}" for p in pgs_s)
+            resp, t, ti, to = chamar_gemini_extracao(pdf_unico, tl, None, prompt_gemini, "COMPLETO", log_callback)
+            if resp: open(cache_path, "w").write(resp)
+        total_tempo += t; total_in += ti; total_out += to
+        parsed = parse_json_robusto(resp or "")
+        if parsed:
+            _atualizar_estado(estado, parsed)
+            _log(f"    OK | Zonas: {len(estado[chr(122)+chr(111)+chr(110)+chr(97)+chr(115)])} | Usos: {len(estado[chr(117)+chr(115)+chr(111)+chr(115)+chr(95)+chr(112)+chr(111)+chr(114)+chr(95)+chr(122)+chr(111)+chr(110)+chr(97)])}", log_callback)
+        else:
+            _log("    PARSE FALHOU", log_callback)
+    else:
+        _log("  Modo: multiplas chamadas evolutivas", log_callback)
+        for b in blocos_todos:
+            cache_path = os.path.join(work_dir, f"etapa5_gem_{b[chr(110)+chr(111)+chr(109)+chr(101)].replace(chr(46),chr(95))}.txt")
+            if usar_cache and os.path.exists(cache_path) and os.path.getsize(cache_path) > 1000:
+                resp = open(cache_path).read(); t, ti, to = 0, 0, 0
+            else:
+                ctx = _gerar_contexto(estado) if (estado["zonas"] or estado["legislacao"]) else None
+                resp, t, ti, to = chamar_gemini_extracao(b.get("pdf_path", pdf_unico), b.get("texto_layout", ""), ctx, prompt_gemini, b["nome"], log_callback)
+                if resp: open(cache_path, "w").write(resp)
+            total_tempo += t; total_in += ti; total_out += to
+            parsed = parse_json_robusto(resp or "")
+            if parsed:
+                _atualizar_estado(estado, parsed)
+    custo_t = (total_in * 1.25 + total_out * 10) / 1_000_000
+    _log(f"  Etapa 5 Gemini: {len(estado[chr(122)+chr(111)+chr(110)+chr(97)+chr(115)])} zonas, {total_tempo:.1f}s, ${custo_t:.4f}", log_callback)
+    chave_e = "estado"; chave_t = "tempo"; chave_i = "tokens_in"; chave_o = "tokens_out"; chave_c = "custo"
+    return {chave_e: estado, chave_t: total_tempo, chave_i: total_in, chave_o: total_out, chave_c: custo_t}
+
+
 def etapa5_extrair_dados(blocos, pdf_unico, texto_por_pg, work_dir,
                          usar_cache=True, log_callback=None):
     """
@@ -1049,6 +1154,8 @@ def etapa5_extrair_dados(blocos, pdf_unico, texto_por_pg, work_dir,
     
     Retorna: dict com estado consolidado + métricas
     """
+    if USAR_GEMINI_EXTRACAO:
+        return etapa5_extrair_dados_gemini(blocos, pdf_unico, texto_por_pg, work_dir, usar_cache, log_callback)
     _log("ETAPA 5/8 — Extração de dados por bloco (Sonnet 4.6)", log_callback)
     t0 = time.time()
     
