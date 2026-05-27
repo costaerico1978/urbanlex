@@ -211,8 +211,7 @@ Remova hífens internos das siglas de zona ao registrar no JSON:
 - `ZRM-2A` → `ZRM2A`
 - `ZRU-1B` → `ZRU1B`
 
-Exceção: hífens em subzonas do Decreto 3046 (A-1, A-2, B-3...) são mantidos pois fazem parte do nome oficial.
-Esta regra se aplica TAMBÉM ao escopo territorial: AP-4 → AP4, ZE-5 → ZE5, AP-2.1 → AP2.1.
+Esta regra se aplica a TODAS as siglas incluindo escopo territorial: AP-4 → AP4, ZE-5 → ZE5, A-1 → A1, A-2 → A2, B-3 → B3.
 
 ---
 
