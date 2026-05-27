@@ -763,61 +763,67 @@ def etapa4_catalogar_anexos(anexos_pdf, corpo_n_pgs, work_dir, log_callback=None
         except Exception:
             pass
     
-    # Se anexos > 100 pgs, precisa quebrar (limite da API)
-    if n_pg_anexos > 100:
-        _log(f"  Anexos tem {n_pg_anexos} pgs (> 100), quebrando em sub-PDFs", log_callback)
-        # TODO: implementar split em sub-PDFs e chamadas múltiplas
-        # Por ora, mandamos só as 100 primeiras
-        anexos_pdf_uso = os.path.join(work_dir, "anexos_100.pdf")
-        reader = pypdf.PdfReader(anexos_pdf)
-        writer = pypdf.PdfWriter()
-        for i in range(100):
-            writer.add_page(reader.pages[i])
-        with open(anexos_pdf_uso, 'wb') as f:
-            writer.write(f)
-    else:
-        anexos_pdf_uso = anexos_pdf
-    
-    # Carrega PDF em base64
-    with open(anexos_pdf_uso, 'rb') as f:
-        pdf_b64 = base64.b64encode(f.read()).decode('ascii')
-    
+    # Divide em lotes de 80 pgs para respeitar limite de tokens do Haiku
+    LOTE_SIZE = 80
+    n_lotes = (n_pg_anexos + LOTE_SIZE - 1) // LOTE_SIZE
+    _log(f"  Haiku: {n_pg_anexos} pgs em {n_lotes} lote(s) de ate {LOTE_SIZE} pgs", log_callback)
     client = anthropic.Anthropic(api_key=os.environ['ANTHROPIC_API_KEY'])
-    
-    prompt = PROMPT_CATALOGACAO_HAIKU + "\n\n=== TEXTO -LAYOUT (referência) ===\n" + texto_anexos[:50000]
-    
-    _log(f"  Chamando Haiku 4.5...", log_callback)
-    
-    resposta = ""
-    try:
-        with client.messages.stream(
-            model=MODELO_HAIKU,
-            max_tokens=8000,
-            messages=[{
-                "role": "user",
-                "content": [
+    blocos_raw = []
+    tokens_in = 0; tokens_out = 0; custo = 0.0
+    reader_anexos = pypdf.PdfReader(anexos_pdf)
+    for lote_idx in range(n_lotes):
+        pg_ini = lote_idx * LOTE_SIZE
+        pg_fim = min(pg_ini + LOTE_SIZE, n_pg_anexos)
+        _log(f"  Lote {lote_idx+1}/{n_lotes}: pgs {pg_ini+1}-{pg_fim}", log_callback)
+        lote_pdf_path = os.path.join(work_dir, f"anexos_chunk_{lote_idx+1}.pdf")
+        writer_lote = pypdf.PdfWriter()
+        for i in range(pg_ini, pg_fim):
+            writer_lote.add_page(reader_anexos.pages[i])
+        with open(lote_pdf_path, 'wb') as f:
+            writer_lote.write(f)
+        texto_lote = ""
+        for pg in range(pg_ini + 1, pg_fim + 1):
+            sep = "\n=== PAGINA " + str(pg) + " ==="
+            linhas = texto_anexos.split(sep)
+            if len(linhas) > 1:
+                texto_lote += sep + linhas[1].split("\n=== PAGINA ")[0]
+        with open(lote_pdf_path, 'rb') as f:
+            pdf_b64_lote = base64.b64encode(f.read()).decode('ascii')
+        prompt_lote = PROMPT_CATALOGACAO_HAIKU + f"\n\nATENCAO: paginas {pg_ini+1} a {pg_fim} dos anexos. Use esta numeracao."
+        prompt_lote += "\n\n=== TEXTO -LAYOUT (referencia) ===\n" + texto_lote[:30000]
+        _log(f"    Chamando Haiku 4.5...", log_callback)
+        resposta_lote = ""
+        try:
+            with client.messages.stream(
+                model=MODELO_HAIKU,
+                max_tokens=8000,
+                messages=[{"role": "user", "content": [
                     {"type": "document", "source": {
-                        "type": "base64", "media_type": "application/pdf", "data": pdf_b64
-                    }, "title": "anexos.pdf"},
-                    {"type": "text", "text": prompt},
-                ]
-            }]
-        ) as stream:
-            for delta in stream.text_stream:
-                resposta += delta
-            final = stream.get_final_message()
-    except Exception as e:
-        raise RuntimeError(f"Haiku falhou: {e}")
-    
-    tokens_in = final.usage.input_tokens
-    tokens_out = final.usage.output_tokens
-    custo = calcular_custo(tokens_in, tokens_out, 'haiku')
-    
-    parsed = parse_json_robusto(resposta)
-    if not parsed or 'blocos' not in parsed:
-        raise RuntimeError(f"Haiku retornou JSON inválido: {resposta[:300]}")
-    
-    blocos_raw = parsed['blocos']
+                        "type": "base64", "media_type": "application/pdf", "data": pdf_b64_lote
+                    }, "title": f"anexos_lote_{lote_idx+1}.pdf"},
+                    {"type": "text", "text": prompt_lote},
+                ]}]
+            ) as stream:
+                for delta in stream.text_stream:
+                    resposta_lote += delta
+                final_lote = stream.get_final_message()
+        except Exception as e:
+            raise RuntimeError(f"Haiku falhou: {e}")
+        tokens_in += final_lote.usage.input_tokens
+        tokens_out += final_lote.usage.output_tokens
+        custo += calcular_custo(final_lote.usage.input_tokens, final_lote.usage.output_tokens, 'haiku')
+        parsed_lote = parse_json_robusto(resposta_lote)
+        if not parsed_lote or 'blocos' not in parsed_lote:
+            _log(f"    Lote {lote_idx+1}: JSON invalido, pulando", log_callback)
+            continue
+        for b in parsed_lote['blocos']:
+            b['inicio'] = b.get('inicio', 1) + pg_ini
+            b['fim'] = b.get('fim', 1) + pg_ini
+            blocos_raw.append(b)
+        _log(f"    Lote {lote_idx+1}: {len(parsed_lote['blocos'])} blocos", log_callback)
+    if not blocos_raw:
+        raise RuntimeError("Haiku nao detectou nenhum bloco em nenhum lote")
+    blocos_raw = blocos_raw  # ja preenchido acima
     
     # Converte paginas: como anexos.pdf comeca na pg 1, somar corpo_n_pgs pra obter pg no PDF concatenado
     # Adiciona bloco "corpo_lei" no início e ajusta páginas dos demais
