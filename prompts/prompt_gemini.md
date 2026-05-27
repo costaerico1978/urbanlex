@@ -197,6 +197,35 @@ Exceção: hífens em subzonas do Decreto 3046 (A-1, A-2, B-3...) são mantidos 
 
 ---
 
+## PARÂMETROS POR USO
+
+Quando uma zona define parâmetros DIFERENTES para cada tipo de uso (ex: gabarito 2 para residencial unifamiliar, gabarito 5 para multifamiliar, gabarito 15 para hotel), NÃO crie entradas separadas — use `parametros_por_uso`:
+
+Exemplo:
+{
+  "hierarquia": {"UT1": "AP4", "UT2": "A-1"},
+  "parametros_gerais": {
+    "coeficiente_aproveitamento_maximo": {"valor": "1.25"},
+    "taxa_ocupacao_percentual": {"valor": "50"}
+  },
+  "parametros_por_uso": {
+    "residencial_unifamiliar": {
+      "gabarito_pavimentos": {"valor": "2"}
+    },
+    "residencial_multifamiliar": {
+      "gabarito_pavimentos": {"valor": "5"}
+    },
+    "residencial_transitorio_hotel": {
+      "coeficiente_aproveitamento_maximo": {"valor": "4"},
+      "gabarito_pavimentos": {"valor": "8 a 15"}
+    }
+  }
+}
+
+Regra: se o parametro e igual para todos os usos -> parametros_gerais. Se varia por uso -> parametros_por_uso.
+
+---
+
 ## DEDUPLICAÇÃO
 
 Se a mesma zona aparecer mais de uma vez no PDF (texto repetido ou seções duplicadas), crie apenas UMA entrada consolidando todas as informações:
