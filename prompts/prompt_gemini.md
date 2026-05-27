@@ -13,6 +13,24 @@ Você receberá páginas selecionadas de uma lei urbanística municipal brasilei
 
 ---
 
+## ESCOPO TERRITORIAL DA LEGISLAÇÃO
+
+Antes de definir a hierarquia, verifique se a legislação analisada regula zonas **específicas** de uma divisão territorial maior.
+
+Exemplos:
+- "Instruções Normativas para a ZE-5 da AP-4" → a lei regula a ZE-5 dentro da AP-4
+- "Regulamento de uso do solo da Zona Industrial Norte" → a lei regula a ZIN
+- "Parâmetros para a Área de Planejamento 3" → a lei regula a AP-3
+
+Se sim, essas zonas contextuais entram como níveis superiores na hierarquia das subzonas definidas:
+- AP-4 → UT1
+- ZE-5 → UT2
+- Subzona A-1 → UT3
+
+Se a lei é geral (regula o município inteiro sem focar numa zona específica), as zonas entram direto como UT1 ou UT2 conforme a hierarquia normal.
+
+---
+
 ## HIERARQUIA TERRITORIAL (OBRIGATÓRIO)
 
 Toda zona deve ter sua posição na hierarquia da lei identificada:
