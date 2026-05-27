@@ -197,6 +197,14 @@ Exceção: hífens em subzonas do Decreto 3046 (A-1, A-2, B-3...) são mantidos 
 
 ---
 
+## DEDUPLICAÇÃO
+
+Se a mesma zona aparecer mais de uma vez no PDF (texto repetido ou seções duplicadas), crie apenas UMA entrada consolidando todas as informações:
+- Use os parâmetros mais completos encontrados
+- Não crie entradas duplicadas para a mesma zona
+
+---
+
 ## CHECKLIST ANTES DE FINALIZAR
 
 - [ ] Toda zona tem UT1 preenchido (AP ou null se lei não divide por área)?
