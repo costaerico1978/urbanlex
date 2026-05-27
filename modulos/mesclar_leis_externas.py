@@ -107,7 +107,13 @@ def _gerar_nova_chave_zona(zona_pai: str, sigla_filha: str) -> str:
         return sigla_filha
     if not sigla_filha:
         return zona_pai
-    return f"{zona_pai}|{sigla_filha}"
+    # Remove da sigla_filha segmentos que ja existem na zona_pai
+    pai_segs = set(zona_pai.split('|'))
+    filha_segs = sigla_filha.split('|')
+    filha_filtrada = [s for s in filha_segs if s not in pai_segs]
+    if not filha_filtrada:
+        return zona_pai
+    return f"{zona_pai}|{'|'.join(filha_filtrada)}"
 
 
 
@@ -376,9 +382,11 @@ def mesclar_leis_externas(jsons_carregados: List[Dict]) -> Tuple[List[Dict], Lis
                         if v:
                             hier_nova[f'UT{idx}'] = v
                             idx += 1
+                    # Pula UTs externos que já existem na cadeia pai
+                    _pai_valores = set(v for v in hier_pai.values() if v)
                     for ut in ['UT1','UT2','UT3','UT4','UT5','UT6','UT7']:
                         v = hier_ext.get(ut)
-                        if v and idx <= 7:
+                        if v and idx <= 7 and v not in _pai_valores:
                             hier_nova[f'UT{idx}'] = v
                             idx += 1
                     for n in range(idx, 8):
