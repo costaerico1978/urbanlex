@@ -117,17 +117,6 @@ Niveis informacionais como zoneamento ambiental sobreposto (APA, APP, ZPA) ja sa
 
 ---
 
-**REGRA 0.6 — Filtragem por ter parametros:**
-
-Uma zona so entra no array `zonas` se atende A PELO MENOS UMA destas:
-- Tem pelo menos um uso em `usos_permitidos` com `status: "SIM"` ou `"CONDICIONADO"`, OU
-- Tem ao menos um parametro em `parametros_gerais` ou `parametros_por_uso` com valor (mesmo que `NI` ou `NI_LEI_EXTERNA`)
-
-Se nada disso se aplica, NAO inclua a zona no JSON.
-
-
----
-
 ## PARTE 1 — Sobre esta legislação
 
 **1.1** Qual é a identificação formal desta legislação?
@@ -455,10 +444,7 @@ Exemplo:
    - Parametros sao preenchidos com valores reais
    - Fonte cita "Dec. 3046/1981, Subzona A-4"
 
-**Hierarquia UT4-UT6 (regra estrita):**
-- UT1, UT2, UT3, ... UT7 = hierarquia da LEI PRINCIPAL (AP, Setor, Zona, etc — niveis estritamente hierarquicos, ver REGRA 0.5)
-- UT4, UT5, UT6 = APENAS para hierarquia da LEI EXTERNA (quando aplicavel)
-- Sem lei externa: UT4, UT5, UT6 ficam null
+
 
 ### 5.5 — Revogacoes de Zonas/Subzonas de Leis EXTERNAS  CRITICO
 
@@ -798,7 +784,7 @@ EXEMPLO DE ESTRUTURA:
   "zonas": [
     {
       "variantes_observadas": [],
-      "hierarquia": {"UT1": "AP2", "UT2": "ZR5", "UT3": null, "UT4": null, "UT5": null, "UT6": null, "UT7": null},
+      "hierarquia": {"UT1": "AP2", "UT2": "ZR5"},
       "zoneamento_ambiental_sobreposto": null,
       "fonte_definicao": "LC 148/2023, Art. 70",
       "usos_permitidos": {
