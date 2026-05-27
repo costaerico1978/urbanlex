@@ -665,9 +665,33 @@ def etapa3_quebrar_pdf(pdf_unico, fim_corpo, n_paginas, work_dir, log_callback=N
         writer_anexos.write(f)
     
     n_pg_anexos = n_paginas - fim_corpo
-    
+
     _log(f"  Corpo: {corpo_pdf} ({fim_corpo} pgs)", log_callback)
     _log(f"  Anexos: {anexos_pdf} ({n_pg_anexos} pgs)", log_callback)
+    # Deduplicar paginas do anexos.pdf por hash MD5 do texto
+    try:
+        import hashlib as _hashlib
+        _hashes = {}; _pgs_manter = []
+        for _pg in range(1, n_pg_anexos + 1):
+            _r = subprocess.run(["pdftotext", "-f", str(_pg), "-l", str(_pg), anexos_pdf, "-"],
+                               capture_output=True, text=True, timeout=10)
+            _h = _hashlib.md5(_r.stdout.strip().encode()).hexdigest()
+            if _h not in _hashes:
+                _hashes[_h] = _pg; _pgs_manter.append(_pg)
+        _removidas = n_pg_anexos - len(_pgs_manter)
+        if _removidas > 0:
+            _log(f"  Dedup anexos: {_removidas} pgs duplicadas removidas ({n_pg_anexos} -> {len(_pgs_manter)} pgs)", log_callback)
+            _reader_a = pypdf.PdfReader(anexos_pdf)
+            _writer_a = pypdf.PdfWriter()
+            for _pg in _pgs_manter:
+                _writer_a.add_page(_reader_a.pages[_pg - 1])
+            with open(anexos_pdf, "wb") as _f:
+                _writer_a.write(_f)
+            n_pg_anexos = len(_pgs_manter)
+        else:
+            _log("  Dedup anexos: sem duplicatas", log_callback)
+    except Exception as _e:
+        _log(f"  Dedup anexos: erro ignorado ({_e})", log_callback)
     _log(f"  Etapa 3 concluída em {time.time()-t0:.1f}s", log_callback)
     
     return {
