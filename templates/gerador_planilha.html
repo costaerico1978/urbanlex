@@ -128,26 +128,9 @@
 
   <div class="gp-card">
     <div class="gp-card-title"><span class="num">3</span> Prompt da Análise</div>
-    <div class="gp-help">Use o campo de texto OU selecione um prompt salvo.</div>
-    <div class="gp-source-toggle">
-      <div class="gp-source-tab" onclick="gpAlternarFonte('texto',this)">✍️ Digitar prompt</div>
-      <div class="gp-source-tab active" onclick="gpAlternarFonte('arquivo',this)">📁 Usar arquivo da lista</div>
-    </div>
-    <div id="gp-modo-texto" style="display:none;">
-      <textarea class="gp-prompt-ta" id="gp-prompt">Analise todos os documentos fornecidos e preencha a planilha Excel com os parâmetros urbanísticos de cada zona identificada. Para cada zona extraia: nome/código, taxa de ocupação, coeficiente de aproveitamento básico e máximo, taxa de permeabilidade, gabarito máximo, recuos mínimos e uso permitido. Caso algum parâmetro não esteja definido, indique "NI".</textarea>
-    </div>
-    <div id="gp-modo-arquivo">
-      <div class="gp-prompts-toolbar">
-        <label class="gp-mini" style="cursor:pointer;">
-          📤 Adicionar arquivo
-          <input type="file" multiple accept=".txt,.pdf,.docx" style="display:none;" onchange="gpUploadPrompts(this)">
-        </label>
-        <button class="gp-mini" id="gp-btn-excluir-prompts" disabled onclick="gpExcluirPrompts()">🗑 Excluir selecionados</button>
-        <span id="gp-prompts-stats" style="margin-left:auto;font-size:11px;color:var(--muted);"></span>
-      </div>
-      <div class="gp-prompts-list" id="gp-prompts-list">
-        <div style="padding:14px;text-align:center;font-size:12px;color:var(--muted);">Carregando...</div>
-      </div>
+    <div class="gp-help">Selecione o prompt que será usado na extração.</div>
+    <div class="gp-prompts-list" id="gp-prompts-list">
+      <div style="padding:14px;text-align:center;font-size:12px;color:var(--muted);">Carregando...</div>
     </div>
   </div>
 
@@ -670,7 +653,7 @@ async function gpCarregarPrompts(){
     const d = await r.json();
     if(!d.success){ document.getElementById('gp-prompts-list').innerHTML = '<div style="padding:14px;color:#e74c3c;font-size:12px;">Erro: ' + d.error + '</div>'; return; }
     const lista = document.getElementById('gp-prompts-list');
-    if(!d.data.length){ lista.innerHTML = '<div style="padding:14px;text-align:center;font-size:12px;color:var(--muted);">Nenhum prompt salvo. Use Adicionar arquivo.</div>'; document.getElementById('gp-prompts-stats').textContent = ''; return; }
+    if(!d.data.length){ lista.innerHTML = '<div style="padding:14px;text-align:center;font-size:12px;color:var(--muted);">Nenhum prompt disponível.</div>'; return; }
     let total = 0;
     // Se nada selecionado ainda, marca o primeiro (mais recente) por default
     if (!_gpPromptIdSelecionado && d.data.length > 0) {
@@ -691,7 +674,7 @@ async function gpCarregarPrompts(){
         '<button onclick="event.stopPropagation();gpBaixarPrompt(' + p.id + ', this)" title="Baixar como TXT" style="flex-shrink:0;padding:5px 9px;background:rgba(0,229,160,.12);color:var(--accent);border:1px solid rgba(0,229,160,.3);border-radius:5px;cursor:pointer;font-size:13px;">⬇</button>' +
       '</div>';
     }).join('');
-    document.getElementById('gp-prompts-stats').textContent = d.data.length + ' arquivos · ' + gpFmtBytes(total);
+    // gp-prompts-stats removido
   }catch(e){ console.warn(e); }
 }
 async function gpBaixarPrompt(id, btn) {
@@ -2486,5 +2469,6 @@ async function xgApagarSel() {
 }
 
 gpRenderCompilados();
+gpCarregarPrompts();
 </script>
 {% endblock %}
