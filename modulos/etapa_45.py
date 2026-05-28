@@ -554,7 +554,7 @@ FORMATO:
                 if bloco_anterior and bloco_anterior.get('continua'):
                     ctx = f"\nATENCAO: O bloco '{bloco_anterior.get('titulo','')}' vem do chunk anterior e pode continuar neste PDF. Verifique se continua e ajuste o fim."
                 prompt_chunk = prompt_base.replace('{texto_layout}', tl_chunk[:50000]) + ctx
-                prompt_chunk += f"\nATENCAO: As paginas deste PDF vao de {pg_ini_0+1} a {pg_fim_0}. Use essa numeracao."
+                # Gemini numera de 1 a N dentro do chunk; offset adicionado pelo codigo
                 _log(f"  Chunk {ci+1}/{n_chunks} (pg {pg_ini_0+1}-{pg_fim_0}): Gemini Pro...")
                 with open(chunk_path, 'rb') as f:
                     pdf_bytes_ck = f.read()
