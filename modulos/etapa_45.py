@@ -141,19 +141,21 @@ def detectar_anexos_citados(legislacao_label, pdf_path, anexos_baixados, log_cal
             pass
 
     PROMPT_DETECTAR = """Voce esta analisando o CORPO de uma legislacao urbanistica municipal.
-Sua tarefa: identificar TODOS os anexos com identificador especifico citados no texto.
+Sua tarefa: listar TODOS os ANEXOS citados no texto.
 
-REGRAS:
-1. ACEITAR apenas anexos com identificador unico: "Anexo I", "Anexo XVIII", "Anexo 2.1", "Quadro 24.2", "Figura 1", "Tabela XV"
-2. REJEITAR referencias genericas sem identificador: "mapas em anexo", "tabelas anexas"
-3. Cada anexo uma unica vez (deduplicado)
-4. Use SEMPRE numerais ROMANOS para identificar anexos (Anexo I, II, III... nao Anexo 1, 2, 3)
-5. Se o texto citar "Anexo 2" e "Anexo II", sao o mesmo - use "Anexo II"
-6. Inclua APENAS anexos desta propria lei (nao de leis externas)
-7. Varra TODO o texto - pode haver dezenas de anexos em paginas diferentes
+REGRAS ESTRITAS:
+1. nome_citado: APENAS "Anexo X" com numeral romano (ex: "Anexo I", "Anexo XVIII", "Anexo XXI")
+2. assunto: descricao curta do conteudo (ex: "Usos permitidos por zona", "Parametros AP1")
+3. NAO inclua subtitulos no nome (NAO "Anexo I-a", NAO "Anexo XVIII - Usos")
+4. Subindices "Anexo I-a", "Anexo I-b" sao sub-itens do "Anexo I" — inclua apenas "Anexo I"
+5. Cada anexo uma unica vez (deduplicado por nome_citado)
+6. "Anexo 2" = "Anexo II" — use sempre romano
+7. Inclua APENAS anexos desta propria lei (nao de leis externas)
+8. NAO inclua Quadros, Figuras, Tabelas individualmente — apenas Anexos com numero romano
+9. Varra TODO o texto
 
 FORMATO (JSON estrito):
-{"anexos": [{"nome_citado": "Anexo I", "contexto": "trecho onde aparece"}, ...]}
+{"anexos": [{"nome_citado": "Anexo I", "assunto": "Objetivos e diretrizes"}, ...]}
 
 Retorne APENAS o JSON."""
 
