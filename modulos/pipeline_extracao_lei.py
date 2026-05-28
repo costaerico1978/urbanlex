@@ -900,6 +900,31 @@ def _texto_layout(pdf_unico, ini, fim, texto_por_pg=None):
     return "\n\n".join(partes)
 
 
+def _split_bloco_grande(b, max_chars=50000, pgs_por_sub=15):
+    """Divide bloco grande em sub-blocos menores para extração evolutiva."""
+    if len(b.get('texto_layout', '')) <= max_chars:
+        return [b]
+    subs = []
+    inicio = b['inicio']
+    fim = b['fim']
+    n_pgs = fim - inicio + 1
+    i = inicio
+    idx = 0
+    while i <= fim:
+        f = min(i + pgs_por_sub - 1, fim)
+        sub = dict(b)
+        sub['inicio'] = i
+        sub['fim'] = f
+        sub['nome'] = f"{b['nome']}_sub{idx+1}"
+        sub['pdf_path'] = b['pdf_path']  # sera regerado
+        sub['_sub_de'] = b['nome']
+        sub['_sub_idx'] = idx
+        subs.append(sub)
+        i = f + 1
+        idx += 1
+    return subs
+
+
 def _preparar_blocos(blocos, pdf_unico, texto_por_pg, work_dir, log_callback=None):
     """Quebra cada bloco em PDF próprio e gera texto -layout coerente."""
     _log(f"  Preparando PDFs e textos de {len(blocos)} blocos...", log_callback)
@@ -1156,7 +1181,20 @@ def etapa5_extrair_dados_gemini(blocos, pdf_unico, texto_por_pg, work_dir,
             _log("    PARSE FALHOU", log_callback)
     else:
         _log("  Modo: multiplas chamadas evolutivas", log_callback)
+        # Expandir blocos grandes em sub-blocos
+        blocos_expandidos = []
         for b in blocos_todos:
+            subs = _split_bloco_grande(b)
+            if len(subs) > 1:
+                _log(f"    {b['nome']}: dividido em {len(subs)} sub-blocos ({len(b['texto_layout'])} chars)", log_callback)
+                # Preparar PDFs dos sub-blocos
+                for sub in subs:
+                    nome_safe = sub['nome'].replace('.','_').replace(' ','_').replace('/','_')
+                    sub['pdf_path'] = os.path.join(work_dir, f"bloco_{nome_safe}.pdf")
+                    _quebrar_pdf(pdf_unico, sub['inicio'], sub['fim'], sub['pdf_path'])
+                    sub['texto_layout'] = _texto_layout(pdf_unico, sub['inicio'], sub['fim'], texto_por_pg)
+            blocos_expandidos.extend(subs)
+        for b in blocos_expandidos:
             cache_path = os.path.join(work_dir, f"etapa5_gem_{b[chr(110)+chr(111)+chr(109)+chr(101)].replace(chr(46),chr(95))}.txt")
             if usar_cache and os.path.exists(cache_path) and os.path.getsize(cache_path) > 1000:
                 resp = open(cache_path).read(); t, ti, to = 0, 0, 0
