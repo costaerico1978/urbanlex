@@ -900,7 +900,7 @@ def _texto_layout(pdf_unico, ini, fim, texto_por_pg=None):
     return "\n\n".join(partes)
 
 
-def _split_bloco_grande(b, max_chars=50000, pgs_por_sub=15):
+def _split_bloco_grande(b, max_chars=50000, pgs_por_sub=10):
     """Divide bloco grande em sub-blocos menores para extração evolutiva."""
     if len(b.get('texto_layout', '')) <= max_chars:
         return [b]
