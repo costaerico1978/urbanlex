@@ -243,53 +243,61 @@ def preencher_planilha(*args, **kwargs):
 
 # Cada uso ocupa 22 cols (11 params × 2). Bloco comeca em col_inicial.
 USO_BLOCO_INICIO = {
-    'residencial_unifamiliar':       67,
-    'residencial_multifamiliar':     89,
-    'residencial_his':              111,
-    'residencial_transitorio_hotel': 133,
-    'comercial':                    155,
-    'servicos':                     177,
-    'uso_misto':                    199,
-    'industrial':                   221,
-    'institucional':                243,
+    'residencial_unifamiliar':    63,
+    'residencial_multifamiliar':  85,
+    'residencial_his':           107,
+    'comercial':                 129,
+    'servicos':                  151,
+    'uso_misto':                 173,
+    'industrial':                195,
+    'institucional':             217,
+    'residencial_transitorio_hotel': None,
 }
 
-# Offset dentro do bloco de uso → chave JSON em params_por_uso
-# offset = 0..21 (par = valor, ímpar = legislação)
+USOS_COL_STATUS = {
+    'residencial_unifamiliar':    46,
+    'residencial_multifamiliar':  48,
+    'residencial_his':            50,
+    'comercial':                  52,
+    'servicos':                   54,
+    'uso_misto':                  56,
+    'industrial':                 58,
+    'institucional':              60,
+    'residencial_transitorio_hotel': None,
+}
+
+COL_OBSERVACOES = 62
+
 USO_PARAMS_OFFSET = [
-    # (offset_valor, chave_json_v14)
-    (0,  'coeficiente_aproveitamento_basico'),     # Coef. aprov. basico
-    (2,  'coeficiente_aproveitamento_maximo'),     # Coef. aprov. maximo
-    (4,  'taxa_ocupacao_basica_pct'),              # Tx. ocupacao basica
-    (6,  'taxa_ocupacao_maxima_pct'),              # Tx. ocupacao maxima
-    (8,  'gabarito_basico_pavimentos'),            # Gab basico pavtos
-    (10, 'gabarito_max_nao_afastado_pavimentos'),  # Gab max pavtos
-    (12, 'gabarito_basico_altura_m'),              # Gab basico altura
-    (14, 'altura_maxima_absoluta_m'),              # Gab max altura
-    (16, 'recuo_frontal_m'),                       # Afast frontal
-    (18, 'recuo_lateral_m'),                       # Afast lateral
-    (20, 'recuo_fundos_m'),                        # Afast fundos
+    (0,  'coeficiente_aproveitamento_basico'),
+    (2,  'coeficiente_aproveitamento_maximo'),
+    (4,  'taxa_ocupacao_basica_pct'),
+    (6,  'taxa_ocupacao_maxima_pct'),
+    (8,  'gabarito_basico_pavimentos'),
+    (10, 'gabarito_max_nao_afastado_pavimentos'),
+    (12, 'gabarito_basico_altura_m'),
+    (14, 'altura_maxima_absoluta_m'),
+    (16, 'recuo_frontal_m'),
+    (18, 'recuo_lateral_m'),
+    (20, 'recuo_fundos_m'),
 ]
 
-# Mapeamento G2 (cols 32-47): General Parameters
-# (col_valor, chave_json em parametros_gerais OU None)
-G2_GENERAL = [
-    (32, 'permeabilidade_minima_pct'),
-    (34, 'quota_ideal_m2_economia'),
-    (36, None),                                # Gabarito varia altitude (v14)
-    (38, 'afastamento_entre_blocos'),
-    (40, 'gabarito_max_nao_afastado_pavimentos'),
-    (42, 'gabarito_max_nao_afastado_altura_m'),
-    (44, 'isencao_outorga_onerosa'),
-    (46, None),                                # Varia declividade (variacoes.por_declividade)
-]
-
-# Mapeamento G1 (cols 24-31): Lote (Identificacao)
 G1_LOTE = [
-    (24, 'area_lote_minimo_m2'),
-    (26, 'testada_minima_m'),
-    (28, 'area_lote_maximo_m2'),
-    (30, 'area_doacao_pct'),
+    (22, 'area_lote_minimo_m2'),
+    (24, 'testada_minima_m'),
+    (26, 'area_lote_maximo_m2'),
+    (28, 'area_doacao_pct'),
+]
+
+G2_GENERAL = [
+    (30, 'taxa_permeabilidade_minima_pct'),
+    (32, 'quota_ideal_m2_economia'),
+    (34, 'gabarito_varia_altitude'),
+    (36, 'afastamento_entre_blocos'),
+    (38, 'gabarito_max_nao_afastado_pavimentos'),
+    (40, 'gabarito_max_nao_afastado_altura_m'),
+    (42, 'isencao_outorga_onerosa'),
+    (44, 'varia_declividade'),
 ]
 
 # Mapeamento G11 (cols 328-339): Hierarquia Viaria
