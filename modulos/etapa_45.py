@@ -121,37 +121,136 @@ def detectar_anexos_citados(legislacao_label, pdf_path, anexos_baixados, log_cal
     _log(f"Texto corpo: {len(texto_corpo):,} chars")
     
     # ───────────────────────────────────────────────────────────────
-    # 3. Detecta anexos citados no CORPO (com chunking)
     # ───────────────────────────────────────────────────────────────
-    chunks = _dividir_em_chunks(texto_corpo, CHUNK_SIZE_CHARS, CHUNK_OVERLAP_CHARS)
-    _log(f"Corpo dividido em {len(chunks)} chunk(s)")
-    
+    # 3. Detecta anexos citados no CORPO (Gemini Pro ou Haiku fallback)
+    # ───────────────────────────────────────────────────────────────
     anexos_citados = []
     nomes_vistos = set()
     custo = 0.0
     tokens_in = 0
     tokens_out = 0
-    
-    for i, chunk in enumerate(chunks, 1):
-        _log(f"Chunk {i}/{len(chunks)}: {len(chunk):,} chars")
+
+    GEMINI_KEY_D = os.environ.get('GEMINI_API_KEY', '')
+    gemini_det_ok = False
+    if GEMINI_KEY_D:
         try:
-            anexos_chunk, c2, ti, to = _chamar_haiku_detectar(chunk, log_callback=_log)
-        except Exception as e:
-            _log(f"AVISO: chunk {i} falhou ({e}). Pulando.")
-            continue
-        
-        custo += c2
-        tokens_in += ti
-        tokens_out += to
-        
-        for a in anexos_chunk:
-            nome = a.get('nome_citado', '').strip()
-            nome_norm = _normalizar_nome_anexo(nome)
-            if nome_norm and nome_norm not in nomes_vistos:
-                nomes_vistos.add(nome_norm)
-                anexos_citados.append(a)
-    
-    _log(f"Haiku detectou {len(anexos_citados)} anexo(s) citado(s) unicos (custo ${custo:.4f})")
+            from google import genai as _gd
+            from google.genai import types as _gdt
+            gemini_det_ok = True
+        except ImportError:
+            pass
+
+    PROMPT_DETECTAR = """Voce esta analisando o CORPO de uma legislacao urbanistica municipal.
+Sua tarefa: identificar TODOS os anexos com identificador especifico citados no texto.
+
+REGRAS:
+1. ACEITAR apenas anexos com identificador unico: "Anexo I", "Anexo XVIII", "Anexo 2.1", "Quadro 24.2", "Figura 1", "Tabela XV"
+2. REJEITAR referencias genericas sem identificador: "mapas em anexo", "tabelas anexas"
+3. Cada anexo uma unica vez (deduplicado)
+4. Use o nome EXATO como aparece no texto
+5. Inclua APENAS anexos desta propria lei (nao de leis externas)
+6. Varra TODO o texto - pode haver dezenas de anexos em paginas diferentes
+
+FORMATO (JSON estrito):
+{"anexos": [{"nome_citado": "Anexo I", "contexto": "trecho onde aparece"}, ...]}
+
+Retorne APENAS o JSON."""
+
+    import pypdf as _pypdf_d
+    _reader_corpo = _pypdf_d.PdfReader(corpo_pdf_path)
+    n_pgs_corpo = len(_reader_corpo.pages)
+    GEMINI_MAX_CORPO = 200
+
+    if gemini_det_ok:
+        _client_gd = _gd.Client(api_key=GEMINI_KEY_D)
+        if n_pgs_corpo <= GEMINI_MAX_CORPO:
+            # Chamada unica com PDF do corpo
+            _log(f"Gemini Pro: detectando citados no corpo.pdf ({n_pgs_corpo} pgs)")
+            with open(corpo_pdf_path, 'rb') as _f:
+                _pdf_bytes_d = _f.read()
+            try:
+                _resp_d = _client_gd.models.generate_content(
+                    model='gemini-2.5-pro',
+                    contents=[
+                        _gdt.Part(text=PROMPT_DETECTAR),
+                        _gdt.Part(inline_data=_gdt.Blob(mime_type='application/pdf', data=_pdf_bytes_d)),
+                        _gdt.Part(text='Retorne APENAS JSON sem markdown fences.'),
+                    ],
+                    config=_gdt.GenerateContentConfig(max_output_tokens=8192, temperature=0.1)
+                )
+                _texto_d = _resp_d.text or ''
+                _uso_d = _resp_d.usage_metadata
+                ti = getattr(_uso_d, 'prompt_token_count', 0) or 0
+                to = getattr(_uso_d, 'candidates_token_count', 0) or 0
+                tokens_in += ti; tokens_out += to
+                custo += (ti * 1.25 + to * 10) / 1_000_000
+                from modulos.pipeline_extracao_lei import parse_json_robusto as _pjr
+                _parsed_d = _pjr(_texto_d)
+                if _parsed_d and 'anexos' in _parsed_d:
+                    for a in _parsed_d['anexos']:
+                        nome = a.get('nome_citado', '').strip()
+                        nome_norm = _normalizar_nome_anexo(nome)
+                        if nome_norm and nome_norm not in nomes_vistos:
+                            nomes_vistos.add(nome_norm)
+                            anexos_citados.append(a)
+                    _log(f"Gemini detectou {len(anexos_citados)} citados (custo ${custo:.4f})")
+                else:
+                    _log("Gemini retornou JSON invalido — fallback Haiku")
+                    gemini_det_ok = False
+            except Exception as _e_gd:
+                _log(f"Gemini erro: {_e_gd} — fallback Haiku")
+                gemini_det_ok = False
+        else:
+            # Corpo grande: chunks de texto com Gemini
+            _log(f"Gemini Pro: corpo grande ({n_pgs_corpo} pgs) — chunks de texto")
+            chunks = _dividir_em_chunks(texto_corpo, CHUNK_SIZE_CHARS, CHUNK_OVERLAP_CHARS)
+            for i, chunk in enumerate(chunks, 1):
+                _log(f"  Chunk {i}/{len(chunks)}: {len(chunk):,} chars")
+                try:
+                    _resp_ck = _client_gd.models.generate_content(
+                        model='gemini-2.5-pro',
+                        contents=[_gdt.Part(text=PROMPT_DETECTAR + '\n\n' + chunk),
+                                  _gdt.Part(text='Retorne APENAS JSON.')],
+                        config=_gdt.GenerateContentConfig(max_output_tokens=4096, temperature=0.1)
+                    )
+                    _t_ck = _resp_ck.text or ''
+                    _uso_ck = _resp_ck.usage_metadata
+                    ti = getattr(_uso_ck, 'prompt_token_count', 0) or 0
+                    to = getattr(_uso_ck, 'candidates_token_count', 0) or 0
+                    tokens_in += ti; tokens_out += to
+                    custo += (ti * 1.25 + to * 10) / 1_000_000
+                    from modulos.pipeline_extracao_lei import parse_json_robusto as _pjr2
+                    _p_ck = _pjr2(_t_ck)
+                    if _p_ck and 'anexos' in _p_ck:
+                        for a in _p_ck['anexos']:
+                            nome = a.get('nome_citado', '').strip()
+                            nome_norm = _normalizar_nome_anexo(nome)
+                            if nome_norm and nome_norm not in nomes_vistos:
+                                nomes_vistos.add(nome_norm)
+                                anexos_citados.append(a)
+                except Exception as _e_ck:
+                    _log(f"  AVISO chunk {i}: {_e_ck}")
+            _log(f"Gemini detectou {len(anexos_citados)} citados (custo ${custo:.4f})")
+
+    if not gemini_det_ok:
+        # Haiku fallback
+        chunks = _dividir_em_chunks(texto_corpo, CHUNK_SIZE_CHARS, CHUNK_OVERLAP_CHARS)
+        _log(f"Haiku fallback: {len(chunks)} chunk(s)")
+        for i, chunk in enumerate(chunks, 1):
+            _log(f"  Chunk {i}/{len(chunks)}: {len(chunk):,} chars")
+            try:
+                anexos_chunk, c2, ti, to = _chamar_haiku_detectar(chunk, log_callback=_log)
+            except Exception as e:
+                _log(f"  AVISO chunk {i} falhou ({e}). Pulando.")
+                continue
+            custo += c2; tokens_in += ti; tokens_out += to
+            for a in anexos_chunk:
+                nome = a.get('nome_citado', '').strip()
+                nome_norm = _normalizar_nome_anexo(nome)
+                if nome_norm and nome_norm not in nomes_vistos:
+                    nomes_vistos.add(nome_norm)
+                    anexos_citados.append(a)
+        _log(f"Haiku detectou {len(anexos_citados)} citados (custo ${custo:.4f})")
     
     # ───────────────────────────────────────────────────────────────
     # 4. Cataloga anexos no anexos.pdf E faz match com lista de citados
