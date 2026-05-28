@@ -176,7 +176,7 @@ Retorne APENAS o JSON."""
                         _gdt.Part(inline_data=_gdt.Blob(mime_type='application/pdf', data=_pdf_bytes_d)),
                         _gdt.Part(text='Retorne APENAS JSON sem markdown fences.'),
                     ],
-                    config=_gdt.GenerateContentConfig(max_output_tokens=8192, temperature=0.1)
+                    config=_gdt.GenerateContentConfig(max_output_tokens=65536, temperature=0.1)
                 )
                 _texto_d = _resp_d.text or ''
                 _uso_d = _resp_d.usage_metadata
