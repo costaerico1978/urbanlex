@@ -147,9 +147,10 @@ REGRAS:
 1. ACEITAR apenas anexos com identificador unico: "Anexo I", "Anexo XVIII", "Anexo 2.1", "Quadro 24.2", "Figura 1", "Tabela XV"
 2. REJEITAR referencias genericas sem identificador: "mapas em anexo", "tabelas anexas"
 3. Cada anexo uma unica vez (deduplicado)
-4. Use o nome EXATO como aparece no texto
-5. Inclua APENAS anexos desta propria lei (nao de leis externas)
-6. Varra TODO o texto - pode haver dezenas de anexos em paginas diferentes
+4. Use SEMPRE numerais ROMANOS para identificar anexos (Anexo I, II, III... nao Anexo 1, 2, 3)
+5. Se o texto citar "Anexo 2" e "Anexo II", sao o mesmo - use "Anexo II"
+6. Inclua APENAS anexos desta propria lei (nao de leis externas)
+7. Varra TODO o texto - pode haver dezenas de anexos em paginas diferentes
 
 FORMATO (JSON estrito):
 {"anexos": [{"nome_citado": "Anexo I", "contexto": "trecho onde aparece"}, ...]}
