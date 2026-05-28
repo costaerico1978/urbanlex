@@ -932,23 +932,12 @@ async function gpCarregarCompiladosServer(){
     gpRenderCompilados();
   } catch(e) { console.error('gpCarregarCompiladosServer:', e); }
 }
-async function gpRestaurarJob(){
-  try {
-    const r = await fetch('/api/gerador/ultimo-job');
-    const d = await r.json();
-    if (!d.success || !d.job_id) return;
-    _gpJobId = d.job_id;
-    _gpLogCursor = 0;
-    document.getElementById('gp-log-wrap').style.display = 'block';
-    document.getElementById('gp-log-body').innerHTML = '';
-    gpPolling();
-  } catch(e) { console.error('gpRestaurarJob:', e); }
-}
+async function gpRestaurarJob(){ /* desabilitado - usa gpRestaurarLogUltimaExtracao */ }
 
 document.addEventListener('DOMContentLoaded', function(){
   gpCarregarCompiladosServer();
   gpCarregarPlanilhasBase();
-  gpRestaurarJob();
+  // gpRestaurarJob() desabilitado - usa gpRestaurarLogUltimaExtracao
   gpPbModo('lista');
   try {
     const _pid = sessionStorage.getItem('gp_prompt_id');
