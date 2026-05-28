@@ -123,7 +123,8 @@ PIPELINES_BASE_DIR = "/var/www/urbanlex/static/pipelines"
 # Modelos
 MODELO_HAIKU = "claude-haiku-4-5-20251001"
 MODELO_SONNET = "claude-sonnet-4-6"
-USAR_GEMINI_EXTRACAO = os.environ.get('URBANLEX_IA_EXTRACAO', 'sonnet') == 'gemini'
+def _usar_gemini(): return os.environ.get('URBANLEX_IA_EXTRACAO', 'sonnet') == 'gemini'
+USAR_GEMINI_EXTRACAO = _usar_gemini()
 PROMPT_GEMINI_PATH = "/var/www/urbanlex/prompts/prompt_gemini.md"
 GEMINI_MAX_PAGES_PER_CALL = 150
 
@@ -1184,7 +1185,7 @@ def etapa5_extrair_dados(blocos, pdf_unico, texto_por_pg, work_dir,
     
     Retorna: dict com estado consolidado + métricas
     """
-    if USAR_GEMINI_EXTRACAO:
+    if _usar_gemini():
         return etapa5_extrair_dados_gemini(blocos, pdf_unico, texto_por_pg, work_dir, usar_cache, log_callback)
     _log("ETAPA 5/8 — Extração de dados por bloco (Sonnet 4.6)", log_callback)
     t0 = time.time()

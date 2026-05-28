@@ -193,7 +193,8 @@ def _processar_item(item, get_db):
             if _cancel_check[0] % 5 == 0:
                 _checar_cancelamento()
         
-        # Roda pipeline completo
+        # Roda pipeline completo com Gemini Pro
+        import os as _os_fw; _os_fw.environ['URBANLEX_IA_EXTRACAO'] = 'gemini'
         resultado = processar_municipio(
             zip_path=item['zip_path'],
             municipio=item['municipio'],
