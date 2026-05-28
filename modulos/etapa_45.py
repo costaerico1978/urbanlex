@@ -287,6 +287,12 @@ Retorne APENAS o JSON."""
                 # As paginas ja vieram em referencia ao PDF concatenado
                 for _b in res_cat.get('blocos', []):
                     if isinstance(_b, dict):
+                        citado_como = _b.get('citado_como')
+                        if citado_como:
+                            for _ac in anexos_citados:
+                                if _ac.get('nome_citado','').strip().lower() == citado_como.strip().lower():
+                                    _b['assunto'] = _ac.get('assunto', '')
+                                    break
                         blocos_pipeline.append(_b)
                 cache_e4_path = os.path.join(work_dir, 'etapa4_catalogacao.json')
                 with open(cache_e4_path, 'w') as _f_e4:
