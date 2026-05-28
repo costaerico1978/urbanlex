@@ -396,21 +396,17 @@ def _match_no_catalogo(nome_citado, catalogo_anexos):
 
 def _catalogar_com_match(anexos_pdf_path, fim_corpo, work_dir, lista_citados, log_callback=None):
     """
-    Cataloga anexos do anexos.pdf E relaciona cada bloco com a lista de citados no corpo.
-    
-    Args:
-        anexos_pdf_path: path do anexos.pdf
-        fim_corpo: numero de paginas do corpo (pra ajustar paginacao)
-        work_dir: diretorio de trabalho
-        lista_citados: lista de strings ["Anexo 1.1", "Anexo G01", ...]
-        log_callback: opcional
-    
-    Retorna: dict com 'blocos' (lista de blocos catalogados com 'citado_como'), 
-             'custo', 'tokens_in', 'tokens_out'.
+    Cataloga anexos do anexos.pdf usando Gemini Pro 2.5 (chamada unica ou chunks com flag continua).
+    Fallback para Haiku se Gemini nao disponivel.
     """
-    import subprocess, base64, anthropic, os as _os_c
+    import subprocess, base64, os as _os_c
     from modulos.pipeline_extracao_lei import MODELO_HAIKU, calcular_custo, parse_json_robusto
-    
+    import pypdf
+
+    def _log(msg):
+        if log_callback:
+            log_callback(msg)
+
     # Pega n_paginas
     r = subprocess.run(['pdfinfo', anexos_pdf_path], capture_output=True, text=True, timeout=30)
     n_pg_anexos = 0
@@ -420,174 +416,270 @@ def _catalogar_com_match(anexos_pdf_path, fim_corpo, work_dir, lista_citados, lo
             break
     if n_pg_anexos == 0:
         raise RuntimeError("Nao consegui ler n_paginas do anexos.pdf")
-    
-    # Texto -layout pagina por pagina
+
+    # Texto-layout pagina por pagina
     texto_anexos = ""
     for pg in range(1, n_pg_anexos + 1):
         try:
-            r = subprocess.run(
+            r2 = subprocess.run(
                 ['pdftotext', '-layout', '-f', str(pg), '-l', str(pg), anexos_pdf_path, '-'],
                 capture_output=True, text=True, errors='replace', timeout=15
             )
-            texto_anexos += f"\n=== PAGINA {pg} ===\n{r.stdout}"
+            texto_anexos += f"\n=== PAGINA {pg} ===\n{r2.stdout}"
         except Exception:
             pass
-    
-    # Divide anexos.pdf em chunks pra evitar estouro de tokens
-    # (anexos com muitas imagens estouram 200k tokens facilmente)
-    import pypdf
-    CHUNK_SIZE = 30
-    reader_full = pypdf.PdfReader(anexos_pdf_path)
-    chunks = []
-    n_chunks = (n_pg_anexos + CHUNK_SIZE - 1) // CHUNK_SIZE
-    for ci in range(n_chunks):
-        i_inicio = ci * CHUNK_SIZE
-        i_fim = min((ci + 1) * CHUNK_SIZE, n_pg_anexos)
-        chunk_path = _os_c.path.join(work_dir, f"anexos_chunk_{ci+1}.pdf")
-        writer = pypdf.PdfWriter()
-        for i in range(i_inicio, i_fim):
-            writer.add_page(reader_full.pages[i])
-        with open(chunk_path, 'wb') as f:
-            writer.write(f)
-        chunks.append({'path': chunk_path, 'offset': i_inicio,
-                       'pg_inicio': i_inicio + 1, 'pg_fim': i_fim})
-    if log_callback:
-        log_callback(f"Anexos tem {n_pg_anexos} pgs - dividindo em {n_chunks} chunk(s) de {CHUNK_SIZE}pgs")
-    
-    # Prompt expandido com lista_citados
+
     lista_str = '\n'.join(f'  - "{c}"' for c in lista_citados)
-    
-    prompt = f"""Voce vai analisar este PDF (anexos de uma lei municipal) e fazer DOIS trabalhos:
+    GEMINI_MAX_PGS = 150
+    CHUNK_SIZE_GEM = 100
 
-═══ TRABALHO 1: CATALOGAR CADA BLOCO ═══
+    # Verificar se Gemini disponivel
+    gemini_disponivel = False
+    GEMINI_KEY = _os_c.environ.get('GEMINI_API_KEY', '')
+    if GEMINI_KEY:
+        try:
+            from google import genai as _genai
+            from google.genai import types as _gtypes
+            gemini_disponivel = True
+        except ImportError:
+            pass
 
-Cada bloco eh uma secao logica: Anexo 1.1, Anexo 1.2, Anexo 2.1, etc.
-Pra cada bloco, retorne:
-  - nome: chave curta (ex: "anexo_1.1", "anexo_g01", "errata")
-  - titulo: titulo completo conforme aparece no PDF
-  - inicio: pagina onde COMECA (1-indexado, contando do anexos.pdf)
-  - fim: pagina onde TERMINA
+    tokens_in = 0; tokens_out = 0; custo = 0.0
+    blocos_raw = []
+
+    if gemini_disponivel:
+        # ── GEMINI PRO 2.5 ──
+        _client_gem = _genai.Client(api_key=GEMINI_KEY)
+        reader_full = pypdf.PdfReader(anexos_pdf_path)
+
+        prompt_base = f"""Voce vai analisar este PDF (anexos de uma lei municipal) e catalogar cada bloco.
+
+TRABALHO 1 — CATALOGAR:
+Pra cada bloco (Anexo I, Anexo XVIII, etc), retorne:
+  - nome: chave curta snake_case (ex: "anexo_xviii", "errata")
+  - titulo: titulo completo como aparece no PDF
+  - inicio: pagina de inicio (1-indexado no PDF que voce esta vendo)
+  - fim: pagina de fim
   - tipo: "anexo" | "errata" | "encerramento" | "indefinido"
+  - relevancia: "ALTA" (tabelas de zoneamento, usos, parametros) | "MEDIA" | "NULA"
+  - continua: true se o bloco CLARAMENTE continua no proximo chunk (ultima pagina do PDF nao eh o fim do bloco), false caso contrario
 
-═══ TRABALHO 2: RELACIONAR COM CITADOS ═══
-
-A lei principal CITA os seguintes anexos:
+TRABALHO 2 — RELACIONAR COM CITADOS:
+A lei cita os seguintes anexos:
 {lista_str}
 
-Pra CADA bloco que voce catalogar, indique tambem:
-  - citado_como: qual item da lista acima corresponde a este bloco
-    (use exatamente o texto da lista, com aspas)
-    Se NENHUM item da lista corresponder, use null
+Para cada bloco, adicione:
+  - citado_como: texto EXATO da lista acima que corresponde, ou null
 
-Exemplos de match:
-  - Bloco "Anexo 1.3 - Gravames" pode corresponder a "Anexo 1.3" da lista
-  - Bloco "GLOSSARIO - ANEXO G01" pode corresponder a "Anexo G01"
-  - Bloco "Errata" provavelmente nao corresponde a nenhum (citado_como: null)
+IMPORTANTE:
+- Se um bloco comeca neste PDF mas claramente continua (ex: tabela cortada no meio), marque continua=true
+- Paginas contam a partir de 1 neste PDF
+- Retorne APENAS JSON
 
-═══ TRABALHO 3: CLASSIFICAR RELEVANCIA URBANISTICA ═══
-Pra CADA bloco catalogado, classifique a RELEVANCIA URBANISTICA dele:
-
-  - "ALTA": conteudo urbanistico CRITICO. Inclui:
-    * Tabelas de zoneamento (parametros por zona)
-    * Tabelas de uso e ocupacao do solo
-    * Mapas de zoneamento (com zonas identificadas)
-    * Quadros com gabaritos, taxa de ocupacao, coeficiente, recuos
-    * Parametros urbanisticos quantitativos
-
-  - "MEDIA": tem ALGUM conteudo urbanistico mas indireto. Inclui:
-    * Diretrizes/objetivos de politica urbana
-    * Hierarquia viaria sem parametros numericos
-    * Definicoes/glossarios urbanisticos
-    * Listas de empreendimentos/imoveis (APAC, ZEIS)
-
-  - "NULA": NAO tem conteudo urbanistico util. Inclui:
-    * Errata (correcoes textuais)
-    * Encerramento/assinatura
-    * Capa/sumario
-    * Indice de figuras
-    * Ilustracoes decorativas sem dados
-    * Texto puramente administrativo (vetos, prazos)
-
-REGRA DE OURO: na duvida entre MEDIA e NULA, escolha MEDIA (melhor processar do que perder).
-
-═══ FORMATO DE RESPOSTA (JSON estrito) ═══
-
+FORMATO:
 {{
   "blocos": [
     {{
-      "nome": "anexo_1.1",
-      "titulo": "Anexo 1.1 - Mapa de Zoneamento",
+      "nome": "anexo_xxi",
+      "titulo": "ANEXO XXI - PARAMETROS URBANISTICOS",
       "inicio": 1,
-      "fim": 2,
+      "fim": 37,
       "tipo": "anexo",
-      "citado_como": "Anexo 1.1",
       "relevancia": "ALTA",
-      "motivo_relevancia": "Mapa com zonas identificadas"
-    }},
-    ...
+      "continua": false,
+      "citado_como": "Anexo XXI"
+    }}
   ]
 }}
 
-ATENCAO: paginas que voce ve no PDF comecam em 1. Retorne APENAS o JSON.
+=== TEXTO-LAYOUT (referencia) ===
+{{texto_layout}}"""
 
-=== TEXTO -LAYOUT (referencia) ===
-{texto_anexos[:50000]}"""
-    
-    client = anthropic.Anthropic(api_key=_os_c.environ['ANTHROPIC_API_KEY'])
-    # Processa em chunks
-    blocos_raw = []
-    tokens_in = 0
-    tokens_out = 0
-    custo = 0.0
-    for ci, ck in enumerate(chunks, start=1):
-        with open(ck['path'], 'rb') as fck:
-            pdf_b64 = base64.b64encode(fck.read()).decode('ascii')
-        if log_callback:
-            log_callback(f"Chunk {ci}/{len(chunks)} (pg {ck['pg_inicio']}-{ck['pg_fim']}): chamando Haiku 4.5...")
-        try:
-            resposta = ""
-            with client.messages.stream(
-                model=MODELO_HAIKU,
-                max_tokens=8000,
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "document", "source": {
-                            "type": "base64", "media_type": "application/pdf", "data": pdf_b64
-                        }, "title": f"anexos_chunk_{ci}.pdf"},
-                        {"type": "text", "text": prompt},
-                    ]
-                }]
-            ) as stream:
-                for delta in stream.text_stream:
-                    resposta += delta
-                final = stream.get_final_message()
-            t_in = final.usage.input_tokens
-            t_out = final.usage.output_tokens
-            c = calcular_custo(t_in, t_out, 'haiku')
-            tokens_in += t_in
-            tokens_out += t_out
-            custo += c
-            if log_callback:
-                log_callback(f"  Chunk {ci}: tokens {t_in}->{t_out}, ${c:.4f}")
-            parsed = parse_json_robusto(resposta)
-            if not parsed or 'blocos' not in parsed:
-                if log_callback:
-                    log_callback(f"  AVISO chunk {ci}: JSON invalido, pulando")
-                continue
-            for b in parsed['blocos']:
+        if n_pg_anexos <= GEMINI_MAX_PGS:
+            # Chamada unica
+            _log(f"Gemini Pro: {n_pg_anexos} pgs em chamada unica")
+            with open(anexos_pdf_path, 'rb') as f:
+                pdf_bytes = f.read()
+            tl = texto_anexos[:80000]
+            prompt = prompt_base.replace('{texto_layout}', tl)
+            try:
+                resp = _client_gem.models.generate_content(
+                    model='gemini-2.5-pro',
+                    contents=[
+                        _gtypes.Part(text=prompt),
+                        _gtypes.Part(inline_data=_gtypes.Blob(mime_type='application/pdf', data=pdf_bytes)),
+                        _gtypes.Part(text='Retorne APENAS JSON sem markdown fences.'),
+                    ],
+                    config=_gtypes.GenerateContentConfig(max_output_tokens=32768, temperature=0.1)
+                )
+                texto_resp = resp.text or ''
+                uso = resp.usage_metadata
+                ti = getattr(uso, 'prompt_token_count', 0) or 0
+                to = getattr(uso, 'candidates_token_count', 0) or 0
+                tokens_in += ti; tokens_out += to
+                custo += (ti * 1.25 + to * 10) / 1_000_000
+                _log(f"  Gemini OK: {len(texto_resp)} chars, in={ti} out={to}, ${custo:.4f}")
+                parsed = parse_json_robusto(texto_resp)
+                if parsed and 'blocos' in parsed:
+                    blocos_raw = parsed['blocos']
+                else:
+                    _log("  AVISO: Gemini retornou JSON invalido, usando Haiku como fallback")
+                    gemini_disponivel = False
+            except Exception as e_gem:
+                _log(f"  ERRO Gemini: {e_gem} — usando Haiku como fallback")
+                gemini_disponivel = False
+        else:
+            # Chunks Gemini com flag continua
+            n_chunks = (n_pg_anexos + CHUNK_SIZE_GEM - 1) // CHUNK_SIZE_GEM
+            _log(f"Gemini Pro: {n_pg_anexos} pgs em {n_chunks} chunk(s) de {CHUNK_SIZE_GEM}pgs")
+            bloco_anterior = None
+            for ci in range(n_chunks):
+                pg_ini_0 = ci * CHUNK_SIZE_GEM
+                pg_fim_0 = min((ci + 1) * CHUNK_SIZE_GEM, n_pg_anexos)
+                offset = pg_ini_0
+                chunk_path = _os_c.path.join(work_dir, f"anexos_chunk_{ci+1}.pdf")
+                writer = pypdf.PdfWriter()
+                for i in range(pg_ini_0, pg_fim_0):
+                    writer.add_page(reader_full.pages[i])
+                with open(chunk_path, 'wb') as f:
+                    writer.write(f)
+                # Texto-layout do chunk
+                tl_chunk = ''
+                for pg in range(pg_ini_0 + 1, pg_fim_0 + 1):
+                    sep = f"\n=== PAGINA {pg} ==="
+                    partes = texto_anexos.split(sep)
+                    if len(partes) > 1:
+                        tl_chunk += sep + partes[1].split("\n=== PAGINA ")[0]
+                ctx = ''
+                if bloco_anterior and bloco_anterior.get('continua'):
+                    ctx = f"\nATENCAO: O bloco '{bloco_anterior.get('titulo','')}' vem do chunk anterior e pode continuar neste PDF. Verifique se continua e ajuste o fim."
+                prompt_chunk = prompt_base.replace('{texto_layout}', tl_chunk[:50000]) + ctx
+                prompt_chunk += f"\nATENCAO: As paginas deste PDF vao de {pg_ini_0+1} a {pg_fim_0}. Use essa numeracao."
+                _log(f"  Chunk {ci+1}/{n_chunks} (pg {pg_ini_0+1}-{pg_fim_0}): Gemini Pro...")
+                with open(chunk_path, 'rb') as f:
+                    pdf_bytes_ck = f.read()
                 try:
-                    b['inicio'] = int(b.get('inicio', 1)) + ck['offset']
-                    b['fim'] = int(b.get('fim', 1)) + ck['offset']
-                except Exception:
-                    pass
-                blocos_raw.append(b)
-        except Exception as e_ck:
-            if log_callback:
-                log_callback(f"  ERRO chunk {ci}: {str(e_ck)[:200]}")
-            continue
-    if log_callback:
-        log_callback(f"Catalogacao total: {len(blocos_raw)} bloco(s) | tokens {tokens_in}->{tokens_out}, ${custo:.4f}")
+                    resp_ck = _client_gem.models.generate_content(
+                        model='gemini-2.5-pro',
+                        contents=[
+                            _gtypes.Part(text=prompt_chunk),
+                            _gtypes.Part(inline_data=_gtypes.Blob(mime_type='application/pdf', data=pdf_bytes_ck)),
+                            _gtypes.Part(text='Retorne APENAS JSON sem markdown fences.'),
+                        ],
+                        config=_gtypes.GenerateContentConfig(max_output_tokens=16384, temperature=0.1)
+                    )
+                    texto_ck = resp_ck.text or ''
+                    uso_ck = resp_ck.usage_metadata
+                    ti = getattr(uso_ck, 'prompt_token_count', 0) or 0
+                    to = getattr(uso_ck, 'candidates_token_count', 0) or 0
+                    tokens_in += ti; tokens_out += to
+                    custo += (ti * 1.25 + to * 10) / 1_000_000
+                    parsed_ck = parse_json_robusto(texto_ck)
+                    if parsed_ck and 'blocos' in parsed_ck:
+                        for b in parsed_ck['blocos']:
+                            b['inicio'] = b.get('inicio', 1) + pg_ini_0
+                            b['fim'] = b.get('fim', 1) + pg_ini_0
+                            blocos_raw.append(b)
+                        if parsed_ck['blocos']:
+                            bloco_anterior = parsed_ck['blocos'][-1]
+                            bloco_anterior['inicio'] = bloco_anterior['inicio']
+                    _log(f"    OK: {len(parsed_ck.get('blocos',[]))} blocos, ${custo:.4f}")
+                except Exception as e_ck:
+                    _log(f"    ERRO chung {ci+1}: {e_ck}")
+            # Merge blocos com continua=true
+            blocos_merged = []
+            i = 0
+            while i < len(blocos_raw):
+                b = dict(blocos_raw[i])
+                while b.get('continua') and i + 1 < len(blocos_raw):
+                    i += 1
+                    prox = blocos_raw[i]
+                    b['fim'] = prox.get('fim', b['fim'])
+                    if not prox.get('continua'):
+                        break
+                blocos_merged.append(b)
+                i += 1
+            blocos_raw = blocos_merged
+
+    if not gemini_disponivel:
+        # ── HAIKU FALLBACK ──
+        import anthropic
+        CHUNK_SIZE_H = 30
+        reader_full = pypdf.PdfReader(anexos_pdf_path)
+        n_chunks_h = (n_pg_anexos + CHUNK_SIZE_H - 1) // CHUNK_SIZE_H
+        _log(f"Haiku 4.5 fallback: {n_pg_anexos} pgs em {n_chunks_h} chunk(s) de {CHUNK_SIZE_H}pgs")
+        chunks_h = []
+        for ci in range(n_chunks_h):
+            i_ini = ci * CHUNK_SIZE_H
+            i_fim = min((ci + 1) * CHUNK_SIZE_H, n_pg_anexos)
+            cp = _os_c.path.join(work_dir, f"anexos_chunk_{ci+1}.pdf")
+            w = pypdf.PdfWriter()
+            for i in range(i_ini, i_fim):
+                w.add_page(reader_full.pages[i])
+            with open(cp, 'wb') as f:
+                w.write(f)
+            chunks_h.append({'path': cp, 'offset': i_ini, 'pg_inicio': i_ini+1, 'pg_fim': i_fim})
+        prompt_h = f"""Cataloga os blocos deste PDF (anexos de lei municipal).
+Pra cada bloco retorne: nome, titulo, inicio, fim, tipo, citado_como, relevancia, continua.
+continua=true se o bloco claramente continua no proximo chunk.
+Citados: {lista_str}
+Formato: {{"blocos":[{{"nome":"...","titulo":"...","inicio":1,"fim":2,"tipo":"anexo","citado_como":null,"relevancia":"ALTA","continua":false}}]}}
+Retorne APENAS JSON.
+=== TEXTO-LAYOUT ===
+{texto_anexos[:50000]}"""
+        client_h = anthropic.Anthropic(api_key=_os_c.environ.get('ANTHROPIC_API_KEY', ''))
+        bloco_anterior_h = None
+        for ci, ck in enumerate(chunks_h, start=1):
+            with open(ck['path'], 'rb') as fck:
+                pdf_b64 = base64.b64encode(fck.read()).decode('ascii')
+            prompt_ck = prompt_h
+            if bloco_anterior_h and bloco_anterior_h.get('continua'):
+                prompt_ck += f"\nATENCAO: '{bloco_anterior_h.get('titulo','')}' pode continuar aqui."
+            _log(f"  Chunk {ci}/{len(chunks_h)} (pg {ck['pg_inicio']}-{ck['pg_fim']}): Haiku 4.5...")
+            try:
+                resp_h = ''
+                with client_h.messages.stream(
+                    model=MODELO_HAIKU, max_tokens=8000,
+                    messages=[{'role': 'user', 'content': [
+                        {'type': 'document', 'source': {'type': 'base64', 'media_type': 'application/pdf', 'data': pdf_b64}, 'title': f'chunk_{ci}.pdf'},
+                        {'type': 'text', 'text': prompt_ck},
+                    ]}]
+                ) as stream:
+                    for delta in stream.text_stream:
+                        resp_h += delta
+                    final_h = stream.get_final_message()
+                ti = final_h.usage.input_tokens; to = final_h.usage.output_tokens
+                tokens_in += ti; tokens_out += to
+                custo += calcular_custo(ti, to, 'haiku')
+                parsed_h = parse_json_robusto(resp_h)
+                if parsed_h and 'blocos' in parsed_h:
+                    for b in parsed_h['blocos']:
+                        b['inicio'] = int(b.get('inicio', 1)) + ck['offset']
+                        b['fim'] = int(b.get('fim', 1)) + ck['offset']
+                        blocos_raw.append(b)
+                    if parsed_h['blocos']:
+                        bloco_anterior_h = dict(parsed_h['blocos'][-1])
+                        bloco_anterior_h['inicio'] = bloco_anterior_h.get('inicio', 1)
+            except Exception as e_h:
+                _log(f"  ERRO chunk [ci]: {e_h}")
+        # Merge continua
+        blocos_merged_h = []
+        i = 0
+        while i < len(blocos_raw):
+            b = dict(blocos_raw[i])
+            while b.get('continua') and i + 1 < len(blocos_raw):
+                i += 1
+                prox = blocos_raw[i]
+                b['fim'] = prox.get('fim', b['fim'])
+                if not prox.get('continua'):
+                    break
+            blocos_merged_h.append(b)
+            i += 1
+        blocos_raw = blocos_merged_h
+
+    _log(f"Catalogacao total: {len(blocos_raw)} bloco(s) | tokens {tokens_in}->{tokens_out}, ${custo:.4f}")
+
+    # Dedup por citado_como/nome (mantém menor inicio)
     visto = {}
     for b in blocos_raw:
         chave = (b.get('citado_como') or b.get('nome') or '').lower().strip()
@@ -599,8 +691,8 @@ ATENCAO: paginas que voce ve no PDF comecam em 1. Retorne APENAS o JSON.
         else:
             visto[id(b)] = b
     blocos_raw = list(visto.values())
-    
-    # Soma fim_corpo nas paginas pra ficar consistente com PDF concatenado
+
+    # Soma fim_corpo nas paginas
     blocos = []
     for b in blocos_raw:
         if not isinstance(b, dict):
@@ -615,16 +707,15 @@ ATENCAO: paginas que voce ve no PDF comecam em 1. Retorne APENAS o JSON.
             'inicio': ini + fim_corpo,
             'fim': fim + fim_corpo,
             'tipo': b.get('tipo', 'indefinido'),
-            'citado_como': b.get('citado_como'),  # NOVO!
+            'citado_como': b.get('citado_como'),
+            'relevancia': b.get('relevancia', 'MEDIA'),
         })
-    
     return {
         'blocos': blocos,
         'custo': custo,
         'tokens_in': tokens_in,
         'tokens_out': tokens_out,
     }
-
 
 def _buscar_secao_anexo(nome_citado, texto_anexos):
     """
