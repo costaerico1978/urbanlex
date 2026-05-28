@@ -6422,7 +6422,7 @@ def _aplicar_uploads_worker(dossie_id, legislacao_label, zip_orig_path, pendente
 def api_prompts_salvos_listar():
     try:
         # Filtra apenas o prompt ativo do pipeline end-to-end
-        rows = qry("SELECT id, nome, arquivo_origem, tamanho_bytes, criado_em FROM prompts_salvos WHERE nome='prompt end-to-end V0' ORDER BY criado_em DESC")
+        rows = qry("SELECT id, nome, arquivo_origem, tamanho_bytes, criado_em FROM prompts_salvos ORDER BY criado_em DESC")
         for r in rows:
             if r.get('criado_em'):
                 r['criado_em'] = r['criado_em'].strftime('%d/%m/%Y %H:%M') if hasattr(r['criado_em'], 'strftime') else str(r['criado_em'])
