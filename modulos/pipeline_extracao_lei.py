@@ -1162,6 +1162,11 @@ def etapa5_extrair_dados_gemini(blocos, pdf_unico, texto_por_pg, work_dir,
                 resp = open(cache_path).read(); t, ti, to = 0, 0, 0
             else:
                 ctx = _gerar_contexto(estado) if (estado["zonas"] or estado["legislacao"]) else None
+                # Adicionar assunto e citado_como do catalogo ao contexto
+                _assunto = b.get("assunto") or b.get("citado_como") or ""
+                if _assunto:
+                    _hint = f"\n\nATENCAO: Este bloco e '{b['nome']}' — assunto: {_assunto}. Extraia TODAS as zonas, parametros e usos definidos neste bloco."
+                    ctx = (ctx or "") + _hint
                 resp, t, ti, to = chamar_gemini_extracao(b.get("pdf_path", pdf_unico), b.get("texto_layout", ""), ctx, prompt_gemini, b["nome"], log_callback)
                 if resp: open(cache_path, "w").write(resp)
             total_tempo += t; total_in += ti; total_out += to
