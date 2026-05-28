@@ -97,6 +97,26 @@ def detectar_anexos_citados(legislacao_label, pdf_path, anexos_baixados, log_cal
         
         _log(f"Corpo: pg 1-{fim_corpo} ({fim_corpo} pgs)")
         _log(f"Anexos no PDF: pg {fim_corpo+1}-{n_paginas} ({n_paginas-fim_corpo} pgs)")
+        # Verificacao visual de duplicatas pelo Gemini no anexos.pdf
+        if anexos_pdf_path and os.path.exists(anexos_pdf_path):
+            try:
+                import pypdf as _pypdf_vd2
+                _pgs_dup = _verificar_duplicatas_gemini(anexos_pdf_path, log_callback=_log)
+                if _pgs_dup:
+                    _rd_vd = _pypdf_vd2.PdfReader(anexos_pdf_path)
+                    _wt_vd = _pypdf_vd2.PdfWriter()
+                    _n_orig = len(_rd_vd.pages)
+                    _pgs_dup_set = set(_pgs_dup)
+                    for _i in range(_n_orig):
+                        if _i not in _pgs_dup_set:
+                            _wt_vd.add_page(_rd_vd.pages[_i])
+                    with open(anexos_pdf_path, 'wb') as _fvd:
+                        _wt_vd.write(_fvd)
+                    _log(f"  Dedup visual: {len(_pgs_dup)} pgs removidas ({_n_orig} -> {_n_orig-len(_pgs_dup)} pgs)")
+                else:
+                    _log("  Dedup visual: nenhuma duplicata visual encontrada")
+            except Exception as _e_vd:
+                _log(f"  Aviso dedup visual: {_e_vd}")
     except Exception as e:
         import traceback
         _log(f"ERRO separando corpo/anexos: {e}")
@@ -824,6 +844,69 @@ Retorne APENAS JSON.
         'tokens_in': tokens_in,
         'tokens_out': tokens_out,
     }
+
+def _verificar_duplicatas_gemini(pdf_path, log_callback=None):
+    """
+    Usa Gemini Pro para identificar paginas visualmente duplicadas
+    nao detectadas pelo hash MD5.
+    Retorna lista de indices 0-based das paginas a remover.
+    """
+    import os as _os_vd, subprocess as _sp_vd
+    GEMINI_KEY = _os_vd.environ.get('GEMINI_API_KEY', '')
+    if not GEMINI_KEY:
+        return []
+    try:
+        from google import genai as _gd_vd
+        from google.genai import types as _gdt_vd
+    except ImportError:
+        return []
+    try:
+        r = _sp_vd.run(['pdfinfo', pdf_path], capture_output=True, text=True, timeout=15)
+        n_pgs = 0
+        for linha in r.stdout.split('\n'):
+            if linha.startswith('Pages:'):
+                n_pgs = int(linha.split(':')[1].strip())
+        if n_pgs <= 1:
+            return []
+    except Exception:
+        return []
+    if log_callback:
+        log_callback(f"  Gemini Pro: verificando duplicatas visuais ({n_pgs} pgs)...")
+    with open(pdf_path, 'rb') as f:
+        pdf_bytes = f.read()
+    prompt = """Analise este PDF e identifique paginas VISUALMENTE IDENTICAS ou QUASE IDENTICAS a outra pagina (mesmo conteudo mas renderizacao diferente — nao detectavel por hash MD5).
+Para cada grupo de duplicatas, mantenha APENAS a primeira ocorrencia.
+Retorne APENAS JSON (paginas numeradas a partir de 1):
+{"paginas_remover": [5, 12]}
+Se nao houver duplicatas: {"paginas_remover": []}"""
+    client = _gd_vd.Client(api_key=GEMINI_KEY)
+    try:
+        resp = client.models.generate_content(
+            model='gemini-2.5-pro',
+            contents=[
+                _gdt_vd.Part(text=prompt),
+                _gdt_vd.Part(inline_data=_gdt_vd.Blob(mime_type='application/pdf', data=pdf_bytes)),
+                _gdt_vd.Part(text='Retorne APENAS JSON sem markdown fences.'),
+            ],
+            config=_gdt_vd.GenerateContentConfig(max_output_tokens=2048, temperature=0.0)
+        )
+        from modulos.pipeline_extracao_lei import parse_json_robusto as _pjr_vd
+        parsed = _pjr_vd(resp.text or '')
+        if parsed and 'paginas_remover' in parsed:
+            pgs = []
+            for p in parsed['paginas_remover']:
+                try:
+                    pgs.append(int(p) - 1)
+                except Exception:
+                    pass
+            if log_callback:
+                log_callback(f"  Gemini: {len(pgs)} pagina(s) visual-duplicadas identificadas")
+            return pgs
+    except Exception as e:
+        if log_callback:
+            log_callback(f"  Aviso: verificacao visual falhou ({e})")
+    return []
+
 
 def _buscar_secao_anexo(nome_citado, texto_anexos):
     """

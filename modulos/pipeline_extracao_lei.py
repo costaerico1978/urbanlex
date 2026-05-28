@@ -1463,7 +1463,7 @@ def etapa7_expandir_por_uso(estado, log_callback=None):
 
 def etapa8_aplicar_errata(estado, log_callback=None):
     """Sonnet identifica alteracoes em formato {zona, campo_path, valor_novo}."""
-    _log("ETAPA 8/8 — Aplicação da errata (Sonnet 4.6)", log_callback)
+    _log("ETAPA 8/8 — Aplicação da errata (Gemini Pro 2.5)", log_callback)
     t0 = time.time()
     
     mods_relevantes = []
@@ -1509,22 +1509,41 @@ def etapa8_aplicar_errata(estado, log_callback=None):
               f"=== MODIFICACOES ===\n{json.dumps(mods_relevantes, ensure_ascii=False, indent=2)}\n\n"
               "Responda APENAS o JSON.")
     
-    client = anthropic.Anthropic(api_key=os.environ['ANTHROPIC_API_KEY'])
-    _log(f"  Chamando Sonnet (prompt: {len(prompt)} chars)...", log_callback)
-    
+    GEMINI_KEY_E8 = os.environ.get('GEMINI_API_KEY', '')
     texto = ""
-    try:
-        with client.messages.stream(model=MODELO_SONNET, max_tokens=8000,
-                                     messages=[{"role":"user","content":prompt}]) as stream:
-            for delta in stream.text_stream:
-                texto += delta
-            final = stream.get_final_message()
-    except Exception as e:
-        raise RuntimeError(f"Sonnet falhou: {e}")
-    
-    tokens_in = final.usage.input_tokens
-    tokens_out = final.usage.output_tokens
-    custo = calcular_custo(tokens_in, tokens_out, 'sonnet')
+    tokens_in = 0; tokens_out = 0; custo = 0.0
+    if GEMINI_KEY_E8:
+        try:
+            from google import genai as _gd_e8
+            from google.genai import types as _gdt_e8
+            _client_e8 = _gd_e8.Client(api_key=GEMINI_KEY_E8)
+            _log(f"  Chamando Gemini Pro 2.5 (prompt: {len(prompt)} chars)...", log_callback)
+            _resp_e8 = _client_e8.models.generate_content(
+                model='gemini-2.5-pro',
+                contents=[_gdt_e8.Part(text=prompt), _gdt_e8.Part(text='Retorne APENAS JSON sem markdown fences.')],
+                config=_gdt_e8.GenerateContentConfig(max_output_tokens=8192, temperature=0.1)
+            )
+            texto = _resp_e8.text or ''
+            _uso_e8 = _resp_e8.usage_metadata
+            tokens_in = getattr(_uso_e8, 'prompt_token_count', 0) or 0
+            tokens_out = getattr(_uso_e8, 'candidates_token_count', 0) or 0
+            custo = (tokens_in * 1.25 + tokens_out * 10) / 1_000_000
+        except Exception as e:
+            raise RuntimeError(f"Gemini E8 falhou: {e}")
+    else:
+        client = anthropic.Anthropic(api_key=os.environ['ANTHROPIC_API_KEY'])
+        _log(f"  Chamando Sonnet fallback (prompt: {len(prompt)} chars)...", log_callback)
+        try:
+            with client.messages.stream(model=MODELO_SONNET, max_tokens=8000,
+                                         messages=[{"role":"user","content":prompt}]) as stream:
+                for delta in stream.text_stream:
+                    texto += delta
+                final = stream.get_final_message()
+        except Exception as e:
+            raise RuntimeError(f"Sonnet falhou: {e}")
+        tokens_in = final.usage.input_tokens
+        tokens_out = final.usage.output_tokens
+        custo = calcular_custo(tokens_in, tokens_out, 'sonnet')
     
     parsed = parse_json_robusto(texto)
     if not parsed:
