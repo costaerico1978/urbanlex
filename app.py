@@ -5877,15 +5877,16 @@ def api_dossie_enviar_gerador():
             
             # 1. Prepara work_dir copiando arquivos do dossie pro pipeline
             try:
-                work_dir = preparar_work_dir_pipeline(
+                result_prep = preparar_work_dir_pipeline(
                     dossie_id=dossie_id,
                     busca_historico_id=busca_id,
                     legislacao_label=label,
                     get_db=get_db,
                 )
-                if not work_dir:
+                if not result_prep:
                     erros.append({'label': label, 'erro': 'falha preparando work_dir'})
                     continue
+                work_dir, zip_path_efetivo = result_prep if isinstance(result_prep, tuple) else (result_prep, os.path.join(result_prep, 'tudo.pdf'))
             except Exception as e:
                 erros.append({'label': label, 'erro': f'preparacao: {str(e)[:200]}'})
                 continue
@@ -5895,8 +5896,6 @@ def api_dossie_enviar_gerador():
             try:
                 import uuid as _u_c
                 novo_job_id = str(_u_c.uuid4())[:8]
-                # zip_path aponta pro tudo.pdf do work_dir (que o pipeline reusara via cache hit)
-                zip_path_efetivo = os.path.join(work_dir, 'tudo.pdf')
                 
                 conn = get_db(); cur = conn.cursor()
                 cur.execute('''

@@ -169,5 +169,18 @@ def preparar_work_dir_pipeline(dossie_id: int, busca_historico_id: int,
     # ───────────────────────────────────────────────────────────────
     # 6. Retorna work_dir preparado
     # ───────────────────────────────────────────────────────────────
+    # 6. Gera ZIP concat_catalogo para o novo pipeline
+    zip_nome = legislacao_label.replace(' ', '_')
+    zip_saida = os.path.join(work_dir, f'{zip_nome}_concat_catalogo.zip')
+    if not os.path.exists(zip_saida):
+        try:
+            from modulos.preparar_legislacao import gerar_zip as _gerar_zip
+            _gerar_zip(dst_tudo, dst_cat, zip_nome, work_dir)
+            _log(f"  ✓ ZIP gerado: {zip_saida}")
+        except Exception as _e_zip:
+            _log(f"  AVISO: falha gerando ZIP ({_e_zip}) - usando tudo.pdf")
+            zip_saida = dst_tudo
+    else:
+        _log(f"  ✓ ZIP ja existe: {zip_saida}")
     _log(f"✓ Work dir preparado: {work_dir}")
-    return work_dir
+    return work_dir, zip_saida
