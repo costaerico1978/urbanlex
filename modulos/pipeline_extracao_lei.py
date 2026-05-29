@@ -738,6 +738,15 @@ def etapa4_catalogar_anexos(anexos_pdf, corpo_n_pgs, work_dir, log_callback=None
     Retorna: lista de blocos com {nome, titulo, inicio, fim, tipo}.
     inicio/fim são páginas NO PDF CONCATENADO (não no anexos.pdf).
     """
+    # Delegar para etapa_45.py se Gemini disponivel
+    _gemini_key = os.environ.get('GEMINI_API_KEY', '')
+    if _gemini_key:
+        try:
+            from modulos.etapa_45 import etapa4_catalogar_anexos as _e4_gem
+            _log("ETAPA 4/8 — Catalogando anexos com Gemini Pro 2.5", log_callback)
+            return _e4_gem(anexos_pdf, corpo_n_pgs, work_dir, log_callback)
+        except Exception as _e_gem:
+            _log(f"  AVISO: Gemini catalogacao falhou ({_e_gem}), usando Haiku", log_callback)
     _log("ETAPA 4/8 — Catalogando anexos com Haiku 4.5", log_callback)
     t0 = time.time()
     
