@@ -206,13 +206,29 @@ def _processar_item(item, get_db):
                         _k, _v = _line.split('=', 1)
                         if not _os_fw.environ.get(_k.strip()):
                             _os_fw.environ[_k.strip()] = _v.strip()
-        resultado = processar_municipio(
-            zip_path=item['zip_path'],
-            municipio=item['municipio'],
-            estado=item['estado'],
-            usar_cache=item.get('usar_cache', True),
-            log_callback=log_cb,
-        )
+        # Novo pipeline: preparar + extrair
+        from modulos.preparar_legislacao import preparar as _preparar
+        from modulos.extrair_parametros import extrair as _extrair
+        from modulos.pipeline_extracao_lei import _slug_municipio, PIPELINES_BASE_DIR, calcular_md5_zip as _calc_md5
+        import os as _os_pipe
+        _slug = _slug_municipio(item['municipio'], item['estado'])
+        _md5 = _calc_md5(item['zip_path'])
+        _leg_dir = f"leg_{_md5[:12]}" if _md5 else "leg_novo"
+        _work_dir = _os_pipe.path.join(PIPELINES_BASE_DIR, _slug, _leg_dir)
+        _os_pipe.makedirs(_work_dir, exist_ok=True)
+        _res_prep = _preparar(item['zip_path'], _work_dir, log_callback=log_cb)
+        _res_extr = _extrair(_res_prep['zip_saida'], _work_dir, log_callback=log_cb)
+        resultado = {
+            'sucesso': True,
+            'resultado': _res_extr['estado'],
+            'metricas': {
+                'output_dir': _work_dir,
+                'custo_total': _res_prep.get('custo', 0) + _res_extr['metricas'].get('custo', 0),
+                'tempo_total': _res_prep.get('tempo', 0) + _res_extr['metricas'].get('tempo', 0),
+                'tokens_in': _res_extr['metricas'].get('tokens_in', 0),
+                'tokens_out': _res_extr['metricas'].get('tokens_out', 0),
+            }
+        }
         
         if not resultado.get('sucesso'):
             # Erro no pipeline
