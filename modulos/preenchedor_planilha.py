@@ -232,9 +232,6 @@ def valor_str(v) -> str:
     return str(v)
 
 
-# placeholders para parte 2 (mapeamento celular) e parte 3 (preencher xlsx)
-def preencher_planilha(*args, **kwargs):
-    raise NotImplementedError("Parte 2 ainda nao implementada")
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -336,33 +333,22 @@ def preencher_identificacao(ws, linha, zona_dados, municipio, estado, fonte_gera
     ws.cell(linha, 2).value = estado
     ws.cell(linha, 3).value = municipio
 
-    # Cols 4-19: UT1..UT6, Zona Urbana, Subzona (8 pares de valor+legislacao)
+    # Cols 4-17: UT1-UT7 (v3.3)
     h = zona_dados.get('hierarquia', {}) or {}
-    ut1 = h.get('UT1');  ws.cell(linha, 4).value = ut1 if ut1 else None
-    ut2 = h.get('UT2');  ws.cell(linha, 6).value = ut2 if ut2 else None
-    ut3 = h.get('UT3');  ws.cell(linha, 8).value = ut3 if ut3 else None
-
-    # Col 10: Zona Urbana → sigla da zona
-    ws.cell(linha, 10).value = zona_dados.get('sigla', '')
-    fdef = zona_dados.get('fonte_definicao', '') or fonte_geral
-    ws.cell(linha, 11).value = fdef
-
-    # Col 12: Subzona Urbana → variantes_observadas (se houver)
-    var = (zona_dados.get('hierarquia', {}) or {}).get('variantes_observadas')
-    if var: ws.cell(linha, 12).value = '; '.join(var) if isinstance(var, list) else str(var)
-
-    ut4 = h.get('UT4');  ws.cell(linha, 14).value = ut4 if ut4 else None
-    ut5 = h.get('UT5');  ws.cell(linha, 16).value = ut5 if ut5 else None
-    ut6 = h.get('UT6');  ws.cell(linha, 18).value = ut6 if ut6 else None
-
-    # Cols 20-23: Zoneamento Ambiental 1 + 2 (sobreposto)
+    leg_def = zona_dados.get('fonte_definicao', '') or fonte_geral
+    for i, ut_key in enumerate(['UT1','UT2','UT3','UT4','UT5','UT6','UT7'], start=1):
+        col_val = 2 + i*2  # UT1->4, UT2->6, ..., UT7->16
+        ut_val = h.get(ut_key)
+        ws.cell(linha, col_val).value = ut_val if ut_val else 'NI'
+        ws.cell(linha, col_val + 1).value = leg_def if ut_val else 'NI'
+    # Cols 18-21: Zoneamento Ambiental 1 + 2
     za = zona_dados.get('zoneamento_ambiental_sobreposto')
     if za:
         if isinstance(za, list):
-            if len(za) > 0: ws.cell(linha, 20).value = str(za[0])
-            if len(za) > 1: ws.cell(linha, 22).value = str(za[1])
+            if len(za) > 0: ws.cell(linha, 18).value = str(za[0])
+            if len(za) > 1: ws.cell(linha, 20).value = str(za[1])
         else:
-            ws.cell(linha, 20).value = str(za)
+            ws.cell(linha, 18).value = str(za)
 
     # Cols 24-31: Lote (params_gerais) - NI se faltar
     pg = zona_dados.get('params_gerais', {})
@@ -388,20 +374,11 @@ def preencher_g2_general(ws, linha, zona_dados, fonte_geral):
 def preencher_g3_usos(ws, linha, zona_dados, usos_reconh, fonte_geral):
     """G3: cols 48-66 (status SIM/NAO/NI por uso + Observacoes)"""
     usos_zona = zona_dados.get('usos', {})
-    col_uso = {
-        'residencial_unifamiliar': 48,
-        'residencial_multifamiliar': 50,
-        'residencial_his': 52,
-        'residencial_transitorio_hotel': 54,
-        'comercial': 56,
-        'servicos': 58,
-        'uso_misto': 60,
-        'industrial': 62,
-        'institucional': 64,
-    }
-    # Acumula condicoes pra preencher coluna 66 'Observacoes' no final
+    # Acumula condicoes pra preencher COL_OBSERVACOES no final
     observacoes = []
-    for uso, col in col_uso.items():
+    for uso, col in USOS_COL_STATUS.items():
+        if col is None:
+            continue  # residencial_transitorio_hotel sem coluna propria
         if uso not in usos_reconh:
             # Lei silenciou completamente sobre este uso → NI
             ws.cell(linha, col).value = 'NI'
@@ -428,9 +405,9 @@ def preencher_g3_usos(ws, linha, zona_dados, usos_reconh, fonte_geral):
             observacoes.append(f"{nome_legivel}: {cond}")
     # col 66: Observacoes - junta as condicoes acumuladas
     if observacoes:
-        ws.cell(linha, 66).value = ' | '.join(observacoes)
+        ws.cell(linha, COL_OBSERVACOES).value = ' | '.join(observacoes)
     else:
-        ws.cell(linha, 66).value = 'NI'
+        ws.cell(linha, COL_OBSERVACOES).value = 'NI'
 
 
 def preencher_g4_params_por_uso(ws, linha, zona_dados, usos_reconh, fonte_geral):
