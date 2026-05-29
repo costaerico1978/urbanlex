@@ -194,7 +194,18 @@ def _processar_item(item, get_db):
                 _checar_cancelamento()
         
         # Roda pipeline completo com Gemini Pro
-        import os as _os_fw; _os_fw.environ['URBANLEX_IA_EXTRACAO'] = 'gemini'
+        import os as _os_fw
+        _os_fw.environ['URBANLEX_IA_EXTRACAO'] = 'gemini'
+        # Garantir que variaveis do .env estao no ambiente do worker
+        if not _os_fw.environ.get('GEMINI_API_KEY'):
+            _env_path = '/var/www/urbanlex/.env'
+            if _os_fw.path.exists(_env_path):
+                for _line in open(_env_path):
+                    _line = _line.strip()
+                    if _line and not _line.startswith('#') and '=' in _line:
+                        _k, _v = _line.split('=', 1)
+                        if not _os_fw.environ.get(_k.strip()):
+                            _os_fw.environ[_k.strip()] = _v.strip()
         resultado = processar_municipio(
             zip_path=item['zip_path'],
             municipio=item['municipio'],
