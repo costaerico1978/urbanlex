@@ -2459,5 +2459,18 @@ async function xgApagarSel() {
 
 gpRenderCompilados();
 gpCarregarPrompts();
+// Recarrega log ao voltar para a aba
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'visible'){
+    if(_gpFilaId){
+      const body = document.getElementById('gp-log-body');
+      if(body) body.innerHTML = '';
+      _gpLogCursor = 0;
+      gpPollingFila();
+    } else {
+      gpRestaurarLogUltimaExtracao();
+    }
+  }
+});
 </script>
 {% endblock %}
