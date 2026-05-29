@@ -321,6 +321,7 @@ Retorne APENAS o JSON."""
                         'tokens_in': res_cat.get('tokens_in', 0),
                         'tokens_out': res_cat.get('tokens_out', 0),
                         'custo': res_cat.get('custo', 0.0),
+                        'categoria_usos': res_cat.get('categoria_usos', []),
                     }, _f_e4, ensure_ascii=False, indent=2)
                 _log(f"Catalogo salvo em {cache_e4_path} ({len(blocos_pipeline)} blocos: 1 corpo + {len(blocos_pipeline)-1} anexos)")
             except Exception as _e_save_e4:
@@ -590,35 +591,28 @@ Pra cada bloco (Anexo I, Anexo XVIII, etc), retorne:
   - fim: pagina de fim
   - tipo: "anexo" | "errata" | "encerramento" | "indefinido"
   - relevancia: "ALTA" (tabelas de zoneamento, usos, parametros) | "MEDIA" | "NULA"
-  - continua: true se o bloco CLARAMENTE continua no proximo chunk (ultima pagina do PDF nao eh o fim do bloco), false caso contrario
+  - continua: true se o bloco CLARAMENTE continua no proximo chunk, false caso contrario
+  - ancora_parametros: true SE este bloco for a fonte primaria de parametros urbanisticos (tabela ou prosa com CA, TO, gabarito, afastamentos por zona). Apenas UM bloco deve ter ancora_parametros=true. Se nao houver, omita.
+  - ancora_usos: true SE este bloco for a fonte primaria de usos permitidos por zona. Apenas UM bloco deve ter ancora_usos=true. Se nao houver, omita.
 
 TRABALHO 2 — RELACIONAR COM CITADOS:
 A lei cita os seguintes anexos:
 {lista_str}
-
 Para cada bloco, adicione:
   - citado_como: texto EXATO da lista acima que corresponde, ou null
 
+TRABALHO 3 — DETECTAR CATEGORIAS DE USO:
+Verifique se a lei define usos por CATEGORIAS (ex: "Residencial I, II, III", "Comercial I e II") em vez de listar usos diretamente por zona.
+Se sim, identifique onde a lei explica o que cada categoria permite e registre:
+  - categoria_usos: [{"categoria": "Residencial I", "usos_reais": ["residencial_unifamiliar"], "dispositivo": "Art. X"}]
+Se nao houver categorias de uso, omita o campo.
+
 IMPORTANTE:
-- Se um bloco comeca neste PDF mas claramente continua (ex: tabela cortada no meio), marque continua=true
 - Paginas contam a partir de 1 neste PDF
 - Retorne APENAS JSON
 
 FORMATO:
-{{
-  "blocos": [
-    {{
-      "nome": "anexo_xxi",
-      "titulo": "ANEXO XXI - PARAMETROS URBANISTICOS",
-      "inicio": 1,
-      "fim": 37,
-      "tipo": "anexo",
-      "relevancia": "ALTA",
-      "continua": false,
-      "citado_como": "Anexo XXI"
-    }}
-  ]
-}}
+{{"blocos": [{{"nome": "anexo_xxi", "titulo": "ANEXO XXI", "inicio": 1, "fim": 37, "tipo": "anexo", "relevancia": "ALTA", "ancora_parametros": true, "continua": false, "citado_como": "Anexo XXI"}}], "categoria_usos": [{{"categoria": "Residencial I", "usos_reais": ["residencial_unifamiliar"], "dispositivo": "Art. 10"}}]}}
 
 === TEXTO-LAYOUT (referencia) ===
 {{texto_layout}}"""

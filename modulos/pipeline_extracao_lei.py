@@ -1148,10 +1148,18 @@ def chamar_gemini_extracao(pdf_path, texto_layout, prompt_extra, prompt_gemini, 
 
 
 def etapa5_extrair_dados_gemini(blocos, pdf_unico, texto_por_pg, work_dir,
-                                 usar_cache=True, log_callback=None):
+                                 usar_cache=True, log_callback=None, categoria_usos=None):
     """Versao Gemini da Etapa 5. Chamada unica se <=150 pgs, evolutiva se >150."""
     _log("ETAPA 5/8 — Extracao de dados (Gemini Pro 2.5)", log_callback)
     t0 = time.time()
+    # Hint de categorias de uso para o contexto evolutivo
+    _hint_categorias = ""
+    if categoria_usos:
+        _linhas = ["\n\nMAPEAMENTO DE CATEGORIAS DE USO (detectado na catalogacao):"]
+        for _cu in categoria_usos:
+            _linhas.append(f"  - {_cu.get('categoria','?')} = {_cu.get('usos_reais',[])} (ref: {_cu.get('dispositivo','?')})")
+        _hint_categorias = "\n".join(_linhas)
+        _log(f"  Categorias de uso: {len(categoria_usos)} mapeamento(s)", log_callback)
     _preparar_blocos(blocos, pdf_unico, texto_por_pg, work_dir, log_callback)
     estado = {"legislacao": None, "usos_por_zona": {}, "zonas": {}, "modificacoes": [], "refs_externas": []}
     total_tempo = 0; total_in = 0; total_out = 0
@@ -1200,6 +1208,8 @@ def etapa5_extrair_dados_gemini(blocos, pdf_unico, texto_por_pg, work_dir,
                 resp = open(cache_path).read(); t, ti, to = 0, 0, 0
             else:
                 ctx = _gerar_contexto(estado) if (estado["zonas"] or estado["legislacao"]) else None
+                if _hint_categorias:
+                    ctx = (ctx or "") + _hint_categorias
                 # Adicionar assunto e citado_como do catalogo ao contexto
                 _assunto = b.get("assunto") or b.get("citado_como") or ""
                 if _assunto:
@@ -1218,7 +1228,7 @@ def etapa5_extrair_dados_gemini(blocos, pdf_unico, texto_por_pg, work_dir,
 
 
 def etapa5_extrair_dados(blocos, pdf_unico, texto_por_pg, work_dir,
-                         usar_cache=True, log_callback=None):
+                         usar_cache=True, log_callback=None, categoria_usos=None):
     """
     Faz N chamadas Sonnet sequenciais com contexto evolutivo.
     
@@ -1229,7 +1239,7 @@ def etapa5_extrair_dados(blocos, pdf_unico, texto_por_pg, work_dir,
     Retorna: dict com estado consolidado + métricas
     """
     if _usar_gemini():
-        return etapa5_extrair_dados_gemini(blocos, pdf_unico, texto_por_pg, work_dir, usar_cache, log_callback)
+        return etapa5_extrair_dados_gemini(blocos, pdf_unico, texto_por_pg, work_dir, usar_cache, log_callback, categoria_usos=categoria_usos)
     _log("ETAPA 5/8 — Extração de dados por bloco (Sonnet 4.6)", log_callback)
     t0 = time.time()
     
@@ -1692,7 +1702,8 @@ def processar_municipio(zip_path, municipio, estado, output_dir=None,
             r4 = etapa4_catalogar_anexos(r3['anexos_pdf'], r3['corpo_n_pgs'], output_dir, log_callback)
             with open(cache_cat, 'w') as f:
                 json.dump({'blocos': r4['blocos'], 'tokens_in': r4['tokens_in'],
-                          'tokens_out': r4['tokens_out'], 'custo': r4['custo']},
+                          'tokens_out': r4['tokens_out'], 'custo': r4['custo'],
+                          'categoria_usos': r4.get('categoria_usos', [])},
                          f, ensure_ascii=False, indent=2)
         metricas['etapas']['4'] = {'tempo': r4.get('tempo', 0), 'blocos': len(r4['blocos']),
                                     'custo': r4.get('custo', 0)}
@@ -1704,7 +1715,8 @@ def processar_municipio(zip_path, municipio, estado, output_dir=None,
     
     try:
         r5 = etapa5_extrair_dados(r4['blocos'], r1['pdf_unico'], r2['texto_por_pg'],
-                                   output_dir, usar_cache, log_callback)
+                                   output_dir, usar_cache, log_callback,
+                                   categoria_usos=r4.get('categoria_usos', []))
         metricas['etapas']['5'] = {'tempo': r5['tempo'], 'tokens_in': r5['tokens_in'],
                                     'tokens_out': r5['tokens_out'], 'custo': r5['custo'],
                                     'zonas_brutas': len(r5['estado']['zonas'])}
