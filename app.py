@@ -3148,7 +3148,7 @@ def api_analisar_anexo():
                 return
             _BLOCO = 30000
             _OVERLAP = 2000
-            altera, revoga, regulamenta, alterado_por, revogado_por, regulamentado_por, cita = [], [], [], [], [], [], []
+            altera, revoga, revoga_parcialmente, regulamenta, alterado_por, revogado_por, revogado_parcialmente_por, regulamentado_por, cita = [], [], [], [], [], [], [], [], []
             pos = 0
             bi = 0
             total_blocos = max(1, (len(texto_total) + _BLOCO - 1) // _BLOCO)
@@ -3157,16 +3157,19 @@ def api_analisar_anexo():
                 bloco = texto_total[pos:pos+_BLOCO]
                 prompt = (
                     f"Analise este trecho de anexo legislativo de {municipio}/{estado} (bloco {bi}/{total_blocos}).\n"
-                    f"Identifique leis mencionadas e suas relacoes:\n"
-                    f'1. Leis que este documento ALTERA\n'
-                    f'2. Leis que este documento REVOGA\n'
-                    f'3. Leis que este documento REGULAMENTA\n'
-                    f'4. Leis que ALTERAM este documento\n'
-                    f'5. Leis que REVOGAM este documento\n'
-                    f'6. Leis que REGULAMENTAM este documento\n'
-                    f'7. Leis CITADAS em contexto urbanistico (zoneamento, uso do solo, parcelamento)\n\n'
+                    f"Identifique leis mencionadas e suas relacoes. Use as regras abaixo:\n"
+                    f'1. altera: leis que ESTE documento modifica\n'
+                    f'2. revoga: leis que ESTE documento revoga COMPLETAMENTE\n'
+                    f'3. revoga_parcialmente: leis das quais ESTE documento revoga apenas ARTIGOS ESPECIFICOS\n'
+                    f'4. regulamenta: leis que ESTE documento regulamenta\n'
+                    f'5. alterado_por: leis POSTERIORES que alteram ESTE documento\n'
+                    f'6. revogado_por: leis POSTERIORES que revogam COMPLETAMENTE este documento. NAO usar se revogar apenas artigos.\n'
+                    f'7. revogado_parcialmente_por: leis POSTERIORES que revogam apenas ARTIGOS ESPECIFICOS deste documento\n'
+                    f'8. regulamentado_por: leis que regulamentam ESTE documento\n'
+                    f'9. cita: leis citadas em contexto urbanistico\n'
+                    f'REGRA: "ficam revogados os Arts. X e Y da Lei Z" → revoga_parcialmente=[Lei Z], NAO revoga=[Lei Z]\n\n'
                     f'Responda APENAS com JSON:\n'
-                    f'{{"altera":[],"revoga":[],"regulamenta":[],"alterado_por":[],"revogado_por":[],"regulamentado_por":[],"cita":[]}}\n\n'
+                    f'{"altera":[],"revoga":[],"revoga_parcialmente":[],"regulamenta":[],"alterado_por":[],"revogado_por":[],"revogado_parcialmente_por":[],"regulamentado_por":[],"cita":[]}\n\n'
                     f'TEXTO:\n{bloco}'
                 )
                 try:
@@ -3183,6 +3186,8 @@ def api_analisar_anexo():
                         regulamenta = list(set(regulamenta + d.get('regulamenta',[])))
                         alterado_por = list(set(alterado_por + d.get('alterado_por',[])))
                         revogado_por = list(set(revogado_por + d.get('revogado_por',[])))
+                        revogado_parcialmente_por = list(set(revogado_parcialmente_por + d.get('revogado_parcialmente_por',[])))
+                        revoga_parcialmente = list(set(revoga_parcialmente + d.get('revoga_parcialmente',[])))
                         regulamentado_por = list(set(regulamentado_por + d.get('regulamentado_por',[])))
                         cita = list(set(cita + d.get('cita',[])))
                         logs.append({'nivel': 'relacao', 'msg': f'[Bloco {bi}] altera={len(altera)} revoga={len(revoga)} cita={len(cita)}'})
@@ -3203,13 +3208,13 @@ def api_analisar_anexo():
                     if _eleg(x) and _norm(x) not in seen:
                         seen[_norm(x)] = True; out.append(x)
                 return out
-            altera=_dedup(altera); revoga=_dedup(revoga); regulamenta=_dedup(regulamenta)
-            alterado_por=_dedup(alterado_por); revogado_por=_dedup(revogado_por)
+            altera=_dedup(altera); revoga=_dedup(revoga); revoga_parcialmente=_dedup(revoga_parcialmente); regulamenta=_dedup(regulamenta)
+            alterado_por=_dedup(alterado_por); revogado_por=_dedup(revogado_por); revogado_parcialmente_por=_dedup(revogado_parcialmente_por)
             regulamentado_por=_dedup(regulamentado_por); cita=_dedup(cita)
             logs.append({'nivel':'relacao','msg':f'Apos deduplicacao: altera={len(altera)} cita={len(cita)} alterado_por={len(alterado_por)}'})
             contexto_citas = locals().get('contexto_citas', [])
-            resultado = {'altera': altera, 'revoga': revoga, 'regulamenta': regulamenta,
-                        'alterado_por': alterado_por, 'revogado_por': revogado_por,
+            resultado = {'altera': altera, 'revoga': revoga, 'revoga_parcialmente': revoga_parcialmente, 'regulamenta': regulamenta,
+                        'alterado_por': alterado_por, 'revogado_por': revogado_por, 'revogado_parcialmente_por': revogado_parcialmente_por,
                         'regulamentado_por': regulamentado_por, 'cita': cita, 'contexto_citas': contexto_citas}
             logs.append({'nivel': 'ok', 'msg': f'✅ Analise concluida!'})
             logs.append({'nivel': 'ok', 'msg': f'  Altera: {altera}'})
