@@ -513,6 +513,18 @@ def processar_zip_para_dossie(zip_path, dossie_id, log_callback=None, busca_id=N
                 
                 total_arquivos += len(arquivos_originais)
                 
+                # Copiar ZIP concat_catalogo de downloads para pasta do dossie
+                try:
+                    import glob as _gl, shutil as _sh_org
+                    _zips_dl = _gl.glob(f"/var/www/urbanlex/static/downloads/*{label}*_concat_catalogo.zip")
+                    if _zips_dl:
+                        _zip_src = sorted(_zips_dl)[-1]  # mais recente
+                        _zip_dst = os.path.join(leg_dir, os.path.basename(_zip_src))
+                        if not os.path.exists(_zip_dst):
+                            _sh_org.copy2(_zip_src, _zip_dst)
+                            _log(f"  ✓ ZIP concat_catalogo copiado para dossiê")
+                except Exception as _ez:
+                    pass
                 resultado_legislacoes.append({
                     'label': label,
                     'categoria': leg.get('categoria', ''),
