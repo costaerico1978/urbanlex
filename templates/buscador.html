@@ -677,6 +677,7 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
   </div>
   <div id="upl-log-lines" style="padding:10px 12px;max-height:400px;overflow-y:auto;font-family:var(--font-mono);font-size:11px;line-height:1.8;"></div>
 </div>
+<div id="tabela-legs-upl" style="margin-top:16px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:var(--accent) var(--surface)"></div>
 <div id="upl-downloads" style="display:none;margin-top:12px;gap:10px;flex-wrap:wrap;"></div>
 <div id="upl-resultado" style="display:none;margin-top:16px;padding:14px;background:rgba(0,229,160,.05);border:1px solid rgba(0,229,160,.2);border-radius:8px;">
   <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:8px;">✅ Análise concluída</div>
@@ -1046,6 +1047,7 @@ async function iniciarUploadAnalise() {
         if (pd.logs) {
           pd.logs.forEach(l=>{
             if (l.nivel==='token') return;
+            if (l.nivel==='tabela') { try { _tabelaLegsData={}; document.getElementById('tabela-legs-upl').innerHTML=''; _atualizarTabelaLegs(l, 'tabela-legs-upl'); } catch(e){} return; }
             const div = document.createElement('div');
             div.style.color = l.nivel==='ok'?'var(--accent)':l.nivel==='aviso'?'#f0ad4e':l.nivel==='erro'?'#e74c3c':'var(--muted)';
             div.innerHTML = `<span style="color:var(--muted2);margin-right:6px;">${l.ts||''}</span>${l.msg||''}`;
@@ -3447,7 +3449,7 @@ function _renderTabelaLegs() {
     if (_btnPdf2 && _tabelaLegsData && Object.keys(_tabelaLegsData).length > 0) {
         _btnPdf2.style.display = 'inline-block';
     }
-    const tbl=document.getElementById("tabela-legs-auto");
+    const tbl=document.getElementById("tabela-legs-upl")||document.getElementById("tabela-legs-auto");
     if(!tbl) return;
     const rows=Object.values(_tabelaLegsData).sort((a,b)=>(parseInt(b.ano)||0)-(parseInt(a.ano)||0)||((parseInt((b.numero||"").replace(/\D/g,""))||0)-(parseInt((a.numero||"").replace(/\D/g,""))||0)));
     const sc={"analisando":"#f5a623","encontrada":"#00e5a0","nao_encontrada":"#6b7d8f","revogada":"#ff4d6d","referenciada":"#9b59b6"};
