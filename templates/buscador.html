@@ -1061,6 +1061,7 @@ async function iniciarUploadAnalise() {
         if (pd.done) {
           clearInterval(_uplPollInterval);
           document.getElementById('upl-loading').style.display='none';
+          if (_uplJobId) history.replaceState({}, '', '?uplJob=' + _uplJobId);
           if (pd.result) {
             _exibirBotoesDownload(pd.result, {targetId:'panel-upload', prefix:'upl'});
             document.getElementById('upl-downloads').style.display='flex';
@@ -1087,6 +1088,7 @@ async function _uplRecuperarSeNecessario() {
     } catch(e) {}
   }
   if (!jobId) return;
+  _uplJobId = jobId;
   const logLines = document.getElementById('upl-log-lines');
   if (!logLines) return;
   // Ja tem conteudo nessa sessao - nao recarrega
@@ -1098,8 +1100,12 @@ async function _uplRecuperarSeNecessario() {
     _uplJobId = jobId;
     document.getElementById('upl-log').style.display = 'block';
     logLines.innerHTML = '<div style="color:var(--muted2);font-size:10px;padding-bottom:4px;border-bottom:1px solid var(--border);margin-bottom:4px;">['+_uplTs()+'] Log recuperado do servidor</div>';
+    _tabelaLegsData = {};
+    const _tblUplRec = document.getElementById('tabela-legs-upl');
+    if (_tblUplRec) _tblUplRec.innerHTML = '';
     (data.logs||[]).forEach(l => {
       if (l.nivel==='token') return;
+      if (l.nivel==='tabela') { try { _atualizarTabelaLegs(l); } catch(e){} return; }
       const div = document.createElement('div');
       div.style.color = l.nivel==='ok'?'var(--accent)':l.nivel==='aviso'?'#f0ad4e':l.nivel==='erro'?'#e74c3c':'var(--muted)';
       div.innerHTML = '<span style="color:var(--muted2);margin-right:6px;">'+(l.ts||'')+'</span>'+(l.msg||'');
