@@ -1107,8 +1107,8 @@ async function _uplRecuperarSeNecessario() {
 function mudarTab(tab) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    document.getElementById('tab-' + tab).classList.add('active');
-    document.getElementById('panel-' + tab).classList.add('active');
+    const _tb = document.getElementById('tab-' + tab); if (_tb) _tb.classList.add('active');
+    const _pb = document.getElementById('panel-' + tab); if (_pb) _pb.classList.add('active');
     document.getElementById('busca-status').textContent = '';
     // Carregar dados ao entrar na aba
     if (tab === 'historico') carregarHistorico();
