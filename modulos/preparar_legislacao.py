@@ -108,6 +108,8 @@ def _dividir_chunks(texto, chunk_size=CHUNK_SIZE_CHARS, overlap=CHUNK_OVERLAP_CH
                     fim = i
                     break
         chunks.append(texto[inicio:fim])
+        if fim >= len(texto):
+            break
         inicio = max(fim - overlap, inicio + 1)
     return chunks
 
