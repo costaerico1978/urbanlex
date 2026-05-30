@@ -1283,7 +1283,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                         continue
                     # Monta ZIP temporario com PDFs da lei
                     _tmp_dir = _tmp_prep.mkdtemp()
-                    _tmp_zip = _os_zip.path.join(_tmp_dir, f"{_nome_base}_input.zip")
+                    _tmp_zip = _os_zip.path.join(_tmp_dir, f"{_nome_base}.zip")
                     with _zf_prep.ZipFile(_tmp_zip, 'w', _zf_prep.ZIP_DEFLATED) as _tzf:
                         _tzf.write(_pdf_p, _os_zip.path.basename(_pdf_p))
                         for _anx in (_leg.get('anexos_lm') or []):
