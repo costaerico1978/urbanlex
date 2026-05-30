@@ -80,6 +80,27 @@ def disparar_organizador_async(municipio, estado, zip_url, get_db, origem='manua
             
             logger.info(f"[trigger dossie {dossie_id}] iniciando organizador para {zip_path}")
             
+            # Handler para ZIP concat_catalogo (novo pipeline)
+            if '_concat_catalogo.zip' in os.path.basename(zip_path):
+                from modulos.organizador_dossie import processar_concat_catalogo_para_dossie
+                import json as _jt
+                _lraw = os.path.basename(zip_path).replace('_concat_catalogo.zip', '')
+                _lparts = _lraw.split('_')
+                _label = '_'.join(_lparts[:3]) if len(_lparts) >= 3 else _lraw
+                def _log_cb2(msg): logger.info(f'[trigger dossie {dossie_id}] {msg}')
+                _rcc = processar_concat_catalogo_para_dossie(zip_path, _label, dossie_id, busca_id=busca_id, log_callback=_log_cb2)
+                if _rcc.get('sucesso'):
+                    try:
+                        import json as _jt2
+                        c2=get_db(); cu2=c2.cursor()
+                        cu2.execute("INSERT INTO dossie_legislacoes_pasta (dossie_id,busca_historico_id,legislacao_label,legislacao_meta,categoria,pasta_path,pdf_concatenado_path,n_paginas,total_arquivos,arquivos_originais,arquivos_falhas,duplicados_removidos) VALUES (%s,%s,%s,%s::jsonb,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s) ON CONFLICT (busca_historico_id,legislacao_label) DO UPDATE SET pasta_path=EXCLUDED.pasta_path,pdf_concatenado_path=EXCLUDED.pdf_concatenado_path,n_paginas=EXCLUDED.n_paginas,atualizado_em=NOW()", (dossie_id,busca_id,_label,_jt2.dumps({}),'',_rcc['leg_dir'],_rcc['pdf_concatenado'],_rcc['n_paginas'],1,_jt2.dumps([]),_jt2.dumps([]),0))
+                        c2.commit(); cu2.close(); c2.close()
+                        logger.info(f'[trigger dossie {dossie_id}] {_label} salvo em dossie_legislacoes_pasta')
+                    except Exception as _et2:
+                        logger.error(f'[trigger dossie {dossie_id}] erro INSERT: {_et2}')
+                else:
+                    logger.error(f'[trigger dossie {dossie_id}] concat_catalogo FALHOU: {_rcc.get("erro")}')
+                return
             # Chama o organizador
             from modulos.organizador_dossie import processar_zip_para_dossie
             

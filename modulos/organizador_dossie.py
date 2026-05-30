@@ -548,3 +548,68 @@ def processar_zip_para_dossie(zip_path, dossie_id, log_callback=None, busca_id=N
         'legislacoes': resultado_legislacoes,
         'total_arquivos': total_arquivos,
     }
+
+
+def processar_concat_catalogo_para_dossie(zip_path, label, dossie_id, busca_id=None, log_callback=None):
+    """
+    Processa um ZIP _concat_catalogo.zip para o dossie.
+    Extrai PDF + JSON, cria pasta do dossie e insere em dossie_legislacoes_pasta.
+    """
+    import shutil, pypdf as _pypdf
+    def _log(msg):
+        logger.info(f"[dossie {dossie_id}] {msg}")
+        if log_callback:
+            log_callback(msg)
+    if not os.path.exists(zip_path):
+        return {'sucesso': False, 'erro': f'ZIP nao encontrado: {zip_path}'}
+    # Pasta do dossie
+    if busca_id:
+        dossie_dir = os.path.join(DOSSIES_BASE_DIR, str(dossie_id), f'busca_{busca_id}')
+    else:
+        dossie_dir = os.path.join(DOSSIES_BASE_DIR, str(dossie_id))
+    leg_dir = os.path.join(dossie_dir, label)
+    os.makedirs(leg_dir, exist_ok=True)
+    _log(f"Processando concat_catalogo: {zip_path}")
+    pdf_dest = os.path.join(leg_dir, 'pdf_concatenado.pdf')
+    json_dest = os.path.join(leg_dir, 'etapa4_catalogacao.json')
+    zip_dest = os.path.join(leg_dir, os.path.basename(zip_path))
+    try:
+        with zipfile.ZipFile(zip_path, 'r') as zf:
+            for nome in zf.namelist():
+                if nome.endswith('_concatenado.pdf') or nome.endswith('.pdf'):
+                    with zf.open(nome) as src_f, open(pdf_dest, 'wb') as dst_f:
+                        dst_f.write(src_f.read())
+                elif nome.endswith('_catalogo.json') or nome.endswith('.json'):
+                    with zf.open(nome) as src_f, open(json_dest, 'wb') as dst_f:
+                        dst_f.write(src_f.read())
+        # Copia ZIP para pasta do dossie
+        if not os.path.exists(zip_dest):
+            shutil.copy2(zip_path, zip_dest)
+        # Conta paginas
+        n_paginas = 0
+        if os.path.exists(pdf_dest):
+            try:
+                n_paginas = len(_pypdf.PdfReader(pdf_dest).pages)
+            except Exception:
+                pass
+        _log(f"  PDF: {pdf_dest} ({n_paginas}p)")
+        _log(f"  JSON: {json_dest}")
+        _log(f"  ZIP: {zip_dest}")
+        # Salva arquivos originais
+        arqs_orig = [{'nome': os.path.basename(pdf_dest), 'path': pdf_dest, 'tipo': 'pdf_concatenado'}]
+        import json as _j
+        arqs_json = os.path.join(leg_dir, 'arquivos_originais.json')
+        with open(arqs_json, 'w', encoding='utf-8') as f:
+            _j.dump(arqs_orig, f, ensure_ascii=False, indent=2)
+        return {
+            'sucesso': True,
+            'label': label,
+            'pdf_concatenado': pdf_dest,
+            'zip_concat_catalogo': zip_dest,
+            'n_paginas': n_paginas,
+            'leg_dir': leg_dir,
+        }
+    except Exception as e:
+        _log(f"ERRO: {e}")
+        return {'sucesso': False, 'erro': str(e)}
+
