@@ -3641,10 +3641,20 @@ def api_buscador_upload_legislacao():
                     _hc2.commit(); _hcur2.close(); _hc2.close()
                 except Exception: pass
             try:
-                _zip_fim = r.get("zip_url","")
-                if _zip_fim:
-                    from modulos.dossie_trigger import disparar_organizador_async
-                    disparar_organizador_async(mun, est, _zip_fim, get_db, origem='upload', busca_id=hist_id)
+                # Dispara trigger dossie para cada lei (ZIP concat_catalogo individual)
+                from modulos.dossie_trigger import disparar_organizador_async
+                _legs_enc = r.get("encontradas", [])
+                _disparou = False
+                for _leg_enc in _legs_enc:
+                    _zcc = _leg_enc.get("_concat_catalogo_zip", "")
+                    if _zcc and os.path.exists(_zcc):
+                        _zcc_url = _zcc.replace("/var/www/urbanlex", "")
+                        disparar_organizador_async(mun, est, _zcc_url, get_db, origem='upload', busca_id=hist_id)
+                        _disparou = True
+                if not _disparou:
+                    _zip_fim = r.get("zip_url","")
+                    if _zip_fim:
+                        disparar_organizador_async(mun, est, _zip_fim, get_db, origem='upload', busca_id=hist_id)
             except Exception as _et:
                 job["logs"].append({"nivel":"aviso","msg":f"Trigger dossie nao disparado: {str(_et)[:150]}"})
         except Exception as e:
