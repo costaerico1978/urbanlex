@@ -72,6 +72,14 @@ def _texto_layout(pdf_path, pg_ini=1, pg_fim=None):
 
 def _texto_completo(pdf_path):
     try:
+        import subprocess as _sp
+        r = _sp.run(['pdftotext', '-layout', pdf_path, '-'],
+                    capture_output=True, text=True, errors='replace', timeout=120)
+        if r.stdout.strip():
+            return r.stdout
+    except Exception as e:
+        logger.warning(f"_texto_completo pdftotext falhou: {e}")
+    try:
         reader = pypdf.PdfReader(pdf_path)
         partes = []
         for pg in reader.pages:
