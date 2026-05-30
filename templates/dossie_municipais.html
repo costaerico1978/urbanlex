@@ -536,6 +536,9 @@ async function dossieToggleDossieLegs(buscaId, munId) {
       const pdfBtn = leg.pdf_url
         ? '<a href="' + leg.pdf_url + '" download style="font-size:11px;color:var(--accent);text-decoration:none;border:1px solid var(--accent);padding:3px 8px;border-radius:5px" onclick="event.stopPropagation()">📄 PDF (' + leg.n_paginas + 'p)</a>'
         : '';
+      const zipBtn = leg.zip_url
+        ? '<a href="' + leg.zip_url + '" download style="font-size:11px;color:#4fc3f7;text-decoration:none;border:1px solid #4fc3f7;padding:3px 8px;border-radius:5px;margin-left:4px" onclick="event.stopPropagation()">📦 ZIP</a>'
+        : '';
       const gerBtn = '<button onclick="event.stopPropagation();dossieEnviarLegGerador(' + leg.busca_id + ', \'' + leg.label + '\', \'' + ((leg.tipo||'') + ' ' + (leg.numero||'') + '/' + (leg.ano||'')).replace(/\'/g, "\\\'") + '\')" title="Enviar esta lei pro Gerador de Planilha" style="font-size:11px;color:#9b8ed7;background:rgba(155,89,182,.08);border:1px solid rgba(155,89,182,.3);padding:3px 8px;border-radius:5px;cursor:pointer;margin-right:4px">📊 Gerador</button>';
       const isSelLeg = window._legsSel && window._legsSel.has(leg.id);
       return '<div style="border-top:1px solid var(--border)">'
@@ -553,6 +556,7 @@ async function dossieToggleDossieLegs(buscaId, munId) {
         +   '</div>'
         +   gerBtn
         +   pdfBtn
+        +   zipBtn
         + '</div></div>'
         + '<div id="leg-arquivos-' + leg.id + '" style="display:none;background:rgba(255,255,255,.02)"></div>'
         + '</div>';

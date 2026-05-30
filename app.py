@@ -5687,6 +5687,26 @@ def api_dossie_legislacoes_do_municipio(mun_id):
             pdf_url = None
             if r['pdf_concatenado_path']:
                 pdf_url = r['pdf_concatenado_path'].replace('/var/www/urbanlex', '')
+            # ZIP concat_catalogo disponivel para download
+            zip_url = None
+            _pasta = r.get('pasta_path') or ''
+            if _pasta:
+                import glob as _glob
+                _zips = _glob.glob(_os.path.join(_pasta, '*_concat_catalogo.zip'))
+                if _zips:
+                    zip_url = _zips[0].replace('/var/www/urbanlex', '')
+                elif r['pdf_concatenado_path'] and _os.path.exists(_os.path.join(_pasta, 'etapa4_catalogacao.json')):
+                    try:
+                        from modulos.preparar_legislacao import gerar_zip as _gz
+                        _label = r.get('legislacao_label') or 'lei'
+                        _zip_path = _gz(
+                            r['pdf_concatenado_path'],
+                            _os.path.join(_pasta, 'etapa4_catalogacao.json'),
+                            _label, _pasta
+                        )
+                        zip_url = _zip_path.replace('/var/www/urbanlex', '')
+                    except Exception as _ez:
+                        logger.warning(f"gerar_zip dossie falhou: {_ez}")
             
             legislacoes.append({
                 'id': r['id'],
@@ -5702,6 +5722,7 @@ def api_dossie_legislacoes_do_municipio(mun_id):
                 'total_arquivos': r['total_arquivos'] or 0,
                 'duplicados_removidos': r['duplicados_removidos'] or 0,
                 'pdf_url': pdf_url,
+                'zip_url': zip_url,
                 'arquivos': arquivos_marcados,
                 'falhas': falhas,
                 'anexos_citados': r['anexos_citados'] or [],
