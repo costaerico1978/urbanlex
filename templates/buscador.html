@@ -1076,7 +1076,14 @@ async function iniciarUploadAnalise() {
 // ── Upload recuperacao ──
 async function _uplRecuperarSeNecessario() {
   const params = new URLSearchParams(location.search);
-  const jobId = _uplJobId || params.get('uplJob');
+  let jobId = _uplJobId || params.get('uplJob');
+  if (!jobId) {
+    try {
+      const _r = await fetch('/api/buscador/job-ativo');
+      const _d = await _r.json();
+      if (_d && _d.ativo && _d.tipo === 'upload') jobId = _d.job_id;
+    } catch(e) {}
+  }
   if (!jobId) return;
   const logLines = document.getElementById('upl-log-lines');
   if (!logLines) return;
