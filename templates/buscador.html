@@ -674,6 +674,7 @@ select.field-input { appearance:none; background-image:url("data:image/svg+xml,%
 <div id="upl-log" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:16px;">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface);">
     <span style="font-size:12px;font-weight:600;color:var(--text)">📋 Log da Análise</span>
+    <button class="btn btn-ghost btn-sm" onclick="baixarLogUpl()">⬇ Baixar Log</button>
   </div>
   <div id="upl-log-lines" style="padding:10px 12px;max-height:400px;overflow-y:auto;font-family:var(--font-mono);font-size:11px;line-height:1.8;"></div>
 </div>
@@ -1019,6 +1020,7 @@ async function iniciarUploadAnalise() {
   document.getElementById('upl-resultado').style.display='none';
   document.getElementById('upl-downloads').style.display='none';
   document.getElementById('upl-log-lines').innerHTML='<div style="color:var(--muted2);font-size:10px;padding-bottom:4px;border-bottom:1px solid var(--border);margin-bottom:4px;">['+_uplTs()+'] Iniciando nova análise...</div>';
+  _tabelaLegsData = {}; const _tblUplRst = document.getElementById('tabela-legs-upl'); if(_tblUplRst) _tblUplRst.innerHTML='';
   document.getElementById('upl-loading-msg').textContent = `Iniciando análise de ${metadata.length} legislação(ões)...`;
   try {
     let resp, data;
@@ -3494,6 +3496,17 @@ function _renderTabelaLegs() {
 }
 
 // ── Baixar Tabela de Legislações em PDF ──
+function baixarLogUpl() {
+    const logEl = document.getElementById('upl-log-lines');
+    const txt = logEl ? Array.from(logEl.querySelectorAll('div')).map(d => d.textContent).join('\n') : '';
+    if (!txt) { alert('Log nao disponivel ainda.'); return; }
+    const nd = new Date();
+    const _dla = document.createElement('a');
+    _dla.href = URL.createObjectURL(new Blob([txt], {type:'text/plain'}));
+    _dla.download = 'Log_upload_' + nd.getDate().toString().padStart(2,'0') + '_' + (nd.getMonth()+1).toString().padStart(2,'0') + '_' + nd.getFullYear() + '_' + nd.getHours() + 'h' + nd.getMinutes() + '.txt';
+    document.body.appendChild(_dla); _dla.click();
+    setTimeout(() => { document.body.removeChild(_dla); URL.revokeObjectURL(_dla.href); }, 1000);
+}
 function baixarLogAuto() {
     const logEl = document.getElementById('log-municipio');
     const txt = logEl ? Array.from(logEl.querySelectorAll('div')).map(function(d){ return d.textContent; }).join('\n') : '';
