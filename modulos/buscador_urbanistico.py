@@ -1264,6 +1264,60 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
             resultado['zip_url']  = f"/static/downloads/{zip_nome}"
             resultado['zip_nome'] = zip_nome
             resultado['legislacoes_json'] = legs_json
+            # ETAPA PREPARAR: concatenar + dedup + catalogar + zip por lei
+            try:
+                import tempfile as _tmp_prep, zipfile as _zf_prep
+                from modulos.preparar_legislacao import preparar as _preparar_leg
+                logs.append({"nivel": "info", "msg": "📦 Preparando legislações (concatenação + catálogo)..."})
+                _prep_zips = []
+                for _leg in resultado["encontradas"]:
+                    _tipo_p = _leg.get('tipo','').replace('Lei Complementar','LC').replace('Decreto-Lei','DL').replace('Decreto','Dec').replace('Lei','Lei')
+                    _num_p = _leg.get('numero','')
+                    _ano_p = _leg.get('ano','')
+                    _est_p = estado.upper()[:2]
+                    _mun_p = _re_zip.sub(r'[^A-Za-z0-9]','_', _ud.normalize('NFKD', municipio).encode('ascii','ignore').decode())[:20]
+                    _nome_base = f"{_tipo_p}_{_num_p}_{_ano_p}_{_est_p}_{_mun_p}"
+                    _pdf_p = _leg.get('pdf_path','')
+                    if not _pdf_p or not _os_zip.path.exists(_pdf_p):
+                        logs.append({"nivel": "aviso", "msg": f"  {_nome_base}: PDF nao encontrado, pulando"})
+                        continue
+                    # Monta ZIP temporario com PDFs da lei
+                    _tmp_dir = _tmp_prep.mkdtemp()
+                    _tmp_zip = _os_zip.path.join(_tmp_dir, f"{_nome_base}_input.zip")
+                    with _zf_prep.ZipFile(_tmp_zip, 'w', _zf_prep.ZIP_DEFLATED) as _tzf:
+                        _tzf.write(_pdf_p, _os_zip.path.basename(_pdf_p))
+                        for _anx in (_leg.get('anexos_lm') or []):
+                            _ap = _anx.get('path','') if isinstance(_anx, dict) else ''
+                            if _ap and _os_zip.path.exists(_ap):
+                                _tzf.write(_ap, _os_zip.path.basename(_ap))
+                    logs.append({"nivel": "info", "msg": f"  {_nome_base}: concatenando + catalogando..."})
+                    try:
+                        _res_prep = _preparar_leg(_tmp_zip, _tmp_dir, log_callback=lambda m: logs.append({"nivel":"info","msg":"    "+m}))
+                        _zip_saida = _res_prep.get('zip_saida','')
+                        if _zip_saida and _os_zip.path.exists(_zip_saida):
+                            # Copia para downloads
+                            _zip_dest = f"/var/www/urbanlex/static/downloads/{_os_zip.path.basename(_zip_saida)}"
+                            import shutil as _sh_prep
+                            _sh_prep.copy2(_zip_saida, _zip_dest)
+                            _prep_zips.append((_nome_base, _zip_dest))
+                            _leg['_concat_catalogo_zip'] = _zip_dest
+                            logs.append({"nivel": "ok", "msg": f"  ✅ {_nome_base}: ZIP gerado"})
+                        else:
+                            logs.append({"nivel": "aviso", "msg": f"  ⚠️ {_nome_base}: preparar nao gerou ZIP"})
+                    except Exception as _ep:
+                        logs.append({"nivel": "aviso", "msg": f"  ⚠️ {_nome_base}: {str(_ep)[:150]}"})
+                # Gera ZIP final com todos os _concat_catalogo.zip
+                if _prep_zips:
+                    _zip_novo_nome = f"legislacoes_{mun_slug}_{est_slug}_{_ts_zip}_completo.zip"
+                    _zip_novo_path = f"/var/www/urbanlex/static/downloads/{_zip_novo_nome}"
+                    with _zf_prep.ZipFile(_zip_novo_path, 'w', _zf_prep.ZIP_DEFLATED) as _zfn:
+                        for _nb, _zp in _prep_zips:
+                            _zfn.write(_zp, _os_zip.path.basename(_zp))
+                    resultado['zip_url'] = f"/static/downloads/{_zip_novo_nome}"
+                    resultado['zip_nome'] = _zip_novo_nome
+                    logs.append({"nivel": "ok", "msg": f"📦 ZIP completo gerado: {_zip_novo_nome} ({len(_prep_zips)} lei(s))"})
+            except Exception as _e_prep:
+                logs.append({"nivel": "aviso", "msg": f"⚠️ Etapa preparar falhou: {str(_e_prep)[:200]}"})
             # Mapear para formato que o frontend renderizarResultadoBusca espera
             # Usar encontradas para pegar pdf_path e anexos_lm
             _enc_map = {}
