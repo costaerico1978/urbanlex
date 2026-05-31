@@ -216,15 +216,19 @@ def _processar_item(item, get_db):
         _leg_dir = f"leg_{_md5[:12]}" if _md5 else "leg_novo"
         _work_dir = _os_pipe.path.join(PIPELINES_BASE_DIR, _slug, _leg_dir)
         _os_pipe.makedirs(_work_dir, exist_ok=True)
-        # Cache: verificar se ZIP concat_catalogo ja existe
-        import glob as _glob_fw
-        _zips_existentes = _glob_fw.glob(_os_pipe.path.join(_work_dir, '*_concat_catalogo.zip'))
-        if _zips_existentes:
-            _zip_saida_cache = sorted(_zips_existentes)[-1]
-            log_cb(f'CACHE HIT: ZIP concat_catalogo ja existe: {_os_pipe.path.basename(_zip_saida_cache)}')
-            _res_prep = {'zip_saida': _zip_saida_cache, 'custo': 0, 'tempo': 0}
+        # Se o ZIP de entrada ja e um concat_catalogo, usar diretamente
+        if '_concat_catalogo.zip' in _os_pipe.path.basename(item['zip_path']):
+            log_cb(f'CACHE HIT: ZIP e concat_catalogo, pulando preparar')
+            _res_prep = {'zip_saida': item['zip_path'], 'custo': 0, 'tempo': 0}
         else:
-            _res_prep = _preparar(item['zip_path'], _work_dir, log_callback=log_cb)
+            import glob as _glob_fw
+            _zips_existentes = _glob_fw.glob(_os_pipe.path.join(_work_dir, '*_concat_catalogo.zip'))
+            if _zips_existentes:
+                _zip_saida_cache = sorted(_zips_existentes)[-1]
+                log_cb(f'CACHE HIT: ZIP concat_catalogo ja existe: {_os_pipe.path.basename(_zip_saida_cache)}')
+                _res_prep = {'zip_saida': _zip_saida_cache, 'custo': 0, 'tempo': 0}
+            else:
+                _res_prep = _preparar(item['zip_path'], _work_dir, log_callback=log_cb)
         _res_extr = _extrair(_res_prep['zip_saida'], _work_dir, log_callback=log_cb)
         resultado = {
             'sucesso': True,
