@@ -5778,7 +5778,7 @@ def api_dossie_legislacoes_do_dossie(busca_id):
             arquivos_marcados = []
             for arq in arquivos:
                 nome = arq.get('nome', '')
-                eh_corpo = nome.lower().startswith(label_lower) and arq.get('tipo_detectado') == 'pdf'
+                eh_corpo = (arq.get('classificacao') == 'corpo') or (nome.lower().startswith(label_lower) and arq.get('tipo_detectado') == 'pdf') or nome == 'pdf_concatenado.pdf'
                 arquivos_marcados.append({
                     'nome': nome,
                     'tipo_detectado': arq.get('tipo_detectado'),
