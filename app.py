@@ -5793,6 +5793,12 @@ def api_dossie_legislacoes_do_dossie(busca_id):
             pdf_url = None
             if r['pdf_concatenado_path']:
                 pdf_url = r['pdf_concatenado_path'].replace('/var/www/urbanlex', '')
+            zip_url = None
+            _pasta2 = r.get('pasta_path') or ''
+            if _pasta2:
+                import glob as _glob2
+                _zips2 = _glob2.glob(_os.path.join(_pasta2, '*_concat_catalogo.zip'))
+                if _zips2: zip_url = _zips2[0].replace('/var/www/urbanlex', '')
             
             legislacoes.append({
                 'id': r['id'],
