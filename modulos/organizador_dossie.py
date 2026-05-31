@@ -596,7 +596,7 @@ def processar_concat_catalogo_para_dossie(zip_path, label, dossie_id, busca_id=N
         _log(f"  JSON: {json_dest}")
         _log(f"  ZIP: {zip_dest}")
         # Salva arquivos originais
-        arqs_orig = [{'nome': os.path.basename(pdf_dest), 'path': pdf_dest, 'tipo': 'pdf_concatenado'}]
+        arqs_orig = [{'nome': os.path.basename(pdf_dest), 'path': pdf_dest, 'tipo': 'pdf_concatenado', 'tipo_detectado': 'pdf', 'classificacao': 'corpo', 'conversao_ok': True, 'foi_convertido': False, 'tamanho': os.path.getsize(pdf_dest) if os.path.exists(pdf_dest) else 0, 'origem': 'preparar_legislacao'}]
         import json as _j
         arqs_json = os.path.join(leg_dir, 'arquivos_originais.json')
         with open(arqs_json, 'w', encoding='utf-8') as f:
