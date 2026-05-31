@@ -5673,8 +5673,20 @@ def api_dossie_legislacoes_do_municipio(mun_id):
         legislacoes = []
         for r in rows:
             meta = r['legislacao_meta'] or {}
-            arquivos = r['arquivos_originais'] or []
+            arquivos = list(r['arquivos_originais'] or [])
             falhas = r['arquivos_falhas'] or []
+            # Adicionar anexos virtuais do catalogo (novo pipeline)
+            _pasta_arq = r.get('pasta_path') or ''
+            if _pasta_arq:
+                import json as _jcat2
+                _cat_path2 = _os.path.join(_pasta_arq, 'etapa4_catalogacao.json')
+                if _os.path.exists(_cat_path2):
+                    try:
+                        _cat2 = _jcat2.load(open(_cat_path2))
+                        _blocos2 = [b for b in (_cat2.get('blocos') or []) if b.get('nome') != 'corpo_lei']
+                        for _b2 in _blocos2:
+                            arquivos.append({'nome': _b2.get('nome','Anexo'), 'tipo_detectado': 'pdf', 'classificacao': 'anexo', 'conversao_ok': True, 'foi_convertido': False, 'tamanho': 0, 'origem': 'catalogo', 'motivo': _b2.get('assunto','')})
+                    except Exception: pass
             
             # Detecta corpo da lei pelos arquivos (primeiro PDF que casa com o label)
             label_lower = (r['legislacao_label'] or '').lower()
@@ -5799,16 +5811,6 @@ def api_dossie_legislacoes_do_dossie(busca_id):
                 import glob as _glob2
                 _zips2 = _glob2.glob(_os.path.join(_pasta2, '*_concat_catalogo.zip'))
                 if _zips2: zip_url = _zips2[0].replace('/var/www/urbanlex', '')
-                # Adicionar anexos virtuais do catalogo
-                import json as _jcat
-                _cat_path = _os.path.join(_pasta2, 'etapa4_catalogacao.json')
-                if _os.path.exists(_cat_path):
-                    try:
-                        _cat = _jcat.load(open(_cat_path))
-                        _blocos = [b for b in (_cat.get('blocos') or []) if b.get('nome') != 'corpo_lei']
-                        for _b in _blocos:
-                            arquivos.append({'nome': _b.get('nome','Anexo'), 'tipo_detectado': 'pdf', 'classificacao': 'anexo', 'conversao_ok': True, 'foi_convertido': False, 'tamanho': 0, 'origem': 'catalogo', 'motivo': _b.get('assunto','')})
-                    except Exception: pass
             
             legislacoes.append({
                 'id': r['id'],
