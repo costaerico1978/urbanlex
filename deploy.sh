@@ -9,7 +9,8 @@ if echo "$ATIVOS" | grep -q '"ativos": true'; then
         ATIVOS2=$(curl -sf http://localhost:5000/api/buscador/jobs-ativos 2>/dev/null)
         if ! echo "$ATIVOS2" | grep -q '"ativos": true'; then
             FILA=$(psql postgresql://urbanlex:urbanlex123@localhost:5432/urbanlex -t -c "SELECT COUNT(*) FROM fila_buscas WHERE status='rodando'" 2>/dev/null | tr -d ' ' || echo 0)
-            if [ "$FILA" = "0" ]; then
+            FILA_EXT=$(psql postgresql://urbanlex:urbanlex123@localhost:5432/urbanlex -t -c "SELECT COUNT(*) FROM fila_extracao WHERE status='rodando'" 2>/dev/null | tr -d ' ' || echo 0)
+            if [ "$FILA" = "0" ] && [ "$FILA_EXT" = "0" ]; then
                 break
             fi
         fi
