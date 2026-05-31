@@ -153,6 +153,12 @@ def _extrair_sigla_zona(z):
         v = z.get(campo)
         if v and isinstance(v, str):
             return v.strip().upper()
+    # Suporte a hierarquia: {'UT1': 'ZCA1', 'UT2': 'A1'} -> 'ZCA1|A1'
+    hier = z.get('hierarquia')
+    if isinstance(hier, dict) and hier:
+        partes = [str(v) for v in hier.values() if v]
+        if partes:
+            return '|'.join(partes).upper()
     return ''
 
 
