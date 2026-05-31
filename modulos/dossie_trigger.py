@@ -92,6 +92,9 @@ def disparar_organizador_async(municipio, estado, zip_url, get_db, origem='manua
                 if _rcc.get('sucesso'):
                     try:
                         import json as _jt2
+                        # Extrair tipo/numero/ano do label (ex: LC_270_2024)
+                        _lp = _label.split('_')
+                        _meta_cc = {'tipo': _lp[0].replace('LC','Lei Complementar').replace('Dec','Decreto') if _lp else '', 'numero': _lp[1] if len(_lp)>1 else '', 'ano': _lp[2] if len(_lp)>2 else ''}
                         c2=get_db(); cu2=c2.cursor()
                         cu2.execute("INSERT INTO dossie_legislacoes_pasta (dossie_id,busca_historico_id,legislacao_label,legislacao_meta,categoria,pasta_path,pdf_concatenado_path,n_paginas,total_arquivos,arquivos_originais,arquivos_falhas,duplicados_removidos) VALUES (%s,%s,%s,%s::jsonb,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s) ON CONFLICT (busca_historico_id,legislacao_label) DO UPDATE SET pasta_path=EXCLUDED.pasta_path,pdf_concatenado_path=EXCLUDED.pdf_concatenado_path,n_paginas=EXCLUDED.n_paginas,atualizado_em=NOW()", (dossie_id,busca_id,_label,_jt2.dumps({}),'',_rcc['leg_dir'],_rcc['pdf_concatenado'],_rcc['n_paginas'],1,_jt2.dumps([]),_jt2.dumps([]),0))
                         c2.commit(); cu2.close(); c2.close()

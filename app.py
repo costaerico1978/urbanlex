@@ -5809,6 +5809,7 @@ def api_dossie_legislacoes_do_dossie(busca_id):
                 'total_arquivos': r['total_arquivos'] or 0,
                 'duplicados_removidos': r['duplicados_removidos'] or 0,
                 'pdf_url': pdf_url,
+                'zip_url': zip_url,
                 'arquivos': arquivos_marcados,
                 'falhas': falhas,
                 'anexos_citados': r['anexos_citados'] or [],
