@@ -5783,8 +5783,17 @@ def api_dossie_legislacoes_do_dossie(busca_id):
         legislacoes = []
         for r in rows:
             meta = r['legislacao_meta'] or {}
-            arquivos = r['arquivos_originais'] or []
+            arquivos = list(r['arquivos_originais'] or [])
             falhas = r['arquivos_falhas'] or []
+            _pa3 = r.get('pasta_path') or ''
+            if _pa3:
+                import json as _jc3
+                _cp3 = _os.path.join(_pa3, 'etapa4_catalogacao.json')
+                if _os.path.exists(_cp3):
+                    try:
+                        _bl3 = [b for b in (_jc3.load(open(_cp3)).get('blocos') or []) if b.get('nome') != 'corpo_lei']
+                        for _b3 in _bl3: arquivos.append({'nome': _b3.get('nome','Anexo'), 'tipo_detectado': 'pdf', 'classificacao': 'anexo', 'conversao_ok': True, 'foi_convertido': False, 'tamanho': 0, 'origem': 'catalogo', 'motivo': _b3.get('assunto','')})
+                    except Exception: pass
             
             label_lower = (r['legislacao_label'] or '').lower()
             arquivos_marcados = []
