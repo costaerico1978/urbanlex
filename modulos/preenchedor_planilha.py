@@ -325,6 +325,13 @@ def _set_par(ws, linha, col_valor, valor_dict_ou_str, fonte_fallback=''):
                           for vv in variacoes_via if vv.get('via')]
             if linhas_via:
                 v = (v or '') + '\n' + '\n'.join(linhas_via)
+        # Variacoes por hierarquia viaria: acrescenta linhas HIERARQUIA|categoria|valor
+        variacoes_hier = valor_dict_ou_str.get('variacoes_por_hierarquia_viaria') or []
+        if variacoes_hier:
+            linhas_hier = [f"HIERARQUIA|{vh.get('categoria','')}|{valor_str(vh.get('valor',''))}"
+                           for vh in variacoes_hier if vh.get('categoria')]
+            if linhas_hier:
+                v = (v or '') + '\n' + '\n'.join(linhas_hier)
     else:
         v = valor_str(valor_dict_ou_str)
         f = fonte_fallback

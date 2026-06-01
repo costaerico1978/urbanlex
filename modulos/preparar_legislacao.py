@@ -513,6 +513,14 @@ def _catalogar_anexos(anexos_pdf, fim_corpo, work_dir, lista_citados, log_callba
         "TAREFA 5 — REMISSOES A OUTRAS LEIS:\n"
         "A lei remete a outra legislacao para usos ou parametros de zonas especificas?\n"
         "Liste: lei, zonas afetadas, o que define.\n\n"
+        "TAREFA 6 — HIERARQUIA VIARIA:\n"
+        "Alguns parametros urbanisticos variam conforme a categoria da via de acesso do lote (ex: via arterial, coletora, local).\n"
+        "Responda:\n"
+        "  a) Esta lei define parametros urbanisticos que variam por categoria de via (hierarquia viaria)?\n"
+        "  b) Esta lei define ou lista a hierarquia viaria (quais vias sao arteriais, coletoras, locais)?\n"
+        "     Se sim, em que paginas?\n"
+        "  c) Se nao define a hierarquia viaria, remete a alguma outra legislacao para isso?\n"
+        "     Se sim, qual lei?\n\n"
         'Com base nessa analise, retorne APENAS JSON:\n'
         '{"blocos": [{"nome": "snake_case", "titulo": "titulo completo", "inicio": N, "fim": N, '
         '"tipo": "anexo|errata|encerramento|indefinido", "relevancia": "ALTA|MEDIA|NULA", '
@@ -520,6 +528,7 @@ def _catalogar_anexos(anexos_pdf, fim_corpo, work_dir, lista_citados, log_callba
         '"continua": false, "hierarquia_cobertura": ["AP1"] ou null, "citado_como": "texto exato ou null"}], '
         '"hierarquia_espacial": {"niveis": 2, "nomes": ["Zona", "Subzona"]}, '
         '"zonas_identificadas": ["ZR1", "ZC1"], '
+        '"hierarquia_viaria": {"parametros_variam_por_via": true, "definida_na_lei": true, "paginas": "234-235", "lei_referenciada": null}, '
         '"categoria_usos": [{"categoria": "Residencial I", "usos_reais": ["residencial_unifamiliar"], "dispositivo": "Art. X"}]}\n\n'
         "REGRAS CRITICAS:\n"
         "  - ALTA: qualquer bloco com tabela de usos, parametros numericos ou zoneamento — "
@@ -799,6 +808,14 @@ def _catalogar_anexos(anexos_pdf, fim_corpo, work_dir, lista_citados, log_callba
         "TAREFA 5 — REMISSOES A OUTRAS LEIS:\n"
         "A lei remete a outra legislacao para usos ou parametros de zonas especificas?\n"
         "Liste: lei, zonas afetadas, o que define.\n\n"
+        "TAREFA 6 — HIERARQUIA VIARIA:\n"
+        "Alguns parametros urbanisticos variam conforme a categoria da via de acesso do lote (ex: via arterial, coletora, local).\n"
+        "Responda:\n"
+        "  a) Esta lei define parametros urbanisticos que variam por categoria de via (hierarquia viaria)?\n"
+        "  b) Esta lei define ou lista a hierarquia viaria (quais vias sao arteriais, coletoras, locais)?\n"
+        "     Se sim, em que paginas?\n"
+        "  c) Se nao define a hierarquia viaria, remete a alguma outra legislacao para isso?\n"
+        "     Se sim, qual lei?\n\n"
         'Com base nessa analise, retorne APENAS JSON:\n'
         '{"blocos": [{"nome": "snake_case", "titulo": "titulo completo", "inicio": N, "fim": N, '
         '"tipo": "anexo|errata|encerramento|indefinido", "relevancia": "ALTA|MEDIA|NULA", '
@@ -806,6 +823,7 @@ def _catalogar_anexos(anexos_pdf, fim_corpo, work_dir, lista_citados, log_callba
         '"continua": false, "hierarquia_cobertura": ["AP1"] ou null, "citado_como": "texto exato ou null"}], '
         '"hierarquia_espacial": {"niveis": 2, "nomes": ["Zona", "Subzona"]}, '
         '"zonas_identificadas": ["ZR1", "ZC1"], '
+        '"hierarquia_viaria": {"parametros_variam_por_via": true, "definida_na_lei": true, "paginas": "234-235", "lei_referenciada": null}, '
         '"categoria_usos": [{"categoria": "Residencial I", "usos_reais": ["residencial_unifamiliar"], "dispositivo": "Art. X"}]}\n\n'
         "REGRAS CRITICAS:\n"
         "  - ALTA: qualquer bloco com tabela de usos, parametros numericos ou zoneamento — "

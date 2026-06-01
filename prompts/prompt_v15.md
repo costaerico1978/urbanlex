@@ -348,6 +348,31 @@ registre o valor geral normalmente e adicione o campo `variacoes_por_via`:
 Se não houver variação por via, omita o campo `variacoes_por_via`.
 Esta regra se aplica tanto a `parametros_gerais` quanto a `parametros_por_uso`.
 
+**REGRA 4.F — Variações por hierarquia viária (quando aplicável):**
+Se um parâmetro varia por CATEGORIA de via (arterial, coletora, local) em vez de por via específica,
+use o campo `variacoes_por_hierarquia_viaria`:
+```json
+"gabarito_max_nao_afastado_pavimentos": {
+  "valor": "4",
+  "fonte": "LC 270/2024, Anexo XXI",
+  "dispositivo": "Anexo XXI",
+  "variacoes_por_hierarquia_viaria": [
+    {"categoria": "arterial", "valor": "6"},
+    {"categoria": "coletora", "valor": "5"},
+    {"categoria": "local", "valor": "4"}
+  ]
+}
+```
+Se a lei NÃO define quais vias são arteriais/coletoras/locais mas remete a outra lei para isso,
+registre em `referencias_externas` da legislacao com contexto "define hierarquia viária".
+Se a lei DEFINE o de/para (lista quais vias são arteriais etc.), extraia também em `hierarquia_viaria_definicao`:
+```json
+"hierarquia_viaria_definicao": [
+  {"categoria": "arterial", "vias": ["Av. Ataulfo de Paiva", "Av. Epitácio Pessoa"]},
+  {"categoria": "coletora", "vias": ["Rua Dias Ferreira"]}
+]
+```
+
 **Nao crie campos fora desta lista em `parametros_gerais`. Coeficiente de Aproveitamento (CAM/CAB) e Taxa de Ocupacao (TO) sao REGISTRADOS por uso (PARTE 5), nunca em `parametros_gerais`.**
 
 ---
