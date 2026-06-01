@@ -329,6 +329,25 @@ PARAMETROS GERAIS DA ZONA (registrar em `parametros_gerais`)
 Para cada parametro: valor + legislacao fonte (Ex: "LC 148/2023, Art. 70, II").
 Se a lei nao define um parametro, use "NI" (Nao Informado).
 
+**REGRA 4.E — Variações por via (quando aplicável):**
+Se um parâmetro varia dependendo da via/logradouro de acesso do lote dentro da mesma zona,
+registre o valor geral normalmente e adicione o campo `variacoes_por_via`:
+```json
+"gabarito_max_nao_afastado_pavimentos": {
+  "valor": "6",
+  "fonte": "LC 270/2024, Anexo XXI",
+  "dispositivo": "Anexo XXI",
+  "variacoes_por_via": [
+    {"via": "Av. Ataulfo de Paiva", "lado": "PAR", "valor": "8"},
+    {"via": "Av. Ataulfo de Paiva", "lado": "IMPAR", "valor": "7"},
+    {"via": "Av. Epitácio Pessoa", "lado": "AMBOS", "valor": "5"}
+  ]
+}
+```
+`lado`: "PAR" | "IMPAR" | "AMBOS"
+Se não houver variação por via, omita o campo `variacoes_por_via`.
+Esta regra se aplica tanto a `parametros_gerais` quanto a `parametros_por_uso`.
+
 **Nao crie campos fora desta lista em `parametros_gerais`. Coeficiente de Aproveitamento (CAM/CAB) e Taxa de Ocupacao (TO) sao REGISTRADOS por uso (PARTE 5), nunca em `parametros_gerais`.**
 
 ---
