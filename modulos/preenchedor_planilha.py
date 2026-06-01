@@ -318,6 +318,13 @@ def _set_par(ws, linha, col_valor, valor_dict_ou_str, fonte_fallback=''):
     if isinstance(valor_dict_ou_str, dict):
         v = valor_str(valor_dict_ou_str.get('valor'))
         f = valor_dict_ou_str.get('fonte') or fonte_fallback
+        # Variacoes por via: acrescenta linhas VIA|nome|lado|valor
+        variacoes_via = valor_dict_ou_str.get('variacoes_por_via') or []
+        if variacoes_via:
+            linhas_via = [f"VIA|{vv.get('via','')}|{vv.get('lado','AMBOS')}|{valor_str(vv.get('valor',''))}"
+                          for vv in variacoes_via if vv.get('via')]
+            if linhas_via:
+                v = (v or '') + '\n' + '\n'.join(linhas_via)
     else:
         v = valor_str(valor_dict_ou_str)
         f = fonte_fallback
@@ -421,6 +428,8 @@ def preencher_g4_params_por_uso(ws, linha, zona_dados, usos_reconh, fonte_geral)
     usos_zona = zona_dados.get('usos', {})
 
     for uso, col_inicio in USO_BLOCO_INICIO.items():
+        if col_inicio is None:
+            continue  # sem coluna na planilha
         # Caso 1: uso silenciado pela lei
         if uso not in usos_reconh:
             for off, _ in USO_PARAMS_OFFSET:
@@ -434,7 +443,7 @@ def preencher_g4_params_por_uso(ws, linha, zona_dados, usos_reconh, fonte_geral)
                 ws.cell(linha, col_inicio + off).value = 'NOT ALLOWED'
             continue
         # Caso 3: uso permitido (SIM/CONDICIONADO) - preenche valor real ou NI
-        uso_params = ppu.get(uso, {})
+        uso_params = ppu.get(uso) or {}
         for off, chave_v14 in USO_PARAMS_OFFSET:
             v = uso_params.get(chave_v14) if chave_v14 else None
             if v and isinstance(v, dict) and v.get('valor') not in (None, '', 'None'):
