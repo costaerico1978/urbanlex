@@ -3933,6 +3933,15 @@ def api_buscador_job_ativo():
                        WHERE job_id IS NOT NULL AND concluido_em IS NULL
                        ORDER BY iniciado_em DESC LIMIT 1""")
         r = cur.fetchone()
+        # Fallback: retornar job de upload mais recente mesmo se concluido (para persistencia de log)
+        if not r:
+            cur.execute("""SELECT job_id, municipio, estado, iniciado_em, tipo
+                           FROM buscas_historico
+                           WHERE job_id IS NOT NULL AND tipo='upload'
+                           ORDER BY iniciado_em DESC LIMIT 1""")
+            r_upl = cur.fetchone()
+            if r_upl:
+                return jsonify({'ativo': False, 'job_id': r_upl['job_id'], 'municipio': r_upl['municipio'], 'estado': r_upl['estado'], 'tipo': 'upload', 'concluido': True})
         cur.close()
         conn.close()
         # Verificar tambem fila_buscas (worker server-side)

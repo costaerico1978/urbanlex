@@ -1084,7 +1084,7 @@ async function _uplRecuperarSeNecessario() {
     try {
       const _r = await fetch('/api/buscador/job-ativo');
       const _d = await _r.json();
-      if (_d && _d.ativo && _d.tipo === 'upload') jobId = _d.job_id;
+      if (_d && (_d.ativo || _d.concluido) && _d.tipo === 'upload') jobId = _d.job_id;
     } catch(e) {}
   }
   if (!jobId) return;
