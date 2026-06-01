@@ -313,6 +313,23 @@ G11_HIERARQUIA = [
 # FUNCOES DE PREENCHIMENTO POR GRUPO
 # ════════════════════════════════════════════════════════════════════
 
+def _geocodificar_cruzamento(via, transversal, municipio, estado):
+    """Retorna lat,lng do cruzamento de duas vias via Google Maps."""
+    try:
+        import requests as _req, os as _os
+        key = _os.environ.get('GOOGLE_MAPS_KEY', 'AIzaSyCuiZTfrnvUC-1X_suD3w6iGVyT_bhdVpQ')
+        query = f"{via} com {transversal}, {municipio}, {estado}, Brasil"
+        r = _req.get('https://maps.googleapis.com/maps/api/geocode/json',
+                     params={'address': query, 'key': key, 'language': 'pt-BR'},
+                     timeout=5)
+        data = r.json()
+        if data.get('status') == 'OK' and data.get('results'):
+            loc = data['results'][0]['geometry']['location']
+            return f"{loc['lat']:.6f},{loc['lng']:.6f}"
+    except Exception:
+        pass
+    return None
+
 def _normalizar_via_google(nome_via, municipio, estado):
     """Normaliza nome de via via Google Maps Geocoding API."""
     try:
@@ -340,8 +357,17 @@ def _set_par(ws, linha, col_valor, valor_dict_ou_str, fonte_fallback='', municip
         # Variacoes por via: acrescenta linhas VIA|nome|lado|valor
         variacoes_via = valor_dict_ou_str.get('variacoes_por_via') or []
         if variacoes_via:
-            linhas_via = [f"VIA|{_normalizar_via_google(vv.get('via',''), municipio, estado)}|{vv.get('lado','AMBOS')}|{valor_str(vv.get('valor',''))}"
-                          for vv in variacoes_via if vv.get('via')]
+            linhas_via = []
+            for vv in variacoes_via:
+                if not vv.get('via'): continue
+                via_norm = _normalizar_via_google(vv.get('via',''), municipio, estado)
+                linha_via = f"VIA|{via_norm}|{vv.get('lado','AMBOS')}|{valor_str(vv.get('valor',''))}"
+                if vv.get('trecho_de') and vv.get('trecho_ate'):
+                    coord_a = _geocodificar_cruzamento(vv['via'], vv['trecho_de'], municipio, estado)
+                    coord_b = _geocodificar_cruzamento(vv['via'], vv['trecho_ate'], municipio, estado)
+                    if coord_a and coord_b:
+                        linha_via += f'|{coord_a}|{coord_b}'
+                linhas_via.append(linha_via)
             if linhas_via:
                 v = (v or '') + '\n' + '\n'.join(linhas_via)
         # Variacoes por hierarquia viaria: acrescenta linhas HIERARQUIA|categoria|valor

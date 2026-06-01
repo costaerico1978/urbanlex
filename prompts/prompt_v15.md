@@ -343,11 +343,13 @@ registre o valor geral normalmente e adicione o campo `variacoes_por_via`:
   "variacoes_por_via": [
     {"via": "Av. Ataulfo de Paiva", "lado": "PAR", "valor": "8"},
     {"via": "Av. Ataulfo de Paiva", "lado": "IMPAR", "valor": "7"},
-    {"via": "Av. Epitácio Pessoa", "lado": "AMBOS", "valor": "5"}
+    {"via": "Av. Epitácio Pessoa", "lado": "AMBOS", "valor": "5"},
+    {"via": "Av. Atlântica", "lado": "AMBOS", "valor": "10", "trecho_de": "Rua Sá Ferreira", "trecho_ate": "Rua Hilário de Gouveia"}
   ]
 }
 ```
 `lado`: "PAR" | "IMPAR" | "AMBOS"
+Se a variação se aplica a um TRECHO da via (não a via toda), informe `trecho_de` e `trecho_ate` com os nomes das ruas transversais que delimitam o trecho. O sistema resolverá as coordenadas automaticamente.
 Se não houver variação por via, omita o campo `variacoes_por_via`.
 Esta regra se aplica tanto a `parametros_gerais` quanto a `parametros_por_uso`.
 
