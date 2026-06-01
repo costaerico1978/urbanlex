@@ -751,6 +751,18 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                     except Exception as _e_rev:
                         logs.append({"nivel": "aviso", "msg": f"  Erro verificacao revogacao: {str(_e_rev)[:60]}"})
         # Perguntar ao Gemini sobre todas as relacoes da legislacao
+        # Se tiver pdf_path nativo, usar pdftotext -layout para texto completo
+        _pdf_path_enc = enc.get("pdf_path") or ""
+        if _pdf_path_enc and __import__("os").path.exists(_pdf_path_enc):
+            try:
+                import subprocess as _sp_rel
+                _r_rel = _sp_rel.run(["pdftotext", "-layout", _pdf_path_enc, "-"],
+                                     capture_output=True, text=True, errors="replace", timeout=120)
+                if _r_rel.stdout.strip():
+                    texto_enc = _r_rel.stdout
+                    logs.append({"nivel": "relacao", "msg": f"  [RELACOES] texto completo via pdftotext: {len(texto_enc):,} chars"})
+            except Exception as _ep_rel:
+                logs.append({"nivel": "aviso", "msg": f"  [RELACOES] pdftotext falhou: {str(_ep_rel)[:60]}"})
         logs.append({"nivel": "info", "msg": f"  [RELACOES] texto_enc={len(texto_enc)} chars, iniciando analise de relacoes...", "nivel": "relacao"})
         if texto_enc:
             try:
