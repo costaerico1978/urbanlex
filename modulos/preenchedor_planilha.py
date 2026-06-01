@@ -313,7 +313,26 @@ G11_HIERARQUIA = [
 # FUNCOES DE PREENCHIMENTO POR GRUPO
 # ════════════════════════════════════════════════════════════════════
 
-def _set_par(ws, linha, col_valor, valor_dict_ou_str, fonte_fallback=''):
+def _normalizar_via_google(nome_via, municipio, estado):
+    """Normaliza nome de via via Google Maps Geocoding API."""
+    try:
+        import requests as _req, os as _os
+        key = _os.environ.get('GOOGLE_MAPS_KEY', 'AIzaSyCuiZTfrnvUC-1X_suD3w6iGVyT_bhdVpQ')
+        query = f"{nome_via}, {municipio}, {estado}, Brasil"
+        r = _req.get('https://maps.googleapis.com/maps/api/geocode/json',
+                     params={'address': query, 'key': key, 'language': 'pt-BR'},
+                     timeout=5)
+        data = r.json()
+        if data.get('status') == 'OK' and data.get('results'):
+            # Extrair componente de rota (nome da via)
+            for comp in data['results'][0].get('address_components', []):
+                if 'route' in comp.get('types', []):
+                    return comp['long_name']
+    except Exception:
+        pass
+    return nome_via  # fallback: nome original
+
+def _set_par(ws, linha, col_valor, valor_dict_ou_str, fonte_fallback='', municipio='', estado=''):
     """Preenche (col_valor, col_valor+1) com valor + legislacao."""
     if isinstance(valor_dict_ou_str, dict):
         v = valor_str(valor_dict_ou_str.get('valor'))
@@ -321,7 +340,7 @@ def _set_par(ws, linha, col_valor, valor_dict_ou_str, fonte_fallback=''):
         # Variacoes por via: acrescenta linhas VIA|nome|lado|valor
         variacoes_via = valor_dict_ou_str.get('variacoes_por_via') or []
         if variacoes_via:
-            linhas_via = [f"VIA|{vv.get('via','')}|{vv.get('lado','AMBOS')}|{valor_str(vv.get('valor',''))}"
+            linhas_via = [f"VIA|{_normalizar_via_google(vv.get('via',''), municipio, estado)}|{vv.get('lado','AMBOS')}|{valor_str(vv.get('valor',''))}"
                           for vv in variacoes_via if vv.get('via')]
             if linhas_via:
                 v = (v or '') + '\n' + '\n'.join(linhas_via)
@@ -369,18 +388,18 @@ def preencher_identificacao(ws, linha, zona_dados, municipio, estado, fonte_gera
     for col, chave in G1_LOTE:
         v = pg.get(chave)
         if v and isinstance(v, dict) and v.get('valor') not in (None, '', 'None'):
-            _set_par(ws, linha, col, v, fonte_geral)
+            _set_par(ws, linha, col, v, fonte_geral, municipio=municipio, estado=estado)
         else:
             ws.cell(linha, col).value = 'NI'
 
 
-def preencher_g2_general(ws, linha, zona_dados, fonte_geral):
+def preencher_g2_general(ws, linha, zona_dados, fonte_geral, municipio='', estado=''):
     """G2: cols 32-47 — se chave faltar OU valor for vazio, escreve 'NI'."""
     pg = zona_dados.get('params_gerais', {})
     for col, chave in G2_GENERAL:
         v = pg.get(chave) if chave else None
         if v and isinstance(v, dict) and v.get('valor') not in (None, '', 'None'):
-            _set_par(ws, linha, col, v, fonte_geral)
+            _set_par(ws, linha, col, v, fonte_geral, municipio=municipio, estado=estado)
         else:
             ws.cell(linha, col).value = 'NI'
 
@@ -510,7 +529,7 @@ def preencher_planilha(template_path: str, consolidado: Dict,
         fonte_geral = z_dados.get('fonte_definicao', '')
         _log(f"  Zona {zona_nome} → linha {linha_atual}")
         preencher_identificacao(ws, linha_atual, z_dados, municipio, estado, fonte_geral)
-        preencher_g2_general(ws, linha_atual, z_dados, fonte_geral)
+        preencher_g2_general(ws, linha_atual, z_dados, fonte_geral, municipio=municipio, estado=estado)
         preencher_g3_usos(ws, linha_atual, z_dados, usos_reconh, fonte_geral)
         preencher_g4_params_por_uso(ws, linha_atual, z_dados, usos_reconh, fonte_geral)
         preencher_g11_hierarquia_viaria(ws, linha_atual, consolidado)
