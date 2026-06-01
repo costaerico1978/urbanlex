@@ -329,6 +329,9 @@ PARAMETROS GERAIS DA ZONA (registrar em `parametros_gerais`)
 Para cada parametro: valor + legislacao fonte (Ex: "LC 148/2023, Art. 70, II").
 Se a lei nao define um parametro, use "NI" (Nao Informado).
 
+**ATENCAO — Variacoes por via ou hierarquia viaria:**
+Ao analisar os parametros de cada zona, verifique ATIVAMENTE se a lei estabelece valores diferentes para vias especificas ou categorias de via. Isso pode aparecer em notas de rodape das tabelas, paragrafos apos a tabela de parametros, ou colunas adicionais nas tabelas. Se encontrar, use as REGRAS 4.E e 4.F abaixo.
+
 **REGRA 4.E — Variações por via (quando aplicável):**
 Se um parâmetro varia dependendo da via/logradouro de acesso do lote dentro da mesma zona,
 registre o valor geral normalmente e adicione o campo `variacoes_por_via`:
