@@ -628,7 +628,7 @@ def buscar_legislacoes_urbanisticas(municipio, estado, logs, chamar_llm, fallbac
                         _sp_gs.run(['gs', '-dNOPAUSE', '-dBATCH', '-sDEVICE=png16m', '-r150',
                                     f'-sOutputFile={_png_pattern}_%03d.png', path],
                                    capture_output=True, timeout=120)
-                        _pages = sorted([f for f in _os_gs.listdir(_tmpdir_gs) if f.endswith('.png')])[:10]
+                        _pages = sorted([f for f in _os_gs.listdir(_tmpdir_gs) if f.endswith('.png')])
                         if _pages:
                             from google import genai as _gai_ax
                             _model_ax = _gai_ax.Client(api_key=__import__('os').environ.get('GEMINI_API_KEY',''))
