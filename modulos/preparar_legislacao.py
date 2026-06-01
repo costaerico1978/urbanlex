@@ -483,28 +483,54 @@ def _catalogar_anexos(anexos_pdf, fim_corpo, work_dir, lista_citados, log_callba
     lista_str = '\n'.join(f'  - "{c}"' for c in lista_citados)
 
     PROMPT_BASE = (
-        "Voce vai analisar este PDF (anexos de lei municipal) e catalogar cada bloco.\n"
-        "Recebe o PDF visual + texto-layout para maior precisao.\n\n"
-        "TRABALHO 1 - CATALOGAR:\n"
-        "Para cada bloco retorne:\n"
-        "  - nome: chave snake_case (ex: 'anexo_xxi')\n"
-        "  - titulo: titulo completo como aparece no PDF\n"
-        "  - inicio: pagina de inicio (1-indexado neste PDF)\n"
-        "  - fim: pagina de fim\n"
-        "  - tipo: 'anexo' | 'errata' | 'encerramento' | 'indefinido'\n"
-        "  - relevancia: 'ALTA' (parametros, usos, zoneamento) | 'MEDIA' | 'NULA'\n"
-        "  REGRA: mesmo que o titulo diga 'Substituido' ou 'Revogado', se o conteudo ainda esta no PDF (tabelas de usos, parametros, zonas), marque ALTA. NULA apenas para encerramento, errata ou pagina em branco.\n"
-        "  - continua: true se o bloco claramente continua no proximo chunk\n"
-        "  - ancora_parametros: true SE for a fonte primaria de parametros (CA, TO, gabarito, afastamentos). Apenas UM bloco.\n"
-        "  - ancora_usos: true SE houver tabela de usos permitidos por zona (pode ser mais de um bloco).\n\n"
-        "TRABALHO 2 - RELACIONAR COM CITADOS:\n"
-        f"A lei cita:\n{lista_str}\n"
-        "Para cada bloco: citado_como = texto EXATO da lista acima, ou null.\n\n"
-        "TRABALHO 3 - CATEGORIAS DE USO:\n"
-        "Se a lei define usos por categorias (ex: 'Residencial I, II, III'):\n"
-        '  categoria_usos: [{"categoria": "Residencial I", "usos_reais": ["residencial_unifamiliar"], "dispositivo": "Art. X"}]\n'
-        "Se nao houver, omita.\n\n"
-        'Retorne APENAS JSON: {"blocos": [...], "categoria_usos": [...]}\n\n'
+        "Voce e um especialista em legislacao urbanistica municipal. Analise este PDF com atencao e execute as tarefas abaixo.\n\n"
+        "TAREFA 1 — ESTRUTURA DO DOCUMENTO:\n"
+        "Identifique cada parte do documento (corpo da lei, anexos, erratas, etc.), as paginas que compoe cada parte e o assunto de cada uma.\n\n"
+        "TAREFA 2 — HIERARQUIA ESPACIAL:\n"
+        "Muitas leis municipais organizam o territorio em niveis hierarquicos. Por exemplo:\n"
+        "  - Nivel 1 (maior): Area de Planejamento (AP1, AP2...) ou Macrozona\n"
+        "  - Nivel 2: Zona (ZR1, ZCA...) — sempre contida dentro de um Nivel 1\n"
+        "  - Nivel 3 (menor): Subzona ou Setor (A, B, M...) — sempre contida dentro de uma Zona\n"
+        "O que significa estar numa hierarquia: uma zona de Nivel 2 pertence a apenas UM pai de Nivel 1. "
+        "Parametros e usos podem variar entre subzonas de uma mesma zona.\n"
+        "Municipios simples podem ter apenas 1 nivel (ex: ZR1, ZC1) sem hierarquia.\n"
+        "Identifique: quantos niveis existem, como sao chamados nesta lei, e liste todas as siglas de cada nivel.\n"
+        "Por que isso importa para a catalogacao: quando um anexo define parametros apenas para zonas de AP2, "
+        "o campo hierarquia_cobertura deve refletir isso. Se um bloco cobre todas as zonas, hierarquia_cobertura = null.\n\n"
+        "TAREFA 3 — USOS PERMITIDOS:\n"
+        "  a) Os usos permitidos sao definidos nesta legislacao? Em que paginas? No corpo ou em anexo?\n"
+        "  b) Existe quadro geral de usos por zona? Em qual pagina?\n"
+        "  c) Os usos sao definidos por categorias (ex: Residencial I, II, Comercial I, II)?\n"
+        "     Se sim: em que pagina, e quais usos reais compoe cada categoria?\n"
+        "     (ex: Residencial I = unifamiliar; Residencial II = unifamiliar + multifamiliar)\n"
+        "  d) Ha excecoes a regra geral? Em que pagina?\n\n"
+        "TAREFA 4 — PARAMETROS URBANISTICOS:\n"
+        "  a) Os parametros sao definidos nesta lei? Em que paginas? No corpo ou em anexo?\n"
+        "  b) Estao presentes (SIM/NAO): CA/IAT basico, CA/IAT maximo, Taxa de Ocupacao,\n"
+        "     Quota Ideal, Afastamento Frontal, Afastamento Lateral, Afastamento Fundos,\n"
+        "     Gabarito maximo, Altura maxima, Permeabilidade minima,\n"
+        "     Quota de garagem, Numero de vagas, Recuo de jardim\n\n"
+        "TAREFA 5 — REMISSOES A OUTRAS LEIS:\n"
+        "A lei remete a outra legislacao para usos ou parametros de zonas especificas?\n"
+        "Liste: lei, zonas afetadas, o que define.\n\n"
+        'Com base nessa analise, retorne APENAS JSON:\n'
+        '{"blocos": [{"nome": "snake_case", "titulo": "titulo completo", "inicio": N, "fim": N, '
+        '"tipo": "anexo|errata|encerramento|indefinido", "relevancia": "ALTA|MEDIA|NULA", '
+        '"ancora_parametros": true, "ancora_usos": false, "assunto": "descricao curta", '
+        '"continua": false, "hierarquia_cobertura": ["AP1"] ou null, "citado_como": "texto exato ou null"}], '
+        '"hierarquia_espacial": {"niveis": 2, "nomes": ["Zona", "Subzona"]}, '
+        '"zonas_identificadas": ["ZR1", "ZC1"], '
+        '"categoria_usos": [{"categoria": "Residencial I", "usos_reais": ["residencial_unifamiliar"], "dispositivo": "Art. X"}]}\n\n'
+        "REGRAS CRITICAS:\n"
+        "  - ALTA: qualquer bloco com tabela de usos, parametros numericos ou zoneamento — "
+        "MESMO que o titulo diga Substituido ou Revogado, se o conteudo ainda esta no PDF.\n"
+        "  - NULA: apenas encerramento, errata sem conteudo, pagina em branco ou indice.\n"
+        "  - ancora_parametros: true para blocos com tabela de CA, TO, gabarito, afastamentos (pode ser mais de um).\n"
+        "  - ancora_usos: true para blocos com tabela de usos permitidos por zona (pode ser mais de um).\n"
+        "  - hierarquia_cobertura: se o bloco cobre apenas PARTE das zonas, liste as siglas. null se cobre todo.\n"
+        "  - continua: true se o bloco nao termina neste chunk.\n\n"
+        "LISTA DE CITADOS:\n"
+        f"{lista_str}\n\n"
         "=== TEXTO-LAYOUT ===\n{TEXTO_LAYOUT}"
     )
 
@@ -743,28 +769,54 @@ def _catalogar_anexos(anexos_pdf, fim_corpo, work_dir, lista_citados, log_callba
     lista_str = '\n'.join(f'  - "{c}"' for c in lista_citados)
 
     PROMPT_BASE = (
-        "Voce vai analisar este PDF (anexos de lei municipal) e catalogar cada bloco.\n"
-        "Recebe o PDF visual + texto-layout para maior precisao.\n\n"
-        "TRABALHO 1 - CATALOGAR:\n"
-        "Para cada bloco retorne:\n"
-        "  - nome: chave snake_case (ex: 'anexo_xxi')\n"
-        "  - titulo: titulo completo como aparece no PDF\n"
-        "  - inicio: pagina de inicio (1-indexado neste PDF)\n"
-        "  - fim: pagina de fim\n"
-        "  - tipo: 'anexo' | 'errata' | 'encerramento' | 'indefinido'\n"
-        "  - relevancia: 'ALTA' (parametros, usos, zoneamento) | 'MEDIA' | 'NULA'\n"
-        "  REGRA: mesmo que o titulo diga 'Substituido' ou 'Revogado', se o conteudo ainda esta no PDF (tabelas de usos, parametros, zonas), marque ALTA. NULA apenas para encerramento, errata ou pagina em branco.\n"
-        "  - continua: true se o bloco claramente continua no proximo chunk\n"
-        "  - ancora_parametros: true SE for a fonte primaria de parametros (CA, TO, gabarito, afastamentos). Apenas UM bloco.\n"
-        "  - ancora_usos: true SE houver tabela de usos permitidos por zona (pode ser mais de um bloco).\n\n"
-        "TRABALHO 2 - RELACIONAR COM CITADOS:\n"
-        f"A lei cita:\n{lista_str}\n"
-        "Para cada bloco: citado_como = texto EXATO da lista acima, ou null.\n\n"
-        "TRABALHO 3 - CATEGORIAS DE USO:\n"
-        "Se a lei define usos por categorias (ex: 'Residencial I, II, III'):\n"
-        '  categoria_usos: [{"categoria": "Residencial I", "usos_reais": ["residencial_unifamiliar"], "dispositivo": "Art. X"}]\n'
-        "Se nao houver, omita.\n\n"
-        'Retorne APENAS JSON: {"blocos": [...], "categoria_usos": [...]}\n\n'
+        "Voce e um especialista em legislacao urbanistica municipal. Analise este PDF com atencao e execute as tarefas abaixo.\n\n"
+        "TAREFA 1 — ESTRUTURA DO DOCUMENTO:\n"
+        "Identifique cada parte do documento (corpo da lei, anexos, erratas, etc.), as paginas que compoe cada parte e o assunto de cada uma.\n\n"
+        "TAREFA 2 — HIERARQUIA ESPACIAL:\n"
+        "Muitas leis municipais organizam o territorio em niveis hierarquicos. Por exemplo:\n"
+        "  - Nivel 1 (maior): Area de Planejamento (AP1, AP2...) ou Macrozona\n"
+        "  - Nivel 2: Zona (ZR1, ZCA...) — sempre contida dentro de um Nivel 1\n"
+        "  - Nivel 3 (menor): Subzona ou Setor (A, B, M...) — sempre contida dentro de uma Zona\n"
+        "O que significa estar numa hierarquia: uma zona de Nivel 2 pertence a apenas UM pai de Nivel 1. "
+        "Parametros e usos podem variar entre subzonas de uma mesma zona.\n"
+        "Municipios simples podem ter apenas 1 nivel (ex: ZR1, ZC1) sem hierarquia.\n"
+        "Identifique: quantos niveis existem, como sao chamados nesta lei, e liste todas as siglas de cada nivel.\n"
+        "Por que isso importa para a catalogacao: quando um anexo define parametros apenas para zonas de AP2, "
+        "o campo hierarquia_cobertura deve refletir isso. Se um bloco cobre todas as zonas, hierarquia_cobertura = null.\n\n"
+        "TAREFA 3 — USOS PERMITIDOS:\n"
+        "  a) Os usos permitidos sao definidos nesta legislacao? Em que paginas? No corpo ou em anexo?\n"
+        "  b) Existe quadro geral de usos por zona? Em qual pagina?\n"
+        "  c) Os usos sao definidos por categorias (ex: Residencial I, II, Comercial I, II)?\n"
+        "     Se sim: em que pagina, e quais usos reais compoe cada categoria?\n"
+        "     (ex: Residencial I = unifamiliar; Residencial II = unifamiliar + multifamiliar)\n"
+        "  d) Ha excecoes a regra geral? Em que pagina?\n\n"
+        "TAREFA 4 — PARAMETROS URBANISTICOS:\n"
+        "  a) Os parametros sao definidos nesta lei? Em que paginas? No corpo ou em anexo?\n"
+        "  b) Estao presentes (SIM/NAO): CA/IAT basico, CA/IAT maximo, Taxa de Ocupacao,\n"
+        "     Quota Ideal, Afastamento Frontal, Afastamento Lateral, Afastamento Fundos,\n"
+        "     Gabarito maximo, Altura maxima, Permeabilidade minima,\n"
+        "     Quota de garagem, Numero de vagas, Recuo de jardim\n\n"
+        "TAREFA 5 — REMISSOES A OUTRAS LEIS:\n"
+        "A lei remete a outra legislacao para usos ou parametros de zonas especificas?\n"
+        "Liste: lei, zonas afetadas, o que define.\n\n"
+        'Com base nessa analise, retorne APENAS JSON:\n'
+        '{"blocos": [{"nome": "snake_case", "titulo": "titulo completo", "inicio": N, "fim": N, '
+        '"tipo": "anexo|errata|encerramento|indefinido", "relevancia": "ALTA|MEDIA|NULA", '
+        '"ancora_parametros": true, "ancora_usos": false, "assunto": "descricao curta", '
+        '"continua": false, "hierarquia_cobertura": ["AP1"] ou null, "citado_como": "texto exato ou null"}], '
+        '"hierarquia_espacial": {"niveis": 2, "nomes": ["Zona", "Subzona"]}, '
+        '"zonas_identificadas": ["ZR1", "ZC1"], '
+        '"categoria_usos": [{"categoria": "Residencial I", "usos_reais": ["residencial_unifamiliar"], "dispositivo": "Art. X"}]}\n\n'
+        "REGRAS CRITICAS:\n"
+        "  - ALTA: qualquer bloco com tabela de usos, parametros numericos ou zoneamento — "
+        "MESMO que o titulo diga Substituido ou Revogado, se o conteudo ainda esta no PDF.\n"
+        "  - NULA: apenas encerramento, errata sem conteudo, pagina em branco ou indice.\n"
+        "  - ancora_parametros: true para blocos com tabela de CA, TO, gabarito, afastamentos (pode ser mais de um).\n"
+        "  - ancora_usos: true para blocos com tabela de usos permitidos por zona (pode ser mais de um).\n"
+        "  - hierarquia_cobertura: se o bloco cobre apenas PARTE das zonas, liste as siglas. null se cobre todo.\n"
+        "  - continua: true se o bloco nao termina neste chunk.\n\n"
+        "LISTA DE CITADOS:\n"
+        f"{lista_str}\n\n"
         "=== TEXTO-LAYOUT ===\n{TEXTO_LAYOUT}"
     )
 
